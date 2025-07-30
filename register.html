@@ -40,9 +40,8 @@
           <label for="register-role">Роль</label>
           <select id="register-role" required>
             <option value="">Выберите роль…</option>
-            <option value="jobseeker">Соискатель</option>
-            <option value="employer">Работодатель</option>
-            <option value="service">Исполнитель услуг</option>
+            <option value="user">Пользователь</option>
+            <option value="admin">Администратор</option>
           </select>
 
           <button type="submit">Зарегистрироваться</button>
@@ -79,7 +78,8 @@
         const response = await fetch(`${apiBaseUrl}/api/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, role })
+          // На сервер отправляем username вместо email, поскольку backend ожидает поле username
+          body: JSON.stringify({ username: email, password, role })
         });
         const result = await response.json();
         if (response.ok) {
