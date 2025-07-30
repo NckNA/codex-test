@@ -57,16 +57,25 @@
         const response = await fetch(`${apiBaseUrl}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          // Отправляем имя пользователя в поле username, т.к. backend ожидает username
+          body: JSON.stringify({ username: email, password })
         });
         const result = await response.json();
         if (response.ok) {
+          // Сохраняем токен и данные пользователя в localStorage для дальнейших запросов
+          if (result.token) {
+            localStorage.setItem('token', result.token);
+            if (result.user) {
+              localStorage.setItem('username', result.user.username);
+              localStorage.setItem('role', result.user.role);
+            }
+          }
           // При успешном входе перенаправляем на главную страницу
           alert('Вход выполнен успешно.');
           window.location.href = 'index.html';
         } else {
           // Показать сообщение об ошибке, если сервер вернул ошибку
-          alert(result.error || 'Ошибка авторизации. Проверьте введённые данные.');
+          alert(result.message || result.error || 'Ошибка авторизации. Проверьте введённые данные.');
         }
       } catch (error) {
         console.error(error);
