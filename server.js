@@ -1,6 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,31 +10,63 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// In-memory user store for demonstration purposes
-const users = [];
+// Directory used to persist application data. If the directory doesn't exist it will be
+// created on startup. Data is stored in JSON files for each resource along with the
+// next ID counters. This allows the service to retain state between restarts without
+// requiring a full database setup.
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir);
+}
 
-// In-memory classifieds store (announcements). Each ad has id, title, description, category,
-// optional price and dateCreated. This is a simple demonstration; in a real system
-// you would use a database.
-let nextAdId = 1;
-const classifieds = [];
+// Helper function to load persisted data. If the file does not exist, returns
+// the provided defaults. Each data file stores an object with the following shape:
+// { nextId: <number>, items: <array> }.
+function loadData(fileName, defaults) {
+  const filePath = path.join(dataDir, fileName);
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return { nextId: parsed.nextId || defaults.nextId, items: parsed.items || defaults.items };
+  } catch (err) {
+    // On first run or parse error, return defaults
+    return { nextId: defaults.nextId, items: defaults.items };
+  }
+}
 
-// In-memory vacancies store. Each vacancy will have id, title, company, description,
-// optional salary and creation date. In a real system this would live in a database.
-let nextVacancyId = 1;
-const vacancies = [];
+// Helper function to save persisted data. Writes JSON synchronously to avoid race
+// conditions in this simple example. In a production system consider async writes
+// and better error handling.
+function saveData(fileName, data) {
+  const filePath = path.join(dataDir, fileName);
+  const payload = JSON.stringify({ nextId: data.nextId, items: data.items }, null, 2);
+  fs.writeFileSync(filePath, payload, 'utf8');
+}
 
-// In-memory companies store. Each company will have id, name, category,
-// description, optional rating and creation date. As with other resources,
-// this would normally live in a database.
-let nextCompanyId = 1;
-const companies = [];
+// Load users. For demonstration purposes we persist users as well, although in
+// real applications passwords should be hashed and stored securely.
+const usersData = loadData('users.json', { nextId: 1, items: [] });
+const users = usersData.items;
 
-// In-memory real estate store. Each property has id, type (e.g. 'квартира', 'дом', 'участок'),
-// title, description, optional price, location and creation date. As before,
-// in a production system this data would be persisted in a database.
-let nextPropertyId = 1;
-const realEstate = [];
+// Load classifieds from disk
+const classifiedsData = loadData('classifieds.json', { nextId: 1, items: [] });
+let nextAdId = classifiedsData.nextId;
+const classifieds = classifiedsData.items;
+
+// Load vacancies from disk
+const vacanciesData = loadData('vacancies.json', { nextId: 1, items: [] });
+let nextVacancyId = vacanciesData.nextId;
+const vacancies = vacanciesData.items;
+
+// Load companies from disk
+const companiesData = loadData('companies.json', { nextId: 1, items: [] });
+let nextCompanyId = companiesData.nextId;
+const companies = companiesData.items;
+
+// Load real estate from disk
+const realEstateData = loadData('realEstate.json', { nextId: 1, items: [] });
+let nextPropertyId = realEstateData.nextId;
+const realEstate = realEstateData.items;
 
 // Register endpoint
 app.post('/api/register', (req, res) => {
@@ -44,6 +78,10 @@ app.post('/api/register', (req, res) => {
     return res.status(409).json({ message: 'User already exists' });
   }
   users.push({ username, password, role: role || 'user' });
+  // Persist users to disk. Even though we don't track user IDs here, we
+  // preserve the nextId so that if we ever add incremental IDs we have a
+  // consistent counter. For now it simply echoes usersData.nextId.
+  saveData('users.json', { nextId: usersData.nextId, items: users });
   return res.status(201).json({ message: 'User registered successfully' });
 });
 
@@ -82,6 +120,8 @@ app.post('/api/classifieds', (req, res) => {
     dateCreated: new Date().toISOString(),
   };
   classifieds.push(ad);
+  // Persist classifieds with updated next ID
+  saveData('classifieds.json', { nextId: nextAdId, items: classifieds });
   res.status(201).json({ message: 'Classified created', ad });
 });
 
@@ -107,6 +147,7 @@ app.put('/api/classifieds/:id', (req, res) => {
   ad.description = description || ad.description;
   ad.category = category || ad.category;
   ad.price = typeof price !== 'undefined' ? price : ad.price;
+  saveData('classifieds.json', { nextId: nextAdId, items: classifieds });
   res.json({ message: 'Ad updated', ad });
 });
 
@@ -118,6 +159,7 @@ app.delete('/api/classifieds/:id', (req, res) => {
     return res.status(404).json({ message: 'Ad not found' });
   }
   classifieds.splice(index, 1);
+  saveData('classifieds.json', { nextId: nextAdId, items: classifieds });
   res.json({ message: 'Ad deleted' });
 });
 
@@ -126,7 +168,22 @@ app.delete('/api/classifieds/:id', (req, res) => {
 
 // Get all vacancies
 app.get('/api/vacancies', (req, res) => {
-  res.json({ vacancies });
+  // Apply optional filters. Supported query parameters:
+  // - category: string to match company category (case-insensitive)
+  // - minSalary: minimum salary (number) — returns vacancies with salary >= minSalary.
+  let result = vacancies;
+  const { category, minSalary } = req.query;
+  if (category) {
+    const categoryLower = category.toLowerCase();
+    result = result.filter(v => v.company.toLowerCase().includes(categoryLower));
+  }
+  if (minSalary) {
+    const min = parseFloat(minSalary);
+    if (!isNaN(min)) {
+      result = result.filter(v => v.salary !== null && v.salary >= min);
+    }
+  }
+  res.json({ vacancies: result });
 });
 
 // Create a new vacancy
@@ -144,6 +201,8 @@ app.post('/api/vacancies', (req, res) => {
     dateCreated: new Date().toISOString(),
   };
   vacancies.push(vacancy);
+  // Persist vacancies to disk
+  saveData('vacancies.json', { nextId: nextVacancyId, items: vacancies });
   res.status(201).json({ message: 'Vacancy created', vacancy });
 });
 
@@ -169,6 +228,7 @@ app.put('/api/vacancies/:id', (req, res) => {
   if (company) vacancy.company = company;
   if (description) vacancy.description = description;
   if (typeof salary !== 'undefined') vacancy.salary = salary;
+  saveData('vacancies.json', { nextId: nextVacancyId, items: vacancies });
   res.json({ message: 'Vacancy updated', vacancy });
 });
 
@@ -180,6 +240,7 @@ app.delete('/api/vacancies/:id', (req, res) => {
     return res.status(404).json({ message: 'Vacancy not found' });
   }
   vacancies.splice(index, 1);
+  saveData('vacancies.json', { nextId: nextVacancyId, items: vacancies });
   res.json({ message: 'Vacancy deleted' });
 });
 
@@ -187,7 +248,15 @@ app.delete('/api/vacancies/:id', (req, res) => {
 
 // Get all companies
 app.get('/api/companies', (req, res) => {
-  res.json({ companies });
+  // Optional filtering by category. If ?category=<value> is provided, return
+  // companies whose category includes the provided text (case-insensitive).
+  const { category } = req.query;
+  let result = companies;
+  if (category) {
+    const catLower = category.toLowerCase();
+    result = companies.filter(c => c.category.toLowerCase().includes(catLower));
+  }
+  res.json({ companies: result });
 });
 
 // Create a new company
@@ -205,6 +274,8 @@ app.post('/api/companies', (req, res) => {
     dateCreated: new Date().toISOString(),
   };
   companies.push(company);
+  // Persist companies to disk
+  saveData('companies.json', { nextId: nextCompanyId, items: companies });
   res.status(201).json({ message: 'Company created', company });
 });
 
@@ -230,6 +301,7 @@ app.put('/api/companies/:id', (req, res) => {
   if (category) company.category = category;
   if (description) company.description = description;
   if (typeof rating !== 'undefined') company.rating = rating;
+  saveData('companies.json', { nextId: nextCompanyId, items: companies });
   res.json({ message: 'Company updated', company });
 });
 
@@ -241,6 +313,7 @@ app.delete('/api/companies/:id', (req, res) => {
     return res.status(404).json({ message: 'Company not found' });
   }
   companies.splice(index, 1);
+  saveData('companies.json', { nextId: nextCompanyId, items: companies });
   res.json({ message: 'Company deleted' });
 });
 
@@ -249,7 +322,20 @@ app.delete('/api/companies/:id', (req, res) => {
 
 // Get all properties
 app.get('/api/real-estate', (req, res) => {
-  res.json({ realEstate });
+  // Optional filters: type and minPrice. If provided, filter results accordingly.
+  let result = realEstate;
+  const { type, minPrice } = req.query;
+  if (type) {
+    const typeLower = type.toLowerCase();
+    result = result.filter(p => p.type.toLowerCase() === typeLower);
+  }
+  if (minPrice) {
+    const min = parseFloat(minPrice);
+    if (!isNaN(min)) {
+      result = result.filter(p => p.price !== null && p.price >= min);
+    }
+  }
+  res.json({ realEstate: result });
 });
 
 // Create a new real estate property
@@ -268,6 +354,8 @@ app.post('/api/real-estate', (req, res) => {
     dateCreated: new Date().toISOString(),
   };
   realEstate.push(property);
+  // Persist real estate to disk
+  saveData('realEstate.json', { nextId: nextPropertyId, items: realEstate });
   res.status(201).json({ message: 'Property created', property });
 });
 
@@ -294,6 +382,7 @@ app.put('/api/real-estate/:id', (req, res) => {
   if (description) property.description = description;
   if (typeof price !== 'undefined') property.price = price;
   if (typeof location !== 'undefined') property.location = location;
+  saveData('realEstate.json', { nextId: nextPropertyId, items: realEstate });
   res.json({ message: 'Property updated', property });
 });
 
@@ -305,6 +394,7 @@ app.delete('/api/real-estate/:id', (req, res) => {
     return res.status(404).json({ message: 'Property not found' });
   }
   realEstate.splice(index, 1);
+  saveData('realEstate.json', { nextId: nextPropertyId, items: realEstate });
   res.json({ message: 'Property deleted' });
 });
 

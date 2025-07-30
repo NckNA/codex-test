@@ -48,6 +48,15 @@
     <!-- Список вакансий и форма добавления новой вакансии -->
     <section>
       <h2>Список вакансий</h2>
+      <!-- Форма фильтрации вакансий -->
+      <form id="vacancy-filter-form" style="margin-bottom: 1rem;">
+        <label for="filter-company">Компания (фильтр)</label>
+        <input type="text" id="filter-company" placeholder="Название компании">
+        <label for="filter-salary">Минимальная зарплата</label>
+        <input type="number" id="filter-salary" placeholder="0" min="0" step="0.01">
+        <button type="submit">Фильтровать</button>
+      </form>
+
       <ul id="vacancies-list"></ul>
 
       <h3>Добавить вакансию</h3>
@@ -75,12 +84,17 @@
   <!-- JavaScript для работы с вакансиями -->
   <script>
     const apiBaseUrl = 'https://codex-test-production.up.railway.app';
-    // Загрузка списка вакансий
-    async function loadVacancies() {
+    // Загрузка списка вакансий с поддержкой фильтрации
+    async function loadVacancies(filters = {}) {
       const listEl = document.getElementById('vacancies-list');
       listEl.innerHTML = '<li>Загрузка вакансий…</li>';
       try {
-        const response = await fetch(`${apiBaseUrl}/api/vacancies`);
+        // Формируем строку запроса из объекта фильтров
+        const params = new URLSearchParams();
+        if (filters.company) params.append('category', filters.company);
+        if (filters.minSalary) params.append('minSalary', filters.minSalary);
+        const url = `${apiBaseUrl}/api/vacancies${params.toString() ? '?' + params.toString() : ''}`;
+        const response = await fetch(url);
         const data = await response.json();
         const vacancies = Array.isArray(data.vacancies) ? data.vacancies : [];
         if (vacancies.length > 0) {
@@ -99,7 +113,18 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', loadVacancies);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadVacancies();
+    });
+
+    // Обработчик формы фильтрации
+    document.getElementById('vacancy-filter-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const companyFilter = document.getElementById('filter-company').value.trim();
+      const salaryFilterValue = document.getElementById('filter-salary').value;
+      const minSalary = salaryFilterValue ? parseFloat(salaryFilterValue) : undefined;
+      loadVacancies({ company: companyFilter || undefined, minSalary: minSalary });
+    });
 
     // Обработчик отправки формы добавления вакансии
     document.getElementById('vacancy-form').addEventListener('submit', async (event) => {
