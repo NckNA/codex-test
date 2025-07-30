@@ -36,9 +36,99 @@
         <li>Спецпредложения – акции и скидки от местных предприятий</li>
       </ul>
     </section>
+
+    <!-- Список существующих объявлений и форма добавления нового -->
+    <section>
+      <h2>Объявления</h2>
+      <!-- Контейнер для списка объявлений -->
+      <ul id="classifieds-list"></ul>
+
+      <h3>Добавить объявление</h3>
+      <form id="classifieds-form">
+        <label for="classified-title">Заголовок</label>
+        <input type="text" id="classified-title" placeholder="Введите заголовок" required>
+
+        <label for="classified-description">Описание</label>
+        <textarea id="classified-description" placeholder="Введите описание" required></textarea>
+
+        <label for="classified-category">Категория</label>
+        <select id="classified-category" required>
+          <option value="">Выберите категорию…</option>
+          <option value="Товары">Товары</option>
+          <option value="Услуги">Услуги</option>
+          <option value="Спецпредложения">Спецпредложения</option>
+        </select>
+
+        <label for="classified-price">Цена (необязательно)</label>
+        <input type="number" id="classified-price" placeholder="Введите цену" min="0" step="0.01">
+
+        <button type="submit">Разместить</button>
+      </form>
+    </section>
   </div>
   <footer>
     <p>&copy; 2025 Экибастузский городской портал. Все права защищены.</p>
   </footer>
+
+  <!-- JavaScript для взаимодействия с API объявлений -->
+  <script>
+    const apiBaseUrl = 'https://codex-test-production.up.railway.app';
+
+    // Функция для отображения списка объявлений
+    async function loadClassifieds() {
+      const listEl = document.getElementById('classifieds-list');
+      listEl.innerHTML = '<li>Загрузка объявлений…</li>';
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/classifieds`);
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          listEl.innerHTML = '';
+          data.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${item.title}</strong> — ${item.description} <em>(${item.category}${item.price ? ', ' + item.price + ' ₸' : ''})</em>`;
+            listEl.appendChild(li);
+          });
+        } else {
+          listEl.innerHTML = '<li>Объявлений пока нет.</li>';
+        }
+      } catch (error) {
+        console.error(error);
+        listEl.innerHTML = '<li>Не удалось загрузить объявления.</li>';
+      }
+    }
+
+    // Загрузка объявлений при загрузке страницы
+    document.addEventListener('DOMContentLoaded', loadClassifieds);
+
+    // Обработчик отправки формы добавления объявления
+    document.getElementById('classifieds-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const title = document.getElementById('classified-title').value.trim();
+      const description = document.getElementById('classified-description').value.trim();
+      const category = document.getElementById('classified-category').value;
+      const priceValue = document.getElementById('classified-price').value;
+      // Преобразуем цену в число, если указана
+      const price = priceValue ? parseFloat(priceValue) : undefined;
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/classifieds`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, category, price })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          alert('Объявление успешно добавлено.');
+          // Очистить форму и перезагрузить список
+          document.getElementById('classifieds-form').reset();
+          loadClassifieds();
+        } else {
+          alert(result.error || 'Ошибка при добавлении объявления.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось подключиться к серверу. Попробуйте позже.');
+      }
+    });
+  </script>
 </body>
 </html>

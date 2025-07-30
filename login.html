@@ -42,5 +42,37 @@
   <footer>
     <p>&copy; 2025 Экибастузский городской портал. Все права защищены.</p>
   </footer>
+
+  <!-- JavaScript для отправки формы входа на API -->
+  <script>
+    // Базовый URL API бекенда Railway
+    const apiBaseUrl = 'https://codex-test-production.up.railway.app';
+    // Находим форму входа и навешиваем обработчик отправки
+    document.querySelector('form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      // Собираем данные формы
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          // При успешном входе перенаправляем на главную страницу
+          alert('Вход выполнен успешно.');
+          window.location.href = 'index.html';
+        } else {
+          // Показать сообщение об ошибке, если сервер вернул ошибку
+          alert(result.error || 'Ошибка авторизации. Проверьте введённые данные.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось подключиться к серверу. Попробуйте позже.');
+      }
+    });
+  </script>
 </body>
 </html>

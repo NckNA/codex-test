@@ -56,5 +56,44 @@
   <footer>
     <p>&copy; 2025 Экибастузский городской портал. Все права защищены.</p>
   </footer>
+
+  <!-- JavaScript для отправки формы регистрации на API -->
+  <script>
+    // Базовый URL API бекенда Railway
+    const apiBaseUrl = 'https://codex-test-production.up.railway.app';
+    // Обработчик отправки формы регистрации
+    document.querySelector('form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      // Считываем значения полей формы
+      const name = document.getElementById('register-name').value.trim();
+      const email = document.getElementById('register-email').value.trim();
+      const password = document.getElementById('register-password').value;
+      const passwordConfirm = document.getElementById('register-password-confirm').value;
+      const role = document.getElementById('register-role').value;
+      // Проверка совпадения паролей
+      if (password !== passwordConfirm) {
+        alert('Пароли не совпадают.');
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, role })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          // Успешная регистрация: уведомляем пользователя и перенаправляем на страницу входа
+          alert('Регистрация прошла успешно. Теперь вы можете войти.');
+          window.location.href = 'login.html';
+        } else {
+          alert(result.error || 'Ошибка регистрации.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось подключиться к серверу. Попробуйте позже.');
+      }
+    });
+  </script>
 </body>
 </html>
