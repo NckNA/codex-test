@@ -81,9 +81,11 @@
       try {
         const response = await fetch(`${apiBaseUrl}/api/classifieds`);
         const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
+        // API возвращает объект { classifieds: [...] }
+        const ads = data.classifieds || [];
+        if (ads.length > 0) {
           listEl.innerHTML = '';
-          data.forEach(item => {
+          ads.forEach(item => {
             const li = document.createElement('li');
             const pricePart = item.price ? `, <strong>${item.price} ₸</strong>` : '';
             li.innerHTML = `<strong>${item.title}</strong><br>${item.description}<br><em>${item.category}${pricePart}</em>`;
@@ -101,6 +103,24 @@
     // Загрузка объявлений при загрузке страницы
     document.addEventListener('DOMContentLoaded', loadClassifieds);
 
+    // Проверяем авторизацию: если пользователь не вошёл, скрываем форму и выводим
+    // сообщение с предложением зарегистрироваться или войти
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('token');
+      const formEl = document.getElementById('classifieds-form');
+      const authMsg = document.createElement('p');
+      authMsg.className = 'auth-message';
+      if (!token) {
+        // Пользователь не авторизован – скрываем форму и выводим сообщение
+        formEl.style.display = 'none';
+        authMsg.innerHTML = 'Только зарегистрированные пользователи могут размещать объявления. ' +
+          '<a href="register.html">Зарегистрируйтесь</a> или <a href="login.html">войдите</a>.';
+        formEl.parentNode.insertBefore(authMsg, formEl);
+      } else {
+        formEl.style.display = 'block';
+      }
+    });
+
     // Обработчик отправки формы добавления объявления
     document.getElementById('classifieds-form').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -111,9 +131,14 @@
       // Преобразуем цену в число, если указана
       const price = priceValue ? parseFloat(priceValue) : undefined;
       try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = token;
+        }
         const response = await fetch(`${apiBaseUrl}/api/classifieds`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ title, description, category, price })
         });
         const result = await response.json();
@@ -123,7 +148,11 @@
           document.getElementById('classifieds-form').reset();
           loadClassifieds();
         } else {
-          alert(result.error || 'Ошибка при добавлении объявления.');
+          alert(result.message || result.error || 'Ошибка при добавлении объявления.');
+          // Если сервер вернул 401, предложим войти
+          if (response.status === 401) {
+            alert('Для размещения объявлений необходимо войти или зарегистрироваться.');
+          }
         }
       } catch (error) {
         console.error(error);
