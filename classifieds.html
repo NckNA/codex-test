@@ -17,6 +17,7 @@
     <a href="classifieds.html" class="active">Объявления</a>
     <a href="companies.html">Компании и услуги</a>
     <a href="real-estate.html">Недвижимость</a>
+    <span id="auth-links"></span>
   </nav>
   <div class="container">
     <section>
@@ -159,6 +160,29 @@
         alert('Не удалось подключиться к серверу. Попробуйте позже.');
       }
     });
+  </script>
+
+  <!-- Script to toggle auth links in navigation for classifieds -->
+  <script>
+  (function() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const token = localStorage.getItem('token');
+    const authLinks = document.getElementById('auth-links');
+    if (authLinks) {
+      if (user && token) {
+        authLinks.innerHTML = `<a href="profile.html">Личный кабинет</a> <a href="#" id="logout-link">Выйти (${user.username})</a>`;
+        const logoutLink = document.getElementById('logout-link');
+        logoutLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          window.location.href = 'index.html';
+        });
+      } else {
+        authLinks.innerHTML = '<a href="login.html">Войти</a> <a href="register.html">Регистрация</a>';
+      }
+    }
+  })();
   </script>
 </body>
 </html>
