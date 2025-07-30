@@ -41,7 +41,7 @@
     <section>
       <h2>Объявления</h2>
       <!-- Контейнер для списка объявлений -->
-      <ul id="classifieds-list"></ul>
+      <ul id="classifieds-list" class="list"></ul>
 
       <h3>Добавить объявление</h3>
       <form id="classifieds-form">
@@ -85,7 +85,8 @@
           listEl.innerHTML = '';
           data.forEach(item => {
             const li = document.createElement('li');
-            li.innerHTML = `<strong>${item.title}</strong> — ${item.description} <em>(${item.category}${item.price ? ', ' + item.price + ' ₸' : ''})</em>`;
+            const pricePart = item.price ? `, <strong>${item.price} ₸</strong>` : '';
+            li.innerHTML = `<strong>${item.title}</strong><br>${item.description}<br><em>${item.category}${pricePart}</em>`;
             listEl.appendChild(li);
           });
         } else {

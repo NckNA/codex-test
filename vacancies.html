@@ -57,7 +57,7 @@
         <button type="submit">Фильтровать</button>
       </form>
 
-      <ul id="vacancies-list"></ul>
+      <ul id="vacancies-list" class="list"></ul>
 
       <h3>Добавить вакансию</h3>
       <form id="vacancy-form">
@@ -101,7 +101,8 @@
           listEl.innerHTML = '';
           vacancies.forEach(v => {
             const li = document.createElement('li');
-            li.innerHTML = `<strong>${v.title}</strong> (${v.company}) — ${v.description}${v.salary ? ' – ' + v.salary + ' ₸' : ''}`;
+            const salaryPart = v.salary ? ` — <strong>${v.salary} ₸</strong>` : '';
+            li.innerHTML = `<strong>${v.title}</strong> (${v.company})<br>${v.description}${salaryPart}`;
             listEl.appendChild(li);
           });
         } else {

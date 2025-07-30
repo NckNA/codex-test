@@ -28,7 +28,7 @@
     </section>
     <section>
       <h2>Список компаний</h2>
-      <ul id="companies-list"></ul>
+      <ul id="companies-list" class="list"></ul>
 
       <h3>Добавить компанию</h3>
       <form id="company-form">
@@ -68,7 +68,13 @@
           listEl.innerHTML = '';
           companies.forEach(c => {
             const li = document.createElement('li');
-            li.innerHTML = `<strong>${c.name}</strong> (${c.category}) — ${c.description}${c.rating ? ' – рейтинг: ' + c.rating : ''}`;
+            // Преобразуем числовой рейтинг в строку из звёздочек (★)
+            let stars = '';
+            if (typeof c.rating === 'number') {
+              const rounded = Math.round(c.rating);
+              stars = '★'.repeat(rounded);
+            }
+            li.innerHTML = `<strong>${c.name}</strong> (${c.category}) — ${c.description}${stars ? ' – ' + stars : ''}`;
             listEl.appendChild(li);
           });
         } else {

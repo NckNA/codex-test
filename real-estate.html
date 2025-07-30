@@ -41,7 +41,7 @@
         <button type="submit">Фильтровать</button>
       </form>
 
-      <ul id="real-estate-list"></ul>
+      <ul id="real-estate-list" class="list"></ul>
 
       <h3>Добавить объявление о недвижимости</h3>
       <form id="real-estate-form">
@@ -92,7 +92,9 @@
           listEl.innerHTML = '';
           properties.forEach(p => {
             const li = document.createElement('li');
-            li.innerHTML = `<strong>${p.type}</strong>: ${p.title} — ${p.description}${p.price ? ' – ' + p.price + ' ₸' : ''}${p.location ? ' (' + p.location + ')' : ''}`;
+            const pricePart = p.price ? `<strong>${p.price} ₸</strong>` : '';
+            const locationPart = p.location ? `, ${p.location}` : '';
+            li.innerHTML = `<strong>${p.type}:</strong> ${p.title}<br>${p.description}<br><em>${pricePart}${locationPart}</em>`;
             listEl.appendChild(li);
           });
         } else {
