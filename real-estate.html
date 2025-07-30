@@ -22,23 +22,99 @@
     <section>
       <h2>Описание раздела</h2>
       <p>Раздел «Недвижимость» предназначен для операций с жильём: продажа,
-        покупка и аренда квартир, домов и земельных участков. В будущем здесь
-        появятся формы для создания объявлений, расширенные фильтры и
-        возможность загрузки фотографий и виртуальных туров.</p>
+        покупка и аренда квартир, домов и земельных участков. На этой странице вы
+        можете просматривать текущие предложения и добавить своё собственное объявление.</p>
     </section>
     <section>
-      <h2>Подразделы</h2>
-      <ul>
-        <li>Квартиры – объявления о продаже и аренде квартир различных типов</li>
-        <li>Дома – частные дома, коттеджи и дачи с описанием участка</li>
-        <li>Земельные участки – участки под строительство, дачи и сельхоз земли</li>
-      </ul>
-      <p>На данном этапе страницы раздела содержат краткое описание, которое
-        поможет спланировать дальнейшую разработку функционала портала.</p>
+      <h2>Список недвижимости</h2>
+      <ul id="real-estate-list"></ul>
+
+      <h3>Добавить объявление о недвижимости</h3>
+      <form id="real-estate-form">
+        <label for="estate-type">Тип объекта</label>
+        <select id="estate-type" required>
+          <option value="">Выберите тип</option>
+          <option value="Квартира">Квартира</option>
+          <option value="Дом">Дом</option>
+          <option value="Участок">Земельный участок</option>
+        </select>
+
+        <label for="estate-title">Заголовок</label>
+        <input type="text" id="estate-title" placeholder="Например, 2-комнатная квартира" required>
+
+        <label for="estate-description">Описание</label>
+        <textarea id="estate-description" placeholder="Опишите объект, его площадь, состояние и т.п." required></textarea>
+
+        <label for="estate-price">Цена (необязательно)</label>
+        <input type="number" id="estate-price" min="0" step="0.01" placeholder="Укажите цену, если есть">
+
+        <label for="estate-location">Местоположение (необязательно)</label>
+        <input type="text" id="estate-location" placeholder="Адрес или район">
+
+        <button type="submit">Разместить объявление</button>
+      </form>
     </section>
   </div>
   <footer>
     <p>&copy; 2025 Экибастузский городской портал. Все права защищены.</p>
   </footer>
+
+  <!-- JavaScript для работы с недвижимостью -->
+  <script>
+    const apiBaseUrl = 'https://codex-test-production.up.railway.app';
+
+    async function loadRealEstate() {
+      const listEl = document.getElementById('real-estate-list');
+      listEl.innerHTML = '<li>Загрузка объявлений…</li>';
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/real-estate`);
+        const data = await response.json();
+        const properties = Array.isArray(data.realEstate) ? data.realEstate : [];
+        if (properties.length > 0) {
+          listEl.innerHTML = '';
+          properties.forEach(p => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${p.type}</strong>: ${p.title} — ${p.description}${p.price ? ' – ' + p.price + ' ₸' : ''}${p.location ? ' (' + p.location + ')' : ''}`;
+            listEl.appendChild(li);
+          });
+        } else {
+          listEl.innerHTML = '<li>Объявлений пока нет.</li>';
+        }
+      } catch (error) {
+        console.error(error);
+        listEl.innerHTML = '<li>Не удалось загрузить список недвижимости.</li>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadRealEstate);
+
+    document.getElementById('real-estate-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const type = document.getElementById('estate-type').value;
+      const title = document.getElementById('estate-title').value.trim();
+      const description = document.getElementById('estate-description').value.trim();
+      const priceValue = document.getElementById('estate-price').value;
+      const price = priceValue ? parseFloat(priceValue) : undefined;
+      const location = document.getElementById('estate-location').value.trim() || undefined;
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/real-estate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, title, description, price, location })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          alert('Объявление успешно добавлено.');
+          document.getElementById('real-estate-form').reset();
+          loadRealEstate();
+        } else {
+          alert(result.message || 'Ошибка при добавлении объявления.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось подключиться к серверу. Попробуйте позже.');
+      }
+    });
+  </script>
 </body>
 </html>

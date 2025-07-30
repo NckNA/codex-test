@@ -28,6 +28,12 @@ const vacancies = [];
 let nextCompanyId = 1;
 const companies = [];
 
+// In-memory real estate store. Each property has id, type (e.g. 'квартира', 'дом', 'участок'),
+// title, description, optional price, location and creation date. As before,
+// in a production system this data would be persisted in a database.
+let nextPropertyId = 1;
+const realEstate = [];
+
 // Register endpoint
 app.post('/api/register', (req, res) => {
   const { username, password, role } = req.body;
@@ -239,8 +245,67 @@ app.delete('/api/companies/:id', (req, res) => {
 });
 
 // Placeholder for real estate (Недвижимость). Currently returns an empty list.
+// ----------------- Real Estate (Недвижимость) API -----------------
+
+// Get all properties
 app.get('/api/real-estate', (req, res) => {
-  res.json({ realEstate: [] });
+  res.json({ realEstate });
+});
+
+// Create a new real estate property
+app.post('/api/real-estate', (req, res) => {
+  const { type, title, description, price, location } = req.body;
+  if (!type || !title || !description) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+  const property = {
+    id: nextPropertyId++,
+    type,
+    title,
+    description,
+    price: typeof price !== 'undefined' ? price : null,
+    location: location || null,
+    dateCreated: new Date().toISOString(),
+  };
+  realEstate.push(property);
+  res.status(201).json({ message: 'Property created', property });
+});
+
+// Get a single property by ID
+app.get('/api/real-estate/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const property = realEstate.find(p => p.id === id);
+  if (!property) {
+    return res.status(404).json({ message: 'Property not found' });
+  }
+  res.json({ property });
+});
+
+// Update a property by ID
+app.put('/api/real-estate/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const property = realEstate.find(p => p.id === id);
+  if (!property) {
+    return res.status(404).json({ message: 'Property not found' });
+  }
+  const { type, title, description, price, location } = req.body;
+  if (type) property.type = type;
+  if (title) property.title = title;
+  if (description) property.description = description;
+  if (typeof price !== 'undefined') property.price = price;
+  if (typeof location !== 'undefined') property.location = location;
+  res.json({ message: 'Property updated', property });
+});
+
+// Delete a property by ID
+app.delete('/api/real-estate/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const index = realEstate.findIndex(p => p.id === id);
+  if (index === -1) {
+    return res.status(404).json({ message: 'Property not found' });
+  }
+  realEstate.splice(index, 1);
+  res.json({ message: 'Property deleted' });
 });
 
 app.listen(PORT, () => {
