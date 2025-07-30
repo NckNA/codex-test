@@ -183,6 +183,17 @@ ul.list li em {
   font-style: normal;
 }
 
+/* Message displayed when a user must be authenticated to perform an action */
+.auth-message {
+  margin-top: 10px;
+  font-style: italic;
+  color: #444;
+}
+.auth-message a {
+  color: #4a3ea9;
+  text-decoration: underline;
+}
+
 /* Utility classes */
 .container {
   max-width: 1100px;
