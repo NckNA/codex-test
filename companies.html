@@ -21,25 +21,94 @@
   <div class="container">
     <section>
       <h2>Описание раздела</h2>
-      <p>Раздел «Компании и услуги» будет представлять собой справочник
-        организаций Экибастуза. Каждая компания получит собственную карточку,
-        где можно разместить описание деятельности, контактную информацию,
-        логотип и фотографии. В будущем планируется интеграция с картой города
-        и отображение офисов на карте.</p>
+      <p>Раздел «Компании и услуги» предназначен для каталога предприятий и сервисов
+        Экибастуза. Здесь компании смогут описать свою деятельность, указать
+        контактную информацию, категории и рейтинги. В будущем будет реализована
+        интеграция с картой города и возможность бронирования услуг.</p>
     </section>
     <section>
-      <h2>Возможности</h2>
-      <ul>
-        <li>Поиск компаний по отрасли и услугам</li>
-        <li>Создание и редактирование профилей компаний</li>
-        <li>Публикация новостей, акций и спецпредложений</li>
-      </ul>
-      <p>В текущей версии раздел содержит только описание, но позволяет понять,
-        как будет выглядеть структура каталога компаний.</p>
+      <h2>Список компаний</h2>
+      <ul id="companies-list"></ul>
+
+      <h3>Добавить компанию</h3>
+      <form id="company-form">
+        <label for="company-name">Название компании</label>
+        <input type="text" id="company-name" placeholder="Введите название" required>
+
+        <label for="company-category">Категория/отрасль</label>
+        <input type="text" id="company-category" placeholder="Например: IT, строительство" required>
+
+        <label for="company-description">Описание</label>
+        <textarea id="company-description" placeholder="Опишите деятельность компании" required></textarea>
+
+        <label for="company-rating">Рейтинг (необязательно, 1–5)</label>
+        <input type="number" id="company-rating" min="1" max="5" step="0.1" placeholder="Например: 4.5">
+
+        <button type="submit">Добавить компанию</button>
+      </form>
     </section>
   </div>
   <footer>
     <p>&copy; 2025 Экибастузский городской портал. Все права защищены.</p>
   </footer>
+
+  <!-- JavaScript для работы с компаниями -->
+  <script>
+    // Используем тот же API, что и для других разделов
+    const apiBaseUrl = 'https://codex-test-production.up.railway.app';
+
+    async function loadCompanies() {
+      const listEl = document.getElementById('companies-list');
+      listEl.innerHTML = '<li>Загрузка компаний…</li>';
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/companies`);
+        const data = await response.json();
+        const companies = Array.isArray(data.companies) ? data.companies : [];
+        if (companies.length > 0) {
+          listEl.innerHTML = '';
+          companies.forEach(c => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${c.name}</strong> (${c.category}) — ${c.description}${c.rating ? ' – рейтинг: ' + c.rating : ''}`;
+            listEl.appendChild(li);
+          });
+        } else {
+          listEl.innerHTML = '<li>Компаний пока нет.</li>';
+        }
+      } catch (error) {
+        console.error(error);
+        listEl.innerHTML = '<li>Не удалось загрузить список компаний.</li>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadCompanies);
+
+    // Обработчик отправки формы добавления компании
+    document.getElementById('company-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = document.getElementById('company-name').value.trim();
+      const category = document.getElementById('company-category').value.trim();
+      const description = document.getElementById('company-description').value.trim();
+      const ratingValue = document.getElementById('company-rating').value;
+      const rating = ratingValue ? parseFloat(ratingValue) : undefined;
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/companies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, category, description, rating })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          alert('Компания успешно добавлена.');
+          document.getElementById('company-form').reset();
+          loadCompanies();
+        } else {
+          alert(result.message || 'Ошибка при добавлении компании.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось подключиться к серверу. Попробуйте позже.');
+      }
+    });
+  </script>
 </body>
 </html>

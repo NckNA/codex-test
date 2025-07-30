@@ -22,6 +22,12 @@ const classifieds = [];
 let nextVacancyId = 1;
 const vacancies = [];
 
+// In-memory companies store. Each company will have id, name, category,
+// description, optional rating and creation date. As with other resources,
+// this would normally live in a database.
+let nextCompanyId = 1;
+const companies = [];
+
 // Register endpoint
 app.post('/api/register', (req, res) => {
   const { username, password, role } = req.body;
@@ -171,11 +177,68 @@ app.delete('/api/vacancies/:id', (req, res) => {
   res.json({ message: 'Vacancy deleted' });
 });
 
+// ----------------- Companies (Компании и услуги) API -----------------
 
+// Get all companies
 app.get('/api/companies', (req, res) => {
-  res.json({ companies: [] });
+  res.json({ companies });
 });
 
+// Create a new company
+app.post('/api/companies', (req, res) => {
+  const { name, category, description, rating } = req.body;
+  if (!name || !category || !description) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+  const company = {
+    id: nextCompanyId++,
+    name,
+    category,
+    description,
+    rating: typeof rating !== 'undefined' ? rating : null,
+    dateCreated: new Date().toISOString(),
+  };
+  companies.push(company);
+  res.status(201).json({ message: 'Company created', company });
+});
+
+// Get a single company by ID
+app.get('/api/companies/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const company = companies.find(c => c.id === id);
+  if (!company) {
+    return res.status(404).json({ message: 'Company not found' });
+  }
+  res.json({ company });
+});
+
+// Update a company by ID
+app.put('/api/companies/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const company = companies.find(c => c.id === id);
+  if (!company) {
+    return res.status(404).json({ message: 'Company not found' });
+  }
+  const { name, category, description, rating } = req.body;
+  if (name) company.name = name;
+  if (category) company.category = category;
+  if (description) company.description = description;
+  if (typeof rating !== 'undefined') company.rating = rating;
+  res.json({ message: 'Company updated', company });
+});
+
+// Delete a company by ID
+app.delete('/api/companies/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const index = companies.findIndex(c => c.id === id);
+  if (index === -1) {
+    return res.status(404).json({ message: 'Company not found' });
+  }
+  companies.splice(index, 1);
+  res.json({ message: 'Company deleted' });
+});
+
+// Placeholder for real estate (Недвижимость). Currently returns an empty list.
 app.get('/api/real-estate', (req, res) => {
   res.json({ realEstate: [] });
 });
