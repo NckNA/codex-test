@@ -44,9 +44,90 @@
         управлять несколькими версиями резюме для разных позиций. В будущем будет
         реализована система рекомендаций вакансий на основе профиля кандидата.</p>
     </section>
+
+    <!-- Список вакансий и форма добавления новой вакансии -->
+    <section>
+      <h2>Список вакансий</h2>
+      <ul id="vacancies-list"></ul>
+
+      <h3>Добавить вакансию</h3>
+      <form id="vacancy-form">
+        <label for="vacancy-title">Название вакансии</label>
+        <input type="text" id="vacancy-title" placeholder="Введите название" required>
+
+        <label for="vacancy-company">Компания</label>
+        <input type="text" id="vacancy-company" placeholder="Название компании" required>
+
+        <label for="vacancy-description">Описание</label>
+        <textarea id="vacancy-description" placeholder="Опишите требования и обязанности" required></textarea>
+
+        <label for="vacancy-salary">Зарплата (необязательно)</label>
+        <input type="number" id="vacancy-salary" placeholder="Укажите зарплату" min="0" step="0.01">
+
+        <button type="submit">Разместить вакансию</button>
+      </form>
+    </section>
   </div>
   <footer>
     <p>&copy; 2025 Экибастузский городской портал. Все права защищены.</p>
   </footer>
+
+  <!-- JavaScript для работы с вакансиями -->
+  <script>
+    const apiBaseUrl = 'https://codex-test-production.up.railway.app';
+    // Загрузка списка вакансий
+    async function loadVacancies() {
+      const listEl = document.getElementById('vacancies-list');
+      listEl.innerHTML = '<li>Загрузка вакансий…</li>';
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/vacancies`);
+        const data = await response.json();
+        const vacancies = Array.isArray(data.vacancies) ? data.vacancies : [];
+        if (vacancies.length > 0) {
+          listEl.innerHTML = '';
+          vacancies.forEach(v => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${v.title}</strong> (${v.company}) — ${v.description}${v.salary ? ' – ' + v.salary + ' ₸' : ''}`;
+            listEl.appendChild(li);
+          });
+        } else {
+          listEl.innerHTML = '<li>Вакансий пока нет.</li>';
+        }
+      } catch (error) {
+        console.error(error);
+        listEl.innerHTML = '<li>Не удалось загрузить список вакансий.</li>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadVacancies);
+
+    // Обработчик отправки формы добавления вакансии
+    document.getElementById('vacancy-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const title = document.getElementById('vacancy-title').value.trim();
+      const company = document.getElementById('vacancy-company').value.trim();
+      const description = document.getElementById('vacancy-description').value.trim();
+      const salaryValue = document.getElementById('vacancy-salary').value;
+      const salary = salaryValue ? parseFloat(salaryValue) : undefined;
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/vacancies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, company, description, salary })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          alert('Вакансия успешно добавлена.');
+          document.getElementById('vacancy-form').reset();
+          loadVacancies();
+        } else {
+          alert(result.message || 'Ошибка при добавлении вакансии.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Не удалось подключиться к серверу. Попробуйте позже.');
+      }
+    });
+  </script>
 </body>
 </html>

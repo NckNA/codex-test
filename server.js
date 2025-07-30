@@ -17,6 +17,11 @@ const users = [];
 let nextAdId = 1;
 const classifieds = [];
 
+// In-memory vacancies store. Each vacancy will have id, title, company, description,
+// optional salary and creation date. In a real system this would live in a database.
+let nextVacancyId = 1;
+const vacancies = [];
+
 // Register endpoint
 app.post('/api/register', (req, res) => {
   const { username, password, role } = req.body;
@@ -105,8 +110,65 @@ app.delete('/api/classifieds/:id', (req, res) => {
 });
 
 // Placeholder route for future vacancies module
+// ----------------- Vacancies (Вакансии) API -----------------
+
+// Get all vacancies
 app.get('/api/vacancies', (req, res) => {
-  res.json({ vacancies: [] });
+  res.json({ vacancies });
+});
+
+// Create a new vacancy
+app.post('/api/vacancies', (req, res) => {
+  const { title, company, description, salary } = req.body;
+  if (!title || !company || !description) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+  const vacancy = {
+    id: nextVacancyId++,
+    title,
+    company,
+    description,
+    salary: typeof salary !== 'undefined' ? salary : null,
+    dateCreated: new Date().toISOString(),
+  };
+  vacancies.push(vacancy);
+  res.status(201).json({ message: 'Vacancy created', vacancy });
+});
+
+// Get a single vacancy by ID
+app.get('/api/vacancies/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const vacancy = vacancies.find(v => v.id === id);
+  if (!vacancy) {
+    return res.status(404).json({ message: 'Vacancy not found' });
+  }
+  res.json({ vacancy });
+});
+
+// Update a vacancy by ID
+app.put('/api/vacancies/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const vacancy = vacancies.find(v => v.id === id);
+  if (!vacancy) {
+    return res.status(404).json({ message: 'Vacancy not found' });
+  }
+  const { title, company, description, salary } = req.body;
+  if (title) vacancy.title = title;
+  if (company) vacancy.company = company;
+  if (description) vacancy.description = description;
+  if (typeof salary !== 'undefined') vacancy.salary = salary;
+  res.json({ message: 'Vacancy updated', vacancy });
+});
+
+// Delete a vacancy by ID
+app.delete('/api/vacancies/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const index = vacancies.findIndex(v => v.id === id);
+  if (index === -1) {
+    return res.status(404).json({ message: 'Vacancy not found' });
+  }
+  vacancies.splice(index, 1);
+  res.json({ message: 'Vacancy deleted' });
 });
 
 
