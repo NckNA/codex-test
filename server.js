@@ -3,12 +3,18 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto'); // Used to generate session tokens
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
+
+// In‑memory session store. Keys are random tokens associated with authenticated users.
+// In a production system this should be replaced by a more persistent/session aware
+// mechanism (e.g. JWTs, Redis, database‑backed sessions).
+const sessions = {};
 
 // Directory used to persist application data. If the directory doesn't exist it will be
 // created on startup. Data is stored in JSON files for each resource along with the
@@ -92,9 +98,27 @@ app.post('/api/login', (req, res) => {
   if (!user) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
-  // In a real application, generate and return a JWT or session token here
-  return res.json({ message: 'Login successful', user: { username, role: user.role } });
+  // Generate a random token and associate it with this user in the session store.
+  const token = crypto.randomBytes(16).toString('hex');
+  sessions[token] = { username: user.username, role: user.role };
+  // Return the token along with user info to the client. The client should
+  // store this token (e.g. in localStorage) and send it in the Authorization
+  // header for protected requests.
+  return res.json({ message: 'Login successful', token, user: { username: user.username, role: user.role } });
 });
+
+// Middleware to verify that a request is authenticated. It checks for an
+// Authorization header containing a valid session token. If the token is
+// missing or invalid, it responds with 401 Unauthorized. Otherwise it
+// attaches the user information to req.user and calls next().
+function authenticate(req, res, next) {
+  const token = req.headers.authorization;
+  if (!token || !sessions[token]) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+  req.user = sessions[token];
+  next();
+}
 
 // Placeholder routes for future modules
 
@@ -105,8 +129,9 @@ app.get('/api/classifieds', (req, res) => {
   res.json({ classifieds });
 });
 
-// Create a new classified ad
-app.post('/api/classifieds', (req, res) => {
+// Create a new classified ad. Only authenticated users are allowed to post
+// classifieds. The authenticate middleware checks for a valid session token.
+app.post('/api/classifieds', authenticate, (req, res) => {
   const { title, description, category, price } = req.body;
   if (!title || !description || !category) {
     return res.status(400).json({ message: 'Missing required fields' });
@@ -116,8 +141,9 @@ app.post('/api/classifieds', (req, res) => {
     title,
     description,
     category,
-    price: price || null,
+    price: typeof price !== 'undefined' ? price : null,
     dateCreated: new Date().toISOString(),
+    owner: req.user.username,
   };
   classifieds.push(ad);
   // Persist classifieds with updated next ID
