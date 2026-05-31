@@ -32,6 +32,25 @@ export const storage = {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.PATIENTS) || '[]');
   },
 
+  savePatients: (patients: Patient[]) => {
+    localStorage.setItem(STORAGE_KEYS.PATIENTS, JSON.stringify(patients));
+  },
+
+  addPatient: (patient: Patient) => {
+    const patients = storage.getPatients();
+    patients.push(patient);
+    storage.savePatients(patients);
+  },
+
+  updatePatient: (updated: Patient) => {
+    const patients = storage.getPatients();
+    const index = patients.findIndex(p => p.id === updated.id);
+    if (index !== -1) {
+      patients[index] = updated;
+      storage.savePatients(patients);
+    }
+  },
+
   getAppointments: (): Appointment[] => {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.APPOINTMENTS) || '[]');
   },

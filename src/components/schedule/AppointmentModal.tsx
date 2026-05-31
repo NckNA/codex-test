@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, AlertCircle, ExternalLink } from 'lucide-react';
 import type { Appointment, AppointmentStatus, PaymentType, Source } from '../../types';
 import { storage } from '../../utils/storage';
 
@@ -15,6 +16,7 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
   const isEditing = !!initialData?.id;
   const patients = storage.getPatients();
   const doctors = storage.getDoctors();
+  const navigate = useNavigate();
 
   const [formData, setFormData] = useState<Partial<Appointment>>({
     patientId: '',
@@ -129,8 +131,20 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">
+          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-3">
             {isEditing ? 'Редактирование записи' : 'Новая запись'}
+            {isEditing && formData.patientId && (
+              <button
+                onClick={() => {
+                  onClose();
+                  navigate(`/patients/${formData.patientId}`);
+                }}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-md flex items-center gap-1 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Карточка пациента
+              </button>
+            )}
           </h2>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
             <X className="w-5 h-5" />

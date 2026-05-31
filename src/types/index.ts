@@ -12,6 +12,9 @@ export interface Patient {
   source: Source;
   status: string; // e.g., 'active', 'archived'
   notes?: string;
+  allergies?: string;
+  balance?: number;
+  bonusBalance?: number;
   createdAt: string;
 }
 

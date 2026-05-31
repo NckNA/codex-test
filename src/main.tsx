@@ -19,6 +19,7 @@ import { BonusPage } from './pages/BonusPage';
 import { MailingPage } from './pages/MailingPage';
 import { SmsPage } from './pages/SmsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { PatientCardPage } from './pages/PatientCardPage';
 import { storage } from './utils/storage';
 
 // Initialize localStorage seed data if not present
@@ -34,6 +35,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="appointments" element={<AppointmentsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="patients" element={<PatientsPage />} />
+          <Route path="patients/:patientId" element={<PatientCardPage />} />
           <Route path="doctors" element={<DoctorsPage />} />
           <Route path="medical" element={<MedicalPage />} />
           <Route path="finance" element={<FinancePage />} />
