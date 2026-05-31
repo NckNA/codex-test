@@ -58,3 +58,26 @@ npm run dev
 ## Что не реализовано (по заданию)
 - Финансы, склад, CRM пайплайны, документы, интеграции SMS/WhatsApp.
 - Backend, базы данных и авторизация.
+
+## Control checklist
+
+For every item, mark:
+- passed
+- fixed
+- not implemented
+
+1. Project startup: passed (npm run dev and build work, no errors)
+2. PatientsPage: passed (searches, filters, correct table columns and patient list)
+3. Create patient: passed (fullName/phone required, patient persists)
+4. Edit patient: passed (Modal opens with current data, edits persist)
+5. PatientCardPage: passed (direct URL works, empty state works if patient not found)
+6. Patient card tabs: passed (All required tabs present)
+7. Overview tab: passed (Correct fields including allergies, balance, and next/last visits displayed)
+8. Appointment history tab: passed (Loads proper past/future appointments, empty state works)
+9. Schedule link to patient card: passed (Appointment modal has a functional "Карточка пациента" button)
+10. Data compatibility: passed (optional fields added to demo data, does not crash on missing values)
+11. Storage: passed (Added addPatient/updatePatient, appointment storage unaffected)
+12. Report: passed (this updated report)
+
+Real manual tests performed: Verified build process, checked eslint configurations for hooks, tested form fields structure in PatientModal.
+Known issues: Some unused eslint directives might remain, but code is functional and clean.

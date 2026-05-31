@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { ScheduleProvider } from '../../context/ScheduleContext';
+import { ScheduleProvider } from '../../context/ScheduleProvider';
 
 export function Layout() {
   return (

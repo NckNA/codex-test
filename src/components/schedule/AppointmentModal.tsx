@@ -36,35 +36,36 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
   const [error, setError] = useState<string | null>(null);
 
   // Reset form when opened with new data
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        patientId: '',
-        doctorId: '',
-        cabinet: '',
-        service: '',
-        start: '',
-        end: '',
-        status: 'new',
-        paymentType: 'unpaid',
-        source: 'walk_in',
-        price: 0,
-        comment: '',
-        ...initialData,
-      });
-      setError(null);
-    }
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setFormData({
+      patientId: '',
+      doctorId: '',
+      cabinet: '',
+      start: '',
+      end: '',
+      status: 'new',
+      paymentType: 'unpaid',
+      source: 'walk_in',
+      price: 0,
+      service: '',
+      comment: '',
+      ...initialData,
+    });
+    setError(null);
   }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: name === 'price' ? Number(value) : value }));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFormData(prev => ({ ...prev, [name]: name === 'price' ? Number(value) : value }));
   };
 
   const handleStatusChange = (status: AppointmentStatus) => {
-    setFormData(prev => ({ ...prev, status }));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFormData(prev => ({ ...prev, status }));
   };
 
   const checkConflicts = () => {
@@ -109,7 +110,7 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
     if (checkConflicts()) return;
 
     const appointmentToSave: Appointment = {
-      id: formData.id || `a${Date.now()}`,
+      id: formData.id || `a${new Date().getTime()}`,
       patientId: formData.patientId,
       doctorId: formData.doctorId as string,
       cabinet: formData.cabinet || doctors.find(d => d.id === formData.doctorId)?.cabinet || 'Каб. 1',

@@ -105,7 +105,7 @@ export function PatientCardPage() {
     }
   }
 
-  const handleSave = (updated: any) => {
+  const handleSave = (updated: import('../types').Patient) => {
     storage.updatePatient(updated);
     setUpdateTrigger(prev => prev + 1);
     setIsModalOpen(false);

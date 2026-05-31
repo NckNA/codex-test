@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, CheckSquare, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useScheduleContext } from '../context/ScheduleContext';
+import { useScheduleContext } from '../hooks/useScheduleContext';
 import { storage } from '../utils/storage';
 import { AppointmentModal } from '../components/schedule/AppointmentModal';
 import type { Appointment, Doctor, AppointmentStatus } from '../types';
