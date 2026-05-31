@@ -29,8 +29,8 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
 
     useEffect(() => {
         if (isOpen && initialData) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFormData(prev => ({
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+            setFormData(prev => ({
         ...prev,
         fullName: initialData.fullName || '',
         phone: initialData.phone || '',
@@ -45,8 +45,8 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
       }));
       setError(null);
     } else if (isOpen) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setFormData({
+
+                setFormData({
             fullName: '',
             phone: '',
             birthDate: '',
@@ -65,8 +65,8 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFormData(prev => ({
+
+          setFormData(prev => ({
       ...prev,
       [name]: (name === 'balance' || name === 'bonusBalance') ? Number(value) : value
     }));
