@@ -19,6 +19,10 @@ import { BonusPage } from './pages/BonusPage';
 import { MailingPage } from './pages/MailingPage';
 import { SmsPage } from './pages/SmsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { storage } from './utils/storage';
+
+// Initialize localStorage seed data if not present
+storage.init();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

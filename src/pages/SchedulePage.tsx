@@ -1,97 +1,165 @@
-import { ChevronLeft, ChevronRight, CheckSquare } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, CheckSquare, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useScheduleContext } from '../context/ScheduleContext';
+import { storage } from '../utils/storage';
+import { AppointmentModal } from '../components/schedule/AppointmentModal';
+import type { Appointment, Doctor, AppointmentStatus } from '../types';
 
-// Моковые данные для расписания
-const doctors = [
-  { id: '1', name: 'Смирнов А.В.', specialty: 'Терапевт' },
-  { id: '2', name: 'Иванова Е.С.', specialty: 'Хирург-имплантолог' },
-  { id: '3', name: 'Петров Д.Н.', specialty: 'Ортодонт' },
-  { id: '4', name: 'Сидорова О.П.', specialty: 'Гигиенист' },
-];
+const timeSlots = Array.from({ length: 23 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 9;
+  const minute = i % 2 === 0 ? '00' : '30';
+  return `${hour.toString().padStart(2, '0')}:${minute}`;
+});
 
-const timeSlots = Array.from({ length: 12 }, (_, i) => `${i + 9}:00`);
+const getStatusColor = (status: AppointmentStatus) => {
+  switch (status) {
+    case 'new': return 'bg-blue-100 border-blue-300 text-blue-800';
+    case 'confirmed': return 'bg-indigo-100 border-indigo-300 text-indigo-800';
+    case 'arrived': return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+    case 'in_progress': return 'bg-purple-100 border-purple-300 text-purple-800';
+    case 'completed': return 'bg-emerald-100 border-emerald-300 text-emerald-800';
+    case 'no_show': return 'bg-orange-100 border-orange-300 text-orange-800';
+    case 'cancelled': return 'bg-slate-100 border-slate-300 text-slate-500 opacity-60';
+    case 'blocked': return 'bg-slate-200 border-slate-400 text-slate-700 bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAiPjwvcmVjdD4KPHBhdGggZD0iTTAgMEw4IDhaTTEwIC0yTDEyIDBaTS0yIDEwTDAgMTJaIiBzdHJva2U9IiNjYmQ1ZTEiIHN0cm9rZS13aWR0aD0iMSI+PC9wYXRoPgo8L3N2Zz4=")]';
+    default: return 'bg-slate-100 border-slate-300 text-slate-800';
+  }
+};
 
-const demoAppointments = [
-  {
-    id: '1',
-    doctorId: '1',
-    patient: 'Анна К.',
-    service: 'Первичный осмотр',
-    time: '09:00',
-    duration: 1, // в часах
-    status: 'scheduled',
-    color: 'bg-blue-100 border-blue-300 text-blue-800',
-  },
-  {
-    id: '2',
-    doctorId: '2',
-    patient: 'Михаил В.',
-    service: 'Консультация по имплантации',
-    time: '10:00',
-    duration: 2,
-    status: 'in-progress',
-    color: 'bg-indigo-100 border-indigo-300 text-indigo-800',
-  },
-  {
-    id: '3',
-    doctorId: '3',
-    patient: 'Елена П.',
-    service: 'Снятие брекетов',
-    time: '14:00',
-    duration: 1.5,
-    status: 'completed',
-    color: 'bg-emerald-100 border-emerald-300 text-emerald-800',
-  },
-  {
-    id: '4',
-    doctorId: '4',
-    patient: 'Дмитрий С.',
-    service: 'Проф. гигиена',
-    time: '11:00',
-    duration: 1,
-    status: 'scheduled',
-    color: 'bg-purple-100 border-purple-300 text-purple-800',
-  },
-];
+const getStatusLabel = (status: AppointmentStatus) => {
+  switch (status) {
+    case 'new': return 'Новая';
+    case 'confirmed': return 'Подтвержден';
+    case 'arrived': return 'Пришел';
+    case 'in_progress': return 'В работе';
+    case 'completed': return 'Завершен';
+    case 'no_show': return 'Не пришел';
+    case 'cancelled': return 'Отменен';
+    case 'blocked': return 'Блок';
+    default: return status;
+  }
+};
 
 export function SchedulePage() {
+  const { selectedDate, setSelectedDate, viewMode, doctorFilter } = useScheduleContext();
+  const [appointments, setAppointments] = useState<Appointment[]>(storage.getAppointments());
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
+
+  const doctors = useMemo(() => {
+    let allDoctors = storage.getDoctors();
+    if (doctorFilter) {
+      allDoctors = allDoctors.filter(d => d.id === doctorFilter);
+    }
+    return allDoctors;
+  }, [doctorFilter]);
+
+  const patients = useMemo(() => storage.getPatients(), []);
+
+  const changeDate = (days: number) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate);
+  };
+
+  const selectedDateStr = selectedDate.toISOString().split('T')[0];
+
+  const dailyAppointments = useMemo(() => {
+    return appointments.filter(a => a.start.startsWith(selectedDateStr));
+  }, [appointments, selectedDateStr]);
+
+  const handleOpenModal = (doctor?: Doctor, timeSlot?: string) => {
+    let initialData: Partial<Appointment> = {};
+    if (doctor && timeSlot) {
+      initialData = {
+        doctorId: doctor.id,
+        cabinet: doctor.cabinet,
+        start: `${selectedDateStr}T${timeSlot}:00`,
+        end: `${selectedDateStr}T${String(parseInt(timeSlot.split(':')[0]) + 1).padStart(2, '0')}:${timeSlot.split(':')[1]}:00`,
+      };
+    }
+    setEditingAppointment(initialData);
+    setIsModalOpen(true);
+  };
+
+  const handleEditAppointment = (appointment: Appointment) => {
+    setEditingAppointment(appointment);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveAppointment = (saved: Appointment) => {
+    if (editingAppointment?.id) {
+      storage.updateAppointment(saved);
+    } else {
+      storage.addAppointment(saved);
+    }
+    setAppointments(storage.getAppointments());
+    setIsModalOpen(false);
+  };
+
+  const handleDeleteAppointment = (id: string) => {
+    storage.deleteAppointment(id);
+    setAppointments(storage.getAppointments());
+    setIsModalOpen(false);
+  };
+
+  if (viewMode !== 'day') {
+    return (
+      <div className="flex h-full items-center justify-center bg-slate-50">
+        <div className="text-center text-slate-500">
+          <h2 className="text-xl font-medium mb-2">Вид будет реализован позже</h2>
+          <p>Сейчас доступен только дневной режим.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Helpers for grid positioning
+  const startHour = 9;
+  const slotHeight = 48; // px per 30 mins
+  const hourHeight = slotHeight * 2; // 96px per hour
+
+  const getCardStyle = (startStr: string, endStr: string) => {
+    const startDate = new Date(startStr);
+    const endDate = new Date(endStr);
+
+    const startMins = (startDate.getHours() - startHour) * 60 + startDate.getMinutes();
+    const durationMins = (endDate.getTime() - startDate.getTime()) / 60000;
+
+    const top = (startMins / 60) * hourHeight;
+    const height = (durationMins / 60) * hourHeight;
+
+    return { top: `${top}px`, height: `${height - 4}px` };
+  };
+
   return (
-    <div className="flex h-full bg-slate-50 overflow-hidden">
-      {/* Левая панель: Мини-календарь и Задачи */}
+    <div className="flex h-full bg-slate-50 overflow-hidden relative">
+      {/* Левая панель */}
       <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
-        {/* Мини-календарь (заглушка) */}
         <div className="p-4 border-b border-slate-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-slate-800">Октябрь 2023</h3>
+            <h3 className="font-medium text-slate-800 capitalize">
+              {selectedDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
+            </h3>
             <div className="flex gap-1">
-              <button className="p-1 hover:bg-slate-100 rounded text-slate-500">
+              <button onClick={() => changeDate(-1)} className="p-1 hover:bg-slate-100 rounded text-slate-500">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button className="p-1 hover:bg-slate-100 rounded text-slate-500">
+              <button onClick={() => changeDate(1)} className="p-1 hover:bg-slate-100 rounded text-slate-500">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2 text-slate-400 font-medium">
-            <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div className="text-red-400">Сб</div><div className="text-red-400">Вс</div>
-          </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-sm">
-            {Array.from({ length: 31 }, (_, i) => (
-              <div
-                key={i}
-                className={clsx(
-                  "p-1.5 rounded-full cursor-pointer hover:bg-slate-100 text-slate-700",
-                  i === 14 && "bg-blue-600 text-white hover:bg-blue-700", // Текущий день
-                  (i + 1) % 7 === 6 || (i + 1) % 7 === 0 ? "text-red-500" : "" // Выходные
-                )}
-              >
-                {i + 1}
-              </div>
-            ))}
+          <div className="flex justify-center mb-2">
+            <input
+              type="date"
+              value={selectedDateStr}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              className="text-sm p-1 border border-slate-200 rounded text-slate-700"
+            />
           </div>
         </div>
 
-        {/* Задачи */}
         <div className="flex-1 p-4 flex flex-col overflow-hidden">
           <h3 className="font-medium text-slate-800 mb-3 flex items-center gap-2">
             <CheckSquare className="w-4 h-4 text-blue-500" />
@@ -112,27 +180,28 @@ export function SchedulePage() {
         </div>
       </div>
 
-      {/* Основная область: Сетка расписания */}
+      {/* Основная область: Сетка */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        {/* Заголовки колонок (Врачи) */}
         <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-10 shadow-sm">
           <div className="w-20 shrink-0 border-r border-slate-200 bg-slate-50"></div>
           {doctors.map((doctor) => (
-            <div key={doctor.id} className="flex-1 p-3 text-center border-r border-slate-200 min-w-[200px]">
-              <div className="font-medium text-slate-800">{doctor.name}</div>
-              <div className="text-xs text-slate-500">{doctor.specialty}</div>
+            <div key={doctor.id} className="flex-1 p-3 text-center border-r border-slate-200 min-w-[200px] relative group">
+               <div className="font-medium text-slate-800">{doctor.fullName}</div>
+               <div className="text-xs text-slate-500">{doctor.specialization}</div>
             </div>
           ))}
         </div>
 
-        {/* Сетка времени */}
         <div className="flex-1 overflow-auto relative">
           <div className="flex min-w-max">
             {/* Шкала времени */}
             <div className="w-20 shrink-0 flex flex-col border-r border-slate-200 bg-white sticky left-0 z-10">
-              {timeSlots.map((time) => (
-                <div key={time} className="h-24 border-b border-slate-100 p-2 text-xs font-medium text-slate-400 text-right pr-4">
-                  {time}
+              {timeSlots.map((time, i) => (
+                <div key={time} className={clsx(
+                  "border-b border-slate-100 p-1 text-xs font-medium text-slate-400 text-right pr-4",
+                  i % 2 === 0 ? "h-12 border-slate-200" : "h-12 border-dashed"
+                )}>
+                  {i % 2 === 0 ? time : ''}
                 </div>
               ))}
             </div>
@@ -140,30 +209,47 @@ export function SchedulePage() {
             {/* Колонки врачей */}
             {doctors.map((doctor) => (
               <div key={doctor.id} className="flex-1 min-w-[200px] border-r border-slate-200 relative bg-slate-50/30">
-                {/* Горизонтальные линии сетки */}
-                {timeSlots.map((_, i) => (
-                  <div key={i} className="h-24 border-b border-slate-100 border-dashed"></div>
+                {/* Сетка кликов */}
+                {timeSlots.map((time, i) => (
+                  <div
+                    key={time}
+                    onClick={() => handleOpenModal(doctor, time)}
+                    className={clsx(
+                      "group border-b border-slate-100 cursor-pointer hover:bg-blue-50/50 transition-colors flex items-center justify-center",
+                      i % 2 === 0 ? "h-12 border-slate-200" : "h-12 border-dashed"
+                    )}
+                  >
+                     <Plus className="w-4 h-4 text-blue-400 opacity-0 group-hover:opacity-100" />
+                  </div>
                 ))}
 
-                {/* Демо-карточки записей */}
-                {demoAppointments
+                {/* Карточки записей */}
+                {dailyAppointments
                   .filter((apt) => apt.doctorId === doctor.id)
                   .map((apt) => {
-                    const startHour = parseInt(apt.time.split(':')[0], 10);
-                    const top = (startHour - 9) * 96; // 96px = h-24
-                    const height = apt.duration * 96;
+                    const patient = apt.patientId ? patients.find(p => p.id === apt.patientId) : null;
+                    const style = getCardStyle(apt.start, apt.end);
 
                     return (
                       <div
                         key={apt.id}
+                        onClick={() => handleEditAppointment(apt)}
                         className={clsx(
-                          "absolute left-2 right-2 rounded-lg border p-2 text-sm shadow-sm transition-transform hover:-translate-y-0.5 cursor-pointer",
-                          apt.color
+                          "absolute left-1 right-1 rounded-lg border p-1.5 text-xs shadow-sm transition-transform hover:-translate-y-0.5 cursor-pointer overflow-hidden flex flex-col",
+                          getStatusColor(apt.status)
                         )}
-                        style={{ top: `${top}px`, height: `${height - 4}px` }} // -4px for visual gap
+                        style={style}
                       >
-                        <div className="font-medium truncate">{apt.time} - {apt.patient}</div>
-                        <div className="text-xs mt-1 opacity-90 truncate">{apt.service}</div>
+                        <div className="font-medium truncate mb-0.5 flex justify-between">
+                          <span>{apt.start.split('T')[1].slice(0,5)} {patient?.fullName || apt.service}</span>
+                          <span className="opacity-75 text-[10px]">{getStatusLabel(apt.status)}</span>
+                        </div>
+                        {apt.status !== 'blocked' && (
+                          <>
+                            <div className="truncate opacity-90">{apt.service}</div>
+                            {apt.price ? <div className="mt-auto font-medium">{apt.price} ₸</div> : null}
+                          </>
+                        )}
                       </div>
                     );
                   })}
@@ -172,6 +258,14 @@ export function SchedulePage() {
           </div>
         </div>
       </div>
+
+      <AppointmentModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveAppointment}
+        onDelete={handleDeleteAppointment}
+        initialData={editingAppointment}
+      />
     </div>
   );
 }
