@@ -12,6 +12,8 @@ interface ScheduleContextType {
   setDoctorFilter: (doctorId: string | null) => void;
   statusFilter: string | null;
   setStatusFilter: (status: string | null) => void;
+  sourceFilter: string | null;
+  setSourceFilter: (source: string | null) => void;
 }
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -21,6 +23,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [viewMode, setViewMode] = useState<ViewMode>('day');
   const [doctorFilter, setDoctorFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
 
   return (
     <ScheduleContext.Provider
@@ -33,6 +36,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         setDoctorFilter,
         statusFilter,
         setStatusFilter,
+        sourceFilter,
+        setSourceFilter,
       }}
     >
       {children}

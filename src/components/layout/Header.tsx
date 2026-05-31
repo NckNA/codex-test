@@ -5,9 +5,20 @@ import { storage } from '../../utils/storage';
 import { useState, useRef, useEffect } from 'react';
 
 export function Header() {
-  const { selectedDate, viewMode, setViewMode, doctorFilter, setDoctorFilter } = useScheduleContext();
+  const {
+    selectedDate, viewMode, setViewMode,
+    doctorFilter, setDoctorFilter,
+    statusFilter, setStatusFilter,
+    sourceFilter, setSourceFilter
+  } = useScheduleContext();
+
   const [isDoctorDropdownOpen, setIsDoctorDropdownOpen] = useState(false);
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const sourceDropdownRef = useRef<HTMLDivElement>(null);
 
   const doctors = storage.getDoctors();
 
@@ -25,10 +36,35 @@ export function Header() {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDoctorDropdownOpen(false);
       }
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setIsStatusDropdownOpen(false);
+      }
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target as Node)) {
+        setIsSourceDropdownOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const statuses = [
+    { value: 'new', label: 'Новая' },
+    { value: 'confirmed', label: 'Подтвержден' },
+    { value: 'arrived', label: 'Пришел' },
+    { value: 'in_progress', label: 'В работе' },
+    { value: 'completed', label: 'Завершен' },
+    { value: 'no_show', label: 'Не пришел' },
+    { value: 'cancelled', label: 'Отменен' },
+  ];
+
+  const sources = [
+    { value: 'phone', label: 'Телефон' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'instagram', label: 'Instagram' },
+    { value: 'walk_in', label: 'С улицы' },
+    { value: 'repeat', label: 'Повторный' },
+    { value: 'referral', label: 'По рекомендации' },
+  ];
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-sm z-10 relative">
@@ -86,13 +122,75 @@ export function Header() {
 
         <div className="h-6 w-px bg-slate-200 mx-2"></div>
 
+        {/* Source Filter */}
+        <div className="relative" ref={sourceDropdownRef}>
+          <button
+            onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
+            className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 px-2 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors focus:outline-none"
+          >
+            <span className="truncate max-w-[100px]">{sourceFilter ? sources.find(s => s.value === sourceFilter)?.label : 'Все источники'}</span>
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          </button>
+
+          {isSourceDropdownOpen && (
+            <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden z-50">
+              <button
+                onClick={() => { setSourceFilter(null); setIsSourceDropdownOpen(false); }}
+                className={clsx("w-full text-left px-4 py-2 text-sm hover:bg-slate-50", sourceFilter === null && "bg-blue-50 text-blue-700")}
+              >
+                Все источники
+              </button>
+              {sources.map(src => (
+                <button
+                  key={src.value}
+                  onClick={() => { setSourceFilter(src.value); setIsSourceDropdownOpen(false); }}
+                  className={clsx("w-full text-left px-4 py-2 text-sm hover:bg-slate-50", sourceFilter === src.value && "bg-blue-50 text-blue-700")}
+                >
+                  {src.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Status Filter */}
+        <div className="relative" ref={statusDropdownRef}>
+          <button
+            onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+            className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 px-2 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors focus:outline-none"
+          >
+            <span className="truncate max-w-[100px]">{statusFilter ? statuses.find(s => s.value === statusFilter)?.label : 'Все статусы'}</span>
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          </button>
+
+          {isStatusDropdownOpen && (
+            <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden z-50">
+              <button
+                onClick={() => { setStatusFilter(null); setIsStatusDropdownOpen(false); }}
+                className={clsx("w-full text-left px-4 py-2 text-sm hover:bg-slate-50", statusFilter === null && "bg-blue-50 text-blue-700")}
+              >
+                Все статусы
+              </button>
+              {statuses.map(st => (
+                <button
+                  key={st.value}
+                  onClick={() => { setStatusFilter(st.value); setIsStatusDropdownOpen(false); }}
+                  className={clsx("w-full text-left px-4 py-2 text-sm hover:bg-slate-50", statusFilter === st.value && "bg-blue-50 text-blue-700")}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Doctor Filter */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDoctorDropdownOpen(!isDoctorDropdownOpen)}
-            className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors focus:outline-none"
+            className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 px-2 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-colors focus:outline-none"
           >
-            <span className="truncate max-w-[120px]">{selectedDoctor ? selectedDoctor.fullName : 'Все врачи'}</span>
+            <span className="truncate max-w-[100px]">{selectedDoctor ? selectedDoctor.fullName : 'Все врачи'}</span>
             <ChevronDown className="w-4 h-4 text-slate-400" />
           </button>
 

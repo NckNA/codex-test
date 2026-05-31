@@ -40,8 +40,20 @@ const getStatusLabel = (status: AppointmentStatus) => {
   }
 };
 
+const getSourceLabel = (source?: string) => {
+  switch (source) {
+    case 'phone': return 'Телефон';
+    case 'whatsapp': return 'WhatsApp';
+    case 'instagram': return 'Instagram';
+    case 'walk_in': return 'С улицы';
+    case 'repeat': return 'Повторный';
+    case 'referral': return 'По рекомендации';
+    default: return source || '';
+  }
+};
+
 export function SchedulePage() {
-  const { selectedDate, setSelectedDate, viewMode, doctorFilter } = useScheduleContext();
+  const { selectedDate, setSelectedDate, viewMode, doctorFilter, statusFilter, sourceFilter } = useScheduleContext();
   const [appointments, setAppointments] = useState<Appointment[]>(storage.getAppointments());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
@@ -65,8 +77,13 @@ export function SchedulePage() {
   const selectedDateStr = selectedDate.toISOString().split('T')[0];
 
   const dailyAppointments = useMemo(() => {
-    return appointments.filter(a => a.start.startsWith(selectedDateStr));
-  }, [appointments, selectedDateStr]);
+    return appointments.filter(a => {
+      if (!a.start.startsWith(selectedDateStr)) return false;
+      if (statusFilter && a.status !== statusFilter) return false;
+      if (sourceFilter && a.source !== sourceFilter) return false;
+      return true;
+    });
+  }, [appointments, selectedDateStr, statusFilter, sourceFilter]);
 
   const handleOpenModal = (doctor?: Doctor, timeSlot?: string) => {
     let initialData: Partial<Appointment> = {};
@@ -247,7 +264,10 @@ export function SchedulePage() {
                         {apt.status !== 'blocked' && (
                           <>
                             <div className="truncate opacity-90">{apt.service}</div>
-                            {apt.price ? <div className="mt-auto font-medium">{apt.price} ₸</div> : null}
+                            <div className="mt-auto flex justify-between items-end">
+                              {apt.price ? <span className="font-medium">{apt.price} ₸</span> : <span />}
+                              {apt.source ? <span className="opacity-75 text-[10px]">{getSourceLabel(apt.source)}</span> : null}
+                            </div>
                           </>
                         )}
                       </div>

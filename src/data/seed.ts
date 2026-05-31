@@ -39,6 +39,16 @@ export const demoAppointments: Appointment[] = [
     start: `${todayStr}T10:00:00`, end: `${todayStr}T12:00:00`,
     status: 'blocked', createdAt: new Date().toISOString(),
   },
+  {
+    id: 'a_block1', doctorId: 'd3', cabinet: 'Каб. 3', service: 'Не записывать',
+    start: `${todayStr}T15:00:00`, end: `${todayStr}T16:00:00`,
+    status: 'blocked', createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'a_block2', doctorId: 'd4', cabinet: 'Каб. 4', service: 'Личное время',
+    start: `${todayStr}T09:00:00`, end: `${todayStr}T10:00:00`,
+    status: 'blocked', createdAt: new Date().toISOString(),
+  },
 
   // Normal appointments
   {
