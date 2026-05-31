@@ -1,5 +1,5 @@
 import { Search, Calendar, ChevronDown, Plus, UserCircle } from 'lucide-react';
-import { useScheduleContext } from '../../context/ScheduleContext';
+import { useScheduleContext } from '../../hooks/useScheduleContext';
 import { clsx } from 'clsx';
 import { storage } from '../../utils/storage';
 import { useState, useRef, useEffect } from 'react';

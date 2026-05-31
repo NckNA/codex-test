@@ -12,6 +12,8 @@ export const demoDoctors: Doctor[] = [
 ];
 
 export const demoPatients: Patient[] = Array.from({ length: 20 }, (_, i) => ({
+  balance: 0,
+  bonusBalance: 0,
   id: `p${i + 1}`,
   fullName: [
     'Алексеев', 'Борисов', 'Васильев', 'Григорьев', 'Дмитриев',
@@ -20,7 +22,7 @@ export const demoPatients: Patient[] = Array.from({ length: 20 }, (_, i) => ({
     'Романов', 'Смирнов', 'Тихонов', 'Ульянов', 'Федоров'
   ][i] + [' А.А.', ' Б.Б.', ' В.В.'][i % 3],
   phone: `+7 (999) 000-${String(1000 + i).padStart(4, '0')}`,
-  source: ['phone', 'instagram', 'walk_in', 'referral'][i % 4] as any,
+  source: ['phone', 'instagram', 'walk_in', 'referral'][i % 4] as 'phone' | 'instagram' | 'walk_in' | 'referral',
   status: 'active',
   createdAt: new Date().toISOString(),
 }));

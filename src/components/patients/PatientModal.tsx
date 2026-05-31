@@ -27,21 +27,37 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
 
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        fullName: '',
-        phone: '',
-        birthDate: '',
-        source: 'walk_in',
-        status: 'active',
-        notes: '',
-        allergies: '',
-        balance: 0,
-        bonusBalance: 0,
-        ...initialData,
-      });
+    useEffect(() => {
+        if (isOpen && initialData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFormData(prev => ({
+        ...prev,
+        fullName: initialData.fullName || '',
+        phone: initialData.phone || '',
+        birthDate: initialData.birthDate || '',
+        source: initialData.source || 'walk_in',
+        status: initialData.status || 'active',
+        notes: initialData.notes || '',
+        allergies: initialData.allergies || '',
+        balance: initialData.balance || 0,
+        bonusBalance: initialData.bonusBalance || 0,
+        id: initialData.id,
+      }));
       setError(null);
+    } else if (isOpen) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setFormData({
+            fullName: '',
+            phone: '',
+            birthDate: '',
+            source: 'walk_in',
+            status: 'active',
+            notes: '',
+            allergies: '',
+            balance: 0,
+            bonusBalance: 0,
+        });
+        setError(null);
     }
   }, [isOpen, initialData]);
 
@@ -49,7 +65,8 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFormData(prev => ({
       ...prev,
       [name]: (name === 'balance' || name === 'bonusBalance') ? Number(value) : value
     }));
