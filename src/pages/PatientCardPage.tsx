@@ -1,13 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Edit, AlertCircle, FileText, Wallet, ClipboardList, Stethoscope } from 'lucide-react';
+import { ArrowLeft, User, FileText, Wallet, ClipboardList, Stethoscope } from 'lucide-react';
 import { storage } from '../utils/storage';
+import type { Patient } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
-import type { AppointmentStatus } from '../types';
+import { DentalChartTab } from '../components/dental/DentalChartTab';
+import { TreatmentPlansTab } from '../components/treatment/TreatmentPlansTab';
 
 const TABS = [
   { id: 'overview', label: 'Обзор' },
   { id: 'history', label: 'История приёмов' },
+  { id: 'dental_chart', label: 'Зубная карта' },
   { id: 'plan', label: 'План лечения' },
   { id: 'finance', label: 'Финансы' },
   { id: 'docs', label: 'Документы' },
@@ -15,7 +18,19 @@ const TABS = [
   { id: 'files', label: 'Файлы' },
 ];
 
-const getStatusLabel = (status: AppointmentStatus) => {
+const getSourceLabel = (source: string) => {
+  switch (source) {
+    case 'phone': return 'Телефон';
+    case 'whatsapp': return 'WhatsApp';
+    case 'instagram': return 'Instagram';
+    case 'walk_in': return 'С улицы';
+    case 'repeat': return 'Повторный';
+    case 'referral': return 'По рекомендации';
+    default: return source || '';
+  }
+};
+
+const getStatusLabel = (status: string) => {
   switch (status) {
     case 'new': return 'Новая';
     case 'confirmed': return 'Подтвержден';
@@ -24,138 +39,142 @@ const getStatusLabel = (status: AppointmentStatus) => {
     case 'completed': return 'Завершен';
     case 'no_show': return 'Не пришел';
     case 'cancelled': return 'Отменен';
-    case 'blocked': return 'Блок';
     default: return status;
   }
 };
 
-const getStatusColor = (status: AppointmentStatus) => {
+const getStatusColor = (status: string) => {
   switch (status) {
-    case 'new': return 'bg-blue-100 text-blue-800';
-    case 'confirmed': return 'bg-indigo-100 text-indigo-800';
-    case 'arrived': return 'bg-yellow-100 text-yellow-800';
-    case 'in_progress': return 'bg-purple-100 text-purple-800';
-    case 'completed': return 'bg-emerald-100 text-emerald-800';
-    case 'no_show': return 'bg-orange-100 text-orange-800';
-    case 'cancelled': return 'bg-slate-100 text-slate-600';
-    default: return 'bg-slate-100 text-slate-800';
-  }
-};
-
-const getSourceLabel = (source?: string) => {
-  switch (source) {
-    case 'phone': return 'Телефон';
-    case 'whatsapp': return 'WhatsApp';
-    case 'instagram': return 'Instagram';
-    case 'walk_in': return 'С улицы';
-    case 'repeat': return 'Повторный';
-    case 'referral': return 'По рекомендации';
-    default: return source || '-';
+    case 'new': return 'bg-blue-100 text-blue-700';
+    case 'confirmed': return 'bg-indigo-100 text-indigo-700';
+    case 'arrived': return 'bg-emerald-100 text-emerald-700';
+    case 'in_progress': return 'bg-amber-100 text-amber-700';
+    case 'completed': return 'bg-slate-100 text-slate-700';
+    case 'no_show': return 'bg-rose-100 text-rose-700';
+    case 'cancelled': return 'bg-red-100 text-red-700';
+    default: return 'bg-slate-100 text-slate-700';
   }
 };
 
 export function PatientCardPage() {
   const { patientId } = useParams<{ patientId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
+
+  const [activeTab, setActiveTab] = useState(TABS[0].id);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Need to force re-render if patient updates via modal
-  const [updateTrigger, setUpdateTrigger] = useState(0);
-
+  // Use memo to replace effects and local state so it naturally updates if parent structure triggered render
+  // Realistically we can also just rely on normal component re-renders
   const patient = useMemo(() => {
-    // We include updateTrigger in the dependency array to force re-evaluation
-    return updateTrigger !== -1
-      ? storage.getPatients().find(p => p.id === patientId)
-      : undefined;
-  }, [patientId, updateTrigger]);
+    if (!patientId) return null;
+    return storage.getPatients().find(p => p.id === patientId) || null;
+  }, [patientId]);
+
+  const dentalSummary = useMemo(() => {
+     if (!patientId) return { needsTreatment: 0, missing: 0, activePlans: 0, totalAmount: 0 };
+     const chart = storage.getDentalChart(patientId);
+     const plans = storage.getTreatmentPlans(patientId);
+
+     const needsTreatment = chart.teeth.filter(t => ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(t.condition)).length;
+     const missing = chart.teeth.filter(t => t.condition === 'missing').length;
+     const activePlans = plans.filter(p => ['in_progress', 'approved'].includes(p.status)).length;
+     const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
+
+     return { needsTreatment, missing, activePlans, totalAmount };
+  }, [patientId]);
 
   const appointments = useMemo(() => {
-    return updateTrigger !== -1
-      ? storage.getAppointments()
-        .filter(a => a.patientId === patientId)
-        .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()) // Newest first
-      : [];
-  }, [patientId, updateTrigger]);
+    if (!patientId) return [];
+    return storage.getAppointments()
+      .filter(a => a.patientId === patientId)
+      .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+  }, [patientId]);
 
   const doctors = useMemo(() => storage.getDoctors(), []);
 
+  const { lastVisit, nextVisit } = useMemo(() => {
+    let lastVisit: Date | undefined;
+    let nextVisit: Date | undefined;
+    const now = new Date();
+
+    const sortedAsc = [...appointments].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+    for (const appt of sortedAsc) {
+      if (appt.status === 'blocked' || appt.status === 'cancelled') continue;
+      const apptDate = new Date(appt.start);
+      if (apptDate < now) {
+        lastVisit = apptDate;
+      } else {
+        if (!nextVisit) nextVisit = apptDate;
+      }
+    }
+    return { lastVisit, nextVisit };
+  }, [appointments]);
+
   if (!patient) {
     return (
-      <div className="p-8 h-full flex flex-col items-center justify-center text-slate-500">
-        <AlertCircle className="w-12 h-12 mb-4 text-slate-300" />
-        <h2 className="text-xl font-medium">Пациент не найден</h2>
-        <button onClick={() => navigate('/patients')} className="mt-4 text-blue-600 hover:underline">Вернуться к списку</button>
+      <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+        <User className="w-16 h-16 mb-4 text-slate-300" />
+        <h2 className="text-xl font-semibold text-slate-700 mb-2">Пациент не найден</h2>
+        <p className="mb-6">Возможно, он был удален или ссылка недействительна.</p>
+        <button
+          onClick={() => navigate('/patients')}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+        >
+          Вернуться к списку
+        </button>
       </div>
     );
   }
 
-  // Calculate visits
-  const now = new Date();
-  let lastVisit: Date | undefined;
-  let nextVisit: Date | undefined;
-
-  for (const appt of appointments) {
-    if (appt.status === 'blocked' || appt.status === 'cancelled') continue;
-    const date = new Date(appt.start);
-    if (date < now) {
-      if (!lastVisit || date > lastVisit) lastVisit = date;
-    } else {
-      if (!nextVisit || date < nextVisit) nextVisit = date;
-    }
-  }
-
-  const handleSave = (updated: import('../types').Patient) => {
+  const handleSave = (updated: Patient) => {
     storage.updatePatient(updated);
-    setUpdateTrigger(prev => prev + 1);
     setIsModalOpen(false);
   };
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      {/* Header Profile */}
-      <div className="bg-white border-b border-slate-200 p-6 shrink-0 z-10">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 px-6 pt-6 shrink-0">
         <button
           onClick={() => navigate('/patients')}
-          className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 mb-4 transition-colors w-fit"
+          className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors mb-4"
         >
-          <ChevronLeft className="w-4 h-4" />
-          Назад к списку
+          <ArrowLeft className="w-4 h-4" /> Назад к списку
         </button>
 
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl font-bold">
+            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl font-bold border border-blue-200 shadow-sm shrink-0">
               {patient.fullName.charAt(0)}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">{patient.fullName}</h1>
-              <div className="flex items-center gap-4 mt-1 text-sm text-slate-600">
+              <h1 className="text-2xl font-bold text-slate-800 mb-1">{patient.fullName}</h1>
+              <div className="flex items-center gap-3 text-sm text-slate-600">
                 <span>{patient.phone}</span>
-                {patient.birthDate && (
-                  <>
-                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                    <span>{new Date(patient.birthDate).toLocaleDateString('ru-RU')}</span>
-                  </>
-                )}
-                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${patient.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>
+                <span className="text-slate-300">•</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  patient.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'
+                }`}>
                   {patient.status === 'active' ? 'Активный' : 'Архив'}
                 </span>
               </div>
             </div>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <Edit className="w-4 h-4" />
-            Редактировать
-          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+            >
+              <User className="w-4 h-4" />
+              Редактировать
+            </button>
+          </div>
         </div>
 
-        {/* Tabs navigation */}
-        <div className="flex gap-6 mt-6 border-b border-slate-200">
+        {/* Tabs */}
+        <div className="flex gap-6 overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab.id}
@@ -239,6 +258,39 @@ export function PatientCardPage() {
                      <span className="text-slate-500">Бонусный баланс</span>
                      <span className="font-semibold text-emerald-600">
                        {patient.bonusBalance || 0}
+                     </span>
+                   </div>
+                 </div>
+              </div>
+
+              {/* Dental Summary */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+                 <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4 text-slate-400" /> Стоматология
+                 </h3>
+                 <div className="space-y-3">
+                   <div className="flex justify-between items-center text-sm">
+                     <span className="text-slate-500">Требуют лечения</span>
+                     <span className="font-semibold text-amber-600">
+                       {dentalSummary.needsTreatment}
+                     </span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm">
+                     <span className="text-slate-500">Удалены</span>
+                     <span className="font-semibold text-slate-600">
+                       {dentalSummary.missing}
+                     </span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm">
+                     <span className="text-slate-500">Активных планов</span>
+                     <span className="font-semibold text-blue-600">
+                       {dentalSummary.activePlans}
+                     </span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm">
+                     <span className="text-slate-500">Сумма по планам</span>
+                     <span className="font-semibold text-slate-800">
+                       {dentalSummary.totalAmount.toLocaleString()} ₸
                      </span>
                    </div>
                  </div>
@@ -331,8 +383,11 @@ export function PatientCardPage() {
           </div>
         )}
 
+        {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
+        {activeTab === 'plan' && <TreatmentPlansTab patientId={patient.id} />}
+
         {/* Placeholders for other tabs */}
-        {['plan', 'finance', 'docs', 'communications', 'files'].includes(activeTab) && (
+        {['finance', 'docs', 'communications', 'files'].includes(activeTab) && (
           <div className="p-8 h-[400px] flex flex-col items-center justify-center text-slate-400 bg-white rounded-xl border border-slate-200 border-dashed">
             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
               <span className="text-2xl">🚧</span>

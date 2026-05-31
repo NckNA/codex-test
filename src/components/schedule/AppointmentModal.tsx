@@ -37,8 +37,8 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
 
   // Reset form when opened with new data
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setFormData({
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+                setFormData({
       patientId: '',
       doctorId: '',
       cabinet: '',
@@ -59,13 +59,13 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFormData(prev => ({ ...prev, [name]: name === 'price' ? Number(value) : value }));
+
+          setFormData(prev => ({ ...prev, [name]: name === 'price' ? Number(value) : value }));
   };
 
   const handleStatusChange = (status: AppointmentStatus) => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFormData(prev => ({ ...prev, status }));
+
+          setFormData(prev => ({ ...prev, status }));
   };
 
   const checkConflicts = () => {
