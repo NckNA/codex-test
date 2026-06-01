@@ -1,4 +1,66 @@
-import type { Patient, Doctor, Appointment } from '../types';
+import type { Patient, Doctor, Appointment, ChiefComplaint, DentalFinding } from '../types';
+
+export const demoChiefComplaints: ChiefComplaint[] = [
+  {
+    id: 'cc1',
+    patientId: 'p1',
+    text: 'Пациент обратился с жалобой на дискомфорт в области 47 зуба.',
+    relatedTeeth: [47],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+];
+
+export const demoDentalFindings: DentalFinding[] = [
+  {
+    id: 'f1',
+    patientId: 'p1',
+    toothNumber: 47,
+    category: 'caries',
+    severity: 'high',
+    title: 'Кариес 47 зуба',
+    description: 'Выявлено кариозное поражение.',
+    riskDescription: 'Без лечения возможно углубление процесса и развитие осложнений.',
+    recommendation: 'Рекомендовано лечение кариеса 47 зуба.',
+    isChiefComplaintRelated: true,
+    includeInTreatmentPlan: true,
+    status: 'recommended',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'f2',
+    patientId: 'p1',
+    toothNumber: 24,
+    category: 'caries',
+    severity: 'medium',
+    title: 'Начальный кариес 24 зуба',
+    description: 'Дополнительно выявлены признаки начального кариеса.',
+    riskDescription: 'Возможное прогрессирование при отсутствии лечения.',
+    recommendation: 'Рекомендовано плановое лечение.',
+    isChiefComplaintRelated: false,
+    includeInTreatmentPlan: true,
+    status: 'discovered',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'f3',
+    patientId: 'p1',
+    toothNumber: 48,
+    category: 'risk_zone',
+    severity: 'low',
+    title: 'Зона риска 48 зуба',
+    description: 'Требуется наблюдение.',
+    riskDescription: 'При появлении боли или воспаления может потребоваться дополнительная диагностика.',
+    recommendation: 'Контрольный осмотр.',
+    isChiefComplaintRelated: false,
+    includeInTreatmentPlan: false,
+    status: 'observing',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+];
 
 export const demoDoctors: Doctor[] = [
   { id: 'd1', fullName: 'Иванова Е.С.', specialization: 'Хирург-имплантолог', cabinet: 'Каб. 1', color: 'blue', active: true },

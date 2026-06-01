@@ -1,5 +1,5 @@
-import type { Patient, Doctor, Appointment, DentalChart, TreatmentPlan, ToothNumber, ToothRecord } from '../types';
-import { demoDoctors, demoPatients, demoAppointments } from '../data/seed';
+import type { Patient, Doctor, Appointment, DentalChart, TreatmentPlan, ToothNumber, ToothRecord, ChiefComplaint, DentalFinding } from '../types';
+import { demoDoctors, demoPatients, demoAppointments, demoChiefComplaints, demoDentalFindings } from '../data/seed';
 
 const STORAGE_KEYS = {
   INITIALIZED: 'df_initialized',
@@ -8,6 +8,8 @@ const STORAGE_KEYS = {
   APPOINTMENTS: 'df_appointments',
   DENTAL_CHARTS: 'df_dental_charts',
   TREATMENT_PLANS: 'df_treatment_plans',
+  CHIEF_COMPLAINTS: 'df_chief_complaints',
+  DENTAL_FINDINGS: 'df_dental_findings',
 };
 
 export const storage = {
@@ -17,6 +19,8 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.DOCTORS, JSON.stringify(demoDoctors));
       localStorage.setItem(STORAGE_KEYS.PATIENTS, JSON.stringify(demoPatients));
       localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(demoAppointments));
+      localStorage.setItem(STORAGE_KEYS.CHIEF_COMPLAINTS, JSON.stringify(demoChiefComplaints));
+      localStorage.setItem(STORAGE_KEYS.DENTAL_FINDINGS, JSON.stringify(demoDentalFindings));
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     }
   },
@@ -154,6 +158,82 @@ export const storage = {
   deleteTreatmentPlan: (_patientId: string, planId: string) => {
     const plans = storage.getAllTreatmentPlans();
     storage.saveAllTreatmentPlans(plans.filter(p => p.id !== planId));
+  },
+
+  getAllChiefComplaints: (): ChiefComplaint[] => {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.CHIEF_COMPLAINTS) || '[]');
+  },
+
+  saveAllChiefComplaints: (complaints: ChiefComplaint[]) => {
+    localStorage.setItem(STORAGE_KEYS.CHIEF_COMPLAINTS, JSON.stringify(complaints));
+  },
+
+  getChiefComplaint: (patientId: string): ChiefComplaint | null => {
+    const all = storage.getAllChiefComplaints();
+    return all.find(c => c.patientId === patientId) || null;
+  },
+
+  saveChiefComplaint: (patientId: string, complaint: Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>) => {
+    const all = storage.getAllChiefComplaints();
+    const index = all.findIndex(c => c.patientId === patientId);
+
+    if (index !== -1) {
+      all[index] = {
+        ...all[index],
+        ...complaint,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      all.push({
+        id: crypto.randomUUID(),
+        patientId,
+        ...complaint,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    storage.saveAllChiefComplaints(all);
+  },
+
+  getAllFindings: (): DentalFinding[] => {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.DENTAL_FINDINGS) || '[]');
+  },
+
+  saveAllFindings: (findings: DentalFinding[]) => {
+    localStorage.setItem(STORAGE_KEYS.DENTAL_FINDINGS, JSON.stringify(findings));
+  },
+
+  getFindings: (patientId: string): DentalFinding[] => {
+    const all = storage.getAllFindings();
+    return all.filter(f => f.patientId === patientId);
+  },
+
+  addFinding: (patientId: string, finding: Omit<DentalFinding, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>) => {
+    const all = storage.getAllFindings();
+    const newFinding: DentalFinding = {
+      ...finding,
+      id: crypto.randomUUID(),
+      patientId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    all.push(newFinding);
+    storage.saveAllFindings(all);
+  },
+
+  updateFinding: (patientId: string, finding: DentalFinding) => {
+    const all = storage.getAllFindings();
+    const index = all.findIndex(f => f.id === finding.id && f.patientId === patientId);
+    if (index !== -1) {
+      all[index] = { ...finding, updatedAt: new Date().toISOString() };
+      storage.saveAllFindings(all);
+    }
+  },
+
+  deleteFinding: (patientId: string, findingId: string) => {
+    const all = storage.getAllFindings();
+    storage.saveAllFindings(all.filter(f => !(f.id === findingId && f.patientId === patientId)));
   },
 
 };
