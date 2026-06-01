@@ -86,6 +86,56 @@ export interface DentalChart {
   updatedAt: string;
 }
 
+export type FindingCategory =
+  | 'caries'
+  | 'missing_tooth'
+  | 'gum_problem'
+  | 'root_problem'
+  | 'bite_problem'
+  | 'aesthetic_problem'
+  | 'pain'
+  | 'risk_zone'
+  | 'hygiene'
+  | 'prosthetics'
+  | 'implantology'
+  | 'other';
+
+export type FindingSeverity = 'low' | 'medium' | 'high' | 'urgent';
+
+export type FindingStatus =
+  | 'discovered'
+  | 'recommended'
+  | 'included_in_plan'
+  | 'observing'
+  | 'declined_by_patient'
+  | 'completed';
+
+export interface DentalFinding {
+  id: string;
+  patientId: string;
+  toothNumber?: number;
+  title: string;
+  category: FindingCategory;
+  severity: FindingSeverity;
+  description: string;
+  riskDescription?: string;
+  recommendation?: string;
+  isChiefComplaintRelated: boolean;
+  includeInTreatmentPlan: boolean;
+  status: FindingStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChiefComplaint {
+  id: string;
+  patientId: string;
+  text: string;
+  relatedTeeth: number[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type TreatmentPlanStatus = 'draft' | 'approved' | 'in_progress' | 'completed' | 'cancelled';
 export type TreatmentStageStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
 

@@ -6,11 +6,13 @@ import type { Patient } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
 import { DentalChartTab } from '../components/dental/DentalChartTab';
 import { TreatmentPlansTab } from '../components/treatment/TreatmentPlansTab';
+import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 
 const TABS = [
   { id: 'overview', label: 'Обзор' },
   { id: 'history', label: 'История приёмов' },
   { id: 'dental_chart', label: 'Зубная карта' },
+  { id: 'findings', label: 'Проблемы и риски' },
   { id: 'plan', label: 'План лечения' },
   { id: 'finance', label: 'Финансы' },
   { id: 'docs', label: 'Документы' },
@@ -71,16 +73,23 @@ export function PatientCardPage() {
   }, [patientId]);
 
   const dentalSummary = useMemo(() => {
-     if (!patientId) return { needsTreatment: 0, missing: 0, activePlans: 0, totalAmount: 0 };
+     if (!patientId) return { needsTreatment: 0, missing: 0, activePlans: 0, totalAmount: 0, chiefComplaintText: '', highUrgentFindings: 0, notIncludedFindings: 0, observingFindings: 0 };
      const chart = storage.getDentalChart(patientId);
      const plans = storage.getTreatmentPlans(patientId);
+     const complaint = storage.getChiefComplaint(patientId);
+     const findings = storage.getFindings(patientId);
 
      const needsTreatment = chart.teeth.filter(t => ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(t.condition)).length;
      const missing = chart.teeth.filter(t => t.condition === 'missing').length;
      const activePlans = plans.filter(p => ['in_progress', 'approved'].includes(p.status)).length;
      const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
 
-     return { needsTreatment, missing, activePlans, totalAmount };
+     const chiefComplaintText = complaint?.text || '';
+     const highUrgentFindings = findings.filter(f => (f.severity === 'high' || f.severity === 'urgent') && f.status !== 'completed' && f.status !== 'declined_by_patient').length;
+     const notIncludedFindings = findings.filter(f => f.status === 'discovered' || f.status === 'recommended').length;
+     const observingFindings = findings.filter(f => f.status === 'observing').length;
+
+     return { needsTreatment, missing, activePlans, totalAmount, chiefComplaintText, highUrgentFindings, notIncludedFindings, observingFindings };
   }, [patientId]);
 
   const appointments = useMemo(() => {
@@ -268,6 +277,14 @@ export function PatientCardPage() {
                  <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                   <Stethoscope className="w-4 h-4 text-slate-400" /> Стоматология
                  </h3>
+
+                 {dentalSummary.chiefComplaintText && (
+                   <div className="mb-3 p-3 bg-slate-50 rounded border border-slate-100 text-sm">
+                     <div className="text-slate-500 mb-1 text-xs">Основная жалоба:</div>
+                     <div className="text-slate-800 line-clamp-2">{dentalSummary.chiefComplaintText}</div>
+                   </div>
+                 )}
+
                  <div className="space-y-3">
                    <div className="flex justify-between items-center text-sm">
                      <span className="text-slate-500">Требуют лечения</span>
@@ -281,9 +298,27 @@ export function PatientCardPage() {
                        {dentalSummary.missing}
                      </span>
                    </div>
+                   <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-100">
+                     <span className="text-slate-500">Срочные/высокие риски</span>
+                     <span className="font-semibold text-red-600">
+                       {dentalSummary.highUrgentFindings}
+                     </span>
+                   </div>
                    <div className="flex justify-between items-center text-sm">
-                     <span className="text-slate-500">Активных планов</span>
+                     <span className="text-slate-500">Не в плане (выявлено)</span>
+                     <span className="font-semibold text-amber-600">
+                       {dentalSummary.notIncludedFindings}
+                     </span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm">
+                     <span className="text-slate-500">Наблюдение</span>
                      <span className="font-semibold text-blue-600">
+                       {dentalSummary.observingFindings}
+                     </span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-100">
+                     <span className="text-slate-500">Активных планов</span>
+                     <span className="font-semibold text-slate-800">
                        {dentalSummary.activePlans}
                      </span>
                    </div>
@@ -384,6 +419,7 @@ export function PatientCardPage() {
         )}
 
         {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
+        {activeTab === 'findings' && <FindingsRisksTab patientId={patient.id} />}
         {activeTab === 'plan' && <TreatmentPlansTab patientId={patient.id} />}
 
         {/* Placeholders for other tabs */}
