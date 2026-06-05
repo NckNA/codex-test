@@ -58,10 +58,11 @@
 ## 8. Планы лечения
 **Статус**: Частично
 **Точка входа**: `src/components/treatment/TreatmentPlansTab.tsx`
-**Основные файлы**: `TreatmentPlanModal.tsx`, `CreatePlanFromFindingsModal.tsx`
+**Основные файлы**: `TreatmentPlanModal.tsx`, `CreatePlanFromFindingsModal.tsx`, `TreatmentPlanPatientPreview.tsx`
 **Связанные типы**: `TreatmentPlan`, `TreatmentStage`, `DentalFinding`
-**Связанные storage-функции**: `getTreatmentPlans`, `addTreatmentPlan`, `updateTreatmentPlan`, `deleteTreatmentPlan`, `getFindings`, `updateFinding`.
+**Связанные storage-функции**: `getTreatmentPlans`, `addTreatmentPlan`, `updateTreatmentPlan`, `deleteTreatmentPlan`, `getPatients`, `getChiefComplaint`, `getFindings`, `updateFinding`.
 **Связь с проблемами/рисками**: `TreatmentPlansTab` может создать draft plan from findings через `CreatePlanFromFindingsModal.tsx`. Один selected `DentalFinding` создает один `TreatmentStage` с `findingIds`.
+**Patient preview**: `TreatmentPlanPatientPreview.tsx` показывает read-only предпросмотр выбранного плана для пациента без PDF, печати и document generation.
 **Уровень уверенности**: Высокий
 
 ## 9. Финансы, Документы, Склад, Рассылки, Настройки

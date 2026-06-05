@@ -62,6 +62,7 @@ ScheduleContext отвечает за часть состояния распис
 - `TreatmentPlansTab.tsx`: Выводит список планов лечения.
 - `TreatmentPlanModal.tsx`: Позволяет собирать этапы лечения (Treatment Stages), задавать цену и статус.
 - `CreatePlanFromFindingsModal.tsx`: Создает draft-план лечения из выбранных `DentalFinding`; один finding превращается в один stage с `findingIds`, а выбранные findings получают статус `included_in_plan`.
+- `TreatmentPlanPatientPreview.tsx`: Показывает read-only patient-facing preview выбранного плана лечения, читая пациента, основную жалобу и findings из Storage.
 
 **Уровень уверенности**: Высокий.
 

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, ClipboardList } from 'lucide-react';
+import { Plus, Edit2, Trash2, ClipboardList, Eye } from 'lucide-react';
 import { storage } from '../../utils/storage';
 import type { TreatmentPlan } from '../../types';
 import { TreatmentPlanModal } from './TreatmentPlanModal';
 import { CreatePlanFromFindingsModal } from './CreatePlanFromFindingsModal';
+import { TreatmentPlanPatientPreview } from './TreatmentPlanPatientPreview';
 
 interface TreatmentPlansTabProps {
   patientId: string;
@@ -36,6 +37,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<TreatmentPlan | null>(null);
+  const [previewPlan, setPreviewPlan] = useState<TreatmentPlan | null>(null);
 
   const loadPlans = () => {
     setPlans(storage.getTreatmentPlans(patientId));
@@ -135,6 +137,14 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
 
                     <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
                       <button
+                        onClick={() => setPreviewPlan(plan)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                        title="Предпросмотр для пациента"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Предпросмотр для пациента
+                      </button>
+                      <button
                         onClick={() => handleOpenModal(plan)}
                         className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                         title="Редактировать"
@@ -172,6 +182,12 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
           onPlanCreated={handlePlanCreatedFromFindings}
         />
       )}
+      <TreatmentPlanPatientPreview
+        isOpen={!!previewPlan}
+        patientId={patientId}
+        plan={previewPlan}
+        onClose={() => setPreviewPlan(null)}
+      />
     </div>
   );
 }
