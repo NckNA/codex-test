@@ -1,33 +1,36 @@
-# Report: Task DOCS-001 Documentation Correction
+# Report: DOCS-001 factual correction
 
-## Что исправлено
-По запросу были проверены факты в кодовой базе и исправлены неточности в документации, касающиеся модуля расписания.
+## What was corrected
 
-1. **`ARCHITECTURE_CURRENT.md`**:
-   - Удалено утверждение, что `ScheduleContext` управляет открытием `AppointmentModal`.
-   - Убрано упоминание логики `drag-and-drop` (функционал отсутствует в коде).
-   - Удалено упоминание несуществующего компонента `ScheduleGrid.tsx` (вся сетка рендерится непосредственно в `SchedulePage.tsx`).
-2. **`PRODUCT_CONTEXT.md`**:
-   - Из модуля расписания удалено утверждение о поддержке перемещения приемов через `drag-and-drop`.
-3. **`PROJECT_ROUTES.md`**:
-   - `src/components/schedule/ScheduleGrid.tsx` удален из списка основных файлов раздела "Расписание".
-   - Убрано предупреждение о запрете трогать логику `drag-and-drop`.
+- Removed false or unconfirmed drag-and-drop claims from DOCS-001 documentation.
+- Corrected ScheduleContext description to match the real code.
+- Removed non-existent ScheduleGrid.tsx from PROJECT_ROUTES.md.
+- Confirmed the documentation describes DentalFlow CRM, not the game project.
 
-## Какие файлы обновлены
-- `_ai_work/ARCHITECTURE_CURRENT.md`
-- `_ai_work/PRODUCT_CONTEXT.md`
-- `_ai_work/PROJECT_ROUTES.md`
-- `_ai_work/REPORTS/DOCS-001_correction_report.md` (этот файл)
+## Files changed
 
-## Подтверждение требований
-- **Репозиторий**: Все действия выполнены строго в репозитории `NckNA/codex-test`.
-- Ни один файл кода вне директории `_ai_work` не был затронут или изменен. Бизнес-логика, компоненты и страницы остались без изменений.
+- _ai_work/ARCHITECTURE_CURRENT.md
+- _ai_work/PRODUCT_CONTEXT.md
+- _ai_work/PROJECT_ROUTES.md
+- _ai_work/REPORTS/DOCS-001_correction_report.md
 
-## Как проверить (Verification)
-1. Убедиться, что ветка `feature/docs-001-correction` была создана и запушена.
-2. Прочитать измененные файлы и убедиться, что упоминаний "drag-and-drop" и `ScheduleGrid.tsx` больше нет.
-3. Проверить результаты сборки и линтера (описано ниже).
+## Code changes
 
-## Результаты сборки (Command results)
-- `npm run lint`: Выполнено успешно, ошибок не обнаружено.
-- `npm run build`: Выполнено успешно, проект собирается без ошибок.
+No application code was changed.
+No files outside _ai_work/ were changed.
+
+## Verification
+
+Run:
+npm run build
+
+If lint exists:
+npm run lint
+
+If lint does not exist:
+write “npm run lint unavailable”.
+
+## Known limitations
+
+This correction only fixes factual inaccuracies in documentation.
+No business logic, UI, storage, types, or routes were changed.
