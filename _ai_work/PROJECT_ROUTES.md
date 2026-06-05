@@ -1,82 +1,82 @@
 # Карта маршрутов проекта (Project Routes)
 
 ## 1. Маршрутизация (Core)
-**Статус**: реализовано
+**Статус**: Реализовано
 **Точка входа**: `src/main.tsx`
-**Что нельзя трогать**: базовую структуру `BrowserRouter` и `Routes`.
-**Уровень уверенности**: высокий
+**Основные файлы**: `main.tsx`
+**Что нельзя трогать без отдельной задачи**: Общую структуру `BrowserRouter` и `Routes`.
+**Соседние маршруты**: Все приложение зависит от этого файла.
+**Уровень уверенности**: Высокий
 
 ## 2. Layout
-**Статус**: реализовано
+**Статус**: Реализовано
 **Точка входа**: `src/components/layout/Layout.tsx`
 **Основные файлы**: `Sidebar.tsx`, `Header.tsx`
-**Что нельзя трогать**: обертку `<Outlet />`.
-**Уровень уверенности**: высокий
+**Что нельзя трогать**: Обертку `<Outlet />`, базовые стили.
+**Уровень уверенности**: Высокий
 
 ## 3. Расписание
-**Статус**: реализовано
+**Статус**: Реализовано
 **Точка входа**: `src/pages/SchedulePage.tsx`
-**Основные файлы**:
-- `src/components/schedule/ScheduleGrid.tsx`
-- `src/components/schedule/AppointmentModal.tsx`
-- `src/context/ScheduleContext.tsx`
+**Основные файлы**: `src/components/schedule/ScheduleGrid.tsx`, `src/components/schedule/AppointmentModal.tsx`, `src/context/ScheduleContext.tsx`
+**Связанные типы**: `Appointment`, `AppointmentStatus`
 **Связанные storage-функции**: `getAppointments`, `addAppointment`, `updateAppointment`, `deleteAppointment`.
-**Что нельзя трогать**: логику drag-and-drop, структуру контекста.
-**Уровень уверенности**: высокий
+**Что нельзя трогать без отдельной задачи**: Логику drag-and-drop, структуру провайдера контекста.
+**Уровень уверенности**: Высокий
 
 ## 4. Пациенты
-**Статус**: реализовано
+**Статус**: Реализовано
 **Точка входа**: `src/pages/PatientsPage.tsx`
-**Основные файлы**:
-- `src/components/patients/PatientModal.tsx`
+**Основные файлы**: `src/components/patients/PatientModal.tsx`
+**Связанные типы**: `Patient`
 **Связанные storage-функции**: `getPatients`, `addPatient`, `updatePatient`.
-**Уровень уверенности**: высокий
+**Уровень уверенности**: Высокий
 
 ## 5. Карточка пациента
-**Статус**: реализовано частично (некоторые табы - заглушки)
+**Статус**: Частично
 **Точка входа**: `src/pages/PatientCardPage.tsx`
-**Что нельзя трогать**: маршрут `/patients/:patientId`, общий порядок вкладок без задачи.
-**Уровень уверенности**: высокий
+**Что нельзя трогать без отдельной задачи**: Маршрут параметров `/patients/:patientId`, общий порядок `TABS`.
+**Соседние маршруты**: Зависит от всех вложенных табов.
+**Уровень уверенности**: Высокий
 
 ## 6. Зубная карта
-**Статус**: реализовано
+**Статус**: Реализовано
 **Точка входа**: `src/components/dental/DentalChartTab.tsx`
-**Основные файлы**:
-- `ToothGrid.tsx`
-- `ToothEditorModal.tsx`
+**Основные файлы**: `ToothGrid.tsx`, `ToothEditorModal.tsx`
+**Связанные типы**: `DentalChart`, `ToothRecord`, `ToothCondition`
 **Связанные storage-функции**: `getDentalChart`, `saveDentalChart`.
-**Уровень уверенности**: высокий
+**Уровень уверенности**: Высокий
 
 ## 7. Проблемы и риски
-**Статус**: реализовано
+**Статус**: Реализовано
 **Точка входа**: `src/components/dental/FindingsRisksTab.tsx`
-**Основные файлы**:
-- `FindingModal.tsx`
-**Связанные storage-функции**: `getFindings`, `addFinding`, `updateFinding`, `deleteFinding`, `getChiefComplaint`, `saveChiefComplaint`.
-**Уровень уверенности**: высокий
+**Основные файлы**: `FindingModal.tsx`
+**Связанные типы**: `DentalFinding`, `ChiefComplaint`
+**Связанные storage-функции**: `getChiefComplaint`, `saveChiefComplaint`, `getFindings`, `addFinding`, `updateFinding`, `deleteFinding`.
+**Уровень уверенности**: Высокий
 
 ## 8. Планы лечения
-**Статус**: реализовано частично (нет печати и автогенерации)
+**Статус**: Частично
 **Точка входа**: `src/components/treatment/TreatmentPlansTab.tsx`
-**Основные файлы**:
-- `TreatmentPlanModal.tsx`
+**Основные файлы**: `TreatmentPlanModal.tsx`
+**Связанные типы**: `TreatmentPlan`, `TreatmentStage`
 **Связанные storage-функции**: `getTreatmentPlans`, `addTreatmentPlan`, `updateTreatmentPlan`, `deleteTreatmentPlan`.
-**Уровень уверенности**: высокий
+**Уровень уверенности**: Высокий
 
-## 9. Storage
-**Статус**: реализовано
+## 9. Финансы, Документы, Склад, Рассылки, Настройки
+**Статус**: Заглушка
+**Точки входа**: `FinancePage.tsx`, `DocumentsPage.tsx`, `WarehousePage.tsx`, `MailingPage.tsx`, `SettingsPage.tsx` и проч.
+**Что нельзя трогать**: Это плейсхолдеры, их можно обновлять только при явной задаче на реализацию модуля.
+**Уровень уверенности**: Высокий
+
+## 10. Storage
+**Статус**: Реализовано
 **Точка входа**: `src/utils/storage.ts`
-**Связанные типы**: Все интерфейсы из `src/types/index.ts`.
-**Что нельзя трогать**: имена ключей `STORAGE_KEYS`, логику синхронного возврата без задачи на рефакторинг.
-**Уровень уверенности**: высокий
+**Что нельзя трогать без отдельной задачи**: Синхронную природу localStorage, существующие ключи `STORAGE_KEYS`.
+**Уровень уверенности**: Высокий
 
-## 10. Типы
-**Статус**: реализовано
-**Точка входа**: `src/types/index.ts`
-**Что нельзя трогать**: существующие обязательные поля.
-**Уровень уверенности**: высокий
-
-## 11. Финансы, Документы, Склад, Рассылки, Настройки
-**Статус**: заглушки
-**Точки входа**: `FinancePage.tsx`, `DocumentsPage.tsx`, `WarehousePage.tsx`, `SmsPage.tsx`, `SettingsPage.tsx` и др.
-**Уровень уверенности**: высокий
+## 11. UI
+**Статус**: Реализовано
+**Точка входа**: `index.css`, `tailwind.config.js`
+**Что нельзя трогать**: Цветовую палитру (использование Tailwind default `slate` и `blue` акцентов).
+**Уровень уверенности**: Высокий

@@ -1,6 +1,6 @@
 # Current Task
 
-Task ID: DOCS-001-ai-routing-documentation
+Task ID: DOCS-001_ai_routing_documentation
 
 Goal:
 Create architectural documentation and AI routing map.

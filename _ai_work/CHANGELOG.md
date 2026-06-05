@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-05-31 / Documentation routing setup
+## 2026-05-31 / DOCS-001 AI routing documentation
 
 Changed:
 - created architecture documentation;
@@ -9,6 +9,7 @@ Changed:
 - created medical domain rules;
 - created storage rules;
 - created UI rules;
-- created risks document.
+- created risks document;
+- created task template.
 
 No business logic changed.
