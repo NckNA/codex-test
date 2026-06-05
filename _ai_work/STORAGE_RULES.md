@@ -33,3 +33,7 @@
   2. Добавить `df_ключ` в объект `STORAGE_KEYS`.
   3. Написать функции get/save/add/update/delete в `storage.ts`.
   4. Обновить документацию: `PROJECT_ROUTES.md` и этот файл `STORAGE_RULES.md`.
+### Integration Storage Rules
+- The `integration` field inside `Patient` (`PatientIntegrationMeta`) is strictly optional.
+- Existing patients in `localStorage` without the `integration` field must not be force-migrated or overwritten upon load.
+- UI components must safely default `source` to `manual` and `leadStatus` to `new_lead` dynamically if `integration` is undefined.

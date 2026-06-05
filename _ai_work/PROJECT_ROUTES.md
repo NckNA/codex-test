@@ -82,3 +82,6 @@
 **Точка входа**: `index.css`, `tailwind.config.js`
 **Что нельзя трогать**: Цветовую палитру (использование Tailwind default `slate` и `blue` акцентов).
 **Уровень уверенности**: Высокий
+
+## Future Routes
+- `Settings → Integrations → amoCRM`: Prepared route for future amoCRM settings (UI not implemented yet).

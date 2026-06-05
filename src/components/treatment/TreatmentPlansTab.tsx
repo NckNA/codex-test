@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, ClipboardList, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, ClipboardList, Eye, Cloud } from 'lucide-react';
 import { storage } from '../../utils/storage';
 import type { TreatmentPlan } from '../../types';
 import { TreatmentPlanModal } from './TreatmentPlanModal';
@@ -136,6 +136,14 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
                     </div>
 
                     <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+                      <button
+                        disabled
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-slate-400 bg-slate-50 cursor-not-allowed rounded-md border border-slate-200"
+                        title="Интеграция с amoCRM будет доступна позже"
+                      >
+                        <Cloud className="w-4 h-4 text-slate-300" />
+                        amoCRM: после подключения
+                      </button>
                       <button
                         onClick={() => setPreviewPlan(plan)}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-blue-700 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
