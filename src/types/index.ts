@@ -138,6 +138,7 @@ export interface ChiefComplaint {
 
 export type TreatmentPlanStatus = 'draft' | 'approved' | 'in_progress' | 'completed' | 'cancelled';
 export type TreatmentStageStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
+export type TreatmentPlanSource = 'manual' | 'from_finding';
 
 export interface TreatmentStage {
   id: string;
@@ -146,6 +147,8 @@ export interface TreatmentStage {
   description: string;
   price: number;
   status: TreatmentStageStatus;
+  findingIds?: string[];
+  source?: TreatmentPlanSource;
 }
 
 export interface TreatmentPlan {

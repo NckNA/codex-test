@@ -81,7 +81,7 @@ export function PatientCardPage() {
 
      const needsTreatment = chart.teeth.filter(t => ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(t.condition)).length;
      const missing = chart.teeth.filter(t => t.condition === 'missing').length;
-     const activePlans = plans.filter(p => ['in_progress', 'approved'].includes(p.status)).length;
+     const activePlans = plans.filter(p => ['draft', 'in_progress', 'approved'].includes(p.status)).length;
      const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
 
      const chiefComplaintText = complaint?.text || '';

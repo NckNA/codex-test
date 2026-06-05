@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, ClipboardList } from 'lucide-react';
 import { storage } from '../../utils/storage';
 import type { TreatmentPlan } from '../../types';
 import { TreatmentPlanModal } from './TreatmentPlanModal';
+import { CreatePlanFromFindingsModal } from './CreatePlanFromFindingsModal';
 
 interface TreatmentPlansTabProps {
   patientId: string;
@@ -33,6 +34,7 @@ const getStatusColor = (status: string) => {
 export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   const [plans, setPlans] = useState<TreatmentPlan[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<TreatmentPlan | null>(null);
 
   const loadPlans = () => {
@@ -61,6 +63,11 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     setIsModalOpen(false);
   };
 
+  const handlePlanCreatedFromFindings = () => {
+    loadPlans();
+    setIsFindingsModalOpen(false);
+  };
+
   const handleDeletePlan = (planId: string) => {
     if (window.confirm('Вы уверены, что хотите удалить этот план лечения?')) {
       storage.deleteTreatmentPlan(patientId, planId);
@@ -75,13 +82,22 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
         <h3 className="font-semibold text-slate-800 flex items-center gap-2">
           <ClipboardList className="w-4 h-4 text-slate-400" /> Планы лечения
         </h3>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Создать план
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            onClick={() => setIsFindingsModalOpen(true)}
+            className="flex items-center gap-1.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
+          >
+            <ClipboardList className="w-4 h-4" />
+            Создать план из проблем
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Создать план
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 p-6">
@@ -148,6 +164,14 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSavePlan}
       />
+      {isFindingsModalOpen && (
+        <CreatePlanFromFindingsModal
+          isOpen={isFindingsModalOpen}
+          patientId={patientId}
+          onClose={() => setIsFindingsModalOpen(false)}
+          onPlanCreated={handlePlanCreatedFromFindings}
+        />
+      )}
     </div>
   );
 }

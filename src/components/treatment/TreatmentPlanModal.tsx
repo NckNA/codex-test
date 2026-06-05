@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
+import { storage } from '../../utils/storage';
 import type { TreatmentPlan, TreatmentStage, TreatmentPlanStatus, TreatmentStageStatus } from '../../types';
 
 interface TreatmentPlanModalProps {
@@ -25,6 +26,20 @@ const STAGE_STATUSES: { value: TreatmentStageStatus; label: string }[] = [
   { value: 'cancelled', label: 'Отменён' },
 ];
 
+const SEVERITY_LABELS: Record<string, string> = {
+  low: 'Низкая',
+  medium: 'Средняя',
+  high: 'Высокая',
+  urgent: 'Срочно',
+};
+
+const SEVERITY_COLORS: Record<string, string> = {
+  low: 'bg-slate-100 text-slate-700',
+  medium: 'bg-amber-100 text-amber-700',
+  high: 'bg-orange-100 text-orange-700',
+  urgent: 'bg-red-100 text-red-700',
+};
+
 export function TreatmentPlanModal({ isOpen, patientId, plan, onClose, onSave }: TreatmentPlanModalProps) {
   const [formData, setFormData] = useState<Partial<TreatmentPlan>>({
     title: '',
@@ -49,6 +64,8 @@ export function TreatmentPlanModal({ isOpen, patientId, plan, onClose, onSave }:
   }, [isOpen, plan]);
 
   if (!isOpen) return null;
+
+  const findingsById = new Map(storage.getFindings(patientId).map(finding => [finding.id, finding]));
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -182,6 +199,39 @@ export function TreatmentPlanModal({ isOpen, patientId, plan, onClose, onSave }:
                     </button>
 
                     <div className="font-medium text-sm text-slate-800 mb-3">Этап {index + 1}</div>
+
+                    {stage.findingIds && stage.findingIds.length > 0 && (
+                      <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                        <div className="text-xs font-semibold text-blue-800 mb-2">Связанные проблемы</div>
+                        <div className="space-y-2">
+                          {stage.findingIds.map(findingId => {
+                            const finding = findingsById.get(findingId);
+
+                            if (!finding) {
+                              return (
+                                <div key={findingId} className="text-sm text-slate-500 bg-white border border-slate-200 rounded-md p-2">
+                                  Связанная проблема не найдена
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={findingId} className="flex flex-wrap items-center gap-2 text-sm bg-white border border-blue-100 rounded-md p-2">
+                                {finding.toothNumber && (
+                                  <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-xs font-bold">
+                                    {finding.toothNumber}
+                                  </span>
+                                )}
+                                <span className="font-medium text-slate-800">{finding.title}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SEVERITY_COLORS[finding.severity]}`}>
+                                  {SEVERITY_LABELS[finding.severity] || finding.severity}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
