@@ -18,10 +18,10 @@
 ## 3. Расписание
 **Статус**: Реализовано
 **Точка входа**: `src/pages/SchedulePage.tsx`
-**Основные файлы**: `src/components/schedule/ScheduleGrid.tsx`, `src/components/schedule/AppointmentModal.tsx`, `src/context/ScheduleContext.tsx`
+**Основные файлы**: `src/components/schedule/AppointmentModal.tsx`, `src/context/ScheduleContext.tsx`
 **Связанные типы**: `Appointment`, `AppointmentStatus`
 **Связанные storage-функции**: `getAppointments`, `addAppointment`, `updateAppointment`, `deleteAppointment`.
-**Что нельзя трогать без отдельной задачи**: Логику drag-and-drop, структуру провайдера контекста.
+**Что нельзя трогать без отдельной задачи**: Структуру провайдера контекста.
 **Уровень уверенности**: Высокий
 
 ## 4. Пациенты
