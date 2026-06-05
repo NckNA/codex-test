@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { ToothGrid } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
 import { storage } from '../../utils/storage';
-import type { DentalChart, ToothRecord } from '../../types';
-import { Save } from 'lucide-react';
+import type { DentalChart, ToothRecord, DentalFinding, FindingSeverity } from '../../types';
+import { Save, AlertTriangle } from 'lucide-react';
 
 interface DentalChartTabProps {
   patientId: string;
@@ -17,14 +17,19 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   const [complaints, setComplaints] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
 
-    useEffect(() => {
+  const [findings, setFindings] = useState<DentalFinding[]>([]);
+
+  const loadData = () => {
     const loadedChart = storage.getDentalChart(patientId);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setChart(loadedChart);
-
     setComplaints(loadedChart.complaints || '');
-
     setDiagnosis(loadedChart.diagnosis || '');
+    setFindings(storage.getFindings(patientId));
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
   }, [patientId]);
 
   if (!chart) return null;
@@ -34,13 +39,60 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
     setIsModalOpen(true);
   };
 
-  const handleSaveTooth = (updatedTooth: ToothRecord) => {
-    const newTeeth = chart.teeth.map(t => t.toothNumber === updatedTooth.toothNumber ? updatedTooth : t);
-    const newChart = { ...chart, teeth: newTeeth, updatedAt: new Date().toISOString() };
+  const handleSaveTooth = (updatedTooth: ToothRecord, findingPayload: Partial<DentalFinding> | null) => {
+    const newTeeth = chart!.teeth.map(t => t.toothNumber === updatedTooth.toothNumber ? updatedTooth : t);
+    const newChart = { ...chart!, teeth: newTeeth, updatedAt: new Date().toISOString() };
 
     setChart(newChart);
     storage.saveDentalChart(patientId, newChart);
+
+    if (findingPayload && findingPayload.title && findingPayload.category && findingPayload.severity) {
+      const activeStatuses = ['discovered', 'recommended', 'included_in_plan', 'observing'];
+
+      const existingActiveFinding = findings.find(f =>
+        f.toothNumber === updatedTooth.toothNumber &&
+        f.category === findingPayload.category &&
+        activeStatuses.includes(f.status)
+      );
+
+      if (existingActiveFinding) {
+        storage.updateFinding(patientId, {
+          ...existingActiveFinding,
+          title: findingPayload.title,
+          severity: findingPayload.severity as FindingSeverity,
+          description: findingPayload.description || '',
+          riskDescription: findingPayload.riskDescription || '',
+          recommendation: findingPayload.recommendation || '',
+          isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
+          includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
+          status: findingPayload.status || existingActiveFinding.status,
+        });
+      } else {
+        storage.addFinding(patientId, {
+          toothNumber: updatedTooth.toothNumber,
+          title: findingPayload.title,
+          category: findingPayload.category,
+          severity: findingPayload.severity as FindingSeverity,
+          description: findingPayload.description || '',
+          riskDescription: findingPayload.riskDescription || '',
+          recommendation: findingPayload.recommendation || '',
+          isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
+          includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
+          status: findingPayload.status || 'discovered',
+        });
+      }
+
+      setFindings(storage.getFindings(patientId));
+    }
+
     setIsModalOpen(false);
+  };
+
+  const summary = {
+    active: findings.filter(f => ['discovered', 'recommended', 'included_in_plan', 'observing'].includes(f.status)).length,
+    highUrgent: findings.filter(f => ['high', 'urgent'].includes(f.severity) && ['discovered', 'recommended', 'included_in_plan'].includes(f.status)).length,
+    inPlan: findings.filter(f => f.status === 'included_in_plan').length,
+    observing: findings.filter(f => f.status === 'observing').length,
   };
 
   const handleSaveTextData = () => {
@@ -53,12 +105,38 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-      <div className="p-4 border-b border-slate-200 bg-slate-50/50">
+      <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
         <h3 className="font-semibold text-slate-800">Зубная карта (FDI)</h3>
       </div>
 
-      <div className="p-6 bg-slate-50 overflow-x-auto">
-        <ToothGrid teeth={chart.teeth} onToothClick={handleToothClick} />
+      <div className="flex flex-col lg:flex-row">
+        <div className="flex-1 p-6 bg-slate-50 overflow-x-auto border-b lg:border-b-0 lg:border-r border-slate-200">
+          <ToothGrid teeth={chart.teeth} findings={findings} onToothClick={handleToothClick} />
+        </div>
+
+        <div className="w-full lg:w-64 bg-white p-5 shrink-0 flex flex-col">
+          <h4 className="font-medium text-slate-800 mb-4 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500" /> Проблемы по карте
+          </h4>
+          <div className="space-y-4 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600">Активных проблем:</span>
+              <span className="font-semibold text-slate-800">{summary.active}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600">Высокий риск/срочно:</span>
+              <span className="font-semibold text-red-600">{summary.highUrgent}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600">В плане лечения:</span>
+              <span className="font-semibold text-emerald-600">{summary.inPlan}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600">В наблюдении:</span>
+              <span className="font-semibold text-blue-600">{summary.observing}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Legend */}
@@ -112,6 +190,8 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
       <ToothEditorModal
         isOpen={isModalOpen}
+        patientId={patientId}
+        existingFindings={findings}
         tooth={selectedTooth}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTooth}

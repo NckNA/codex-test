@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCcw } from 'lucide-react';
-import type { ToothRecord, ToothCondition, ToothSurface } from '../../types';
+import type { ToothRecord, ToothCondition, ToothSurface, DentalFinding, FindingCategory, FindingSeverity, FindingStatus } from '../../types';
 
 interface ToothEditorModalProps {
   isOpen: boolean;
   tooth: ToothRecord | null;
+  patientId: string;
+  existingFindings: DentalFinding[];
   onClose: () => void;
-  onSave: (tooth: ToothRecord) => void;
+  onSave: (tooth: ToothRecord, findingData: Partial<DentalFinding> | null) => void;
 }
 
 const CONDITIONS: { value: ToothCondition; label: string }[] = [
@@ -33,10 +35,35 @@ const SURFACES: { value: ToothSurface; label: string }[] = [
 export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditorModalProps) {
   const [formData, setFormData] = useState<Partial<ToothRecord>>({});
 
-    useEffect(() => {
+  const [createFinding, setCreateFinding] = useState(false);
+  const [findingData, setFindingData] = useState<Partial<DentalFinding>>({
+    title: '',
+    category: 'other',
+    severity: 'medium',
+    description: '',
+    riskDescription: '',
+    recommendation: '',
+    isChiefComplaintRelated: false,
+    includeInTreatmentPlan: false,
+    status: 'discovered'
+  });
+
+  useEffect(() => {
     if (isOpen && tooth) {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({ ...tooth, surfaces: tooth.surfaces || [] });
+      setCreateFinding(false);
+      setFindingData({
+        title: '',
+        category: 'other',
+        severity: 'medium',
+        description: '',
+        riskDescription: '',
+        recommendation: '',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        status: 'discovered'
+      });
     }
   }, [isOpen, tooth]);
 
@@ -44,8 +71,27 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'condition' && tooth) {
+      applyDefaultFindingSuggestion(value as ToothCondition, tooth.toothNumber);
+    }
+  };
+
+  const applyDefaultFindingSuggestion = (condition: ToothCondition, toothNumber: number) => {
+    if (condition === 'caries') {
+      setFindingData(prev => ({ ...prev, category: 'caries', title: `Кариес ${toothNumber} зуба`, severity: 'medium', description: 'Выявлено кариозное поражение.', recommendation: 'Рекомендовано лечение кариеса.' }));
+    } else if (condition === 'missing') {
+      setFindingData(prev => ({ ...prev, category: 'missing_tooth', title: `Отсутствует ${toothNumber} зуб`, severity: 'medium', description: 'Зуб отсутствует.', recommendation: 'Рекомендована консультация по восстановлению зубного ряда.' }));
+    } else if (condition === 'pulpitis') {
+      setFindingData(prev => ({ ...prev, category: 'pain', title: `Подозрение на пульпит ${toothNumber} зуба`, severity: 'high', description: 'Требуется клиническая оценка и лечение каналов по показаниям.', recommendation: 'Рекомендовано лечение у врача-стоматолога.' }));
+    } else if (condition === 'periodontitis') {
+      setFindingData(prev => ({ ...prev, category: 'root_problem', title: `Проблема корня / периодонта ${toothNumber} зуба`, severity: 'high', description: 'Выявлены признаки проблемы в области корня/периодонта.', recommendation: 'Рекомендована дополнительная диагностика и лечение по показаниям.' }));
+    } else if (condition === 'needs_treatment') {
+      setFindingData(prev => ({ ...prev, category: 'other', title: `Требует лечения ${toothNumber} зуб`, severity: 'medium', description: 'Зуб требует внимания врача.', recommendation: 'Рекомендовано включить в план лечения.' }));
+    } else {
+      setFindingData(prev => ({ ...prev, title: '', description: '', recommendation: '' }));
+    }
   };
 
   const handleSurfaceToggle = (surface: ToothSurface) => {
@@ -61,11 +107,20 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    let findingPayload: Partial<DentalFinding> | null = null;
+    if (createFinding) {
+      findingPayload = { ...findingData };
+      if (findingPayload.includeInTreatmentPlan) {
+        findingPayload.status = 'recommended';
+      }
+    }
+
     onSave({
       ...tooth,
       ...formData,
       updatedAt: new Date().toISOString()
-    } as ToothRecord);
+    } as ToothRecord, findingPayload);
   };
 
   const handleReset = () => {
@@ -195,6 +250,142 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
                 className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
               ></textarea>
             </div>
+
+            <div className="pt-4 border-t border-slate-200 mt-4">
+              <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createFinding}
+                  onChange={(e) => setCreateFinding(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-slate-800">Создать или обновить проблему по этому зубу</span>
+              </label>
+
+              {createFinding && (
+                <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer mb-2">
+                    <input
+                      type="checkbox"
+                      checked={findingData.isChiefComplaintRelated}
+                      onChange={(e) => setFindingData({ ...findingData, isChiefComplaintRelated: e.target.checked })}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">Связано с основной жалобой</span>
+                  </label>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Название проблемы <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={findingData.title || ''}
+                      onChange={(e) => setFindingData({ ...findingData, title: e.target.value })}
+                      required
+                      placeholder="Например: Глубокий кариес"
+                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Категория <span className="text-red-500">*</span></label>
+                      <select
+                        value={findingData.category}
+                        onChange={(e) => setFindingData({ ...findingData, category: e.target.value as FindingCategory })}
+                        required
+                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="caries">Кариес</option>
+                        <option value="missing_tooth">Отсутствующий зуб</option>
+                        <option value="gum_problem">Проблема десны</option>
+                        <option value="root_problem">Проблема корня</option>
+                        <option value="bite_problem">Проблема прикуса</option>
+                        <option value="aesthetic_problem">Эстетическая проблема</option>
+                        <option value="pain">Боль</option>
+                        <option value="risk_zone">Зона риска</option>
+                        <option value="hygiene">Гигиена</option>
+                        <option value="prosthetics">Протезирование</option>
+                        <option value="implantology">Имплантация</option>
+                        <option value="other">Другое</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Серьезность <span className="text-red-500">*</span></label>
+                      <select
+                        value={findingData.severity}
+                        onChange={(e) => setFindingData({ ...findingData, severity: e.target.value as FindingSeverity })}
+                        required
+                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="low">Низкая</option>
+                        <option value="medium">Средняя</option>
+                        <option value="high">Высокая</option>
+                        <option value="urgent">Срочно</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Статус <span className="text-red-500">*</span></label>
+                      <select
+                        value={findingData.status}
+                        onChange={(e) => setFindingData({ ...findingData, status: e.target.value as FindingStatus })}
+                        required
+                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="discovered">Выявлено</option>
+                        <option value="recommended">Рекомендовано</option>
+                        <option value="included_in_plan">Включено в план</option>
+                        <option value="observing">Наблюдение</option>
+                        <option value="declined_by_patient">Пациент отказался</option>
+                        <option value="completed">Завершено</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center pt-5">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={findingData.includeInTreatmentPlan}
+                          onChange={(e) => setFindingData({ ...findingData, includeInTreatmentPlan: e.target.checked })}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-blue-800">В план лечения</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Описание (для врача)</label>
+                    <textarea
+                      value={findingData.description || ''}
+                      onChange={(e) => setFindingData({ ...findingData, description: e.target.value })}
+                      rows={2}
+                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Описание рисков (пациенту)</label>
+                    <textarea
+                      value={findingData.riskDescription || ''}
+                      onChange={(e) => setFindingData({ ...findingData, riskDescription: e.target.value })}
+                      rows={2}
+                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Рекомендация</label>
+                    <input
+                      type="text"
+                      value={findingData.recommendation || ''}
+                      onChange={(e) => setFindingData({ ...findingData, recommendation: e.target.value })}
+                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
           </form>
         </div>
 
