@@ -122,3 +122,13 @@
 - no real OAuth yet;
 - no real amoCRM API calls yet;
 - frontend not connected yet.
+
+
+## Project Source Documents
+**Location:** `_ai_work/SOURCES/`
+**Status:** Structure initialized (DOCS-001)
+
+**Files:**
+- `_ai_work/SOURCES/SOURCES_INDEX.md`
+
+*(Documents 00-18 are pending content provision)*
