@@ -69,3 +69,7 @@ Future tracking of integration events should utilize an `IntegrationSyncLog` ent
 - `createdAt`
 
 *Note: Do not implement this entity in the frontend during the current phase.*
+
+
+## AMO-004 Skeleton Status
+- All sync endpoints (Patient/Lead/Webhook) remain disabled or as placeholders in AMO-004.

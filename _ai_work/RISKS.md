@@ -27,3 +27,7 @@
 10. **Token Refresh Failure:** If the refresh token expires or is revoked, the integration will silently fail until manually re-authenticated.
 
 11. **Backend Skeleton Status:** The AMO-003 backend skeleton must not be mistaken for a functional production integration. It lacks OAuth, token storage, and actual network call mechanisms.
+
+
+12. **Token Volatility / Development Storage:** The dev-only memory token store used in the skeleton must absolutely not be mistaken for production storage, as all tokens are lost on restart.
+13. **OAuth Callback Hijacking:** Failures in callback/state validation logic could open paths to CSRF attacks if the one-time state mechanism is bypassed.

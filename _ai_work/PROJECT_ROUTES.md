@@ -106,7 +106,7 @@
 
 ## Backend / Integration Proxy
 
-**Status:** skeleton only
+**Status:** OAuth connection skeleton (AMO-004)
 
 **Files:**
 - `backend/package.json`
@@ -115,6 +115,7 @@
 - `backend/src/routes/healthRoutes.js`
 - `backend/src/routes/amoCrmRoutes.js`
 - `backend/src/services/amoCrmTokenStore.js`
+- `backend/src/services/amoCrmStateStore.js`
 - `backend/src/services/amoCrmClient.js`
 
 **Important:**

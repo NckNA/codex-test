@@ -1,24 +1,106 @@
 const { sendJson } = require('../utils/jsonResponse');
+const { isAmoCrmConfigured } = require('../config');
+const { createOAuthState, validateOAuthState } = require('../services/amoCrmStateStore');
+const { getConnectionStatus, saveTokenSet, clearTokenSet } = require('../services/amoCrmTokenStore');
+const { buildAuthorizationUrl, exchangeAuthorizationCode } = require('../services/amoCrmClient');
 
 /**
  * Handles all /api/integrations/amocrm/* routes.
- * Currently returns 501 placeholders or minimal status info.
  * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
  * @param {string} pathname
+ * @param {URL} url 
  * @returns {boolean} true if handled, false otherwise
  */
-function handleAmoCrmRoutes(req, res, pathname) {
+async function handleAmoCrmRoutes(req, res, pathname, url) {
   if (!pathname.startsWith('/api/integrations/amocrm')) {
-    return false; // Not an amoCRM route
+    return false;
   }
 
   // GET /api/integrations/amocrm/status
   if (req.method === 'GET' && pathname === '/api/integrations/amocrm/status') {
+    const status = getConnectionStatus();
     sendJson(res, 200, {
-      connected: false,
+      ...status,
       provider: 'amocrm',
-      message: 'amoCRM integration backend skeleton is available, but OAuth is not implemented yet.'
+      configured: isAmoCrmConfigured(),
+      message: status.connected 
+        ? 'amoCRM is connected.' 
+        : 'amoCRM integration backend skeleton is available. Ready to connect.'
+    });
+    return true;
+  }
+
+  // POST /api/integrations/amocrm/connect
+  if (req.method === 'POST' && pathname === '/api/integrations/amocrm/connect') {
+    if (!isAmoCrmConfigured()) {
+      sendJson(res, 400, {
+        ok: false,
+        message: 'amoCRM integration is not configured.'
+      });
+      return true;
+    }
+
+    const state = createOAuthState();
+    const authorizationUrl = buildAuthorizationUrl(state);
+
+    sendJson(res, 200, {
+      ok: true,
+      provider: 'amocrm',
+      authorizationUrl: authorizationUrl,
+      message: 'Open authorizationUrl to connect amoCRM.'
+    });
+    return true;
+  }
+
+  // GET /api/integrations/amocrm/callback
+  if (req.method === 'GET' && pathname === '/api/integrations/amocrm/callback') {
+    const code = url.searchParams.get('code');
+    const referer = url.searchParams.get('referer');
+    const state = url.searchParams.get('state');
+
+    if (!code) {
+      sendJson(res, 400, { ok: false, message: 'Missing authorization code in callback.' });
+      return true;
+    }
+
+    if (!validateOAuthState(state)) {
+      sendJson(res, 400, { ok: false, message: 'Invalid or expired OAuth state.' });
+      return true;
+    }
+
+    try {
+      const tokenSet = await exchangeAuthorizationCode({ code, referer });
+      const saved = saveTokenSet(tokenSet);
+      
+      if (!saved) {
+        throw new Error('Failed to save token set locally.');
+      }
+
+      sendJson(res, 200, {
+        ok: true,
+        provider: 'amocrm',
+        connected: true,
+        accountDomain: tokenSet.accountDomain,
+        message: 'amoCRM connected successfully.'
+      });
+    } catch (err) {
+      sendJson(res, 400, {
+        ok: false,
+        message: err.message || 'Failed to exchange tokens during callback.'
+      });
+    }
+    return true;
+  }
+
+  // POST /api/integrations/amocrm/disconnect
+  if (req.method === 'POST' && pathname === '/api/integrations/amocrm/disconnect') {
+    clearTokenSet();
+    sendJson(res, 200, {
+      ok: true,
+      provider: 'amocrm',
+      connected: false,
+      message: 'amoCRM disconnected.'
     });
     return true;
   }
@@ -32,20 +114,17 @@ function handleAmoCrmRoutes(req, res, pathname) {
     return true;
   }
 
-  // Placeholder handlers for all other known amoCRM endpoints
-  const knownEndpoints = [
-    '/api/integrations/amocrm/connect',
-    '/api/integrations/amocrm/callback',
-    '/api/integrations/amocrm/disconnect',
+  // Still placeholders
+  const syncEndpoints = [
     '/api/integrations/amocrm/sync-patient',
     '/api/integrations/amocrm/sync-treatment-plan'
   ];
 
-  if (knownEndpoints.includes(pathname)) {
+  if (syncEndpoints.includes(pathname)) {
     sendJson(res, 501, {
       ok: false,
       provider: 'amocrm',
-      message: 'OAuth flow is not implemented in AMO-003. This endpoint is a placeholder.'
+      message: 'Patient and treatment plan sync is not implemented in AMO-004. This endpoint is a placeholder.'
     });
     return true;
   }

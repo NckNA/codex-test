@@ -92,3 +92,11 @@ Possible UI blocks to implement in subsequent tasks:
 - Endpoints are 501/200 placeholders only.
 - Real OAuth and token storage are still future tasks.
 - No frontend integration yet.
+
+
+## AMO-004 OAuth Skeleton Status
+- Connect URL generation implemented.
+- Callback validation (state verification) implemented.
+- Dev-only memory token store exists.
+- Real patient/treatment sync still not implemented.
+- Frontend not connected.
