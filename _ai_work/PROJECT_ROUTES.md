@@ -83,5 +83,22 @@
 **Что нельзя трогать**: Цветовую палитру (использование Tailwind default `slate` и `blue` акцентов).
 **Уровень уверенности**: Высокий
 
+## Integrations / amoCRM
+
+**Status:** planned / architecture only
+
+**Files:**
+- `_ai_work/AMOCRM_INTEGRATION_ARCHITECTURE.md`
+- `_ai_work/AMOCRM_FIELD_MAPPING.md`
+- `_ai_work/AMOCRM_SECURITY_RULES.md`
+- `_ai_work/AMOCRM_SYNC_STRATEGY.md`
+- `src/integrations/amocrm/amoCrmMapper.ts`
+- `src/integrations/amocrm/amoCrmTypes.ts`
+
+**Important:**
+- AMO-001 created frontend-safe preparation only.
+- AMO-002 defines future real integration architecture.
+- Real API/OAuth/backend not implemented yet.
+
 ## Future Routes
 - `Settings → Integrations → amoCRM`: Prepared route for future amoCRM settings (UI not implemented yet).

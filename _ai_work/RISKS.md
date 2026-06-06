@@ -21,3 +21,7 @@
 5. **Source-of-Truth Conflict:** Disagreements between amoCRM and DentalFlow regarding lead status and patient reality.
 6. **Failed Sync / Sync Error Handling:** Future sync operations may fail due to rate limits or API outages, requiring robust error handling states.
 7. **Accidental Real API Calls from Frontend:** Implementing direct backend/CRM requests from the React frontend instead of through a secure proxy/backend.
+
+8. **Proxy Downtime:** If the integration backend/proxy goes down, sync queues could back up or fail.
+9. **Rate Limit Handling:** Uncontrolled bulk updates from the frontend could violate amoCRM API rate limits if the proxy doesn't throttle.
+10. **Token Refresh Failure:** If the refresh token expires or is revoked, the integration will silently fail until manually re-authenticated.
