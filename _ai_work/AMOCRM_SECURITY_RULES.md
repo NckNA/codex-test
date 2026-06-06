@@ -32,3 +32,10 @@ Future implementation requirements for handling incoming webhooks from amoCRM:
 - Ignore webhooks for unknown entities (deals or contacts not mapped to DentalFlow IDs).
 - **Critical:** Never let a webhook payload overwrite or alter medical data, dental charts, or clinical treatment plans.
 - Log all webhook payload processing errors and sync failures securely.
+
+
+## Storage and State (AMO-004 specific)
+- The AMO-004 token store is a dev-only memory store and will be wiped on restart.
+- No token should ever be exposed by the `/status` endpoint.
+- Production token storage must be encrypted server-side.
+- OAuth `state` is one-time use only and automatically expires after 10 minutes.

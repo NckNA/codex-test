@@ -4,7 +4,7 @@ const { handleHealthRoutes } = require('./routes/healthRoutes');
 const { handleAmoCrmRoutes } = require('./routes/amoCrmRoutes');
 const { sendJson } = require('./utils/jsonResponse');
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   // Simple URL parsing
   const url = new URL(req.url || '/', 'http://' + (req.headers.host || 'localhost'));
   const pathname = url.pathname;
@@ -14,7 +14,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   
-  if (handleAmoCrmRoutes(req, res, pathname)) {
+  if (await handleAmoCrmRoutes(req, res, pathname, url)) {
     return;
   }
 
