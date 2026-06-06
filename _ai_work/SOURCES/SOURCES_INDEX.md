@@ -10,7 +10,7 @@ This directory holds the stable source documentation structure defining SaaS rul
 | :--- | :--- | :--- |
 | `00_PROJECT_MASTER_CONTEXT.md` | Core context of the CRM project. | ✅ Provided |
 | `01_PRODUCT_VISION_AND_BUSINESS_MODEL.md` | Defines the product vision and SaaS monetization. | ✅ Provided |
-| `02_ROLES_AND_PERMISSIONS.md` | Defines authorization levels (admin, doctor, etc.). | ❌ Missing / Not Provided |
+| `02_ROLES_AND_PERMISSIONS.md` | Defines authorization levels (admin, doctor, etc.). | ✅ Provided |
 | `03_MULTI_TENANT_ARCHITECTURE_RULES.md` | Rules governing clinic tenant isolation. | ❌ Missing / Not Provided |
 | `04_DATA_ISOLATION_AND_SECURITY.md` | Security and safe data boundary requirements. | ❌ Missing / Not Provided |
 | `05_MEDICAL_DOMAIN_MODEL.md` | Clinical definitions and medical rules. | ❌ Missing / Not Provided |
