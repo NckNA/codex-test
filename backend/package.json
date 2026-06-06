@@ -1,0 +1,13 @@
+{
+  "name": "dentalflow-integration-proxy",
+  "version": "1.0.0",
+  "description": "Backend proxy skeleton for DentalFlow CRM",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/config.js && node --check src/routes/healthRoutes.js && node --check src/routes/amoCrmRoutes.js && node --check src/services/amoCrmTokenStore.js && node --check src/services/amoCrmClient.js && node --check src/utils/jsonResponse.js"
+  },
+  "author": "",
+  "license": "ISC"
+}
