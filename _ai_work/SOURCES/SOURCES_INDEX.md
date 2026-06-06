@@ -18,7 +18,7 @@ This directory holds the stable source documentation structure defining SaaS rul
 | `07_TREATMENT_PLAN_AND_DOCUMENTS.md` | Business rules for creating treatment plans. | ✅ Provided |
 | `08_APPOINTMENTS_AND_SCHEDULE.md` | Calendar scheduling and visit logic. | ✅ Provided |
 | `09_AMOCRM_INTEGRATION_RULES.md` | High-level rules for CRM connectivity. | ✅ Provided |
-| `10_AMOCRM_TECHNICAL_ARCHITECTURE.md` | Deep architectural details of the amoCRM proxy. | ❌ Missing / Not Provided |
+| `10_AMOCRM_TECHNICAL_ARCHITECTURE.md` | Deep architectural details of the amoCRM proxy. | ✅ Provided |
 | `11_BACKEND_AND_API_ARCHITECTURE.md` | Server-side proxy and API rules. | ❌ Missing / Not Provided |
 | `12_BILLING_AND_ACCESS_CONTROL.md` | Subscription and module locking mechanisms. | ❌ Missing / Not Provided |
 | `13_STORAGE_AND_MIGRATION_STRATEGY.md` | `localStorage` and future database storage schema rules. | ❌ Missing / Not Provided |
