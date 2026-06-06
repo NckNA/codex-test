@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, Plus, Filter } from 'lucide-react';
 import { storage } from '../utils/storage';
-import type { Patient } from '../types';
+import type { Patient, PatientSource, PatientLeadStatus } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,6 +22,63 @@ const getStatusLabel = (status: string) => {
     case 'active': return 'Активный';
     case 'archived': return 'Архив';
     default: return status;
+  }
+};
+
+
+const getIntegrationSourceColor = (source?: PatientSource) => {
+  switch (source) {
+    case 'manual': return 'bg-slate-100 text-slate-700';
+    case 'instagram': return 'bg-pink-100 text-pink-700';
+    case 'whatsapp': return 'bg-green-100 text-green-700';
+    case 'website': return 'bg-blue-100 text-blue-700';
+    case 'phone': return 'bg-amber-100 text-amber-700';
+    case 'amocrm': return 'bg-purple-100 text-purple-700';
+    case 'referral': return 'bg-emerald-100 text-emerald-700';
+    case 'other':
+    default: return 'bg-slate-100 text-slate-700';
+  }
+};
+
+const getIntegrationSourceLabel = (source?: PatientSource) => {
+  switch (source) {
+    case 'manual': return 'Вручную';
+    case 'instagram': return 'Instagram';
+    case 'whatsapp': return 'WhatsApp';
+    case 'website': return 'Сайт';
+    case 'phone': return 'Телефон';
+    case 'amocrm': return 'amoCRM';
+    case 'referral': return 'По рекомендации';
+    case 'other': return 'Другое';
+    default: return 'Вручную'; // default fallback
+  }
+};
+
+const getLeadStatusColor = (status?: PatientLeadStatus) => {
+  switch (status) {
+    case 'new_lead': return 'bg-slate-100 text-slate-700';
+    case 'contacted': return 'bg-blue-100 text-blue-700';
+    case 'scheduled': return 'bg-indigo-100 text-indigo-700';
+    case 'arrived': return 'bg-emerald-100 text-emerald-700';
+    case 'treatment_plan_created': return 'bg-amber-100 text-amber-700';
+    case 'treatment_plan_approved': return 'bg-green-100 text-green-700';
+    case 'declined': return 'bg-red-100 text-red-700';
+    case 'lost': return 'bg-slate-100 text-slate-700';
+    default: return 'bg-slate-100 text-slate-700';
+  }
+};
+
+const getLeadStatusLabel = (status?: PatientLeadStatus) => {
+  switch (status) {
+    case 'new_lead': return 'Новый лид';
+    case 'contacted': return 'Взят в работу';
+    case 'scheduled': return 'Записан';
+    case 'arrived': return 'Пришел';
+    case 'treatment_plan_created': return 'План составлен';
+    case 'treatment_plan_approved': return 'План согласован';
+    case 'declined': return 'Отказ';
+    case 'lost': return 'Закрыт (отказ)';
+    default: return 'Новый лид';
   }
 };
 
@@ -185,7 +242,17 @@ export function PatientsPage() {
 
                   return (
                     <tr key={patient.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="py-3 px-4 text-sm font-medium text-slate-800">{patient.fullName}</td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm font-medium text-slate-800">{patient.fullName}</div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getIntegrationSourceColor(patient.integration?.source || 'manual')}`}>
+                            {getIntegrationSourceLabel(patient.integration?.source || 'manual')}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getLeadStatusColor(patient.integration?.leadStatus || 'new_lead')}`}>
+                            {getLeadStatusLabel(patient.integration?.leadStatus || 'new_lead')}
+                          </span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-sm text-slate-600">{patient.phone}</td>
                       <td className="py-3 px-4 text-sm text-slate-600">{patient.birthDate ? new Date(patient.birthDate).toLocaleDateString('ru-RU') : '-'}</td>
                       <td className="py-3 px-4 text-sm text-slate-600">{getSourceLabel(patient.source)}</td>

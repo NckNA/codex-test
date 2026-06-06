@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
-import type { Patient, Source } from '../../types';
+import type { Patient, Source, PatientSource, PatientLeadStatus } from '../../types';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -22,6 +22,7 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
     allergies: '',
     balance: 0,
     bonusBalance: 0,
+    integration: undefined,
     ...initialData,
   });
 
@@ -41,6 +42,7 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
         allergies: initialData.allergies || '',
         balance: initialData.balance || 0,
         bonusBalance: initialData.bonusBalance || 0,
+        integration: initialData.integration,
         id: initialData.id,
       }));
       setError(null);
@@ -95,6 +97,7 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
       allergies: formData.allergies,
       balance: formData.balance || 0,
       bonusBalance: formData.bonusBalance || 0,
+      integration: formData.integration,
       createdAt: formData.createdAt || new Date().toISOString(),
     };
 
@@ -161,23 +164,7 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
                 />
               </div>
 
-              {/* Источник */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Источник</label>
-                <select
-                  name="source"
-                  value={formData.source || 'walk_in'}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                >
-                  <option value="phone">Телефон</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="walk_in">С улицы</option>
-                  <option value="repeat">Повторный</option>
-                  <option value="referral">По рекомендации</option>
-                </select>
-              </div>
+
 
               {/* Статус */}
               <div>
@@ -242,6 +229,88 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
                 placeholder="Дополнительная информация..."
                 className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
               ></textarea>
+            </div>
+
+
+            {/* Блок Источник и CRM */}
+            <div className="pt-4 border-t border-slate-200 mt-4">
+              <h3 className="text-sm font-semibold text-slate-800 mb-3">Источник и CRM</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Источник пациента</label>
+                  <select
+                    name="integration_source"
+                    value={formData.integration?.source || 'manual'}
+                    onChange={(e) => {
+                      const val = e.target.value as PatientSource;
+                      setFormData(prev => ({
+                        ...prev,
+                        integration: {
+                          ...(prev.integration || { leadStatus: 'new_lead' }),
+                          source: val
+                        }
+                      }));
+                    }}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="manual">Добавлен вручную</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="website">Сайт</option>
+                    <option value="phone">Телефон звонок</option>
+                    <option value="amocrm">amoCRM</option>
+                    <option value="referral">По рекомендации</option>
+                    <option value="other">Другое</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Статус лида</label>
+                  <select
+                    name="integration_leadStatus"
+                    value={formData.integration?.leadStatus || 'new_lead'}
+                    onChange={(e) => {
+                      const val = e.target.value as PatientLeadStatus;
+                      setFormData(prev => ({
+                        ...prev,
+                        integration: {
+                          ...(prev.integration || { source: 'manual' }),
+                          leadStatus: val
+                        }
+                      }));
+                    }}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="new_lead">Новый лид</option>
+                    <option value="contacted">Взят в работу</option>
+                    <option value="scheduled">Записан</option>
+                    <option value="arrived">Пришел</option>
+                    <option value="treatment_plan_created">План составлен</option>
+                    <option value="treatment_plan_approved">План согласован</option>
+                    <option value="declined">Отказ</option>
+                    <option value="lost">Закрыт и не реализован</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Комментарий к источнику</label>
+                  <input
+                    type="text"
+                    name="integration_sourceComment"
+                    value={formData.integration?.sourceComment || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        integration: {
+                          ...(prev.integration || { source: 'manual', leadStatus: 'new_lead' }),
+                          sourceComment: val
+                        }
+                      }));
+                    }}
+                    placeholder="Например: акция на имплантацию"
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
             </div>
 
           </form>

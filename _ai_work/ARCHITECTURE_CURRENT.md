@@ -69,3 +69,9 @@ ScheduleContext отвечает за часть состояния распис
 ## 10. Рискованные зоны (Risky Areas)
 - **`PatientCardPage.tsx`**: Агрегирует большое количество данных (`useMemo` для `dentalSummary`) и может стать "God Component".
 - **Хрупкость Storage**: При изменении типов в `index.ts` старые данные в localStorage пользователя сломаются без механизма миграции.
+
+## Integration Readiness (amoCRM)
+- Added `PatientIntegrationMeta` to the `Patient` model.
+- Created `src/integrations/amocrm/amoCrmMapper.ts` with pure mapping functions that strictly extract commercial data and exclude medical details.
+- No real API integration, OAuth, or backend webhook exists yet.
+- Real UI for integration settings is not implemented (placeholder documentation only).

@@ -1,58 +1,33 @@
-# Риски проекта (Risks)
+# Risk Assessment
 
-В данном документе описаны потенциальные опасности, которые могут возникнуть при развитии проекта DentalFlow CRM, и методы их предотвращения.
+## General Project Risks
+1. **PatientCardPage Overload:** The `PatientCardPage` component risks becoming too large and difficult to maintain if all tabs and sections are built directly into it.
+2. **Mixing Medical & Administrative Logic:** Risk of violating domain rules by blending financial/sales data with clinical patient records.
+3. **Improper Data Flow:** Mixing complaints, findings, diagnosis, treatment plan, and completed services can cause confusion. These must remain strictly separated logically and visually.
+4. **Storage Breakage:** Changes to `localStorage` schemas without careful handling or defaults might break existing patient data or app startup.
+5. **Patient Data Loss:** Accidental overwrite or omission of fields during updates might result in data loss.
+6. **Type Inconsistency:** Adding UI fields without backing types or creating mismatched interfaces.
+7. **Duplicated UI Components:** Failing to reuse existing generic components, bloating the application.
+8. **Oversized Modals:** Creating single, massive modals instead of step-by-step or tabbed interfaces, hurting UX.
+9. **Copying Competitor CRM Logic:** Blindly copying standard CRM behavior without adapting to medical clinic realities.
+10. **Tasks Too Large for AI:** Providing prompts that exceed context windows or logical scope limits for single AI sessions.
+11. **Changing Neighboring Modules:** Modifying areas of the app not directly related to the current task scope.
 
-## 1. Перегрузка PatientCardPage
-- **Описание:** `PatientCardPage.tsx` становится слишком большим (God Object), собирая в себя вычисления для обзора (баланс, зубы, приемы).
-- **Где проявляется:** Сводные `useMemo` вычисления и логика рендеринга большого количества табов.
-- **Предотвращение:** Выносить вычисления в хуки или инкапсулировать отображение табов в независимые компоненты, передавая им только `patientId`.
+## amoCRM Integration Risks
+1. **Mixing Sales Data with Medical Data:** High risk of leaking medical details (findings, diagnoses, tooth numbers) into the amoCRM payload. Strict pure mapping functions must be maintained.
+2. **Leaking Medical Findings into amoCRM:** Accidentally sending detailed dental chart statuses or medical notes via drafts.
+3. **Token Storage in Frontend:** High risk of exposing CRM tokens by storing them in the client-side app. Do not implement token storage.
+4. **Duplicate Patient/Contact Records:** Source-of-truth conflicts between DentalFlow and amoCRM could lead to duplicate or fragmented patient contacts.
+5. **Source-of-Truth Conflict:** Disagreements between amoCRM and DentalFlow regarding lead status and patient reality.
+6. **Failed Sync / Sync Error Handling:** Future sync operations may fail due to rate limits or API outages, requiring robust error handling states.
+7. **Accidental Real API Calls from Frontend:** Implementing direct backend/CRM requests from the React frontend instead of through a secure proxy/backend.
 
-## 2. Смешение медицинской и административной логики
-- **Описание:** Администраторы видят врачебные тайны или, наоборот, врач принимает решения за кассу.
-- **Где проявляется:** UI профиля, настройка прав доступа в будущем.
-- **Предотвращение:** Физическое разделение функционала по табам (например, "Финансы" отдельно от "Проблемы и риски").
+8. **Proxy Downtime:** If the integration backend/proxy goes down, sync queues could back up or fail.
+9. **Rate Limit Handling:** Uncontrolled bulk updates from the frontend could violate amoCRM API rate limits if the proxy doesn't throttle.
+10. **Token Refresh Failure:** If the refresh token expires or is revoked, the integration will silently fail until manually re-authenticated.
 
-## 3. Смешение жалоб, находок, диагноза, плана лечения и оказанных услуг
-- **Описание:** Упрощение архитектуры за счет слияния жалобы ("болит зуб") с планом ("лечить пульпит"). Это нарушает медицинскую доменную логику.
-- **Где проявляется:** Модели данных в `types/index.ts`.
-- **Предотвращение:** Жестко придерживаться сущностей из `STORAGE_RULES.md`. Жалоба (`ChiefComplaint`), находка (`DentalFinding`) и план (`TreatmentPlan`) — это разные таблицы/массивы.
+11. **Backend Skeleton Status:** The AMO-003 backend skeleton must not be mistaken for a functional production integration. It lacks OAuth, token storage, and actual network call mechanisms.
 
-## 4. Риск сломать storage
-- **Описание:** Из-за синхронного localStorage неверная запись может полностью очистить массив или сломать JSON, сделав приложение нерабочим.
-- **Где проявляется:** `src/utils/storage.ts`
-- **Предотвращение:** Использовать только существующие методы обертки. При расширении типов делать поля опциональными (`?`), чтобы старые объекты в локальном хранилище не вызывали крашей.
 
-## 5. Риск потерять данные пациента
-- **Описание:** Приложение без подтверждения удаляет важную медицинскую карту или запись.
-- **Где проявляется:** Кнопки `Trash2` в UI.
-- **Предотвращение:** Обязательное использование `window.confirm` или модалки подтверждения перед `storage.delete...`.
-
-## 6. Риск несогласованности типов
-- **Описание:** Переименование поля в типе без обновления `storage` или `seed.ts` приведет к ошибкам компиляции или ошибкам рантайма.
-- **Где проявляется:** `src/types/index.ts`
-- **Предотвращение:** Запуск `npm run build` и `npm run lint` после любых изменений типов.
-
-## 7. Риск дублирования UI-компонентов
-- **Описание:** Создание "своих" кастомных кнопок и инпутов в каждой форме вместо переиспользования единого стиля.
-- **Где проявляется:** Новые страницы, `src/components/`.
-- **Предотвращение:** ИИ должен следовать `UI_RULES.md`, копировать верстку из уже существующих модалок (например, `PatientModal`).
-
-## 8. Риск разрастания модальных окон
-- **Описание:** Модалки становятся длинными и требуют прокрутки, с огромным количеством полей.
-- **Где проявляется:** `FindingModal`, `TreatmentPlanModal`.
-- **Предотвращение:** Дробить логику, использовать вкладки внутри модалок или переносить логику на отдельные страницы.
-
-## 9. Риск копирования чужих CRM (конкурентов) вместо создания своей логики
-- **Описание:** ИИ или разработчик слепо копирует логику конкурентов (например, MacDent), не учитывая задачи DentalFlow.
-- **Где проявляется:** Генерация UI.
-- **Предотвращение:** Руководствоваться исключительно явными требованиями задачи, не "придумывать" чужой функционал.
-
-## 10. Риск слишком больших задач для ИИ
-- **Описание:** ИИ получает задачу, которая затрагивает роутинг, сторадж, UI и логику одновременно, что приводит к регрессиям.
-- **Где проявляется:** Выполнение тасков.
-- **Предотвращение:** Следовать правилу "Documentation Only" для док-задач. Выполнять задачи строго по `CURRENT_TASK.md` и прерываться, если необходимо запросить уточнение.
-
-## 11. Риск изменения соседних модулей без необходимости
-- **Описание:** Внесение "попутных" правок (рефакторинг), ломающее работающий код.
-- **Где проявляется:** Везде по коду.
-- **Предотвращение:** Соблюдать `AI_WORKFLOW.md`. Не выходить за пределы `PROJECT_ROUTES.md` контекста текущей задачи.
+12. **Token Volatility / Development Storage:** The dev-only memory token store used in the skeleton must absolutely not be mistaken for production storage, as all tokens are lost on restart.
+13. **OAuth Callback Hijacking:** Failures in callback/state validation logic could open paths to CSRF attacks if the one-time state mechanism is bypassed.

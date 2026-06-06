@@ -82,3 +82,53 @@
 **Точка входа**: `index.css`, `tailwind.config.js`
 **Что нельзя трогать**: Цветовую палитру (использование Tailwind default `slate` и `blue` акцентов).
 **Уровень уверенности**: Высокий
+
+## Integrations / amoCRM
+
+**Status:** planned / architecture only
+
+**Files:**
+- `_ai_work/AMOCRM_INTEGRATION_ARCHITECTURE.md`
+- `_ai_work/AMOCRM_FIELD_MAPPING.md`
+- `_ai_work/AMOCRM_SECURITY_RULES.md`
+- `_ai_work/AMOCRM_SYNC_STRATEGY.md`
+- `src/integrations/amocrm/amoCrmMapper.ts`
+- `src/integrations/amocrm/amoCrmTypes.ts`
+
+**Important:**
+- AMO-001 created frontend-safe preparation only.
+- AMO-002 defines future real integration architecture.
+- Real API/OAuth/backend not implemented yet.
+
+## Future Routes
+- `Settings → Integrations → amoCRM`: Prepared route for future amoCRM settings (UI not implemented yet).
+
+
+## Backend / Integration Proxy
+
+**Status:** OAuth connection skeleton (AMO-004)
+
+**Files:**
+- `backend/package.json`
+- `backend/src/server.js`
+- `backend/src/config.js`
+- `backend/src/routes/healthRoutes.js`
+- `backend/src/routes/amoCrmRoutes.js`
+- `backend/src/services/amoCrmTokenStore.js`
+- `backend/src/services/amoCrmStateStore.js`
+- `backend/src/services/amoCrmClient.js`
+
+**Important:**
+- no real OAuth yet;
+- no real amoCRM API calls yet;
+- frontend not connected yet.
+
+
+## Project Source Documents
+**Location:** `_ai_work/SOURCES/`
+**Status:** Structure initialized (DOCS-001)
+
+**Files:**
+- `_ai_work/SOURCES/SOURCES_INDEX.md`
+
+*(Documents 00-18 are pending content provision)*

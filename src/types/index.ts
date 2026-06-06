@@ -4,6 +4,30 @@ export type AppointmentStatus = 'new' | 'confirmed' | 'arrived' | 'in_progress' 
 export type PaymentType = 'cash' | 'card' | 'kaspi' | 'insurance' | 'installment' | 'unpaid';
 export type Source = 'phone' | 'whatsapp' | 'instagram' | 'walk_in' | 'repeat' | 'referral';
 
+
+export type PatientSource = 'manual' | 'instagram' | 'whatsapp' | 'website' | 'phone' | 'amocrm' | 'referral' | 'other';
+export type PatientLeadStatus = 'new_lead' | 'contacted' | 'scheduled' | 'arrived' | 'treatment_plan_created' | 'treatment_plan_approved' | 'declined' | 'lost';
+export type ExternalCrmProvider = 'amocrm' | 'other';
+export type SyncStatus = 'not_synced' | 'synced' | 'sync_error' | 'needs_update';
+
+export interface ExternalCrmLink {
+  provider: ExternalCrmProvider;
+  externalContactId?: string;
+  externalLeadId?: string;
+  externalDealId?: string;
+  syncStatus: SyncStatus;
+  lastSyncAt?: string;
+  lastSyncError?: string;
+}
+
+export interface PatientIntegrationMeta {
+  source: PatientSource;
+  sourceComment?: string;
+  leadStatus: PatientLeadStatus;
+  externalCrm?: ExternalCrmLink;
+  createdFromExternal?: boolean;
+}
+
 export interface Patient {
   id: string;
   fullName: string;
@@ -16,6 +40,7 @@ export interface Patient {
   balance?: number;
   bonusBalance?: number;
   createdAt: string;
+  integration?: PatientIntegrationMeta;
 }
 
 export interface Doctor {
