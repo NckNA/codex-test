@@ -85,3 +85,10 @@ Possible UI blocks to implement in subsequent tasks:
 - Mapping status overview.
 - Last sync time indicator.
 - Disconnect button.
+
+
+## AMO-003 Backend Skeleton Status
+- The `backend/` folder exists.
+- Endpoints are 501/200 placeholders only.
+- Real OAuth and token storage are still future tasks.
+- No frontend integration yet.

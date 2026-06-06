@@ -25,3 +25,5 @@
 8. **Proxy Downtime:** If the integration backend/proxy goes down, sync queues could back up or fail.
 9. **Rate Limit Handling:** Uncontrolled bulk updates from the frontend could violate amoCRM API rate limits if the proxy doesn't throttle.
 10. **Token Refresh Failure:** If the refresh token expires or is revoked, the integration will silently fail until manually re-authenticated.
+
+11. **Backend Skeleton Status:** The AMO-003 backend skeleton must not be mistaken for a functional production integration. It lacks OAuth, token storage, and actual network call mechanisms.

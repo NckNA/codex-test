@@ -102,3 +102,22 @@
 
 ## Future Routes
 - `Settings → Integrations → amoCRM`: Prepared route for future amoCRM settings (UI not implemented yet).
+
+
+## Backend / Integration Proxy
+
+**Status:** skeleton only
+
+**Files:**
+- `backend/package.json`
+- `backend/src/server.js`
+- `backend/src/config.js`
+- `backend/src/routes/healthRoutes.js`
+- `backend/src/routes/amoCrmRoutes.js`
+- `backend/src/services/amoCrmTokenStore.js`
+- `backend/src/services/amoCrmClient.js`
+
+**Important:**
+- no real OAuth yet;
+- no real amoCRM API calls yet;
+- frontend not connected yet.
