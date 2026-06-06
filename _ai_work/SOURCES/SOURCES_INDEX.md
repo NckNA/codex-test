@@ -14,7 +14,7 @@ This directory holds the stable source documentation structure defining SaaS rul
 | `03_MULTI_TENANT_ARCHITECTURE_RULES.md` | Rules governing clinic tenant isolation. | ✅ Provided |
 | `04_DATA_ISOLATION_AND_SECURITY.md` | Security and safe data boundary requirements. | ✅ Provided |
 | `05_MEDICAL_DOMAIN_MODEL.md` | Clinical definitions and medical rules. | ✅ Provided |
-| `06_PATIENT_CARD_AND_DENTAL_CHART_RULES.md` | Scope and UI/UX constraints for the patient card. | ❌ Missing / Not Provided |
+| `06_PATIENT_CARD_AND_DENTAL_CHART_RULES.md` | Scope and UI/UX constraints for the patient card. | ✅ Provided |
 | `07_TREATMENT_PLAN_AND_DOCUMENTS.md` | Business rules for creating treatment plans. | ❌ Missing / Not Provided |
 | `08_APPOINTMENTS_AND_SCHEDULE.md` | Calendar scheduling and visit logic. | ❌ Missing / Not Provided |
 | `09_AMOCRM_INTEGRATION_RULES.md` | High-level rules for CRM connectivity. | ❌ Missing / Not Provided |
