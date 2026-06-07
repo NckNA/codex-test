@@ -63,6 +63,8 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState<DentalFinding | null>(null);
 
+  const [isSaved, setIsSaved] = useState(false);
+
   const loadData = () => {
     setFindings(storage.getFindings(patientId));
     const chiefComplaint = storage.getChiefComplaint(patientId);
@@ -102,7 +104,8 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
       text: complaintText,
       relatedTeeth: validTeethIds,
     });
-    alert('Жалоба сохранена');
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
   };
 
   const handleDelete = (findingId: string) => {
@@ -254,7 +257,12 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end items-center gap-3">
+          {isSaved && (
+            <span className="text-sm font-medium text-emerald-600 flex items-center gap-1">
+              <CheckCircle className="w-4 h-4" /> Сохранено
+            </span>
+          )}
           <button
             onClick={handleSaveComplaint}
             className="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition-colors"
