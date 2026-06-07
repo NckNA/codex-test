@@ -23,7 +23,7 @@ This directory holds the stable source documentation structure defining SaaS rul
 | `12_BILLING_AND_ACCESS_CONTROL.md` | Subscription and module locking mechanisms. | ✅ Provided |
 | `13_STORAGE_AND_MIGRATION_STRATEGY.md` | `localStorage` and future database storage schema rules. | ✅ Provided |
 | `14_UI_UX_RULES.md` | Guidelines for Tailwind, Lucide, and modern medical design. | ✅ Provided |
-| `15_AI_WORKFLOW_FOR_JULES_CODEX_CHATGPT.md` | AI operational constraints and step-by-step logic rules. | ❌ Missing / Not Provided |
+| `15_AI_WORKFLOW_FOR_JULES_CODEX_CHATGPT.md` | AI operational constraints and step-by-step logic rules. | ✅ Provided |
 | `16_DEVELOPMENT_ROADMAP_AND_TASK_BACKLOG.md` | Upcoming features and progression tracking. | ❌ Missing / Not Provided |
 | `17_TASK_TEMPLATE_AND_PR_REVIEW_CHECKLIST.md` | Templates for safe AI task prompts and pull requests. | ❌ Missing / Not Provided |
 | `18_TESTING_AND_QUALITY_ASSURANCE_STRATEGY.md` | QA strategy for verifying business rules. | ❌ Missing / Not Provided |
