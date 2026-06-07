@@ -216,7 +216,11 @@ export function Header() {
         </div>
 
         {/* Add Button */}
-        <button className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-600/20">
+        <button 
+          disabled
+          title="Глобальное добавление пока недоступно в прототипе. Используйте расписание."
+          className="flex items-center gap-1.5 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+        >
           <Plus className="w-4 h-4" />
           Записать пациента
         </button>
