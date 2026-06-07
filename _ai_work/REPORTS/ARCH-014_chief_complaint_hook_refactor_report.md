@@ -12,7 +12,7 @@
 - **Modified:** `src/data/hooks/useChiefComplaint.ts`
 
 ## 3. Refactor Summary
-The `useChiefComplaint` hook was successfully refactored to eliminate its data-loading boilerplate by consuming the `useAsyncQuery` utility. The query state management (`isLoading`, `isError`, error handling, and unmounted safety) is now delegated to `useAsyncQuery`. The `saveComplaint` mutation remains a manual wrapper using standard React `useState` and `useCallback` to track `isSaving` and `saveError`. Finally, the query and save error states are successfully merged into a single `isError` / `error` pair to preserve the hook's existing API contract.
+The `useChiefComplaint` hook was successfully refactored to eliminate its data-loading boilerplate by consuming the `useAsyncQuery` utility. The query state management (`isLoading`, `isError`, error handling, and unmounted safety) is now delegated to `useAsyncQuery`. The `saveComplaint` mutation remains a manual wrapper using standard React `useState` and `useCallback` to track `isSaving` and `saveError`. Finally, the query and save error states are successfully merged into a single `isError` / `error` pair, with `saveError` taking precedence to prevent older query errors from masking recent save failures. A `refetchComplaint` wrapper was also added to correctly clear save error state when the hook is manually refetched, perfectly preserving the hook's existing API contract.
 
 ## 4. Why useAsyncMutation Was Intentionally Not Used
 As determined in ARCH-013, `useAsyncMutation` was explicitly excluded from this task for two reasons:
@@ -34,9 +34,13 @@ The returned object of `useChiefComplaint(patientId)` remains identical:
 ## 6. Save Behavior Preservation
 - The `saveComplaint` wrapper sets `isSaving` to `true`.
 - It awaits the underlying `saveChiefComplaint` repository method.
-- Upon success, it awaits `refetch()`, ensuring the latest server/storage state is loaded.
+- Upon success, it awaits `refetchComplaint()`, ensuring the latest server/storage state is loaded.
 - Upon failure, it sets `isSaveError` and re-throws the exact error.
 - It sets `isSaving` to `false` via a `finally` block.
+
+**Refetch and Error Behavior Fixes:**
+- **Error Precedence:** The merged `error` property now strictly prefers `saveError || queryError`. This ensures that a recent save failure is never masked by a stale query error.
+- **Error Clearing on Refetch:** A `refetchComplaint` wrapper guarantees that `setIsSaveError(false)` and `setSaveError(null)` are called before hitting the underlying `refetch()`. This perfectly aligns with the old hook logic where `fetchComplaint` cleared all shared error states.
 
 ## 7. What Behavior Was Preserved
 - The `FindingsRisksTab` behaves exactly as it did before.

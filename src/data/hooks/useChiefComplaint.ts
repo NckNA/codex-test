@@ -31,6 +31,12 @@ export function useChiefComplaint(patientId: string) {
   const [saveError, setSaveError] = useState<Error | null>(null);
   const [isSaveError, setIsSaveError] = useState<boolean>(false);
 
+  const refetchComplaint = useCallback(async () => {
+    setIsSaveError(false);
+    setSaveError(null);
+    await refetch();
+  }, [refetch]);
+
   const saveComplaint = useCallback(async (
     input: Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>
   ) => {
@@ -39,7 +45,7 @@ export function useChiefComplaint(patientId: string) {
     setSaveError(null);
     try {
       await LocalStorageChiefComplaintRepository.saveChiefComplaint(patientId, input);
-      await refetch();
+      await refetchComplaint();
     } catch (err) {
       const parsedError = err instanceof Error ? err : new Error(String(err));
       setIsSaveError(true);
@@ -48,11 +54,11 @@ export function useChiefComplaint(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, refetch]);
+  }, [patientId, refetchComplaint]);
 
   // Merge error state for public API compatibility
   const isError = isQueryError || isSaveError;
-  const error = queryError || saveError;
+  const error = saveError || queryError;
 
   return {
     complaint,
@@ -60,7 +66,7 @@ export function useChiefComplaint(patientId: string) {
     isError,
     error,
     isSaving,
-    refetch,
+    refetch: refetchComplaint,
     saveComplaint,
   };
 }
