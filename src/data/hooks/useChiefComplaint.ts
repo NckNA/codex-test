@@ -1,80 +1,58 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { ChiefComplaint } from '../../types';
 import { LocalStorageChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
+import { useAsyncQuery } from './useAsyncQuery';
 
 export function useChiefComplaint(patientId: string) {
-  const [complaint, setComplaint] = useState<ChiefComplaint | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(!!patientId);
-  const [isError, setIsError] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  // Query: load complaint via useAsyncQuery
+  const queryFn = useCallback(
+    () => LocalStorageChiefComplaintRepository.getChiefComplaint(patientId),
+    [patientId]
+  );
+  
+  const {
+    data: complaint,
+    isLoading,
+    isError: isQueryError,
+    error: queryError,
+    refetch,
+  } = useAsyncQuery<ChiefComplaint | null>({
+    queryFn,
+    initialData: null,
+    enabled: Boolean(patientId),
+  });
+
+  // Mutation: manual save wrapper (NOT using useAsyncMutation)
+  // Rationale: useAsyncMutation<void> cannot distinguish success from error
+  // by return value, and its onSuccess callback is fire-and-forget (does not
+  // await refetch). Keeping a manual wrapper preserves throw-on-error and
+  // sequential await-refetch timing exactly.
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<Error | null>(null);
+  const [isSaveError, setIsSaveError] = useState<boolean>(false);
 
-  const fetchComplaint = useCallback(async () => {
-    setIsLoading(true);
-    setIsError(false);
-    setError(null);
-    try {
-      const data = await LocalStorageChiefComplaintRepository.getChiefComplaint(patientId);
-      setComplaint(data);
-    } catch (err) {
-      setIsError(true);
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [patientId]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    if (!patientId) {
-      return;
-    }
-
-    const initFetch = async () => {
-      setIsLoading(true);
-      setIsError(false);
-      setError(null);
-      try {
-        const data = await LocalStorageChiefComplaintRepository.getChiefComplaint(patientId);
-        if (mounted) {
-          setComplaint(data);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        if (mounted) {
-          setIsError(true);
-          setError(err instanceof Error ? err : new Error(String(err)));
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initFetch();
-
-    return () => {
-      mounted = false;
-    };
-  }, [patientId]);
-
-  const saveComplaint = async (
+  const saveComplaint = useCallback(async (
     input: Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>
   ) => {
     setIsSaving(true);
-    setIsError(false);
-    setError(null);
+    setIsSaveError(false);
+    setSaveError(null);
     try {
       await LocalStorageChiefComplaintRepository.saveChiefComplaint(patientId, input);
-      // Refetch immediately to get the updated entity (with generated id/createdAt/updatedAt)
-      await fetchComplaint();
+      await refetch();
     } catch (err) {
-      setIsError(true);
-      setError(err instanceof Error ? err : new Error(String(err)));
+      const parsedError = err instanceof Error ? err : new Error(String(err));
+      setIsSaveError(true);
+      setSaveError(parsedError);
       throw err;
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [patientId, refetch]);
+
+  // Merge error state for public API compatibility
+  const isError = isQueryError || isSaveError;
+  const error = queryError || saveError;
 
   return {
     complaint,
@@ -82,7 +60,7 @@ export function useChiefComplaint(patientId: string) {
     isError,
     error,
     isSaving,
-    refetch: fetchComplaint,
+    refetch,
     saveComplaint,
   };
 }
