@@ -62,7 +62,7 @@ const STAGE_STATUS_LABELS: Record<TreatmentStageStatus, string> = {
   cancelled: 'Отменён',
 };
 
-const IMPORTANT_NOTE = 'План лечения составлен на основании осмотра на указанную дату. Окончательная стоимость и объём лечения могут измениться при выявлении дополнительных клинических обстоятельств, необходимости дополнительной диагностики или изменении выбранного метода лечения.';
+const IMPORTANT_NOTE = 'План лечения является предварительным и может быть уточнён врачом после осмотра, снимков или дополнительных данных.';
 
 function FindingPreview({ finding }: { finding: DentalFinding }) {
   return (
@@ -170,7 +170,7 @@ export function TreatmentPlanPatientPreview({ patientId, plan, isOpen, onClose }
             </section>
 
             <section>
-              <h3 className="text-base font-semibold text-slate-800 mb-3">2. Результат осмотра</h3>
+              <h3 className="text-base font-semibold text-slate-800 mb-3">2. Выявленные проблемы и риски</h3>
               {linkedFindings.length > 0 ? (
                 <div className="space-y-3">
                   {linkedFindings.map(finding => (
@@ -199,16 +199,22 @@ export function TreatmentPlanPatientPreview({ patientId, plan, isOpen, onClose }
                           {STAGE_STATUS_LABELS[stage.status]}
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-slate-600">
-                        <div>
-                          <span className="font-medium text-slate-700">Зубы:</span> {stage.teeth.length > 0 ? stage.teeth.join(', ') : 'не указаны'}
-                        </div>
-                        <div>
-                          <span className="font-medium text-slate-700">Стоимость:</span> {stage.price.toLocaleString()} ₸
-                        </div>
-                        <div className="md:col-span-3">
-                          <span className="font-medium text-slate-700">Описание:</span> {stage.description || 'не указано'}
-                        </div>
+                      <div className="flex flex-col gap-2 text-sm text-slate-600">
+                        {stage.teeth && stage.teeth.length > 0 && (
+                          <div>
+                            <span className="font-medium text-slate-700">Связанные зубы:</span> {stage.teeth.join(', ')}
+                          </div>
+                        )}
+                        {stage.description && (
+                          <div>
+                            <span className="font-medium text-slate-700">Описание:</span> {stage.description}
+                          </div>
+                        )}
+                        {stage.price > 0 && (
+                          <div>
+                            <span className="font-medium text-slate-700">Стоимость этапа:</span> {stage.price.toLocaleString()} ₸
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -218,7 +224,7 @@ export function TreatmentPlanPatientPreview({ patientId, plan, isOpen, onClose }
               )}
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
                 <div className="text-base font-semibold text-blue-900">
-                  Итого по плану: {plan.totalPrice.toLocaleString()} ₸
+                  Ориентировочная итоговая стоимость: {plan.totalPrice > 0 ? `${plan.totalPrice.toLocaleString()} ₸` : 'не указана'}
                 </div>
                 {plan.totalPrice === 0 && (
                   <div className="mt-1 text-sm text-blue-800">Стоимость будет уточнена после заполнения этапов лечения.</div>
