@@ -307,10 +307,11 @@ Markdown code fences must be balanced.
 
 Bad:
 
-```text
+````text
 ```text
 some content
 ```
+````
 
 missing closing fence can swallow rest of document.
 A broken fence makes the document unreadable and sometimes turns half the file into accidental code block soup. Markdown is simple, humans still find a way.
@@ -322,8 +323,8 @@ A broken fence makes the document unreadable and sometimes turns half the file i
 Source payload markers:
 
 ```text
-<<<BEGIN_FILE_XX>>
-<<<END_FILE_XX>>
+[BEGIN_FILE_XX marker]
+[END_FILE_XX marker]
 ```
 
 must not be included in final file.

@@ -283,9 +283,9 @@ I created a reasonable draft based on previous context.
 Для передачи точного текста используются markers:
 
 ```text
-<<<BEGIN_FILE_XX>>
+[BEGIN_FILE_XX marker]
 ...
-<<<END_FILE_XX>>
+[END_FILE_XX marker]
 ```
 
 Агент должен:
