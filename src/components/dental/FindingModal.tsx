@@ -193,15 +193,22 @@ export function FindingModal({ isOpen, patientId, finding, onClose, onSave }: Fi
               />
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer pt-2 border-t border-slate-100">
-              <input
-                type="checkbox"
-                checked={formData.includeInTreatmentPlan || false}
-                onChange={e => setFormData({ ...formData, includeInTreatmentPlan: e.target.checked })}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-blue-800">Включить в план лечения</span>
-            </label>
+            <div className="pt-3 border-t border-slate-100">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.includeInTreatmentPlan || false}
+                  onChange={e => setFormData({ ...formData, includeInTreatmentPlan: e.target.checked })}
+                  className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-blue-800">Включить в план лечения</span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Сделайте проблему доступной для выбора при составлении плана во вкладке «План лечения».
+                  </p>
+                </div>
+              </label>
+            </div>
 
           </form>
         </div>

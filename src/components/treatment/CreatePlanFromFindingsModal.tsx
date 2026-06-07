@@ -168,8 +168,17 @@ export function CreatePlanFromFindingsModal({
 
         <div className="flex-1 overflow-y-auto p-4">
           {visibleFindings.length === 0 ? (
-            <div className="text-center p-8 bg-slate-50 border border-slate-200 border-dashed rounded-lg text-slate-500 text-sm">
-              Нет проблем, отмеченных для включения в план лечения.
+            <div className="text-center p-8 bg-slate-50 border border-slate-200 border-dashed rounded-lg flex flex-col items-center">
+              <p className="text-slate-600 font-medium mb-3">Нет проблем для включения в план лечения</p>
+              <div className="text-sm text-slate-500 text-left max-w-md">
+                <p className="mb-2">Возможные причины:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>У пациента еще нет добавленных проблем.</li>
+                  <li>В настройках существующих проблем не стоит галочка «Включить в план лечения».</li>
+                  <li>Проблемы уже переведены в статус «Завершено» или «Отказ».</li>
+                  <li>Все доступные проблемы уже включены в другие активные планы лечения.</li>
+                </ul>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

@@ -80,11 +80,16 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[400px]">
-      <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
-        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-          <ClipboardList className="w-4 h-4 text-slate-400" /> Планы лечения
-        </h3>
-        <div className="flex flex-wrap justify-end gap-2">
+      <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-slate-400" /> Планы лечения
+          </h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            Используются проблемы/риски, отмеченные во вкладке «Проблемы и риски» для включения в план лечения.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2 shrink-0">
           <button
             onClick={() => setIsFindingsModalOpen(true)}
             className="flex items-center gap-1.5 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm"

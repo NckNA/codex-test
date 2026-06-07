@@ -214,11 +214,16 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold text-slate-800">Проблемы и риски</h2>
+      <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Проблемы и риски</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Проблемы, отмеченные «Включить в план лечения», можно будет объединить в план во вкладке «План лечения».
+          </p>
+        </div>
         <button
           onClick={() => openModal()}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shrink-0"
         >
           <Plus className="w-4 h-4" /> Добавить проблему
         </button>
