@@ -99,11 +99,31 @@ The current hook uses a single shared `isError`/`error` for both query failures 
 ### Risk 2: `isSaving` must remain in public API
 `useAsyncMutation` returns `isMutating`. The refactored hook must alias this to `isSaving`.
 
-### Risk 3: Post-save refetch
-Currently `saveComplaint` calls `fetchComplaint()` after a successful save to update the `complaint` state with server-generated fields (`id`, `createdAt`, `updatedAt`). The refactored hook must use `useAsyncMutation`'s `onSuccess` callback (or a manual call to `refetch`) to trigger the same reload.
+### Risk 3: Post-save refetch and timing
+Currently `saveComplaint` **awaits** `fetchComplaint()` after a successful save. This means `saveComplaint` does not resolve until the refreshed complaint data is available in state. Any refactored version must preserve this sequential timing: the caller's `await saveComplaint(...)` must not resolve until the refetch has completed.
 
-### Risk 4: `saveComplaint` re-throws on error
-The current `saveComplaint` uses `throw err` inside its catch block, allowing `FindingsRisksTab.handleSaveComplaint` to potentially catch errors (though it currently doesn't). With `useAsyncMutation`, `mutate` returns `undefined` on error instead of throwing. The refactored hook should preserve the throwing behavior or document the change. Since `FindingsRisksTab` does not catch the error, either approach is safe, but preserving the throw is cleaner.
+Using `useAsyncMutation`'s `onSuccess` callback to fire `refetch()` would not await the refetch — `onSuccess` is a fire-and-forget callback inside `useAsyncMutation`. This would subtly change timing: `saveComplaint` would resolve before the refreshed data is available, potentially breaking the `isSaved` feedback flow in `FindingsRisksTab`.
+
+### Risk 4: `saveComplaint` re-throws on error and void mutation detection
+The current `saveComplaint` uses `throw err` inside its catch block. With `useAsyncMutation<TInput, void>`, `mutate` returns `undefined` on **both** success (because `TResult = void`) and error. Therefore, **checking `result === undefined` cannot distinguish success from failure for void mutations**. This makes `useAsyncMutation` unsuitable for preserving the throw-on-error behavior without modification.
+
+#### ARCH-014 Strategy Options
+
+**Option A — Use `useAsyncQuery` only; keep manual `saveComplaint` wrapper (recommended):**
+- Adopt `useAsyncQuery` for the loading/query half of `useChiefComplaint`.
+- Keep `saveComplaint` as a manually written async function that directly awaits the repository save, then awaits `refetch()`, and re-throws on error.
+- Track `isSaving` with a local `useState` inside the wrapper (separate from `useAsyncMutation`).
+- This is the safest approach: it eliminates query boilerplate, preserves throw behavior, preserves await-refetch timing, and requires no changes to `useAsyncMutation`.
+
+**Option B — Use both `useAsyncQuery` + `useAsyncMutation`, but modify `useAsyncMutation` to rethrow:**
+- Would require ARCH-014 to change `useAsyncMutation` to optionally rethrow errors.
+- This contradicts the preference to not change `useAsyncMutation` in ARCH-014.
+- Deferred to a future task if needed.
+
+**Option C — Postpone useChiefComplaint refactor entirely:**
+- Safe but leaves the remaining boilerplate unaddressed.
+
+**Chosen: Option A.** It eliminates the query boilerplate (the larger half of the duplication), preserves the mutation's throw and timing semantics exactly, and does not require changes to `useAsyncMutation`.
 
 ### Risk 5: FindingsRisksTab draft-state sync
 `FindingsRisksTab` uses a `useEffect` watching `complaint` and `isComplaintLoading` to initialize local form draft state. This is unaffected by internal hook refactoring as long as the `complaint` value and timing remain the same.
@@ -111,10 +131,10 @@ The current `saveComplaint` uses `throw err` inside its catch block, allowing `F
 ### Risk 6: "Сохранено" feedback
 The `isSaved` state and its 3-second timeout are entirely local to `FindingsRisksTab`, not controlled by the hook. Unaffected.
 
-## 9. Proposed useChiefComplaint Refactor Design
+## 9. Proposed useChiefComplaint Refactor Design (Option A)
 ```typescript
 export function useChiefComplaint(patientId: string) {
-  // Query: load complaint
+  // Query: load complaint via useAsyncQuery
   const queryFn = useCallback(
     () => LocalStorageChiefComplaintRepository.getChiefComplaint(patientId),
     [patientId]
@@ -131,38 +151,37 @@ export function useChiefComplaint(patientId: string) {
     enabled: Boolean(patientId),
   });
 
-  // Mutation: save complaint
-  const mutationFn = useCallback(
-    (input: Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>) =>
-      LocalStorageChiefComplaintRepository.saveChiefComplaint(patientId, input),
-    [patientId]
-  );
-  const {
-    isMutating: isSaving,
-    isError: isMutationError,
-    error: mutationError,
-    mutate,
-  } = useAsyncMutation<
-    Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>,
-    void
-  >({
-    mutationFn,
-    onSuccess: () => { refetch(); },
-  });
+  // Mutation: manual save wrapper (NOT using useAsyncMutation)
+  // Rationale: useAsyncMutation<void> cannot distinguish success from error
+  // by return value, and its onSuccess callback is fire-and-forget (does not
+  // await refetch). Keeping a manual wrapper preserves throw-on-error and
+  // sequential await-refetch timing exactly.
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<Error | null>(null);
+  const [isSaveError, setIsSaveError] = useState<boolean>(false);
 
-  // Merge error state for public API compatibility
-  const isError = isQueryError || isMutationError;
-  const error = queryError || mutationError;
-
-  // Wrap mutate to preserve throw-on-error behavior
   const saveComplaint = useCallback(async (
     input: Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>
   ) => {
-    const result = await mutate(input);
-    if (result === undefined && (isMutationError || mutationError)) {
-      throw mutationError || new Error('Save failed');
+    setIsSaving(true);
+    setIsSaveError(false);
+    setSaveError(null);
+    try {
+      await LocalStorageChiefComplaintRepository.saveChiefComplaint(patientId, input);
+      await refetch();
+    } catch (err) {
+      const parsedError = err instanceof Error ? err : new Error(String(err));
+      setIsSaveError(true);
+      setSaveError(parsedError);
+      throw err;
+    } finally {
+      setIsSaving(false);
     }
-  }, [mutate, isMutationError, mutationError]);
+  }, [patientId, refetch]);
+
+  // Merge error state for public API compatibility
+  const isError = isQueryError || isSaveError;
+  const error = queryError || saveError;
 
   return {
     complaint,
@@ -177,10 +196,13 @@ export function useChiefComplaint(patientId: string) {
 ```
 
 **Key design decisions:**
-- `isError` and `error` are merged from query and mutation to preserve the single-error public API.
-- `isSaving` is aliased from `isMutating`.
-- `onSuccess` triggers `refetch()` to reload the saved entity.
-- `saveComplaint` wraps `mutate` and re-throws on error to preserve current behavior.
+- Query boilerplate is fully eliminated by `useAsyncQuery`.
+- Mutation is kept as a manual wrapper because `useAsyncMutation<void>` cannot use return value to detect errors, and its `onSuccess` callback does not await `refetch()`.
+- `saveComplaint` directly awaits the repository save, then awaits `refetch()`, preserving the exact sequential timing of the current implementation.
+- `saveComplaint` re-throws on error, preserving the current throw behavior.
+- `isSaving` is tracked with a local `useState` (not from `useAsyncMutation`).
+- `isError` and `error` are merged from query and save error states to preserve the single-error public API.
+- `useAsyncMutation` is **not changed** and **not consumed** in this refactor. It remains available for future hooks where throw-on-error or sequential refetch are not required.
 
 ## 10. Public API Compatibility Requirements
 The following public API must be preserved exactly:
@@ -190,9 +212,9 @@ The following public API must be preserved exactly:
 | `isLoading` | `boolean` | `useAsyncQuery.isLoading` |
 | `isError` | `boolean` | Merged query + mutation |
 | `error` | `Error \| null` | Merged query + mutation |
-| `isSaving` | `boolean` | `useAsyncMutation.isMutating` |
+| `isSaving` | `boolean` | Local `useState` in save wrapper |
 | `refetch` | `() => Promise<void>` | `useAsyncQuery.refetch` |
-| `saveComplaint` | `(input) => Promise<void>` | Wrapper around `useAsyncMutation.mutate` |
+| `saveComplaint` | `(input) => Promise<void>` | Manual async wrapper (not `useAsyncMutation`) |
 
 ## 11. Testing and Verification Plan for Future ARCH-014
 1. `npm run lint` must pass (0 errors, 0 warnings).
@@ -218,21 +240,29 @@ The following public API must be preserved exactly:
 - Routes
 
 ## 13. Acceptance Criteria for Future ARCH-014
-- `useChiefComplaint` uses `useAsyncQuery` and `useAsyncMutation` internally.
-- All manual `useState`/`useEffect`/`mounted` boilerplate is removed from `useChiefComplaint`.
+- `useChiefComplaint` uses `useAsyncQuery` for the query/loading half.
+- Query-related `useState`/`useEffect`/`mounted` boilerplate is removed from `useChiefComplaint`.
+- `saveComplaint` must still reject/throw on save failure.
+- `saveComplaint` must NOT rely on `undefined` result from a void mutation to detect errors.
+- Successful save must still refresh complaint data (via `await refetch()`) before `saveComplaint` resolves.
 - Public API is identical to the current version.
 - `FindingsRisksTab` is not modified.
 - `npm run lint` passes (0 errors, 0 warnings).
 - `npm run build` passes.
 - No `any` is used.
 - No new dependencies are introduced.
+- `useAsyncMutation` is not modified.
 
 ## 14. Recommended Next Task
-**ARCH-014 — Refactor useChiefComplaint to use useAsyncQuery/useAsyncMutation without UI changes.**
+**ARCH-014 — Refactor useChiefComplaint to use useAsyncQuery for loading, with manual save wrapper, without UI changes.**
 
 ### ARCH-014 Expected Scope
 - Modify only `src/data/hooks/useChiefComplaint.ts`.
 - Add `_ai_work/REPORTS/ARCH-014_chief_complaint_hook_refactor_report.md`.
+- Adopt `useAsyncQuery` for the query half.
+- Keep `saveComplaint` as a manual async wrapper that awaits save + refetch and re-throws on error.
+- Do NOT use `useAsyncMutation` for this hook.
+- Do NOT change `useAsyncMutation.ts`.
 - Preserve public API exactly.
 - Do NOT change `FindingsRisksTab` or any other component.
 - Do NOT migrate DentalChart, Findings, TreatmentPlans, or Overview.
