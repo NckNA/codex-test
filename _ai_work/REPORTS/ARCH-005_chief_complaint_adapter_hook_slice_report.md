@@ -20,6 +20,8 @@ Created the `useChiefComplaint(patientId)` hook. It internally calls the reposit
 ## 5. FindingsRisksTab Migration Summary
 Replaced synchronous `storage.getChiefComplaint` loading and `storage.saveChiefComplaint` mutations with the `useChiefComplaint` hook. The hook's `complaint` state is safely synchronized to the local draft `useState` inside a `useEffect`. Added a subtle `"Загрузка..."` overlay for the complaint block while data simulates loading.
 
+*Note on ESLint:* Targeted `eslint-disable-next-line react-hooks/set-state-in-effect` comments are intentionally used inside the synchronization `useEffect`. This is required to initialize the local form draft state (`complaintText`, `complaintTeethInput`) from the persisted data loaded by the hook, without throwing warnings about setting state inside effects.
+
 ## 6. What Behavior Was Preserved
 - The existing complaint loads flawlessly for the patient.
 - Editing text and linking teeth works exactly as before.

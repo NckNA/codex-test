@@ -67,9 +67,9 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
 
   const { complaint, isLoading: isComplaintLoading, isSaving: isComplaintSaving, saveComplaint } = useChiefComplaint(patientId);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (complaint) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setComplaintText(complaint.text);
       setComplaintTeethInput(complaint.relatedTeeth.join(', '));
     } else if (!isComplaintLoading) {
@@ -77,7 +77,6 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
       setComplaintTeethInput('');
     }
   }, [complaint, isComplaintLoading]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const loadData = () => {
     setFindings(storage.getFindings(patientId));
@@ -247,7 +246,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
         )}
         <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
-          Жалобы пациента (Chief Complaint)
+          Основная жалоба
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -288,7 +287,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
               disabled={isComplaintLoading || isComplaintSaving}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {isComplaintSaving ? 'Сохранение...' : 'Сохранить'}
+              {isComplaintSaving ? 'Сохранение...' : 'Сохранить жалобу'}
             </button>
         </div>
 
