@@ -166,13 +166,12 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Диагноз</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Клиническая картина</label>
           <textarea
             value={diagnosis}
-
             onChange={e => setDiagnosis(e.target.value)}
             rows={4}
-            placeholder="Установленный диагноз..."
+            placeholder="Описание клинической картины..."
             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50"
           />
         </div>
