@@ -65,7 +65,7 @@ export function PatientCardPage() {
       .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
   }, [patientId]);
 
-  const doctors = useMemo(() => storage.getDoctors(), []);
+
 
   const { lastVisit, nextVisit } = useMemo(() => {
     let lastVisit: Date | undefined;
@@ -182,7 +182,6 @@ export function PatientCardPage() {
         {activeTab === 'history' && (
           <PatientHistoryTab
             patientId={patient.id}
-            doctors={doctors}
           />
         )}
 
