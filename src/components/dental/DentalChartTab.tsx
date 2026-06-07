@@ -19,16 +19,15 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
   const [findings, setFindings] = useState<DentalFinding[]>([]);
 
-  const loadData = () => {
-    const loadedChart = storage.getDentalChart(patientId);
-    setChart(loadedChart);
-    setComplaints(loadedChart.complaints || '');
-    setDiagnosis(loadedChart.diagnosis || '');
-    setFindings(storage.getFindings(patientId));
-  };
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    const loadData = () => {
+      const loadedChart = storage.getDentalChart(patientId);
+      setChart(loadedChart);
+      setComplaints(loadedChart.complaints || '');
+      setDiagnosis(loadedChart.diagnosis || '');
+      setFindings(storage.getFindings(patientId));
+    };
+
     loadData();
   }, [patientId]);
 
