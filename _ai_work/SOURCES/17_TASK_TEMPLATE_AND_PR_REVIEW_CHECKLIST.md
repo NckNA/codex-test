@@ -112,9 +112,9 @@ Docs tasks with exact content must also include:
 
 ```text
 SOURCE FILE CONTENT
-<<<BEGIN_FILE_XX>>
+[BEGIN_FILE_XX marker]
 ...
-<<<END_FILE_XX>>
+[END_FILE_XX marker]
 ```
 
 ---
@@ -2291,7 +2291,7 @@ Do not summarize chat.
 If payload markers are broken:
 
 ```text
-<<<BEGIN_FILE_XX>>
+[BEGIN_FILE_XX marker]
 ...
 missing end marker
 ```
@@ -2309,8 +2309,8 @@ Because guessing document boundaries is how one file становится three 
 If final file includes:
 
 ```text
-<<<BEGIN_FILE_XX>>
-<<<END_FILE_XX>>
+[BEGIN_FILE_XX marker]
+[END_FILE_XX marker]
 ```
 
 request fix.
@@ -2826,9 +2826,9 @@ Exact content is missing.
 Do not create the source document.
 Create/report missing file only if task asks.
 Required content:
-<<<BEGIN_FILE_XX>>
+[BEGIN_FILE_XX marker]
 ...
-<<<END_FILE_XX>>
+[END_FILE_XX marker]
 ```
 
 ---
