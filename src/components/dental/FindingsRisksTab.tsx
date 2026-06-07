@@ -3,7 +3,7 @@ import { Plus, Edit2, Trash2, AlertTriangle, Activity, CheckCircle, Clock } from
 import { storage } from '../../utils/storage';
 import type { DentalFinding } from '../../types';
 import { FindingModal } from './FindingModal';
-
+import { useChiefComplaint } from '../../data/hooks/useChiefComplaint';
 interface FindingsRisksTabProps {
   patientId: string;
 }
@@ -65,13 +65,22 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
 
   const [isSaved, setIsSaved] = useState(false);
 
+  const { complaint, isLoading: isComplaintLoading, isSaving: isComplaintSaving, saveComplaint } = useChiefComplaint(patientId);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (complaint) {
+      setComplaintText(complaint.text);
+      setComplaintTeethInput(complaint.relatedTeeth.join(', '));
+    } else if (!isComplaintLoading) {
+      setComplaintText('');
+      setComplaintTeethInput('');
+    }
+  }, [complaint, isComplaintLoading]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const loadData = () => {
     setFindings(storage.getFindings(patientId));
-    const chiefComplaint = storage.getChiefComplaint(patientId);
-    if (chiefComplaint) {
-      setComplaintText(chiefComplaint.text);
-      setComplaintTeethInput(chiefComplaint.relatedTeeth.join(', '));
-    }
   };
 
   useEffect(() => {
@@ -80,7 +89,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
-  const handleSaveComplaint = () => {
+  const handleSaveComplaint = async () => {
     const rawTeeth = complaintTeethInput.split(',').map(s => s.trim()).filter(s => s !== '');
     const validTeethIds: number[] = [];
     const invalidTeeth: string[] = [];
@@ -100,7 +109,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
     }
 
     setTeethError('');
-    storage.saveChiefComplaint(patientId, {
+    await saveComplaint({
       text: complaintText,
       relatedTeeth: validTeethIds,
     });
@@ -230,9 +239,15 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
       </div>
 
       {/* Основная жалоба */}
-      <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-red-500" /> Основная жалоба
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative">
+        {isComplaintLoading && (
+          <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-xl">
+            <span className="text-sm text-slate-500">Загрузка...</span>
+          </div>
+        )}
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-amber-500" />
+          Жалобы пациента (Chief Complaint)
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -268,12 +283,13 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
               <CheckCircle className="w-4 h-4" /> Сохранено
             </span>
           )}
-          <button
-            onClick={handleSaveComplaint}
-            className="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition-colors"
-          >
-            Сохранить жалобу
-          </button>
+            <button
+              onClick={handleSaveComplaint}
+              disabled={isComplaintLoading || isComplaintSaving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {isComplaintSaving ? 'Сохранение...' : 'Сохранить'}
+            </button>
         </div>
 
         {categorizedFindings.chiefComplaintRelated.length > 0 && (
@@ -284,7 +300,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
             </div>
           </div>
         )}
-      </section>
+      </div>
 
       {/* Выявленные проблемы */}
       {categorizedFindings.discovered.length > 0 && (
