@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface UseAsyncMutationOptions<TInput, TResult> {
   mutationFn: (input: TInput) => Promise<TResult>;
@@ -15,29 +15,44 @@ export function useAsyncMutation<TInput, TResult>({
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const mutate = useCallback(async (input: TInput): Promise<TResult | undefined> => {
     setIsMutating(true);
     setIsError(false);
     setError(null);
     try {
       const result = await mutationFn(input);
-      setIsMutating(false);
-      onSuccess?.(result, input);
+      if (isMountedRef.current) {
+        setIsMutating(false);
+        onSuccess?.(result, input);
+      }
       return result;
     } catch (err) {
-      const parsedError = err instanceof Error ? err : new Error(String(err));
-      setIsError(true);
-      setError(parsedError);
-      setIsMutating(false);
-      onError?.(parsedError, input);
+      if (isMountedRef.current) {
+        const parsedError = err instanceof Error ? err : new Error(String(err));
+        setIsError(true);
+        setError(parsedError);
+        setIsMutating(false);
+        onError?.(parsedError, input);
+      }
       return undefined;
     }
   }, [mutationFn, onSuccess, onError]);
 
   const reset = useCallback(() => {
-    setIsMutating(false);
-    setIsError(false);
-    setError(null);
+    if (isMountedRef.current) {
+      setIsMutating(false);
+      setIsError(false);
+      setError(null);
+    }
   }, []);
 
   return {

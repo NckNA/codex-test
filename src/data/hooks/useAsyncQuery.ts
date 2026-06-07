@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface UseAsyncQueryOptions<T> {
   queryFn: () => Promise<T>;
@@ -20,19 +20,28 @@ export function useAsyncQuery<T>({
   const [isError, setIsError] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const executeFetch = useCallback(async (isMounted: () => boolean) => {
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const executeFetch = useCallback(async () => {
     setIsLoading(true);
     setIsError(false);
     setError(null);
     try {
       const result = await queryFn();
-      if (isMounted()) {
+      if (isMountedRef.current) {
         setData(result);
         setIsLoading(false);
         onSuccess?.(result);
       }
     } catch (err) {
-      if (isMounted()) {
+      if (isMountedRef.current) {
         const parsedError = err instanceof Error ? err : new Error(String(err));
         setIsError(true);
         setError(parsedError);
@@ -43,32 +52,20 @@ export function useAsyncQuery<T>({
   }, [queryFn, onSuccess, onError]);
 
   useEffect(() => {
-    let mounted = true;
-    const isMounted = () => mounted;
-
     if (!enabled) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
-      return () => {
-        mounted = false;
-      };
+      return;
     }
 
-    executeFetch(isMounted);
-
-    return () => {
-      mounted = false;
-    };
+    executeFetch();
   }, [enabled, executeFetch]);
 
   const refetch = useCallback(async () => {
-    // If we trigger a manual refetch, we usually want to fetch regardless of the `enabled` prop on initial mount,
-    // but to be perfectly safe, if `enabled` is false, it means dependencies might not be ready (e.g., missing patientId).
-    // The design asks to be safe: "respect enabled".
     if (!enabled) {
       return;
     }
-    await executeFetch(() => true);
+    await executeFetch();
   }, [enabled, executeFetch]);
 
   return {

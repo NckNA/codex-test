@@ -15,10 +15,10 @@
 - **Modified:** `src/data/hooks/usePatientAppointments.ts`
 
 ## 3. useAsyncQuery Implementation Summary
-Created a generic, strongly typed internal utility hook `useAsyncQuery<T>` using only native React primitives. It handles initialization, loading states, error catching, and the `mounted` safety checks. It accepts a `queryFn`, `initialData`, and an `enabled` flag. A targeted `eslint-disable-next-line` was added to safely toggle off `isLoading` when `enabled` dynamically becomes false.
+Created a generic, strongly typed internal utility hook `useAsyncQuery<T>` using only native React primitives. It handles initialization, loading states, error catching, and safely blocks state updates if the component is unmounted (using a shared `isMountedRef`). This unmount safety explicitly protects *both* the initial load and any subsequent manual `refetch` calls. It accepts a `queryFn`, `initialData`, and an `enabled` flag. A targeted `eslint-disable-next-line` was added to safely toggle off `isLoading` when `enabled` dynamically becomes false.
 
 ## 4. useAsyncMutation Implementation Summary
-Created a generic `useAsyncMutation<TInput, TResult>` utility. It encapsulates `isMutating`, `isError`, and `error` states, and provides a safe wrapper around asynchronous `mutationFn` executions with `onSuccess` and `onError` callbacks. It safely catches thrown errors and casts them to standard `Error` objects.
+Created a generic `useAsyncMutation<TInput, TResult>` utility. It encapsulates `isMutating`, `isError`, and `error` states, and provides a safe wrapper around asynchronous `mutationFn` executions. Like `useAsyncQuery`, it uses a shared `isMountedRef` to strictly prevent `setState` calls or `onSuccess`/`onError` callback executions if the component has unmounted before the Promise resolves. It safely catches thrown errors and casts them to standard `Error` objects.
 
 ## 5. useClinicDoctors Refactor Summary
 Refactored to rely purely on `useAsyncQuery`. The boilerplate `useState` and `useEffect` blocks were deleted. It still calls `LocalStorageDoctorRepository.listDoctors()` inside a `useCallback`, ensuring that historical doctor names (even inactive ones) continue to be resolvable. The public return shape remains identical.
