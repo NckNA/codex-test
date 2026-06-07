@@ -1,11 +1,11 @@
 import { Stethoscope, ClipboardList } from 'lucide-react';
-import type { Doctor } from '../../../types';
 
+
+import { useClinicDoctors } from '../../../data/hooks/useClinicDoctors';
 import { usePatientAppointments } from '../../../data/hooks/usePatientAppointments';
 
 interface PatientHistoryTabProps {
   patientId: string;
-  doctors: Doctor[];
 }
 
 const getStatusLabel = (status: string) => {
@@ -34,8 +34,12 @@ const getStatusColor = (status: string) => {
   }
 };
 
-export function PatientHistoryTab({ patientId, doctors }: PatientHistoryTabProps) {
-  const { appointments, isLoading, isError } = usePatientAppointments(patientId);
+export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
+  const { appointments, isLoading: isAppointmentsLoading, isError: isAppointmentsError } = usePatientAppointments(patientId);
+  const { doctors, isLoading: isDoctorsLoading, isError: isDoctorsError } = useClinicDoctors();
+
+  const isLoading = isAppointmentsLoading || isDoctorsLoading;
+  const isError = isAppointmentsError || isDoctorsError;
 
   if (isError) {
     return (
