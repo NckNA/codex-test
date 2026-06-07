@@ -1,8 +1,10 @@
 import { Stethoscope, ClipboardList } from 'lucide-react';
-import type { Appointment, Doctor } from '../../../types';
+import type { Doctor } from '../../../types';
+
+import { usePatientAppointments } from '../../../data/hooks/usePatientAppointments';
 
 interface PatientHistoryTabProps {
-  appointments: Appointment[];
+  patientId: string;
   doctors: Doctor[];
 }
 
@@ -32,7 +34,17 @@ const getStatusColor = (status: string) => {
   }
 };
 
-export function PatientHistoryTab({ appointments, doctors }: PatientHistoryTabProps) {
+export function PatientHistoryTab({ patientId, doctors }: PatientHistoryTabProps) {
+  const { appointments, isLoading, isError } = usePatientAppointments(patientId);
+
+  if (isError) {
+    return (
+      <div className="bg-white rounded-xl border border-red-200 shadow-sm p-8 text-center text-red-500">
+        <p>Ошибка при загрузке истории приёмов.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
@@ -44,7 +56,11 @@ export function PatientHistoryTab({ appointments, doctors }: PatientHistoryTabPr
         </span>
       </div>
 
-      {appointments.length === 0 ? (
+      {isLoading ? (
+        <div className="p-8 text-center text-slate-500">
+          <p>Загрузка истории приёмов...</p>
+        </div>
+      ) : appointments.length === 0 ? (
         <div className="p-8 text-center text-slate-500">
           <ClipboardList className="w-12 h-12 mx-auto mb-3 text-slate-300" />
           <p>У пациента еще не было приёмов.</p>

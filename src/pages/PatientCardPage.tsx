@@ -181,7 +181,7 @@ export function PatientCardPage() {
 
         {activeTab === 'history' && (
           <PatientHistoryTab
-            appointments={appointments}
+            patientId={patient.id}
             doctors={doctors}
           />
         )}
