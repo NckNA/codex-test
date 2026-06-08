@@ -10,9 +10,10 @@ interface AppointmentModalProps {
   onSave: (appointment: Appointment) => void;
   onDelete?: (id: string) => void;
   initialData?: Partial<Appointment>;
+  appointments: Appointment[];
 }
 
-export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialData }: AppointmentModalProps) {
+export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialData, appointments }: AppointmentModalProps) {
   const isEditing = !!initialData?.id;
   const patients = storage.getPatients();
   const doctors = storage.getDoctors();
@@ -71,7 +72,7 @@ export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialDat
   const checkConflicts = () => {
     if (formData.status === 'cancelled') return false;
 
-    const allAppointments = storage.getAppointments();
+    const allAppointments = appointments;
     const newStart = new Date(formData.start as string).getTime();
     const newEnd = new Date(formData.end as string).getTime();
 
