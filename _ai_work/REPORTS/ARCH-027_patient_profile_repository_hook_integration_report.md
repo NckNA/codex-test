@@ -37,7 +37,7 @@
 - `handleSave` is now `async`. It wraps the `savePatient` call in a try/catch, closing the modal only on success. If an error occurs, it is caught internally, avoiding unhandled promise rejections.
 
 ## 6. Loading/Not-Found/Error Behavior
-- A minimal full-page spinner and "Загрузка карточки пациента..." text is displayed while `isPatientLoading` is true.
+- A minimal full-page spinner and "Загрузка карточки пациента..." text is displayed only if `isPatientLoading` is true and `!patient` is true (i.e. patient is not yet available). Refetch/loading after a patient is already loaded does not replace the whole card, ensuring `PatientModal` remains mounted during save/refetch.
 - A minimal error state with a "Повторить" (Retry) button is displayed only if `isPatientError` is true and `!patient` is true (i.e. patient is not loaded yet).
 - If loading finishes and the patient is still falsy, the existing "Пациент не найден" UI is shown.
 - Save errors do not replace the whole card with a full-page error once a patient is already loaded.
