@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, AlertTriangle, Activity, CheckCircle, Clock } from 'lucide-react';
-import { storage } from '../../utils/storage';
 import type { DentalFinding } from '../../types';
+import type { CreateFindingInput } from '../../data/repositories/FindingsRepository';
 import { FindingModal } from './FindingModal';
 import { useChiefComplaint } from '../../data/hooks/useChiefComplaint';
+import { usePatientFindings } from '../../data/hooks/usePatientFindings';
+
 interface FindingsRisksTabProps {
   patientId: string;
 }
@@ -54,7 +56,13 @@ const VALID_TEETH = new Set([
 ]);
 
 export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
-  const [findings, setFindings] = useState<DentalFinding[]>([]);
+  const {
+    findings,
+    isLoading: isFindingsLoading,
+    createFinding,
+    updateFinding,
+    deleteFinding,
+  } = usePatientFindings(patientId);
 
   const [complaintText, setComplaintText] = useState('');
   const [complaintTeethInput, setComplaintTeethInput] = useState('');
@@ -77,16 +85,6 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
       setComplaintTeethInput('');
     }
   }, [complaint, isComplaintLoading]);
-
-  const loadData = () => {
-    setFindings(storage.getFindings(patientId));
-  };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
 
   const handleSaveComplaint = async () => {
     const rawTeeth = complaintTeethInput.split(',').map(s => s.trim()).filter(s => s !== '');
@@ -116,18 +114,42 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
     setTimeout(() => setIsSaved(false), 3000);
   };
 
-  const handleDelete = (findingId: string) => {
-    if (window.confirm('Удалить эту запись?')) {
-      storage.deleteFinding(patientId, findingId);
+  const handleDelete = async (findingId: string) => {
+    if (!window.confirm('Удалить эту запись?')) return;
 
-    loadData();
+    try {
+      await deleteFinding(findingId);
+    } catch (e) {
+      console.error('Failed to delete finding', e);
     }
   };
 
-  const handleStatusChange = (finding: DentalFinding, newStatus: DentalFinding['status']) => {
-    storage.updateFinding(patientId, { ...finding, status: newStatus });
+  const handleStatusChange = async (finding: DentalFinding, newStatus: DentalFinding['status']) => {
+    try {
+      await updateFinding({
+        ...finding,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('Failed to update finding status', e);
+    }
+  };
 
-    loadData();
+  const handleSaveFinding = async (findingDraft: CreateFindingInput | DentalFinding): Promise<void> => {
+    try {
+      if ('id' in findingDraft) {
+        await updateFinding(findingDraft);
+      } else {
+        await createFinding(findingDraft);
+      }
+
+      setIsModalOpen(false);
+      setSelectedFinding(null);
+    } catch (e) {
+      console.error('Failed to save finding', e);
+      // Important: leave modal open on error.
+    }
   };
 
   const openModal = (finding?: DentalFinding) => {
@@ -155,10 +177,18 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
           <h4 className="font-semibold text-slate-800">{finding.title}</h4>
         </div>
         <div className="flex gap-1">
-          <button onClick={() => openModal(finding)} className="p-1.5 text-slate-400 hover:text-blue-600 rounded bg-slate-50 hover:bg-blue-50 transition-colors">
+          <button 
+            onClick={() => openModal(finding)} 
+            disabled={isFindingsLoading}
+            className="p-1.5 text-slate-400 hover:text-blue-600 rounded bg-slate-50 hover:bg-blue-50 transition-colors disabled:opacity-50"
+          >
             <Edit2 className="w-4 h-4" />
           </button>
-          <button onClick={() => handleDelete(finding.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded bg-slate-50 hover:bg-red-50 transition-colors">
+          <button 
+            onClick={() => handleDelete(finding.id)} 
+            disabled={isFindingsLoading}
+            className="p-1.5 text-slate-400 hover:text-red-600 rounded bg-slate-50 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -203,16 +233,28 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
       {finding.status !== 'included_in_plan' && finding.status !== 'completed' && (
         <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
           {finding.status !== 'observing' && (
-             <button onClick={() => handleStatusChange(finding, 'observing')} className="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors">
+             <button 
+               onClick={() => handleStatusChange(finding, 'observing')} 
+               disabled={isFindingsLoading}
+               className="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors disabled:opacity-50"
+             >
                В наблюдение
              </button>
           )}
           {finding.status !== 'declined_by_patient' && (
-             <button onClick={() => handleStatusChange(finding, 'declined_by_patient')} className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded transition-colors">
+             <button 
+               onClick={() => handleStatusChange(finding, 'declined_by_patient')} 
+               disabled={isFindingsLoading}
+               className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded transition-colors disabled:opacity-50"
+             >
                Отказ пациента
              </button>
           )}
-          <button onClick={() => handleStatusChange(finding, 'completed')} className="text-xs px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded transition-colors ml-auto">
+          <button 
+            onClick={() => handleStatusChange(finding, 'completed')} 
+            disabled={isFindingsLoading}
+            className="text-xs px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded transition-colors ml-auto disabled:opacity-50"
+          >
             Завершить
           </button>
         </div>
@@ -349,10 +391,9 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
 
       <FindingModal
         isOpen={isModalOpen}
-        patientId={patientId}
         finding={selectedFinding}
         onClose={() => setIsModalOpen(false)}
-        onSave={loadData}
+        onSave={handleSaveFinding}
       />
     </div>
   );
