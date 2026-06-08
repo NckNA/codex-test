@@ -163,3 +163,85 @@ Given the high risk of breaking the application, implementation must be strictly
 
 ## 14. Recommended Next Task
 **ARCH-044 — Implement clinical repositories and orchestrator (no UI integration).**
+
+## 15. Reviewer Decision Log / Architecture Review Notes
+
+### 1. Why NOT one giant ClinicalRepository
+A single `ClinicalRepository` owning DentalChart, Findings/Risks, TreatmentPlans, previews, and cross-domain workflows is **rejected** because it:
+- Violates the Single Responsibility Principle.
+- Hides cross-domain mutations (e.g., saving a chart implicitly mutating findings).
+- Becomes a brittle God-object.
+- Makes future migration to an actual backend/API significantly harder.
+- Increases the risk of regressions during UI refactoring.
+
+### 2. Repository ownership boundaries
+- `DentalChartRepository` owns **only** dental chart data.
+- `FindingsRepository` owns **only** findings/risks data.
+- `TreatmentPlansRepository` owns **only** treatment plan data.
+- Repositories should **not** secretly mutate other clinical domains. Any cross-domain operations must be orchestrated explicitly outside the repositories.
+
+### 3. Cross-domain workflow ownership
+The following flows require a `ClinicalWorkflowOrchestrator` (or service) instead of being hidden in the UI or repositories:
+- Tooth status changes that automatically create or update findings.
+- Creating a treatment plan from selected findings and batch-updating those finding statuses to `included_in_plan`.
+- Any future treatment plan delete/update flow that may affect finding statuses.
+- Ensuring clinical summary consistency after mutations.
+
+### 4. DentalChartRepository decision
+**Should DentalChartRepository update findings directly?**
+**No**. Tooth status and finding synchronization must be handled by a clinical workflow/orchestrator. The repository itself should remain pure and unaware of the Findings domain.
+
+### 5. TreatmentPlansRepository decision
+**Should TreatmentPlansRepository update findings directly?**
+**No**. `TreatmentPlansRepository` should exclusively create, update, and delete treatment plans. Updating findings to `included_in_plan` belongs strictly to a cross-domain workflow/orchestrator.
+
+### 6. Hook strategy decision
+Future hooks must be split into separate domain hooks:
+- `useDentalChart(patientId)`
+- `usePatientFindings(patientId)`
+- `useTreatmentPlans(patientId)`
+
+Plus workflow hooks:
+- `useClinicalWorkflow(patientId)` (or `useCreatePlanFromFindings(patientId)`)
+
+We **reject** creating one huge `useClinicalData` hook.
+
+### 7. Mutation strategy decision
+- `useAsyncQuery` object-style API should be used for reads.
+- `useAsyncMutation` should **NOT** be used blindly.
+- Manual mutation wrappers are preferred for void-returning repository methods, following the established project pattern:
+  - set `isSaving` true;
+  - clear `saveError`;
+  - await repository/orchestrator method;
+  - await `refetch` where needed;
+  - set `saveError` on failure;
+  - throw parsed error;
+  - set `isSaving` false in `finally`.
+
+### 8. Refresh/refetch strategy
+To avoid global event buses, global cache, or React Query for now, the following safe strategies will be used:
+- Local `refetch()` after a successful mutation inside the hook.
+- Parent-level refetch callback if state is lifted up.
+- Tab-change refetch pattern (similar to `PatientCardPage`) if needed.
+
+### 9. First implementation slice recommendation
+**ARCH-044 — Implement clinical repositories only, no UI integration.**
+
+This task must remain extremely narrow:
+- Create repository interfaces/implementations only.
+- No UI integration.
+- No clinical components changed.
+- No hooks implemented yet.
+- No orchestrator implementation unless absolutely required by the repository foundation.
+- No `storage.ts` or `types/index.ts` changes unless impossible to avoid.
+
+### 10. Red flags for future PR review
+The following must **block merge** in future PRs:
+- `ClinicalRepository` god-object created.
+- UI components changed before contracts are reviewed/implemented.
+- `DentalChartRepository` directly mutating treatment plans or findings.
+- `TreatmentPlansRepository` directly mutating findings without an orchestrator.
+- A single PR migrating Dental + Findings + Treatment UI all together.
+- `useAsyncMutation` used blindly for void methods.
+- Global state/event bus introduced.
+- New product features mixed with the architecture migration.
