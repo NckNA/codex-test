@@ -1,4 +1,4 @@
-import { storage } from '../../utils/storage';
+import { LocalStorageAppointmentRepository } from '../repositories/AppointmentRepository';
 
 export interface PatientVisitSummary {
   lastVisit?: Date;
@@ -10,7 +10,7 @@ export type PatientVisitSummaryByPatientId = Record<string, PatientVisitSummary>
 export const PatientListVisitSummaryAggregator = {
   async getVisitSummaryByPatientId(now = new Date()): Promise<PatientVisitSummaryByPatientId> {
     const visits: PatientVisitSummaryByPatientId = {};
-    const appointments = storage.getAppointments();
+    const appointments = await LocalStorageAppointmentRepository.listAppointments();
 
     const sortedAppts = [...appointments].sort(
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
