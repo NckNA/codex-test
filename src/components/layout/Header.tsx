@@ -1,7 +1,7 @@
 import { Search, Calendar, ChevronDown, Plus, UserCircle } from 'lucide-react';
 import { useScheduleContext } from '../../hooks/useScheduleContext';
 import { clsx } from 'clsx';
-import { storage } from '../../utils/storage';
+import { useClinicDoctors } from '../../data/hooks/useClinicDoctors';
 import { useState, useRef, useEffect } from 'react';
 
 export function Header() {
@@ -20,7 +20,7 @@ export function Header() {
   const statusDropdownRef = useRef<HTMLDivElement>(null);
   const sourceDropdownRef = useRef<HTMLDivElement>(null);
 
-  const doctors = storage.getDoctors();
+  const { doctors } = useClinicDoctors();
 
   const formattedDate = selectedDate.toLocaleDateString('ru-RU', {
     weekday: 'long',
