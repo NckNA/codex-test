@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { DentalFinding, FindingCategory, FindingSeverity, FindingStatus } from '../../types';
-import { storage } from '../../utils/storage';
+import type { CreateFindingInput } from '../../data/repositories/FindingsRepository';
 
 interface FindingModalProps {
   isOpen: boolean;
-  patientId: string;
   finding?: DentalFinding | null;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (findingDraft: CreateFindingInput | DentalFinding) => Promise<void>;
 }
 
-export function FindingModal({ isOpen, patientId, finding, onClose, onSave }: FindingModalProps) {
+export function FindingModal({ isOpen, finding, onClose, onSave }: FindingModalProps) {
   const [formData, setFormData] = useState<Partial<DentalFinding>>({
     category: 'caries',
     severity: 'medium',
@@ -26,7 +25,6 @@ export function FindingModal({ isOpen, patientId, finding, onClose, onSave }: Fi
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormData({ ...finding });
       } else {
-
         setFormData({
           category: 'caries',
           severity: 'medium',
@@ -45,15 +43,42 @@ export function FindingModal({ isOpen, patientId, finding, onClose, onSave }: Fi
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (finding) {
-      storage.updateFinding(patientId, formData as DentalFinding);
-    } else {
-      storage.addFinding(patientId, formData as Omit<DentalFinding, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>);
+      const updatedFinding: DentalFinding = {
+        ...finding,
+        toothNumber: formData.toothNumber,
+        title: formData.title || finding.title,
+        category: formData.category || finding.category,
+        severity: formData.severity || finding.severity,
+        status: formData.status || finding.status,
+        description: formData.description || '',
+        riskDescription: formData.riskDescription || '',
+        recommendation: formData.recommendation || '',
+        isChiefComplaintRelated: formData.isChiefComplaintRelated || false,
+        includeInTreatmentPlan: formData.includeInTreatmentPlan || false,
+        updatedAt: new Date().toISOString(),
+      };
+      await onSave(updatedFinding);
+      return;
     }
-    onSave();
-    onClose();
+
+    const findingDraft: CreateFindingInput = {
+      toothNumber: formData.toothNumber,
+      title: formData.title || '',
+      category: formData.category || 'caries',
+      severity: formData.severity || 'medium',
+      status: formData.status || 'discovered',
+      description: formData.description || '',
+      riskDescription: formData.riskDescription || '',
+      recommendation: formData.recommendation || '',
+      isChiefComplaintRelated: formData.isChiefComplaintRelated || false,
+      includeInTreatmentPlan: formData.includeInTreatmentPlan || false,
+    };
+
+    await onSave(findingDraft);
   };
 
   return (
