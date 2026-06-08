@@ -104,7 +104,7 @@ The following UI components still import and use `storage.ts` directly:
 - **Is TreatmentPlans currently safe to migrate immediately?** No.
 - **Should a read-only ClinicalSummaryAggregator be designed before write-heavy migrations?** Yes.
 
-By creating a `usePatientMedicalSummary` (or `ClinicalSummaryAggregator`), we can centralize all derived calculations (e.g., `needsTreatment`, `totalAmount`, `lastVisit`) behind a clean, read-only interface. This removes direct `storage` calls from `PatientCardPage` and `PatientOverviewTab`. Once the read layer is decoupled, we can safely refactor the individual write-heavy modules (Chart, Findings, Plans) one by one without breaking the patient summary.
+By creating a `usePatientMedicalSummary` (or `ClinicalSummaryAggregator`), we can centralize all derived calculations (e.g., `needsTreatment`, `totalAmount`, `lastVisit`) behind a clean, read-only interface. This will prepare a future implementation to remove direct storage calls from `PatientCardPage` and `PatientOverviewTab`. Once the read layer is decoupled, we can safely refactor the individual write-heavy modules (Chart, Findings, Plans) one by one without breaking the patient summary.
 
 ## 14. What Must NOT Be Migrated Yet
 - Do not migrate `DentalChartTab` mutations.
@@ -112,10 +112,12 @@ By creating a `usePatientMedicalSummary` (or `ClinicalSummaryAggregator`), we ca
 - Do not migrate `TreatmentPlansTab` mutations.
 
 ## 15. Acceptance Criteria for Future ARCH-017
-- Design a read-only hook (e.g., `usePatientMedicalSummary`) to calculate `dentalSummary`, `lastVisit`, and `nextVisit`.
-- The hook must replace direct storage reads inside `PatientCardPage.tsx`.
-- Which files should ARCH-017 inspect? `PatientCardPage.tsx`, `PatientOverviewTab.tsx`.
-- Which files should ARCH-017 NOT change? `DentalChartTab.tsx`, `FindingsRisksTab.tsx`, `TreatmentPlansTab.tsx`, `SchedulePage.tsx`, `storage.ts`, backend APIs.
+- Design a read-only ClinicalSummaryAggregator / usePatientMedicalSummary contract.
+- Define what fields it returns, including dentalSummary, lastVisit, nextVisit, activePlans, totalAmount, and any other derived summary fields currently calculated in PatientCardPage.
+- Define which storage domains it reads from conceptually.
+- Define which files a future implementation task should modify.
+- Define which files ARCH-017 must NOT modify.
+- No `src/` code changes in ARCH-017 unless a later task explicitly changes the scope.
 
 ## 16. Recommended Next Task
 **ARCH-017 — Design read-only ClinicalSummaryAggregator / usePatientMedicalSummary contract before migrating write-heavy clinical modules.**
