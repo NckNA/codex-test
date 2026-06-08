@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
-import { storage } from '../../utils/storage';
-import type { TreatmentPlan, TreatmentStage, TreatmentPlanStatus, TreatmentStageStatus } from '../../types';
+import type { DentalFinding, TreatmentPlan, TreatmentStage, TreatmentPlanStatus, TreatmentStageStatus } from '../../types';
 
 interface TreatmentPlanModalProps {
   isOpen: boolean;
-  patientId: string;
   plan: TreatmentPlan | null;
+  findings: DentalFinding[];
   onClose: () => void;
-  onSave: (plan: TreatmentPlan) => void;
+  onSave: (plan: TreatmentPlan) => Promise<void>;
 }
 
 const PLAN_STATUSES: { value: TreatmentPlanStatus; label: string }[] = [
@@ -40,7 +39,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 };
 
-export function TreatmentPlanModal({ isOpen, patientId, plan, onClose, onSave }: TreatmentPlanModalProps) {
+export function TreatmentPlanModal({ isOpen, plan, findings, onClose, onSave }: TreatmentPlanModalProps) {
   const [formData, setFormData] = useState<Partial<TreatmentPlan>>({
     title: '',
     status: 'draft',
@@ -65,7 +64,7 @@ export function TreatmentPlanModal({ isOpen, patientId, plan, onClose, onSave }:
 
   if (!isOpen) return null;
 
-  const findingsById = new Map(storage.getFindings(patientId).map(finding => [finding.id, finding]));
+  const findingsById = new Map(findings.map(finding => [finding.id, finding]));
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -110,20 +109,20 @@ export function TreatmentPlanModal({ isOpen, patientId, plan, onClose, onSave }:
     return stages.reduce((sum, stage) => sum + (Number(stage.price) || 0), 0);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const stages = formData.stages || [];
     const planToSave: TreatmentPlan = {
       id: plan?.id || `plan_${Date.now()}`,
-      patientId,
+      patientId: plan?.patientId || '',
       title: formData.title || 'Новый план лечения',
-      status: formData.status as TreatmentPlanStatus || 'draft',
+      status: formData.status || 'draft',
       stages,
       totalPrice: calculateTotal(stages),
       createdAt: plan?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    onSave(planToSave);
+    await onSave(planToSave);
   };
 
   const total = calculateTotal(formData.stages);
