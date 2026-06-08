@@ -196,7 +196,8 @@ describe('ClinicalWorkflowOrchestrator', () => {
       });
 
       findings = [
-        { id: 'f1', patientId: 'p1', toothNumber: 11, category: 'caries', title: 'Old', severity: 'medium', status: 'completed', description: '', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+        { id: 'f1', patientId: 'p1', toothNumber: 11, category: 'caries', title: 'Old', severity: 'medium', status: 'completed', description: '', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
+        { id: 'f2', patientId: 'p1', toothNumber: 11, category: 'caries', title: 'Old 2', severity: 'medium', status: 'declined_by_patient', description: '', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
       ];
 
       await orchestrator.applyToothStatusChange({
