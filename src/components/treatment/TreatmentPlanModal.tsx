@@ -4,6 +4,7 @@ import type { DentalFinding, TreatmentPlan, TreatmentStage, TreatmentPlanStatus,
 
 interface TreatmentPlanModalProps {
   isOpen: boolean;
+  patientId: string;
   plan: TreatmentPlan | null;
   findings: DentalFinding[];
   onClose: () => void;
@@ -39,7 +40,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 };
 
-export function TreatmentPlanModal({ isOpen, plan, findings, onClose, onSave }: TreatmentPlanModalProps) {
+export function TreatmentPlanModal({ isOpen, patientId, plan, findings, onClose, onSave }: TreatmentPlanModalProps) {
   const [formData, setFormData] = useState<Partial<TreatmentPlan>>({
     title: '',
     status: 'draft',
@@ -114,7 +115,7 @@ export function TreatmentPlanModal({ isOpen, plan, findings, onClose, onSave }: 
     const stages = formData.stages || [];
     const planToSave: TreatmentPlan = {
       id: plan?.id || `plan_${Date.now()}`,
-      patientId: plan?.patientId || '',
+      patientId: plan?.patientId || patientId,
       title: formData.title || 'Новый план лечения',
       status: formData.status || 'draft',
       stages,

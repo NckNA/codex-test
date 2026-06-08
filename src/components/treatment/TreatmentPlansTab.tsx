@@ -190,6 +190,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
 
       <TreatmentPlanModal
         isOpen={isModalOpen}
+        patientId={patientId}
         plan={selectedPlan}
         findings={findings}
         onClose={() => setIsModalOpen(false)}
