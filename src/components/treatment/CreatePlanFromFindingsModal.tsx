@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { CheckCircle, X } from 'lucide-react';
-import { storage } from '../../utils/storage';
-import type { DentalFinding, FindingStatus, TreatmentPlan, TreatmentPlanStatus, TreatmentStage } from '../../types';
+import type { DentalFinding, FindingStatus, TreatmentPlan, TreatmentPlanStatus } from '../../types';
 
 interface CreatePlanFromFindingsModalProps {
-  patientId: string;
   isOpen: boolean;
+  findings: DentalFinding[];
+  treatmentPlans: TreatmentPlan[];
+  isSaving?: boolean;
   onClose: () => void;
-  onPlanCreated: (plan: TreatmentPlan) => void;
+  onCreatePlanFromFindings: (selectedFindings: DentalFinding[]) => Promise<void>;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -52,27 +53,27 @@ const ELIGIBLE_STATUSES = new Set<FindingStatus>(['discovered', 'recommended', '
 const ACTIVE_PLAN_STATUSES = new Set<TreatmentPlanStatus>(['draft', 'approved', 'in_progress']);
 
 export function CreatePlanFromFindingsModal({
-  patientId,
   isOpen,
+  findings,
+  treatmentPlans,
+  isSaving,
   onClose,
-  onPlanCreated,
+  onCreatePlanFromFindings,
 }: CreatePlanFromFindingsModalProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const findings = useMemo(() => {
-    if (!isOpen) return [];
-    return storage.getFindings(patientId);
-  }, [isOpen, patientId]);
-
-  const plans = useMemo(() => {
-    if (!isOpen) return [];
-    return storage.getTreatmentPlans(patientId);
-  }, [isOpen, patientId]);
+  useEffect(() => {
+    if (!isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedIds([]);
+    }
+  }, [isOpen]);
 
   const linkedPlanByFindingId = useMemo(() => {
     const linked = new Map<string, string>();
+    if (!isOpen) return linked;
 
-    plans
+    treatmentPlans
       .filter(plan => ACTIVE_PLAN_STATUSES.has(plan.status))
       .forEach(plan => {
         plan.stages.forEach(stage => {
@@ -85,9 +86,11 @@ export function CreatePlanFromFindingsModal({
       });
 
     return linked;
-  }, [plans]);
+  }, [treatmentPlans, isOpen]);
 
   const visibleFindings = useMemo(() => {
+    if (!isOpen) return [];
+
     return findings.filter(finding => {
       const linkedPlanTitle = linkedPlanByFindingId.get(finding.id);
       const visibleStatus = ELIGIBLE_STATUSES.has(finding.status) || Boolean(linkedPlanTitle);
@@ -95,12 +98,12 @@ export function CreatePlanFromFindingsModal({
 
       return finding.includeInTreatmentPlan && visibleStatus && !archivedStatus;
     });
-  }, [findings, linkedPlanByFindingId]);
+  }, [findings, linkedPlanByFindingId, isOpen]);
 
   if (!isOpen) return null;
 
   const toggleFinding = (finding: DentalFinding) => {
-    if (linkedPlanByFindingId.has(finding.id)) return;
+    if (linkedPlanByFindingId.has(finding.id) || isSaving) return;
 
     setSelectedIds(prev => (
       prev.includes(finding.id)
@@ -109,51 +112,11 @@ export function CreatePlanFromFindingsModal({
     ));
   };
 
-  const buildStageDescription = (finding: DentalFinding) => {
-    return [finding.description, finding.recommendation ? `Рекомендация: ${finding.recommendation}` : '']
-      .filter(Boolean)
-      .join('\n\n');
-  };
-
-  const handleCreatePlan = () => {
+  const handleCreatePlan = async () => {
     const selectedFindings = visibleFindings.filter(finding => selectedIds.includes(finding.id));
     if (selectedFindings.length === 0) return;
 
-    const now = new Date().toISOString();
-    const planTimestamp = Date.now();
-    const stages: TreatmentStage[] = selectedFindings.map((finding, index) => ({
-      id: `stage_${planTimestamp}_${index}_${finding.id}`,
-      title: finding.title,
-      teeth: finding.toothNumber ? [finding.toothNumber] : [],
-      description: buildStageDescription(finding),
-      price: 0,
-      status: 'planned',
-      findingIds: [finding.id],
-      source: 'from_finding',
-    }));
-
-    const plan: TreatmentPlan = {
-      id: `plan_${planTimestamp}`,
-      patientId,
-      title: `План лечения от ${new Date().toLocaleDateString('ru-RU')}`,
-      status: 'draft',
-      stages,
-      totalPrice: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    storage.addTreatmentPlan(patientId, plan);
-    selectedFindings.forEach(finding => {
-      storage.updateFinding(patientId, {
-        ...finding,
-        status: 'included_in_plan',
-        includeInTreatmentPlan: true,
-        updatedAt: now,
-      });
-    });
-
-    onPlanCreated(plan);
+    await onCreatePlanFromFindings(selectedFindings);
   };
 
   return (
@@ -161,7 +124,7 @@ export function CreatePlanFromFindingsModal({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-800">Создать план из проблем</h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+          <button onClick={onClose} disabled={isSaving} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 disabled:opacity-50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -191,23 +154,23 @@ export function CreatePlanFromFindingsModal({
                   <div
                     key={finding.id}
                     onClick={() => toggleFinding(finding)}
-                    aria-disabled={isLinked}
+                    aria-disabled={isLinked || isSaving}
                     className={`border rounded-lg p-4 transition-colors ${
                       isLinked
                         ? 'bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed'
                         : isSelected
                           ? 'bg-blue-50 border-blue-300'
                           : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50/40'
-                    }`}
+                    } ${isSaving && !isLinked ? 'opacity-70 cursor-wait' : ''}`}
                   >
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        disabled={isLinked}
+                        disabled={isLinked || isSaving}
                         onChange={() => toggleFinding(finding)}
                         onClick={event => event.stopPropagation()}
-                        className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                       />
 
                       <div className="flex-1 min-w-0">
@@ -263,17 +226,18 @@ export function CreatePlanFromFindingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 bg-slate-100 rounded-lg transition-colors"
+            disabled={isSaving}
+            className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Отмена
           </button>
           <button
             type="button"
             onClick={handleCreatePlan}
-            disabled={selectedIds.length === 0}
+            disabled={selectedIds.length === 0 || isSaving}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm"
           >
-            Создать план
+            {isSaving ? 'Создание...' : 'Создать план'}
           </button>
         </div>
       </div>
