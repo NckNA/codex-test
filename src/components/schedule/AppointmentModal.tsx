@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, AlertCircle, ExternalLink } from 'lucide-react';
-import type { Appointment, AppointmentStatus, PaymentType, Source } from '../../types';
-import { storage } from '../../utils/storage';
+import type { Appointment, AppointmentStatus, PaymentType, Source, Doctor, Patient } from '../../types';
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -11,12 +10,21 @@ interface AppointmentModalProps {
   onDelete?: (id: string) => void;
   initialData?: Partial<Appointment>;
   appointments: Appointment[];
+  doctors: Doctor[];
+  patients: Patient[];
 }
 
-export function AppointmentModal({ isOpen, onClose, onSave, onDelete, initialData, appointments }: AppointmentModalProps) {
+export function AppointmentModal({
+  isOpen,
+  onClose,
+  onSave,
+  onDelete,
+  initialData,
+  appointments,
+  doctors,
+  patients,
+}: AppointmentModalProps) {
   const isEditing = !!initialData?.id;
-  const patients = storage.getPatients();
-  const doctors = storage.getDoctors();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState<Partial<Appointment>>({
