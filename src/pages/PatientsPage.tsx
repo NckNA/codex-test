@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Search, Plus, Filter } from 'lucide-react';
-import { storage } from '../utils/storage';
 import type { Patient, PatientSource, PatientLeadStatus } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
 import { useNavigate } from 'react-router-dom';
 import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
+import { usePatientListVisitSummary } from '../data/hooks/usePatientListVisitSummary';
 
 const getSourceLabel = (source?: string) => {
   switch (source) {
@@ -100,36 +100,9 @@ export function PatientsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Partial<Patient> | undefined>();
 
-  // Precompute appointments for fast visit lookups
-  const appointments = useMemo(() => storage.getAppointments(), []);
-
-  const patientVisits = useMemo(() => {
-    const visits: Record<string, { lastVisit?: Date, nextVisit?: Date }> = {};
-    const now = new Date();
-
-    // Sort appointments chronologically
-    const sortedAppts = [...appointments].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-    for (const appt of sortedAppts) {
-      if (!appt.patientId || appt.status === 'blocked' || appt.status === 'cancelled') continue;
-
-      const apptDate = new Date(appt.start);
-      if (!visits[appt.patientId]) {
-        visits[appt.patientId] = {};
-      }
-
-      if (apptDate < now) {
-        // Since it's sorted ascending, the last one we see that is < now will be the most recent past visit
-        visits[appt.patientId].lastVisit = apptDate;
-      } else {
-        // The first one we see that is >= now will be the next upcoming visit
-        if (!visits[appt.patientId].nextVisit) {
-          visits[appt.patientId].nextVisit = apptDate;
-        }
-      }
-    }
-    return visits;
-  }, [appointments]);
+  const {
+    visitSummaryByPatientId,
+  } = usePatientListVisitSummary();
 
   const filteredPatients = useMemo(() => {
     return patients.filter(p => {
@@ -272,7 +245,7 @@ export function PatientsPage() {
                 </tr>
               ) : (
                 filteredPatients.map((patient) => {
-                  const visits = patientVisits[patient.id] || {};
+                  const visits = visitSummaryByPatientId[patient.id] || {};
 
                   return (
                     <tr key={patient.id} className="hover:bg-slate-50/50 transition-colors group">
