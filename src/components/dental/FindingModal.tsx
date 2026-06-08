@@ -47,20 +47,30 @@ export function FindingModal({ isOpen, finding, onClose, onSave }: FindingModalP
     e.preventDefault();
 
     if (finding) {
-      await onSave({
+      const updatedFinding: DentalFinding = {
         ...finding,
-        ...formData,
+        toothNumber: formData.toothNumber,
+        title: formData.title || finding.title,
+        category: formData.category || finding.category,
+        severity: formData.severity || finding.severity,
+        status: formData.status || finding.status,
+        description: formData.description || '',
+        riskDescription: formData.riskDescription || '',
+        recommendation: formData.recommendation || '',
+        isChiefComplaintRelated: formData.isChiefComplaintRelated || false,
+        includeInTreatmentPlan: formData.includeInTreatmentPlan || false,
         updatedAt: new Date().toISOString(),
-      } as DentalFinding);
+      };
+      await onSave(updatedFinding);
       return;
     }
 
     const findingDraft: CreateFindingInput = {
       toothNumber: formData.toothNumber,
       title: formData.title || '',
-      category: (formData.category as FindingCategory) || 'caries',
-      severity: (formData.severity as FindingSeverity) || 'medium',
-      status: (formData.status as FindingStatus) || 'discovered',
+      category: formData.category || 'caries',
+      severity: formData.severity || 'medium',
+      status: formData.status || 'discovered',
       description: formData.description || '',
       riskDescription: formData.riskDescription || '',
       recommendation: formData.recommendation || '',
