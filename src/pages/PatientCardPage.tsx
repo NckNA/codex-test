@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User } from 'lucide-react';
-import { storage } from '../utils/storage';
 import type { Patient } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
 import { DentalChartTab } from '../components/dental/DentalChartTab';
@@ -10,6 +9,7 @@ import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
 import { usePatientMedicalSummary } from '../data/hooks/usePatientMedicalSummary';
+import { usePatientProfile } from '../data/hooks/usePatientProfile';
 
 const TABS = [
   { id: 'overview', label: 'Обзор' },
@@ -32,12 +32,13 @@ export function PatientCardPage() {
   const [activeTab, setActiveTab] = useState(TABS[0].id);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Use memo to replace effects and local state so it naturally updates if parent structure triggered render
-  // Realistically we can also just rely on normal component re-renders
-  const patient = useMemo(() => {
-    if (!patientId) return null;
-    return storage.getPatients().find(p => p.id === patientId) || null;
-  }, [patientId]);
+  const {
+    patient,
+    isLoading: isPatientLoading,
+    isError: isPatientError,
+    savePatient,
+    refetch: refetchPatient,
+  } = usePatientProfile(patientId || '');
 
   const {
     data: medicalSummary,
@@ -62,6 +63,30 @@ export function PatientCardPage() {
     refetchMedicalSummary();
   }, [activeTab, patientId, isMedicalSummaryLoading, refetchMedicalSummary]);
 
+  if (isPatientLoading) {
+    return (
+      <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 className="text-xl font-semibold text-slate-700 mb-2">Загрузка карточки пациента...</h2>
+      </div>
+    );
+  }
+
+  if (isPatientError) {
+    return (
+      <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+        <User className="w-16 h-16 mb-4 text-red-300" />
+        <h2 className="text-xl font-semibold text-slate-700 mb-2">Не удалось загрузить карточку пациента.</h2>
+        <button
+          onClick={() => refetchPatient()}
+          className="px-4 py-2 bg-white border border-red-200 text-red-700 hover:bg-red-50 rounded-lg font-medium transition-colors"
+        >
+          Повторить
+        </button>
+      </div>
+    );
+  }
+
   if (!patient) {
     return (
       <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
@@ -78,9 +103,13 @@ export function PatientCardPage() {
     );
   }
 
-  const handleSave = (updated: Patient) => {
-    storage.updatePatient(updated);
-    setIsModalOpen(false);
+  const handleSave = async (updated: Patient) => {
+    try {
+      await savePatient(updated);
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error('Failed to save patient', e);
+    }
   };
 
   return (
