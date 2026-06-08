@@ -72,7 +72,7 @@ export function PatientCardPage() {
     );
   }
 
-  if (isPatientError) {
+  if (isPatientError && !patient) {
     return (
       <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
         <User className="w-16 h-16 mb-4 text-red-300" />

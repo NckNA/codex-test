@@ -38,13 +38,14 @@
 
 ## 6. Loading/Not-Found/Error Behavior
 - A minimal full-page spinner and "Загрузка карточки пациента..." text is displayed while `isPatientLoading` is true.
-- A minimal error state with a "Повторить" (Retry) button is displayed if `isPatientError` is true.
+- A minimal error state with a "Повторить" (Retry) button is displayed only if `isPatientError` is true and `!patient` is true (i.e. patient is not loaded yet).
 - If loading finishes and the patient is still falsy, the existing "Пациент не найден" UI is shown.
+- Save errors do not replace the whole card with a full-page error once a patient is already loaded.
 
 ## 7. Save/Edit Behavior
 - The `PatientModal`'s synchronous `onSave` call continues to work flawlessly with the new async `handleSave`.
 - On success, the modal closes.
-- On failure, the modal safely remains open.
+- On failure, the modal safely remains open (no unhandled promise rejections, and no full-page error screen replaces the card).
 
 ## 8. What Behavior Was Preserved
 - The patient card loads successfully.
