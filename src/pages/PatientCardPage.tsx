@@ -39,7 +39,12 @@ export function PatientCardPage() {
     return storage.getPatients().find(p => p.id === patientId) || null;
   }, [patientId]);
 
-  const { data: medicalSummary } = usePatientMedicalSummary(patientId || '');
+  const {
+    data: medicalSummary,
+    isLoading: isMedicalSummaryLoading,
+    isError: isMedicalSummaryError,
+    refetch: refetchMedicalSummary,
+  } = usePatientMedicalSummary(patientId || '');
   const { dentalSummary, lastVisit, nextVisit } = medicalSummary;
 
   if (!patient) {
@@ -125,6 +130,24 @@ export function PatientCardPage() {
 
       {/* Tab Content */}
       <div className="flex-1 overflow-auto p-6">
+        {activeTab === 'overview' && isMedicalSummaryLoading && (
+          <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
+            Медицинская сводка загружается...
+          </div>
+        )}
+
+        {activeTab === 'overview' && isMedicalSummaryError && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex items-center justify-between gap-4">
+            <span>Не удалось загрузить медицинскую сводку.</span>
+            <button 
+              onClick={() => refetchMedicalSummary()}
+              className="px-3 py-1 bg-white border border-red-200 text-red-700 hover:bg-red-100 rounded text-xs font-medium transition-colors"
+            >
+              Повторить
+            </button>
+          </div>
+        )}
+
         {activeTab === 'overview' && (
           <PatientOverviewTab
             patient={patient}
