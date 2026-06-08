@@ -9,6 +9,7 @@ import { TreatmentPlansTab } from '../components/treatment/TreatmentPlansTab';
 import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
+import { usePatientMedicalSummary } from '../data/hooks/usePatientMedicalSummary';
 
 const TABS = [
   { id: 'overview', label: 'Обзор' },
@@ -38,53 +39,8 @@ export function PatientCardPage() {
     return storage.getPatients().find(p => p.id === patientId) || null;
   }, [patientId]);
 
-  const dentalSummary = useMemo(() => {
-     if (!patientId) return { needsTreatment: 0, missing: 0, activePlans: 0, totalAmount: 0, chiefComplaintText: '', highUrgentFindings: 0, notIncludedFindings: 0, observingFindings: 0 };
-     const chart = storage.getDentalChart(patientId);
-     const plans = storage.getTreatmentPlans(patientId);
-     const complaint = storage.getChiefComplaint(patientId);
-     const findings = storage.getFindings(patientId);
-
-     const needsTreatment = chart.teeth.filter(t => ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(t.condition)).length;
-     const missing = chart.teeth.filter(t => t.condition === 'missing').length;
-     const activePlans = plans.filter(p => ['draft', 'in_progress', 'approved'].includes(p.status)).length;
-     const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
-
-     const chiefComplaintText = complaint?.text || '';
-     const highUrgentFindings = findings.filter(f => (f.severity === 'high' || f.severity === 'urgent') && f.status !== 'completed' && f.status !== 'declined_by_patient').length;
-     const notIncludedFindings = findings.filter(f => f.status === 'discovered' || f.status === 'recommended').length;
-     const observingFindings = findings.filter(f => f.status === 'observing').length;
-
-     return { needsTreatment, missing, activePlans, totalAmount, chiefComplaintText, highUrgentFindings, notIncludedFindings, observingFindings };
-  }, [patientId]);
-
-  const appointments = useMemo(() => {
-    if (!patientId) return [];
-    return storage.getAppointments()
-      .filter(a => a.patientId === patientId)
-      .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
-  }, [patientId]);
-
-
-
-  const { lastVisit, nextVisit } = useMemo(() => {
-    let lastVisit: Date | undefined;
-    let nextVisit: Date | undefined;
-    const now = new Date();
-
-    const sortedAsc = [...appointments].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-    for (const appt of sortedAsc) {
-      if (appt.status === 'blocked' || appt.status === 'cancelled') continue;
-      const apptDate = new Date(appt.start);
-      if (apptDate < now) {
-        lastVisit = apptDate;
-      } else {
-        if (!nextVisit) nextVisit = apptDate;
-      }
-    }
-    return { lastVisit, nextVisit };
-  }, [appointments]);
+  const { data: medicalSummary } = usePatientMedicalSummary(patientId || '');
+  const { dentalSummary, lastVisit, nextVisit } = medicalSummary;
 
   if (!patient) {
     return (
