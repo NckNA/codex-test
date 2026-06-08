@@ -1,9 +1,17 @@
 import { X } from 'lucide-react';
-import { storage } from '../../utils/storage';
-import type { DentalFinding, TreatmentPlan, TreatmentPlanStatus, TreatmentStageStatus } from '../../types';
+import type {
+  ChiefComplaint,
+  DentalFinding,
+  Patient,
+  TreatmentPlan,
+  TreatmentPlanStatus,
+  TreatmentStageStatus,
+} from '../../types';
 
 interface TreatmentPlanPatientPreviewProps {
-  patientId: string;
+  patient: Patient | null;
+  chiefComplaint: ChiefComplaint | null;
+  findings: DentalFinding[];
   plan: TreatmentPlan | null;
   isOpen: boolean;
   onClose: () => void;
@@ -102,12 +110,16 @@ function FindingPreview({ finding }: { finding: DentalFinding }) {
   );
 }
 
-export function TreatmentPlanPatientPreview({ patientId, plan, isOpen, onClose }: TreatmentPlanPatientPreviewProps) {
+export function TreatmentPlanPatientPreview({
+  patient,
+  chiefComplaint,
+  findings,
+  plan,
+  isOpen,
+  onClose,
+}: TreatmentPlanPatientPreviewProps) {
   if (!isOpen || !plan) return null;
 
-  const patient = storage.getPatients().find(p => p.id === patientId);
-  const chiefComplaint = storage.getChiefComplaint(patientId);
-  const findings = storage.getFindings(patientId);
   const linkedFindingIds = new Set(plan.stages.flatMap(stage => stage.findingIds || []));
   const linkedFindings = findings.filter(finding => linkedFindingIds.has(finding.id));
   const additionalFindings = findings.filter(finding => (
