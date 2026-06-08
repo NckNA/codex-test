@@ -65,18 +65,20 @@ const ToothItem = ({ tooth, findings = [], onClick }: { tooth: ToothRecord, find
   };
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1 cursor-pointer group relative"
+      aria-label={`Редактировать зуб ${tooth?.toothNumber}`}
+      className="flex flex-col items-center gap-1 cursor-pointer group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded-lg"
     >
       <div className="text-xs font-semibold text-slate-600 group-hover:text-blue-600 transition-colors">
-        {tooth.toothNumber}
+        {tooth?.toothNumber}
       </div>
-      <div className={`w-8 h-10 rounded-t-md rounded-b-xl border-2 flex items-center justify-center transition-all shadow-sm ${getToothColor(tooth.condition)} group-hover:shadow-md group-hover:-translate-y-0.5 relative`}>
+      <div className={`w-8 h-10 rounded-t-md rounded-b-xl border-2 flex items-center justify-center transition-all shadow-sm ${getToothColor(tooth?.condition)} group-hover:shadow-md group-hover:-translate-y-0.5 relative`}>
         {getIndicator()}
-        <span className="text-xs font-bold">{getConditionAbbr(tooth.condition)}</span>
+        <span className="text-xs font-bold">{getConditionAbbr(tooth?.condition || 'healthy')}</span>
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -85,9 +87,9 @@ export function ToothGrid({ teeth, findings = [], onToothClick }: ToothGridProps
   const getFindingsForTooth = (num: number) => findings.filter(f => f.toothNumber === num);
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl mx-auto py-4">
+    <div className="w-max min-w-max mx-auto flex flex-col gap-8 py-4 px-2">
       {/* Upper Jaw */}
-      <div className="flex justify-center items-center gap-6">
+      <div className="flex justify-center items-center gap-4 sm:gap-6">
         {/* Right side (patient's right, left on screen: 18-11) */}
         <div className="flex gap-1.5">
           {UPPER_JAW.slice(0, 8).map(num => (
@@ -107,7 +109,7 @@ export function ToothGrid({ teeth, findings = [], onToothClick }: ToothGridProps
       </div>
 
       {/* Lower Jaw */}
-      <div className="flex justify-center items-center gap-6">
+      <div className="flex justify-center items-center gap-4 sm:gap-6">
         {/* Right side (patient's right, left on screen: 48-41) */}
         <div className="flex gap-1.5">
           {LOWER_JAW.slice(0, 8).map(num => (
