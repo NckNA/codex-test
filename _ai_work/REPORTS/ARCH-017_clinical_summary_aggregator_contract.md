@@ -7,6 +7,12 @@ This document designs the contract for a read-only `ClinicalSummaryAggregator` a
 - `_ai_work/REPORTS/ARCH-016_clinical_data_dependency_map.md`
 - `src/pages/PatientCardPage.tsx`
 - `src/components/patients/patient-card/PatientOverviewTab.tsx`
+- `src/components/dental/DentalChartTab.tsx`
+- `src/components/dental/FindingsRisksTab.tsx`
+- `src/components/treatment/TreatmentPlansTab.tsx`
+- `src/pages/SchedulePage.tsx`
+- `src/utils/storage.ts`
+- `src/types/index.ts`
 
 ## 3. Why This Contract Is Needed
 According to the dependency map from ARCH-016, `PatientCardPage` and `PatientOverviewTab` currently read directly from multiple raw storage domains (ChiefComplaint, DentalChart, Findings, TreatmentPlans, and Appointments) to compute a medical summary. 
@@ -79,10 +85,12 @@ Currently, there is no global cache invalidation or React Query.
 Data freshness will be maintained by manually calling `refetch()` when a sibling tab modifies the underlying data, or by allowing the hook to re-run its aggregator logic when the component mounts. The initial implementation will rely on local repository/storage reads.
 
 ## 12. Future Implementation Boundary
-A future implementation task (ARCH-018) should create/modify the following:
+Future ARCH-018 may create the pure aggregator and hook files only. Integration into `PatientCardPage.tsx` and `PatientOverviewTab.tsx` should be a separate ARCH-019 task after the hook contract is implemented and reviewed.
+
+Files to be created in ARCH-018:
 - **New File**: `src/data/aggregators/ClinicalSummaryAggregator.ts` (or similar pure TS file).
 - **New File**: `src/data/hooks/usePatientMedicalSummary.ts`.
-- **Integration**: Minimal changes to `PatientCardPage.tsx` and `PatientOverviewTab.tsx` to consume the hook.
+- **New File**: A report file detailing the implementation.
 
 ## 13. Future Implementation Non-Goals
 The future implementation (ARCH-018) must **NOT** touch:
@@ -105,9 +113,13 @@ The future implementation (ARCH-018) must **NOT** touch:
 3. **Subsequent Tasks**: Plan and execute migrations for the write-heavy modules (`DentalChart`, `Findings`, `TreatmentPlans`) one by one, now safely shielded by the aggregator interface.
 
 ## 16. Acceptance Criteria for Future ARCH-018
-- The `usePatientMedicalSummary` hook is implemented exactly as designed in this contract.
+- The `usePatientMedicalSummary` hook and `ClinicalSummaryAggregator` are implemented exactly as designed in this contract.
 - It calculates the exact same fields previously computed in `PatientCardPage.tsx`.
-- No mutations or write-heavy clinical modules are modified.
+- No `PatientCardPage.tsx` changes in ARCH-018.
+- No `PatientOverviewTab.tsx` changes in ARCH-018.
+- No `DentalChartTab.tsx` / `FindingsRisksTab.tsx` / `TreatmentPlansTab.tsx` / `SchedulePage.tsx` changes.
+- No `storage.ts` or `types/index.ts` changes unless explicitly authorized.
+- ARCH-018 should only implement the aggregator/hook and generate an implementation report.
 
 ## 17. Recommended Next Task
 **ARCH-018 — Implement pure ClinicalSummaryAggregator and usePatientMedicalSummary hook without touching write-heavy clinical modules.**
