@@ -23,7 +23,9 @@ This document outlines the design for migrating the patient profile loading and 
 
 ## 6. Existing DAL Patterns to Reuse
 - `useAsyncQuery` will be used for the initial profile fetch.
-- `savePatient` mutation should be a manual wrapper function (similar to the pattern used in `useChiefComplaint`), or `useAsyncMutation` if carefully managed, because `updatePatient` returns `void`. Using a manual wrapper around `useAsyncQuery`'s `refetch` provides more control over error handling and the subsequent cache invalidation.
+- `savePatient` mutation MUST be a manual wrapper function (similar to the pattern used in `useChiefComplaint`). Do NOT use `useAsyncMutation` in ARCH-027.
+  - Reason: `updatePatient` returns `void`, and we had void-mutation ambiguity before.
+  - A manual wrapper preserves `isSaving`, `saveError`, throw/reject behavior, `await updatePatient(patient)`, and `await refetch()`.
 
 ## 7. Proposed PatientRepository Contract
 **Immediate Needs (for ARCH-027)**:
@@ -62,13 +64,29 @@ export const LocalStoragePatientRepository = {
 
 ## 9. Proposed usePatientProfile Contract
 ```typescript
+import { useState, useCallback } from 'react';
+import { useAsyncQuery } from './useAsyncQuery';
+import { Patient } from '../../types';
+import { LocalStoragePatientRepository } from '../repositories/PatientRepository';
+
 export function usePatientProfile(patientId: string) {
   // 1. Data Fetching
-  const { data, isLoading, isError, error, refetch } = useAsyncQuery<Patient | null>(
+  const queryFn = useCallback(
     () => LocalStoragePatientRepository.getPatientById(patientId),
-    [patientId],
-    Boolean(patientId) // enabled
+    [patientId]
   );
+
+  const {
+    data: patient,
+    isLoading,
+    isError: isQueryError,
+    error: queryError,
+    refetch,
+  } = useAsyncQuery<Patient | null>({
+    queryFn,
+    initialData: null,
+    enabled: Boolean(patientId),
+  });
 
   // 2. Mutation State
   const [isSaving, setIsSaving] = useState(false);
@@ -91,10 +109,10 @@ export function usePatientProfile(patientId: string) {
   };
 
   return {
-    patient: data || null,
+    patient: patient || null,
     isLoading,
-    isError: isError || saveError !== null,
-    error: error || saveError,
+    isError: isQueryError || saveError !== null,
+    error: saveError || queryError, // Prefer saveError over queryError
     isSaving,
     savePatient,
     refetch,
@@ -121,7 +139,12 @@ In `PatientCardPage`, `handleSave` will be updated to:
     }
   };
 ```
-Because `PatientModal` types `onSave` as `(patient: Patient) => void`, passing an `async` function is perfectly valid in TypeScript (as promises satisfy `void` returns). `PatientModal` does not need to be changed.
+Because `PatientModal` types `onSave` as `(patient: Patient) => void`, passing an `async` function is perfectly valid in TypeScript (as promises satisfy `void` returns). 
+- `PatientModal` does not need to change in ARCH-027.
+- `PatientCardPage.handleSave` may be async.
+- `handleSave` must catch errors internally to avoid unhandled promise rejections.
+- The modal should close only after a successful `await savePatient(updated)`.
+- On failure, the modal remains open.
 
 ## 12. Future PatientCardPage Integration Plan (ARCH-027)
 1. Create `src/data/repositories/PatientRepository.ts`.
