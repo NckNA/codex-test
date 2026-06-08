@@ -3,6 +3,10 @@ import { storage } from '../../utils/storage';
 
 export interface IAppointmentRepository {
   listAppointmentsByPatient(patientId: string): Promise<Appointment[]>;
+  listAppointments(): Promise<Appointment[]>;
+  createAppointment(appointment: Appointment): Promise<void>;
+  updateAppointment(appointment: Appointment): Promise<void>;
+  deleteAppointment(appointmentId: string): Promise<void>;
 }
 
 export const LocalStorageAppointmentRepository: IAppointmentRepository = {
@@ -12,5 +16,20 @@ export const LocalStorageAppointmentRepository: IAppointmentRepository = {
       .filter(a => a.patientId === patientId)
       .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
     return Promise.resolve(appointments);
+  },
+  listAppointments: async (): Promise<Appointment[]> => {
+    return Promise.resolve(storage.getAppointments());
+  },
+  createAppointment: async (appointment: Appointment): Promise<void> => {
+    storage.addAppointment(appointment);
+    return Promise.resolve();
+  },
+  updateAppointment: async (appointment: Appointment): Promise<void> => {
+    storage.updateAppointment(appointment);
+    return Promise.resolve();
+  },
+  deleteAppointment: async (appointmentId: string): Promise<void> => {
+    storage.deleteAppointment(appointmentId);
+    return Promise.resolve();
   }
 };
