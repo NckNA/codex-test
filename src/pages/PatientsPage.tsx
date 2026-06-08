@@ -4,6 +4,7 @@ import { storage } from '../utils/storage';
 import type { Patient, PatientSource, PatientLeadStatus } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
 import { useNavigate } from 'react-router-dom';
+import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 
 const getSourceLabel = (source?: string) => {
   switch (source) {
@@ -84,7 +85,14 @@ const getLeadStatusLabel = (status?: PatientLeadStatus) => {
 
 export function PatientsPage() {
   const navigate = useNavigate();
-  const [patients, setPatients] = useState<Patient[]>(storage.getPatients());
+  const {
+    patients,
+    isLoading: isPatientsLoading,
+    isError: isPatientsError,
+    createPatient,
+    updatePatient,
+    refetch: refetchPatients,
+  } = usePatientsCollection();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -141,20 +149,46 @@ export function PatientsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSavePatient = (saved: Patient) => {
-    if (editingPatient?.id) {
-      storage.updatePatient(saved);
-    } else {
-      storage.addPatient(saved);
+  const handleSavePatient = async (saved: Patient) => {
+    try {
+      if (editingPatient?.id) {
+        await updatePatient(saved);
+      } else {
+        await createPatient(saved);
+      }
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error('Failed to save patient', e);
     }
-    setPatients(storage.getPatients());
-    setIsModalOpen(false);
   };
 
   const formatDate = (date?: Date) => {
     if (!date) return '-';
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
+
+  if (isPatientsError && patients.length === 0 && !isModalOpen) {
+    return (
+      <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+        <div className="text-red-500 mb-4 font-medium">Не удалось загрузить список пациентов</div>
+        <button
+          onClick={() => refetchPatients()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Повторить
+        </button>
+      </div>
+    );
+  }
+
+  if (isPatientsLoading && patients.length === 0 && !isModalOpen) {
+    return (
+      <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p>Загрузка списка пациентов...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 h-full flex flex-col bg-slate-50">
