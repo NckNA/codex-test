@@ -48,11 +48,27 @@ Currently, `PatientRepository` only supports single-patient profile operations: 
 *Recommendation:* **Option A**. The domain is still small enough that splitting the repository is unnecessary. Extending `PatientRepository` keeps all core patient persistence logic together.
 
 ## 11. Hook Design Options
-We need hooks to replace the direct `storage` calls in `PatientsPage`.
-- `usePatientsList()`: Wraps `listPatients` using `useAsyncQuery`. Client-side filtering remains in `PatientsPage` for the MVP.
-- `useCreatePatient()`: A manual wrapper for `createPatient` (similar to how `savePatient` is handled in `usePatientProfile`).
+We will create one explicit combined hook: `usePatientsCollection()`.
 
-Alternatively, we can create a combined hook: `usePatientsCollection()`. Since the page handles both reading the list and managing the modal (create/edit), a combined hook is cleaner.
+`PatientsPage` owns one combined list/create/edit flow, so one hook keeps the migration small and avoids splitting state too early.
+
+The hook should expose:
+- `patients: Patient[]`
+- `isLoading: boolean`
+- `isError: boolean`
+- `error: Error | null`
+- `isSaving: boolean`
+- `createPatient: (patient: Patient) => Promise<void>`
+- `updatePatient: (patient: Patient) => Promise<void>`
+- `refetch: () => Promise<void>`
+
+**Important Constraints:**
+- `useAsyncQuery` is used for loading the patient list.
+- `createPatient` and `updatePatient` must be manual async wrappers.
+- `useAsyncMutation` must NOT be used in ARCH-030 (since mutations return `void`, which caused ambiguity before).
+- Manual mutation state management must be handled inside the hook (managing `isSaving` and `saveError`).
+- Merged errors: `isError = isQueryError || saveError !== null`, `error = saveError || queryError`.
+- Manual wrappers must: set `isSaving` to `true`, clear `saveError`, `await` the repository method, `await refetch()`, set `saveError` on error, throw the parsed error, and finally set `isSaving` to `false`.
 
 ## 12. Appointment Summary Design Options
 - **Option A:** Keep `storage.getAppointments()` directly in `PatientsPage` temporarily.
@@ -73,36 +89,72 @@ export interface PatientRepository {
 ```
 
 ## 14. Recommended Hook Contract
-Create `src/data/hooks/usePatientsList.ts` (or similar name):
+Create `src/data/hooks/usePatientsCollection.ts`:
 ```typescript
-export function usePatientsList() {
-  const { data, isLoading, isError, error, refetch } = useAsyncQuery<Patient[]>(
+export function usePatientsCollection() {
+  const queryFn = useCallback(
     () => LocalStoragePatientRepository.listPatients(),
-    [],
-    true
+    []
   );
 
+  const {
+    data: patients,
+    isLoading,
+    isError: isQueryError,
+    error: queryError,
+    refetch,
+  } = useAsyncQuery<Patient[]>({
+    queryFn,
+    initialData: [],
+    enabled: true,
+  });
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<Error | null>(null);
+
   const createPatient = async (patient: Patient) => {
-    await LocalStoragePatientRepository.createPatient(patient);
-    await refetch();
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await LocalStoragePatientRepository.createPatient(patient);
+      await refetch();
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error('Failed to create patient');
+      setSaveError(err);
+      throw err;
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updatePatient = async (patient: Patient) => {
-    await LocalStoragePatientRepository.updatePatient(patient);
-    await refetch();
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await LocalStoragePatientRepository.updatePatient(patient);
+      await refetch();
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error('Failed to update patient');
+      setSaveError(err);
+      throw err;
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return {
-    patients: data || [],
+    patients: patients || [],
     isLoading,
-    isError,
-    error,
+    isError: isQueryError || saveError !== null,
+    error: saveError || queryError,
+    isSaving,
     createPatient,
     updatePatient,
     refetch
   };
 }
 ```
+*Note: `useCallback` must be used for the query function, following the existing hook pattern.*
 
 ## 15. LocalStorage Behavior
 - ID generation for new patients currently happens inside `PatientModal`. This should remain unchanged for now to avoid modifying the modal.
@@ -121,11 +173,13 @@ When migrating to a real backend, `listPatients` can be updated to accept pagina
 
 ## 18. Acceptance Criteria for Future ARCH-030
 - `PatientRepository` implements `listPatients` and `createPatient`.
-- A hook (e.g., `usePatientsList`) provides the list and the async mutation methods.
+- The `usePatientsCollection` hook provides the list and the manual async mutation methods (NO `useAsyncMutation`).
 - `PatientsPage` uses the hook instead of `storage.getPatients`, `storage.addPatient`, and `storage.updatePatient`.
 - `PatientsPage` still handles its own client-side filtering.
-- `PatientsPage` still temporarily uses `storage.getAppointments()` for the visits computation.
-- `PatientModal` usage is wrapped in an `async` handler in `PatientsPage` that awaits the hook's mutation methods and closes the modal only on success.
+- `PatientsPage` still temporarily directly calls `storage.getAppointments()` for the visits computation (do not move appointments into `PatientRepository` and do not create `PatientListAggregator` yet).
+- `PatientModal` must not be changed (no `isSaving` prop).
+- `PatientsPage` `handleSave` may be async, catching errors internally.
+- `PatientModal` closes only after successful `await createPatient`/`updatePatient`. On failure, the modal remains open.
 
 ## 19. Recommended Next Task
 **ARCH-030 — Implement minimal PatientsPage DAL list/create/edit migration according to ARCH-029 design.**
