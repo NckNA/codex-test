@@ -37,8 +37,9 @@
 - All client-side searching, status filtering, and source filtering algorithms were preserved exactly as they were.
 
 ## 6. Loading/Error/Save Behavior
-- A minimal, non-blocking spinner is displayed initially (`isPatientsLoading && patients.length === 0`).
-- A minimal error state with a "Повторить" (Retry) button is shown if the initial fetch fails (`isPatientsError && patients.length === 0`).
+- A minimal, non-blocking spinner is displayed initially (`isPatientsLoading && patients.length === 0 && !isModalOpen`).
+- A minimal error state with a "Повторить" (Retry) button is shown if the initial fetch fails (`isPatientsError && patients.length === 0 && !isModalOpen`).
+- Full-page loading/error states are explicitly guarded by `!isModalOpen`. This prevents `PatientModal` from being unmounted during create/update save failures or refetches when the patients list is empty.
 - Background refetches (e.g., after saving a patient) do not trigger full-page replacement, ensuring the modal does not unexpectedly disappear.
 - If an error occurs during saving, the modal safely remains open, and the error is caught gracefully.
 

@@ -167,7 +167,7 @@ export function PatientsPage() {
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  if (isPatientsError && patients.length === 0) {
+  if (isPatientsError && patients.length === 0 && !isModalOpen) {
     return (
       <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
         <div className="text-red-500 mb-4 font-medium">Не удалось загрузить список пациентов</div>
@@ -181,7 +181,7 @@ export function PatientsPage() {
     );
   }
 
-  if (isPatientsLoading && patients.length === 0) {
+  if (isPatientsLoading && patients.length === 0 && !isModalOpen) {
     return (
       <div className="p-8 h-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
