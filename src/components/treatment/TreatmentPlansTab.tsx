@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, Edit2, Trash2, ClipboardList, Eye, Cloud } from 'lucide-react';
-import { storage } from '../../utils/storage';
 import type { TreatmentPlan } from '../../types';
 import { TreatmentPlanModal } from './TreatmentPlanModal';
 import { CreatePlanFromFindingsModal } from './CreatePlanFromFindingsModal';
 import { TreatmentPlanPatientPreview } from './TreatmentPlanPatientPreview';
+import { useTreatmentPlans } from '../../data/hooks/useTreatmentPlans';
+import { usePatientFindings } from '../../data/hooks/usePatientFindings';
 
 interface TreatmentPlansTabProps {
   patientId: string;
@@ -33,48 +34,55 @@ const getStatusColor = (status: string) => {
 };
 
 export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
-  const [plans, setPlans] = useState<TreatmentPlan[]>([]);
+  const {
+    treatmentPlans,
+    createTreatmentPlan,
+    updateTreatmentPlan,
+    deleteTreatmentPlan,
+    refetch: refetchTreatmentPlans,
+  } = useTreatmentPlans(patientId);
+
+  const {
+    findings,
+  } = usePatientFindings(patientId);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<TreatmentPlan | null>(null);
   const [previewPlan, setPreviewPlan] = useState<TreatmentPlan | null>(null);
-
-  const loadPlans = () => {
-    setPlans(storage.getTreatmentPlans(patientId));
-  };
-
-    useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadPlans();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
 
   const handleOpenModal = (plan: TreatmentPlan | null = null) => {
     setSelectedPlan(plan);
     setIsModalOpen(true);
   };
 
-  const handleSavePlan = (plan: TreatmentPlan) => {
-    if (selectedPlan) {
-      storage.updateTreatmentPlan(patientId, plan);
-    } else {
-      storage.addTreatmentPlan(patientId, plan);
-    }
+  const handleSavePlan = async (plan: TreatmentPlan): Promise<void> => {
+    try {
+      if (selectedPlan) {
+        await updateTreatmentPlan(plan);
+      } else {
+        await createTreatmentPlan(plan);
+      }
 
-    loadPlans();
-    setIsModalOpen(false);
+      setIsModalOpen(false);
+      setSelectedPlan(null);
+    } catch (e) {
+      console.error('Failed to save treatment plan', e);
+    }
   };
 
-  const handlePlanCreatedFromFindings = () => {
-    loadPlans();
+  const handlePlanCreatedFromFindings = async () => {
+    await refetchTreatmentPlans();
     setIsFindingsModalOpen(false);
   };
 
-  const handleDeletePlan = (planId: string) => {
-    if (window.confirm('Вы уверены, что хотите удалить этот план лечения?')) {
-      storage.deleteTreatmentPlan(patientId, planId);
+  const handleDeletePlan = async (planId: string) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этот план лечения?')) return;
 
-      loadPlans();
+    try {
+      await deleteTreatmentPlan(planId);
+    } catch (e) {
+      console.error('Failed to delete treatment plan', e);
     }
   };
 
@@ -108,7 +116,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       </div>
 
       <div className="flex-1 p-6">
-        {plans.length === 0 ? (
+        {treatmentPlans.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center py-12">
             <ClipboardList className="w-12 h-12 mb-3 text-slate-300" />
             <h3 className="text-base font-medium text-slate-700 mb-1">Нет планов лечения</h3>
@@ -118,7 +126,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {plans.map(plan => (
+            {treatmentPlans.map(plan => (
               <div key={plan.id} className="border border-slate-200 rounded-lg bg-white overflow-hidden hover:border-blue-300 transition-colors">
                 <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex-1">
@@ -184,6 +192,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
         isOpen={isModalOpen}
         patientId={patientId}
         plan={selectedPlan}
+        findings={findings}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSavePlan}
       />
