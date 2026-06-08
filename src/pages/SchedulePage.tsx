@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, CheckSquare, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useScheduleContext } from '../hooks/useScheduleContext';
 import { useScheduleAppointments } from '../data/hooks/useScheduleAppointments';
-import { storage } from '../utils/storage';
+import { useClinicDoctors } from '../data/hooks/useClinicDoctors';
+import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 import { AppointmentModal } from '../components/schedule/AppointmentModal';
 import type { Appointment, Doctor, AppointmentStatus } from '../types';
 
@@ -65,15 +66,15 @@ export function SchedulePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
 
+  const { doctors: allDoctors } = useClinicDoctors();
+  const { patients } = usePatientsCollection();
+
   const doctors = useMemo(() => {
-    let allDoctors = storage.getDoctors();
     if (doctorFilter) {
-      allDoctors = allDoctors.filter(d => d.id === doctorFilter);
+      return allDoctors.filter(d => d.id === doctorFilter);
     }
     return allDoctors;
-  }, [doctorFilter]);
-
-  const patients = useMemo(() => storage.getPatients(), []);
+  }, [allDoctors, doctorFilter]);
 
   const changeDate = (days: number) => {
     const newDate = new Date(selectedDate);
@@ -299,6 +300,8 @@ export function SchedulePage() {
         onDelete={handleDeleteAppointment}
         initialData={editingAppointment}
         appointments={appointments}
+        doctors={allDoctors}
+        patients={patients}
       />
     </div>
   );
