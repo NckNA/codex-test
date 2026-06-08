@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User } from 'lucide-react';
 import { storage } from '../utils/storage';
@@ -46,6 +46,21 @@ export function PatientCardPage() {
     refetch: refetchMedicalSummary,
   } = usePatientMedicalSummary(patientId || '');
   const { dentalSummary, lastVisit, nextVisit } = medicalSummary;
+
+  const previousTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    const isTransitioningToOverview =
+      previousTabRef.current !== 'overview' && activeTab === 'overview';
+
+    previousTabRef.current = activeTab;
+
+    if (!isTransitioningToOverview) return;
+    if (!patientId) return;
+    if (isMedicalSummaryLoading) return;
+
+    refetchMedicalSummary();
+  }, [activeTab, patientId, isMedicalSummaryLoading, refetchMedicalSummary]);
 
   if (!patient) {
     return (
