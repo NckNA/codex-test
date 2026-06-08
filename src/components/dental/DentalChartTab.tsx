@@ -1,90 +1,100 @@
 import { useState, useEffect } from 'react';
 import { ToothGrid } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
-import { storage } from '../../utils/storage';
-import type { DentalChart, ToothRecord, DentalFinding, FindingSeverity } from '../../types';
+import type { ToothRecord, DentalFinding } from '../../types';
+import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
 import { Save, AlertTriangle } from 'lucide-react';
+import { useDentalChart } from '../../data/hooks/useDentalChart';
+import { usePatientFindings } from '../../data/hooks/usePatientFindings';
+import { useClinicalWorkflow } from '../../data/hooks/useClinicalWorkflow';
 
 interface DentalChartTabProps {
   patientId: string;
 }
 
+function normalizeFindingPayload(
+  findingPayload: Partial<DentalFinding> | null
+): ToothStatusFindingInput | null {
+  if (!findingPayload?.title || !findingPayload.category || !findingPayload.severity) {
+    return null;
+  }
+
+  return {
+    title: findingPayload.title,
+    category: findingPayload.category,
+    severity: findingPayload.severity,
+    description: findingPayload.description,
+    riskDescription: findingPayload.riskDescription,
+    recommendation: findingPayload.recommendation,
+    isChiefComplaintRelated: findingPayload.isChiefComplaintRelated,
+    includeInTreatmentPlan: findingPayload.includeInTreatmentPlan,
+    status: findingPayload.status,
+  };
+}
+
 export function DentalChartTab({ patientId }: DentalChartTabProps) {
-  const [chart, setChart] = useState<DentalChart | null>(null);
+  const {
+    dentalChart,
+    isLoading: isChartLoading,
+    saveDentalChart,
+    refetch: refetchDentalChart,
+  } = useDentalChart(patientId);
+
+  const {
+    findings,
+    refetch: refetchFindings,
+  } = usePatientFindings(patientId);
+
+  const { applyToothStatusChange } = useClinicalWorkflow();
+
   const [selectedTooth, setSelectedTooth] = useState<ToothRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [complaints, setComplaints] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
 
-  const [findings, setFindings] = useState<DentalFinding[]>([]);
-
+  // Sync text fields when chart loads
   useEffect(() => {
-    const loadData = () => {
-      const loadedChart = storage.getDentalChart(patientId);
-      setChart(loadedChart);
-      setComplaints(loadedChart.complaints || '');
-      setDiagnosis(loadedChart.diagnosis || '');
-      setFindings(storage.getFindings(patientId));
-    };
+    if (dentalChart) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setComplaints(dentalChart.complaints || '');
+       
+      setDiagnosis(dentalChart.diagnosis || '');
+    }
+  }, [dentalChart]);
 
-    loadData();
-  }, [patientId]);
-
-  if (!chart) return null;
+  if (isChartLoading && !dentalChart) return null;
+  if (!dentalChart) return null;
 
   const handleToothClick = (tooth: ToothRecord) => {
     setSelectedTooth(tooth);
     setIsModalOpen(true);
   };
 
-  const handleSaveTooth = (updatedTooth: ToothRecord, findingPayload: Partial<DentalFinding> | null) => {
-    const newTeeth = chart!.teeth.map(t => t.toothNumber === updatedTooth.toothNumber ? updatedTooth : t);
-    const newChart = { ...chart!, teeth: newTeeth, updatedAt: new Date().toISOString() };
+  const handleSaveTooth = async (
+    updatedTooth: ToothRecord,
+    findingPayload: Partial<DentalFinding> | null
+  ) => {
+    if (!dentalChart) return;
 
-    setChart(newChart);
-    storage.saveDentalChart(patientId, newChart);
+    const normalizedFindingPayload = normalizeFindingPayload(findingPayload);
 
-    if (findingPayload && findingPayload.title && findingPayload.category && findingPayload.severity) {
-      const activeStatuses = ['discovered', 'recommended', 'included_in_plan', 'observing'];
+    try {
+      await applyToothStatusChange({
+        patientId,
+        chart: dentalChart,
+        updatedTooth,
+        findingPayload: normalizedFindingPayload,
+      });
 
-      const existingActiveFinding = findings.find(f =>
-        f.toothNumber === updatedTooth.toothNumber &&
-        f.category === findingPayload.category &&
-        activeStatuses.includes(f.status)
-      );
+      await refetchDentalChart();
+      await refetchFindings();
 
-      if (existingActiveFinding) {
-        storage.updateFinding(patientId, {
-          ...existingActiveFinding,
-          title: findingPayload.title,
-          severity: findingPayload.severity as FindingSeverity,
-          description: findingPayload.description || '',
-          riskDescription: findingPayload.riskDescription || '',
-          recommendation: findingPayload.recommendation || '',
-          isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
-          includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
-          status: findingPayload.status || existingActiveFinding.status,
-        });
-      } else {
-        storage.addFinding(patientId, {
-          toothNumber: updatedTooth.toothNumber,
-          title: findingPayload.title,
-          category: findingPayload.category,
-          severity: findingPayload.severity as FindingSeverity,
-          description: findingPayload.description || '',
-          riskDescription: findingPayload.riskDescription || '',
-          recommendation: findingPayload.recommendation || '',
-          isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
-          includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
-          status: findingPayload.status || 'discovered',
-        });
-      }
-
-      setFindings(storage.getFindings(patientId));
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error('Failed to save tooth update', e);
+      // Important: leave modal open on error.
     }
-
-    setIsModalOpen(false);
   };
 
   const summary = {
@@ -94,12 +104,20 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
     observing: findings.filter(f => f.status === 'observing').length,
   };
 
-  const handleSaveTextData = () => {
-    const newChart = { ...chart, complaints, diagnosis, updatedAt: new Date().toISOString() };
+  const handleSaveTextData = async () => {
+    if (!dentalChart) return;
+    const newChart = {
+      ...dentalChart,
+      complaints,
+      diagnosis,
+      updatedAt: new Date().toISOString(),
+    };
 
-    setChart(newChart);
-    storage.saveDentalChart(patientId, newChart);
-    // Could add a toast here
+    try {
+      await saveDentalChart(newChart);
+    } catch (e) {
+      console.error('Failed to save dental chart text data', e);
+    }
   };
 
   return (
@@ -110,7 +128,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
       <div className="flex flex-col lg:flex-row">
         <div className="flex-1 p-6 bg-slate-50 overflow-x-auto border-b lg:border-b-0 lg:border-r border-slate-200">
-          <ToothGrid teeth={chart.teeth} findings={findings} onToothClick={handleToothClick} />
+          <ToothGrid teeth={dentalChart.teeth} findings={findings} onToothClick={handleToothClick} />
         </div>
 
         <div className="w-full lg:w-64 bg-white p-5 shrink-0 flex flex-col">
@@ -157,7 +175,6 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
           <label className="block text-sm font-medium text-slate-700 mb-1">Жалобы</label>
           <textarea
             value={complaints}
-
             onChange={e => setComplaints(e.target.value)}
             rows={4}
             placeholder="Жалобы пациента..."
