@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, CheckSquare, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useScheduleContext } from '../hooks/useScheduleContext';
+import { useScheduleAppointments } from '../data/hooks/useScheduleAppointments';
 import { storage } from '../utils/storage';
 import { AppointmentModal } from '../components/schedule/AppointmentModal';
 import type { Appointment, Doctor, AppointmentStatus } from '../types';
@@ -54,7 +55,13 @@ const getSourceLabel = (source?: string) => {
 
 export function SchedulePage() {
   const { selectedDate, setSelectedDate, viewMode, doctorFilter, statusFilter, sourceFilter } = useScheduleContext();
-  const [appointments, setAppointments] = useState<Appointment[]>(storage.getAppointments());
+  const {
+    appointments,
+    createAppointment,
+    updateAppointment,
+    deleteAppointment,
+  } = useScheduleAppointments();
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
 
@@ -104,20 +111,26 @@ export function SchedulePage() {
     setIsModalOpen(true);
   };
 
-  const handleSaveAppointment = (saved: Appointment) => {
-    if (editingAppointment?.id) {
-      storage.updateAppointment(saved);
-    } else {
-      storage.addAppointment(saved);
+  const handleSaveAppointment = async (saved: Appointment) => {
+    try {
+      if (editingAppointment?.id) {
+        await updateAppointment(saved);
+      } else {
+        await createAppointment(saved);
+      }
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error(e);
     }
-    setAppointments(storage.getAppointments());
-    setIsModalOpen(false);
   };
 
-  const handleDeleteAppointment = (id: string) => {
-    storage.deleteAppointment(id);
-    setAppointments(storage.getAppointments());
-    setIsModalOpen(false);
+  const handleDeleteAppointment = async (id: string) => {
+    try {
+      await deleteAppointment(id);
+      setIsModalOpen(false);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   if (viewMode !== 'day') {
@@ -285,6 +298,7 @@ export function SchedulePage() {
         onSave={handleSaveAppointment}
         onDelete={handleDeleteAppointment}
         initialData={editingAppointment}
+        appointments={appointments}
       />
     </div>
   );
