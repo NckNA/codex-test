@@ -7,6 +7,8 @@ import { TreatmentPlanPatientPreview } from './TreatmentPlanPatientPreview';
 import { useTreatmentPlans } from '../../data/hooks/useTreatmentPlans';
 import { usePatientFindings } from '../../data/hooks/usePatientFindings';
 import { useClinicalWorkflow } from '../../data/hooks/useClinicalWorkflow';
+import { usePatientsCollection } from '../../data/hooks/usePatientsCollection';
+import { useChiefComplaint } from '../../data/hooks/useChiefComplaint';
 
 interface TreatmentPlansTabProps {
   patientId: string;
@@ -35,6 +37,11 @@ const getStatusColor = (status: string) => {
 };
 
 export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
+  const { patients } = usePatientsCollection();
+  const patient = patients.find(candidate => candidate.id === patientId) || null;
+
+  const { complaint: chiefComplaint } = useChiefComplaint(patientId);
+
   const {
     treatmentPlans,
     createTreatmentPlan,
@@ -230,7 +237,9 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       )}
       <TreatmentPlanPatientPreview
         isOpen={!!previewPlan}
-        patientId={patientId}
+        patient={patient}
+        chiefComplaint={chiefComplaint}
+        findings={findings}
         plan={previewPlan}
         onClose={() => setPreviewPlan(null)}
       />
