@@ -136,8 +136,8 @@ Because we are not introducing a global cache (like React Query), we must be car
 ## 10. Future Implementation Sequence
 Given the high risk of breaking the application, implementation must be strictly phased:
 
-- **ARCH-044**: Implement Clinical Repositories (`DentalChartRepository`, `FindingsRepository`, `TreatmentPlansRepository`) and the `ClinicalWorkflowOrchestrator` as pure TS classes/functions. **No React/UI integration.**
-- **ARCH-045**: Implement the React hooks (`useDentalChart`, `usePatientFindings`, `useTreatmentPlans`, `useClinicalWorkflow`). **No React/UI integration.**
+- **ARCH-044**: Implement Clinical Repositories (`DentalChartRepository`, `FindingsRepository`, `TreatmentPlansRepository`) as pure TS classes. **No orchestrator and no React/UI integration.**
+- **ARCH-045**: Design/implement `ClinicalWorkflowOrchestrator` and clinical React hooks (`useDentalChart`, `usePatientFindings`, `useTreatmentPlans`, `useClinicalWorkflow`) depending on ARCH-044 review.
 - **ARCH-046**: Integrate read-only previews and simple CRUD (`TreatmentPlansTab`, `FindingsRisksTab`).
 - **ARCH-047**: Integrate complex orchestrator flows (`CreatePlanFromFindingsModal`, `DentalChartTab`).
 
@@ -156,13 +156,13 @@ Given the high risk of breaking the application, implementation must be strictly
 - `src/data/repositories/DentalChartRepository.ts` created.
 - `src/data/repositories/FindingsRepository.ts` created.
 - `src/data/repositories/TreatmentPlansRepository.ts` created.
-- `src/data/orchestrators/ClinicalWorkflowOrchestrator.ts` created.
+- `ClinicalWorkflowOrchestrator` is **NOT** created in this task.
 - All new files strictly use `storage.ts` for operations, adhering to the designed contracts.
 - **Zero changes** to UI components or existing hooks.
 - `npm run build` and `npm run lint` pass with 0 warnings.
 
 ## 14. Recommended Next Task
-**ARCH-044 — Implement clinical repositories and orchestrator (no UI integration).**
+**ARCH-044 — Implement clinical repositories only, no UI integration.**
 
 ## 15. Reviewer Decision Log / Architecture Review Notes
 
@@ -232,7 +232,7 @@ This task must remain extremely narrow:
 - No UI integration.
 - No clinical components changed.
 - No hooks implemented yet.
-- No orchestrator implementation unless absolutely required by the repository foundation.
+- No orchestrator implementation.
 - No `storage.ts` or `types/index.ts` changes unless impossible to avoid.
 
 ### 10. Red flags for future PR review
