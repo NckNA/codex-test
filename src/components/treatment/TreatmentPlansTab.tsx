@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2, ClipboardList, Eye, Cloud } from 'lucide-react';
-import type { TreatmentPlan } from '../../types';
+import type { DentalFinding, TreatmentPlan } from '../../types';
 import { TreatmentPlanModal } from './TreatmentPlanModal';
 import { CreatePlanFromFindingsModal } from './CreatePlanFromFindingsModal';
 import { TreatmentPlanPatientPreview } from './TreatmentPlanPatientPreview';
 import { useTreatmentPlans } from '../../data/hooks/useTreatmentPlans';
 import { usePatientFindings } from '../../data/hooks/usePatientFindings';
+import { useClinicalWorkflow } from '../../data/hooks/useClinicalWorkflow';
 
 interface TreatmentPlansTabProps {
   patientId: string;
@@ -44,7 +45,13 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
 
   const {
     findings,
+    refetch: refetchFindings,
   } = usePatientFindings(patientId);
+
+  const {
+    isSaving: isWorkflowSaving,
+    createTreatmentPlanFromFindings,
+  } = useClinicalWorkflow();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
@@ -71,9 +78,24 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     }
   };
 
-  const handlePlanCreatedFromFindings = async () => {
-    await refetchTreatmentPlans();
-    setIsFindingsModalOpen(false);
+  const handleCreatePlanFromFindings = async (selectedFindings: DentalFinding[]): Promise<void> => {
+    if (selectedFindings.length === 0) return;
+
+    try {
+      const plan = await createTreatmentPlanFromFindings({
+        patientId,
+        selectedFindings,
+      });
+
+      if (!plan) return;
+
+      await refetchTreatmentPlans();
+      await refetchFindings();
+
+      setIsFindingsModalOpen(false);
+    } catch (e) {
+      console.error('Failed to create treatment plan from findings', e);
+    }
   };
 
   const handleDeletePlan = async (planId: string) => {
@@ -199,9 +221,11 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
       {isFindingsModalOpen && (
         <CreatePlanFromFindingsModal
           isOpen={isFindingsModalOpen}
-          patientId={patientId}
+          findings={findings}
+          treatmentPlans={treatmentPlans}
+          isSaving={isWorkflowSaving}
           onClose={() => setIsFindingsModalOpen(false)}
-          onPlanCreated={handlePlanCreatedFromFindings}
+          onCreatePlanFromFindings={handleCreatePlanFromFindings}
         />
       )}
       <TreatmentPlanPatientPreview
