@@ -52,7 +52,7 @@ DB row values securely map to frontend `Doctor`:
 
 ## Validation Results
 - **Linting**: 0 errors.
-- **Tests**: 86 tests passed.
+- **Tests**: 89 tests passed.
 - **Build**: Successfully compiles.
 
 ## Dev Fallback Confirmation
