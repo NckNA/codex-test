@@ -48,10 +48,10 @@ Successfully verified the full local E2E flow for Supabase authentication, `Tena
 - **Bundle Size Warning:** Standard Vite warning observed during build (`Some chunks are larger than 500 kB after minification`). This is a known, non-blocking warning (primarily due to bundled icons/fonts/React DOM).
 
 ## Supabase / RLS Observations
-The SQL policy `tenant_id IN (SELECT get_user_tenants())` is fully operational and extremely secure. The `get_user_tenants()` stable function correctly identifies the `auth.uid()` and filters `patients` without throwing Postgres errors when the user lacks a tenant mapping (it gracefully returns 0 rows).
+The SQL policy `tenant_id IN (SELECT get_user_tenants())` is fully operational and RLS behaved correctly in the tested local scenarios. The `get_user_tenants()` stable function correctly identifies the `auth.uid()` and filters `patients` without throwing Postgres errors when the user lacks a tenant mapping (it gracefully returns 0 rows).
 
 ## Blockers Found
-None. The foundation for tenant loading and UI gating is completely solid.
+None. The foundation is locally verified for the tested auth/tenant/RLS scenarios.
 
 ## What Was NOT Changed
 - No React components (`src/*`) were modified.
@@ -60,11 +60,17 @@ None. The foundation for tenant loading and UI gating is completely solid.
 - Migrations and `seed.sql` were completely preserved.
 
 ## Final Verdict
-- **READY** for ChiefComplaintRepository Supabase migration
-- **READY** for PatientRepository migration
-- **READY** for AppointmentRepository migration
-- **READY** for TreatmentPlansRepository migration
-- **READY** for DentalChartRepository migration
+- **READY** for ChiefComplaintRepository Supabase migration planning
+- **READY** for ChiefComplaintRepository migration only after a dedicated RECON/plan PR
+- **NOT READY** for PatientRepository migration
+- **NOT READY** for AppointmentRepository migration
+- **NOT READY** for TreatmentPlansRepository migration
+- **NOT READY** for DentalChartRepository migration
+
+- Auth + tenant + RLS have been verified locally.
+- This unlocks the first small repository migration candidate.
+- ChiefComplaintRepository remains the safest first migration because it is smaller and already has adapter/factory/test groundwork.
+- Patient/Appointment/Treatment/DentalChart repositories are larger and must remain blocked until the first small repository migration is completed and validated.
 
 ## Recommended Next Task
 **RECON-CHIEF-REAL-001: Plan ChiefComplaintRepository Supabase migration**
