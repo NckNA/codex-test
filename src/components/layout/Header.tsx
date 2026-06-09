@@ -1,8 +1,9 @@
-import { Search, Calendar, ChevronDown, Plus, UserCircle } from 'lucide-react';
+import { Search, Calendar, ChevronDown, Plus, UserCircle, LogOut } from 'lucide-react';
 import { useScheduleContext } from '../../hooks/useScheduleContext';
 import { clsx } from 'clsx';
 import { useClinicDoctors } from '../../data/hooks/useClinicDoctors';
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function Header() {
   const {
@@ -21,6 +22,7 @@ export function Header() {
   const sourceDropdownRef = useRef<HTMLDivElement>(null);
 
   const { doctors } = useClinicDoctors();
+  const { user, authMode, signOut } = useAuth();
 
   const formattedDate = selectedDate.toLocaleDateString('ru-RU', {
     weekday: 'long',
@@ -226,13 +228,27 @@ export function Header() {
         </button>
 
         {/* User Profile */}
-        <button className="flex items-center gap-2 pl-4 border-l border-slate-200 ml-2 hover:opacity-80 transition-opacity">
-          <div className="text-right hidden sm:block">
-            <div className="text-sm font-medium text-slate-900">Иван И.</div>
-            <div className="text-xs text-slate-500">Администратор</div>
-          </div>
-          <UserCircle className="w-8 h-8 text-slate-400" />
-        </button>
+        <div className="flex items-center gap-4 pl-4 border-l border-slate-200 ml-2">
+          <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="text-right hidden sm:block">
+              <div className="text-sm font-medium text-slate-900">
+                {authMode === 'supabase-active' && user?.email ? user.email : 'Иван И.'}
+              </div>
+              <div className="text-xs text-slate-500">Администратор</div>
+            </div>
+            <UserCircle className="w-8 h-8 text-slate-400" />
+          </button>
+          
+          {authMode === 'supabase-active' && user && (
+            <button
+              onClick={() => signOut()}
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-red-600 transition-colors"
+              title="Выйти"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
