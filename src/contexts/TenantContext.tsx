@@ -19,7 +19,6 @@ interface TenantContextType {
 interface TenantRelation {
   id?: string | null;
   name?: string | null;
-  status?: string | null;
 }
 
 interface TenantUserRow {
@@ -28,10 +27,24 @@ interface TenantUserRow {
   tenants?: TenantRelation | TenantRelation[] | null;
 }
 
+interface LoadedTenantState {
+  userId: string | null;
+  tenants: ActiveTenant[];
+  selectedTenantId: string | null;
+  error: Error | null;
+}
+
 const devTenant: ActiveTenant = {
   tenantId: '11111111-1111-1111-1111-111111111111',
   tenantName: 'Demo Clinic',
   role: 'admin',
+};
+
+const emptyLoadedTenantState: LoadedTenantState = {
+  userId: null,
+  tenants: [],
+  selectedTenantId: null,
+  error: null,
 };
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -53,74 +66,30 @@ const mapTenantRows = (rows: TenantUserRow[]): ActiveTenant[] => {
       return [];
     }
 
-    return [{
-      tenantId,
-      tenantName: tenant.name,
-      role: row.role ?? undefined,
-    }];
+    return [{ tenantId, tenantName: tenant.name, role: row.role ?? undefined }];
   });
 };
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { authMode, isLoading: authLoading, user } = useAuth();
-
-  const [availableTenants, setAvailableTenants] = useState<ActiveTenant[]>(
-    authMode === 'dev' ? [devTenant] : []
-  );
-  const [activeTenantState, setActiveTenantState] = useState<ActiveTenant | null>(
-    authMode === 'dev' ? devTenant : null
-  );
-  const [isLoading, setIsLoading] = useState<boolean>(authMode !== 'dev');
-  const [error, setError] = useState<Error | null>(null);
+  const [loadedTenantState, setLoadedTenantState] = useState<LoadedTenantState>(emptyLoadedTenantState);
 
   useEffect(() => {
+    if (authMode !== 'supabase-active' || authLoading || !user || !supabase) {
+      return;
+    }
+
     let mounted = true;
 
-    const resetTenants = (loading: boolean) => {
-      setAvailableTenants([]);
-      setActiveTenantState(null);
-      setIsLoading(loading);
-      setError(null);
-    };
-
-    if (authMode === 'dev') {
-      setAvailableTenants([devTenant]);
-      setActiveTenantState(devTenant);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    if (authLoading) {
-      resetTenants(true);
-      return;
-    }
-
-    if (!user) {
-      resetTenants(false);
-      return;
-    }
-
-    if (!supabase) {
-      setAvailableTenants([]);
-      setActiveTenantState(null);
-      setIsLoading(false);
-      setError(new Error('Supabase client is not configured'));
-      return;
-    }
-
     async function loadTenants() {
-      setIsLoading(true);
-      setError(null);
-
       try {
-        const { data, error: tenantError } = await supabase!
+        const { data, error } = await supabase!
           .from('tenant_users')
           .select('role, tenant_id, tenants(id, name, status)')
           .eq('user_id', user.id);
 
-        if (tenantError) {
-          throw tenantError;
+        if (error) {
+          throw error;
         }
 
         const tenants = mapTenantRows((data ?? []) as TenantUserRow[]);
@@ -129,19 +98,24 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return;
         }
 
-        setAvailableTenants(tenants);
-        setActiveTenantState(tenants[0] ?? null);
-        setIsLoading(false);
+        setLoadedTenantState((current) => {
+          const selectedTenantId = tenants.some((tenant) => tenant.tenantId === current.selectedTenantId)
+            ? current.selectedTenantId
+            : tenants[0]?.tenantId ?? null;
+
+          return { userId: user.id, tenants, selectedTenantId, error: null };
+        });
       } catch (err) {
         if (!mounted) {
           return;
         }
 
-        console.error('Error loading tenant access:', err);
-        setAvailableTenants([]);
-        setActiveTenantState(null);
-        setError(err instanceof Error ? err : new Error('Failed to load tenants'));
-        setIsLoading(false);
+        setLoadedTenantState({
+          userId: user.id,
+          tenants: [],
+          selectedTenantId: null,
+          error: err instanceof Error ? err : new Error('Failed to load tenants'),
+        });
       }
     }
 
@@ -153,18 +127,56 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [authMode, authLoading, user]);
 
   const setActiveTenant = (tenantId: string) => {
-    const tenant = availableTenants.find((candidate) => candidate.tenantId === tenantId);
-
-    if (tenant) {
-      setActiveTenantState(tenant);
+    if (authMode === 'dev') {
+      return;
     }
+
+    setLoadedTenantState((current) => {
+      const tenantExists = current.tenants.some((tenant) => tenant.tenantId === tenantId);
+
+      if (!tenantExists) {
+        return current;
+      }
+
+      return { ...current, selectedTenantId: tenantId };
+    });
   };
 
-  // FUTURE SUPABASE REPOSITORIES MUST OBTAIN tenant_id FROM THIS CONTEXT OR AN ADAPTER
-  // Do NOT hardcode production tenant IDs.
+  if (authMode === 'dev') {
+    return (
+      <TenantContext.Provider value={{ activeTenant: devTenant, availableTenants: [devTenant], setActiveTenant, isLoading: false, error: null }}>
+        {children}
+      </TenantContext.Provider>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <TenantContext.Provider value={{ activeTenant: null, availableTenants: [], setActiveTenant, isLoading: true, error: null }}>
+        {children}
+      </TenantContext.Provider>
+    );
+  }
+
+  if (!user) {
+    return (
+      <TenantContext.Provider value={{ activeTenant: null, availableTenants: [], setActiveTenant, isLoading: false, error: null }}>
+        {children}
+      </TenantContext.Provider>
+    );
+  }
+
+  const isLoading = loadedTenantState.userId !== user.id;
+  const activeTenant = loadedTenantState.tenants.find((tenant) => tenant.tenantId === loadedTenantState.selectedTenantId) ?? null;
 
   return (
-    <TenantContext.Provider value={{ activeTenant: activeTenantState, availableTenants, setActiveTenant, isLoading, error }}>
+    <TenantContext.Provider value={{
+      activeTenant,
+      availableTenants: loadedTenantState.tenants,
+      setActiveTenant,
+      isLoading,
+      error: loadedTenantState.error,
+    }}>
       {children}
     </TenantContext.Provider>
   );
