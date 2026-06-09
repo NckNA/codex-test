@@ -15,15 +15,13 @@ const { mockFrom, mockSelect, mockEq } = vi.hoisted(() => ({
 
 vi.mock('../lib/supabaseClient', () => ({
   isSupabaseConfigured: true,
-  supabase: {
-    from: mockFrom,
-  },
+  supabase: { from: mockFrom },
 }));
 
 type AuthValue = ReturnType<typeof AuthContextModule.useAuth>;
 type TenantContextValue = ReturnType<typeof useTenant>;
 
-const devAuth: AuthValue = {
+const baseAuth: AuthValue = {
   user: { id: 'dev-user-000000000000', email: 'dev@example.com' },
   isLoading: false,
   error: null,
@@ -32,39 +30,40 @@ const devAuth: AuthValue = {
   signOut: vi.fn(),
 };
 
+const tenantRow = (tenantId: string, name: string, role: string) => ({
+  tenant_id: tenantId,
+  role,
+  tenants: { id: tenantId, name, status: 'active' },
+});
+
 const renderTenantContext = async (authValue: AuthValue) => {
   vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue(authValue);
+  let current: TenantContextValue | undefined;
 
-  let tenantContextResult: TenantContextValue | undefined;
-
-  const TestComponent = () => {
-    tenantContextResult = useTenant();
+  const Probe = () => {
+    current = useTenant();
     return null;
   };
 
-  const container = document.createElement('div');
-  const root = createRoot(container);
+  const root = createRoot(document.createElement('div'));
 
   await act(async () => {
     root.render(
       <TenantProvider>
-        <TestComponent />
+        <Probe />
       </TenantProvider>
     );
   });
 
   await act(async () => {
     await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   return {
     get result() {
-      if (!tenantContextResult) {
-        throw new Error('TenantContext did not render');
-      }
-
-      return tenantContextResult;
+      if (!current) throw new Error('TenantContext did not render');
+      return current;
     },
     root,
   };
@@ -91,86 +90,54 @@ afterEach(() => {
 
 describe('TenantContext behavior', () => {
   it('uses dev fallback without querying Supabase', async () => {
-    const { result, root } = await renderTenantContext(devAuth);
+    const view = await renderTenantContext(baseAuth);
 
-    expect(result.availableTenants).toHaveLength(1);
-    expect(result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
-    expect(result.activeTenant?.tenantName).toBe('Demo Clinic');
-    expect(result.activeTenant?.role).toBe('admin');
-    expect(result.isLoading).toBe(false);
-    expect(result.error).toBeNull();
+    expect(view.result.availableTenants).toHaveLength(1);
+    expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
+    expect(view.result.activeTenant?.tenantName).toBe('Demo Clinic');
+    expect(view.result.activeTenant?.role).toBe('admin');
+    expect(view.result.isLoading).toBe(false);
+    expect(view.result.error).toBeNull();
     expect(mockFrom).not.toHaveBeenCalled();
 
-    await act(async () => {
-      result.setActiveTenant('11111111-1111-1111-1111-111111111111');
-    });
-    expect(result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
+    await act(async () => view.result.setActiveTenant('unknown-tenant'));
+    expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
 
-    await act(async () => {
-      result.setActiveTenant('unknown-tenant');
-    });
-    expect(result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
-
-    await unmount(root);
+    await unmount(view.root);
   });
 
-  it('keeps loading during supabase-active auth loading and does not query tenants', async () => {
-    const { result, root } = await renderTenantContext({
-      ...devAuth,
-      user: null,
-      isLoading: true,
-      authMode: 'supabase-active',
-    });
+  it('does not query tenants while auth is loading', async () => {
+    const view = await renderTenantContext({ ...baseAuth, user: null, isLoading: true, authMode: 'supabase-active' });
 
-    expect(result.availableTenants).toEqual([]);
-    expect(result.activeTenant).toBeNull();
-    expect(result.isLoading).toBe(true);
-    expect(result.error).toBeNull();
+    expect(view.result.availableTenants).toEqual([]);
+    expect(view.result.activeTenant).toBeNull();
+    expect(view.result.isLoading).toBe(true);
+    expect(view.result.error).toBeNull();
     expect(mockFrom).not.toHaveBeenCalled();
 
-    await unmount(root);
+    await unmount(view.root);
   });
 
-  it('returns empty tenants for supabase-active without user and does not query tenants', async () => {
-    const { result, root } = await renderTenantContext({
-      ...devAuth,
-      user: null,
-      isLoading: false,
-      authMode: 'supabase-active',
-    });
+  it('does not query tenants without a user', async () => {
+    const view = await renderTenantContext({ ...baseAuth, user: null, isLoading: false, authMode: 'supabase-active' });
 
-    expect(result.availableTenants).toEqual([]);
-    expect(result.activeTenant).toBeNull();
-    expect(result.isLoading).toBe(false);
-    expect(result.error).toBeNull();
+    expect(view.result.availableTenants).toEqual([]);
+    expect(view.result.activeTenant).toBeNull();
+    expect(view.result.isLoading).toBe(false);
+    expect(view.result.error).toBeNull();
     expect(mockFrom).not.toHaveBeenCalled();
 
-    await act(async () => {
-      result.setActiveTenant('any-tenant');
-    });
-    expect(result.activeTenant).toBeNull();
-
-    await unmount(root);
+    await unmount(view.root);
   });
 
-  it('loads tenants for a supabase-active authenticated user', async () => {
+  it('loads tenants for an authenticated user', async () => {
     mockEq.mockResolvedValue({
-      data: [
-        {
-          tenant_id: '11111111-1111-1111-1111-111111111111',
-          role: 'clinic_admin',
-          tenants: {
-            id: '11111111-1111-1111-1111-111111111111',
-            name: 'Demo Clinic A',
-            status: 'active',
-          },
-        },
-      ],
+      data: [tenantRow('11111111-1111-1111-1111-111111111111', 'Demo Clinic A', 'clinic_admin')],
       error: null,
     });
 
-    const { result, root } = await renderTenantContext({
-      ...devAuth,
+    const view = await renderTenantContext({
+      ...baseAuth,
       user: { id: 'real-user-123', email: 'real@example.com' },
       isLoading: false,
       authMode: 'supabase-active',
@@ -179,101 +146,77 @@ describe('TenantContext behavior', () => {
     expect(mockFrom).toHaveBeenCalledWith('tenant_users');
     expect(mockSelect).toHaveBeenCalledWith('role, tenant_id, tenants(id, name, status)');
     expect(mockEq).toHaveBeenCalledWith('user_id', 'real-user-123');
-    expect(result.availableTenants).toEqual([
-      {
-        tenantId: '11111111-1111-1111-1111-111111111111',
-        tenantName: 'Demo Clinic A',
-        role: 'clinic_admin',
-      },
+    expect(view.result.availableTenants).toEqual([
+      { tenantId: '11111111-1111-1111-1111-111111111111', tenantName: 'Demo Clinic A', role: 'clinic_admin' },
     ]);
-    expect(result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
-    expect(result.isLoading).toBe(false);
-    expect(result.error).toBeNull();
+    expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
+    expect(view.result.isLoading).toBe(false);
+    expect(view.result.error).toBeNull();
 
-    await unmount(root);
+    await unmount(view.root);
   });
 
-  it('returns empty tenants and loading false when user has zero tenants', async () => {
+  it('handles zero tenants', async () => {
     mockEq.mockResolvedValue({ data: [], error: null });
 
-    const { result, root } = await renderTenantContext({
-      ...devAuth,
+    const view = await renderTenantContext({
+      ...baseAuth,
       user: { id: 'real-user-123', email: 'real@example.com' },
       isLoading: false,
       authMode: 'supabase-active',
     });
 
-    expect(result.availableTenants).toEqual([]);
-    expect(result.activeTenant).toBeNull();
-    expect(result.isLoading).toBe(false);
-    expect(result.error).toBeNull();
+    expect(view.result.availableTenants).toEqual([]);
+    expect(view.result.activeTenant).toBeNull();
+    expect(view.result.isLoading).toBe(false);
+    expect(view.result.error).toBeNull();
 
-    await unmount(root);
+    await unmount(view.root);
   });
 
-  it('sets error and loading false when tenant query fails', async () => {
-    mockEq.mockResolvedValue({ data: null, error: new Error('RLS denied') });
+  it('handles query errors', async () => {
+    mockEq.mockResolvedValue({ data: null, error: new Error('Tenant query failed') });
 
-    const { result, root } = await renderTenantContext({
-      ...devAuth,
+    const view = await renderTenantContext({
+      ...baseAuth,
       user: { id: 'real-user-123', email: 'real@example.com' },
       isLoading: false,
       authMode: 'supabase-active',
     });
 
-    expect(result.availableTenants).toEqual([]);
-    expect(result.activeTenant).toBeNull();
-    expect(result.isLoading).toBe(false);
-    expect(result.error?.message).toBe('RLS denied');
+    expect(view.result.availableTenants).toEqual([]);
+    expect(view.result.activeTenant).toBeNull();
+    expect(view.result.isLoading).toBe(false);
+    expect(view.result.error?.message).toBe('Tenant query failed');
 
-    await unmount(root);
+    await unmount(view.root);
   });
 
-  it('supports multiple tenants and rejects unknown tenant selection', async () => {
+  it('supports multiple tenants and ignores unknown tenant selection', async () => {
     mockEq.mockResolvedValue({
       data: [
-        {
-          tenant_id: '11111111-1111-1111-1111-111111111111',
-          role: 'clinic_admin',
-          tenants: {
-            id: '11111111-1111-1111-1111-111111111111',
-            name: 'Demo Clinic A',
-            status: 'active',
-          },
-        },
-        {
-          tenant_id: '22222222-2222-2222-2222-222222222222',
-          role: 'registrar',
-          tenants: {
-            id: '22222222-2222-2222-2222-222222222222',
-            name: 'Demo Clinic B',
-            status: 'active',
-          },
-        },
+        tenantRow('11111111-1111-1111-1111-111111111111', 'Demo Clinic A', 'clinic_admin'),
+        tenantRow('22222222-2222-2222-2222-222222222222', 'Demo Clinic B', 'registrar'),
       ],
       error: null,
     });
 
-    const { result, root } = await renderTenantContext({
-      ...devAuth,
+    const view = await renderTenantContext({
+      ...baseAuth,
       user: { id: 'real-user-123', email: 'real@example.com' },
       isLoading: false,
       authMode: 'supabase-active',
     });
 
-    expect(result.availableTenants).toHaveLength(2);
-    expect(result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
+    expect(view.result.availableTenants).toHaveLength(2);
+    expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
 
-    await act(async () => {
-      result.setActiveTenant('22222222-2222-2222-2222-222222222222');
-    });
-    expect(result.activeTenant?.tenantId).toBe('22222222-2222-2222-2222-222222222222');
+    await act(async () => view.result.setActiveTenant('22222222-2222-2222-2222-222222222222'));
+    expect(view.result.activeTenant?.tenantId).toBe('22222222-2222-2222-2222-222222222222');
 
-    await act(async () => {
-      result.setActiveTenant('unknown-tenant');
-    });
-    expect(result.activeTenant?.tenantId).toBe('22222222-2222-2222-2222-222222222222');
+    await act(async () => view.result.setActiveTenant('unknown-tenant'));
+    expect(view.result.activeTenant?.tenantId).toBe('22222222-2222-2222-2222-222222222222');
 
-    await unmount(root);
+    await unmount(view.root);
   });
 });
