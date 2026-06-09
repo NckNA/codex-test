@@ -1,15 +1,26 @@
 import { useCallback, useState } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
 import type { Appointment } from '../../types';
-import { LocalStorageAppointmentRepository } from '../repositories/AppointmentRepository';
+import { createAppointmentRepository } from '../repositories/AppointmentRepository';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export function useScheduleAppointments() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<Error | null>(null);
+  
+  const { authMode } = useAuth();
+  const { activeTenant } = useTenant();
+
+  const repository = createAppointmentRepository({
+    backend: (authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured) ? 'supabase' : 'local',
+    tenantId: activeTenant?.tenantId,
+  });
 
   const queryFn = useCallback(
-    () => LocalStorageAppointmentRepository.listAppointments(),
-    []
+    () => repository.listAppointments(),
+    [repository]
   );
 
   const {
@@ -28,7 +39,7 @@ export function useScheduleAppointments() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageAppointmentRepository.createAppointment(appointment);
+      await repository.createAppointment(appointment);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));
@@ -43,7 +54,7 @@ export function useScheduleAppointments() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageAppointmentRepository.updateAppointment(appointment);
+      await repository.updateAppointment(appointment);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));
@@ -58,7 +69,7 @@ export function useScheduleAppointments() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageAppointmentRepository.deleteAppointment(appointmentId);
+      await repository.deleteAppointment(appointmentId);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));

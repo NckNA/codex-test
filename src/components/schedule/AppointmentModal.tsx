@@ -119,7 +119,7 @@ export function AppointmentModal({
     if (checkConflicts()) return;
 
     const appointmentToSave: Appointment = {
-      id: formData.id || `a${new Date().getTime()}`,
+      id: formData.id || crypto.randomUUID(),
       patientId: formData.patientId,
       doctorId: formData.doctorId as string,
       cabinet: formData.cabinet || doctors.find(d => d.id === formData.doctorId)?.cabinet || 'Каб. 1',
