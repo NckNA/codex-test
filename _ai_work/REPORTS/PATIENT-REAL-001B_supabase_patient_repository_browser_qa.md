@@ -55,8 +55,9 @@ The `SupabasePatientRepository` implementation merged in `PATIENT-REAL-001A` has
 - **Status**: PASSED
 
 ## Dev Fallback Result
-- Switched environment to `VITE_AUTH_MODE=dev`.
-- App automatically falls back to `LocalStoragePatientRepository`.
+- Dev fallback was verified by running without Supabase environment configuration, meaning `VITE_SUPABASE_URL` and/or `VITE_SUPABASE_ANON_KEY` were absent.
+- In that state, `isSupabaseConfigured` is `false`, `AuthContext` resolves `authMode` as `'dev'`, and patient hooks route to `LocalStoragePatientRepository`.
+- Hook-level tests also mock `authMode='dev'` to verify local fallback isolation.
 - Creating a patient correctly stores it in browser `localStorage`.
 - UUIDs are now generated for local patients, which does not break anything.
 - **Status**: PASSED
