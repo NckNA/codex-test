@@ -139,6 +139,28 @@ describe('AppointmentRepository', () => {
       expect(mockEq).toHaveBeenCalledWith('id', 'uuid-123');
     });
 
+    it('strips UTC timezone offset when reading from DB to preserve wall-clock time', async () => {
+      mockOrder.mockResolvedValueOnce({
+        data: [{
+          id: 'uuid-123',
+          doctor_id: 'd1',
+          cabinet: '1',
+          service: 'test',
+          status: 'new',
+          start_time: '2026-06-10T09:00:00Z',
+          end_time: '2026-06-10T10:00:00+00:00',
+          created_at: '2026-06-10T08:00:00Z',
+        }],
+        error: null
+      });
+
+      const apps = await repo.listAppointments();
+      expect(apps).toHaveLength(1);
+      expect(apps[0].start).toBe('2026-06-10T09:00:00');
+      expect(apps[0].end).toBe('2026-06-10T10:00:00');
+      expect(apps[0].createdAt).toBe('2026-06-10T08:00:00');
+    });
+
     it('throws Supabase errors', async () => {
       mockInsert.mockResolvedValueOnce({ error: new Error('DB Error') });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -142,6 +142,12 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     };
   }
 
+  private normalizeTimeFromDb(timeStr: string): string {
+    if (!timeStr) return timeStr;
+    // Strip trailing Z or timezone offset (e.g. +00:00) so UI treats it as local wall-clock time
+    return timeStr.replace(/(Z|[+-]\d{2}:\d{2})$/, '');
+  }
+
   private mapToAppointment = (row: Record<string, unknown>): Appointment => {
     return {
       id: row.id as string,
@@ -154,9 +160,9 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
       source: (row.source as Source) || undefined,
       price: row.price !== null ? Number(row.price) : undefined,
       comment: (row.comment as string) || undefined,
-      start: row.start_time as string,
-      end: row.end_time as string,
-      createdAt: row.created_at as string,
+      start: this.normalizeTimeFromDb(row.start_time as string),
+      end: this.normalizeTimeFromDb(row.end_time as string),
+      createdAt: this.normalizeTimeFromDb(row.created_at as string),
     };
   };
 }

@@ -37,8 +37,9 @@ The `createAppointmentRepository({ backend, tenantId })` factory returns:
 - If an appointment unexpectedly arrives at `SupabaseAppointmentRepository` without a standard 36-character UUID, the repository forcefully re-generates a `crypto.randomUUID()` via the `normalizeId` interceptor to prevent Postgres type violation crashes.
 
 ## Time Handling
-- A `normalizeTimeForDb` helper specifically captures standard `<input type="datetime-local">` strings (e.g., `YYYY-MM-DDTHH:mm`) and forcibly appends a `Z` suffix.
-- This effectively stores the verbatim local time digits in UTC. When retrieved, `AppointmentModal` uses `.slice(0, 16)`, truncating the offset and perfectly reproducing the digits. This sidesteps complex local-to-UTC math shifting issues securely.
+- A `normalizeTimeForDb` helper specifically captures standard `<input type="datetime-local">` strings (e.g., `YYYY-MM-DDTHH:mm`) and forcibly appends a `Z` suffix to store the local digits in UTC.
+- A `normalizeTimeFromDb` helper intercepts DB strings on read (e.g., `2026-06-10T09:00:00Z` or `...T09:00:00+00:00`) and strips the offset timezone before passing them to the UI.
+- **Limitation**: This forces `new Date(startStr)` in the UI to parse the time as local wall-clock time instead of dynamically adjusting to the user's browser timezone. While this ensures that a 09:00 appointment always appears as 09:00, it also means there is no true UTC timezone relativity (i.e. patients in different timezones will both see 09:00, not their relative local offsets). This behavior fits the current clinic-local product model but should be refactored if cross-timezone scheduling is introduced.
 
 ## Delete/RLS Limitation
 - The `appointments` table has a strict RLS policy: `"Only admins can delete appts"`.
