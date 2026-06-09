@@ -41,7 +41,7 @@ A severe divergence exists between `src/types/index.ts` and `0001_initial_schema
 - **Injection:** Repositories have no `tenant_id` in their contracts. The concrete Supabase repository implementations will need to pull `tenant_id` from a singleton or context provider and inject it into all `INSERT` payloads, as RLS `WITH CHECK` enforces it, and the schema requires it (`NOT NULL`).
 
 ## 4. RLS Risks
-- **Current State:** Tenant-isolation MVP is functional and secure. Cross-tenant leakage is mathematically prevented.
+- **Current State:** Tenant-isolation MVP is functional. The current tenant-isolation MVP policies and composite foreign keys significantly reduce cross-tenant leakage risk and were locally validated for the tested FK/RLS scenarios. Final production safety still depends on correct RLS policies, tenant context handling, service-role usage, Edge Functions, and future role-specific hardening.
 - **Role Authorization:** Roles exist in `app_role` and `tenant_users.role`, but RLS policies broadly allow any tenant member to `INSERT/UPDATE/DELETE` (unless restricted to admins). This MVP assumption is fine for prototyping but requires hardening before production.
 - **Immutability:** `audit_logs` correctly blocks `UPDATE` and `DELETE`. `integration_tokens` is securely locked away from the frontend.
 
