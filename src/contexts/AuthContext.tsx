@@ -1,5 +1,5 @@
-import React, { createContext, useContext } from 'react';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 
 // TODO: Replace with real Supabase User type once implemented
 export interface AppUser {
@@ -12,21 +12,93 @@ interface AuthContextType {
   user: AppUser | null;
   isLoading: boolean;
   error: Error | null;
-  authMode: 'dev' | 'supabase-unwired';
-  // TODO: Add login/logout methods when implementing real auth
+  authMode: 'dev' | 'supabase-active';
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const authMode: 'dev' | 'supabase-unwired' = isSupabaseConfigured ? 'supabase-unwired' : 'dev';
+  const authMode: 'dev' | 'supabase-active' = isSupabaseConfigured ? 'supabase-active' : 'dev';
 
-  const user = authMode === 'dev' ? { id: 'dev-user-000000000000', email: 'dev@example.com' } : null;
-  const isLoading = authMode !== 'dev';
-  const error = null;
+  const [user, setUser] = useState<AppUser | null>(
+    authMode === 'dev' ? { id: 'dev-user-000000000000', email: 'dev@example.com' } : null
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(authMode !== 'dev');
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (authMode === 'dev' || !supabase) {
+      return;
+    }
+
+    let mounted = true;
+
+    async function initializeSession() {
+      try {
+        const { data, error: sessionError } = await supabase!.auth.getSession();
+        if (sessionError) {
+          throw sessionError;
+        }
+        
+        if (mounted) {
+          if (data.session?.user) {
+            setUser({
+              id: data.session.user.id,
+              email: data.session.user.email ?? undefined
+            });
+          } else {
+            setUser(null);
+          }
+          setIsLoading(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          console.error('Error fetching Supabase session:', err);
+          setError(err instanceof Error ? err : new Error('Failed to fetch session'));
+          setIsLoading(false);
+        }
+      }
+    }
+
+    initializeSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email ?? undefined
+          });
+        } else {
+          setUser(null);
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [authMode]);
+
+  const signOut = async () => {
+    if (authMode === 'dev' || !supabase) {
+      return Promise.resolve();
+    }
+    
+    try {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
+      setUser(null);
+    } catch (err) {
+      console.error('Sign out error:', err);
+      setError(err instanceof Error ? err : new Error('Failed to sign out'));
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, error, authMode }}>
+    <AuthContext.Provider value={{ user, isLoading, error, authMode, signOut }}>
       {children}
     </AuthContext.Provider>
   );
