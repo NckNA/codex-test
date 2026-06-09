@@ -30,5 +30,5 @@ Added the fundamental skeletons for the Supabase JS client, `AuthContext`, and `
 - The providers are not yet wired into the React tree. When they are, careful attention will be needed to ensure they don't break existing mock context providers if any.
 
 ## Recommended Next Task
-**ARCH-074 — Implement Real Auth Flow and Provider Wiring**
-(Connect `AuthProvider` to Supabase, implement login, and wrap the app root).
+**RECON-074 — Auth/Tenant wiring readiness and next-step selection**
+(Real AuthProvider wiring is NOT automatically approved yet. The next step must be a reconnaissance to inspect root wiring, routing, fallback behaviors, UI readiness, and risks to the current flow before any implementation begins.)

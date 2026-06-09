@@ -29,6 +29,17 @@ If we were to migrate a repository now:
 3. The real Supabase RLS policies require a valid JWT with `auth.uid()`, meaning the real authentication flow must be functional before repositories can successfully insert/select data.
 
 ## 5. What Remains Before First Repository Migration
+**COORDINATOR NOTE:** Before implementing real auth/provider wiring, run **RECON-074** to inspect:
+- current app root and routing
+- whether providers can be wired without changing visible behavior
+- provider ordering: AuthProvider before TenantProvider
+- how tenant selection should work
+- fallback behavior when Supabase env is missing
+- whether login UI exists or must be designed separately
+- risks to current localStorage flow
+- whether the next step should be auth wiring, tenant wiring, repository adapter boundary, pilot repository, or product-visible work
+
+Subsequent implementation steps will likely involve:
 - Wire `AuthProvider` into the application root (likely inside `src/main.tsx` or `App.tsx`).
 - Connect `AuthProvider` to the real Supabase Auth endpoints.
 - Wire `TenantProvider` to fetch the user's allowed tenants from `tenant_users` and set an active tenant.
