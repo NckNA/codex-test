@@ -3,6 +3,13 @@
 ## Summary
 The Supabase SQL schema (`0001_initial_schema.sql`) has been successfully aligned with the frontend TypeScript interfaces (`src/types/index.ts`). The database structure now perfectly matches the application's entity requirements, preventing data loss during the upcoming repository migration.
 
+### Review Fixes Applied
+- Removed local Supabase CLI artifacts from git tracking (`.branches/_current_branch`, `.temp/cli-latest`).
+- Updated `DATABASE_SCHEMA.md` to perfectly match `0001_initial_schema.sql`, preserving all composite foreign key definitions (`tenant_id, id`).
+- Updated `seed.sql` to include a valid `source` value (`phone`) for seeded patients.
+- Added strict `CHECK` constraint for `findings.category` to match `FindingCategory` frontend enum exactly.
+- Added `DEFAULT '{}'` for `tooth_states.surfaces`.
+
 ## Files Inspected
 - `src/types/index.ts`
 - `supabase/migrations/0001_initial_schema.sql`
@@ -34,7 +41,7 @@ The Supabase SQL schema (`0001_initial_schema.sql`) has been successfully aligne
 - **RLS Impact**: RLS policies were **not** weakened. All previously defined MVP policies remain attached to their respective tables. New columns are automatically covered by the row-level constraints.
 
 ## Local Validation Result
-✅ **Passed**: `npx supabase db reset` successfully applied the new `0001_initial_schema.sql` and `seed.sql`. All tables, constraints, and mock data seeded correctly.
+✅ **Passed**: `npx supabase db reset` successfully applied the new `0001_initial_schema.sql` and `seed.sql` after all fixes. All tables, composite constraints, enums, and mock data seeded correctly.
 
 ## NPM Checks Result
 ✅ **Passed**:

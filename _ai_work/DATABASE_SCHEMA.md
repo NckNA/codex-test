@@ -140,34 +140,37 @@ CREATE INDEX idx_appointments_patient_id ON appointments(patient_id);
 CREATE TABLE chief_complaints (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   text text NOT NULL,
   related_teeth integer[] NOT NULL DEFAULT '{}',
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(tenant_id, patient_id)
+  UNIQUE(tenant_id, patient_id),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- DENTAL CHARTS
 CREATE TABLE dental_charts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   complaints text,
   diagnosis text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(tenant_id, patient_id)
+  UNIQUE(tenant_id, patient_id),
+  UNIQUE(tenant_id, id),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- TOOTH STATES (Dental Chart Teeth)
 CREATE TABLE tooth_states (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  dental_chart_id uuid NOT NULL REFERENCES dental_charts(id) ON DELETE CASCADE,
+  dental_chart_id uuid NOT NULL,
   tooth_number integer NOT NULL,
   condition text NOT NULL CHECK (condition IN ('healthy', 'caries', 'filled', 'missing', 'crown', 'implant', 'root', 'pulpitis', 'periodontitis', 'needs_treatment')),
-  surfaces text[],
+  surfaces text[] DEFAULT '{}',
   crown text,
   root text,
   gum text,
@@ -176,17 +179,18 @@ CREATE TABLE tooth_states (
   notes text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(dental_chart_id, tooth_number)
+  UNIQUE(dental_chart_id, tooth_number),
+  FOREIGN KEY (tenant_id, dental_chart_id) REFERENCES dental_charts(tenant_id, id) ON DELETE CASCADE
 );
 
 -- FINDINGS
 CREATE TABLE findings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   tooth_number integer,
   title text NOT NULL,
-  category text NOT NULL,
+  category text NOT NULL CHECK (category IN ('caries', 'missing_tooth', 'gum_problem', 'root_problem', 'bite_problem', 'aesthetic_problem', 'pain', 'risk_zone', 'hygiene', 'prosthetics', 'implantology', 'other')),
   status text NOT NULL DEFAULT 'discovered' CHECK (status IN ('discovered', 'recommended', 'included_in_plan', 'observing', 'declined_by_patient', 'completed')),
   severity text NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'urgent')),
   description text NOT NULL,
@@ -195,7 +199,8 @@ CREATE TABLE findings (
   is_chief_complaint_related boolean DEFAULT false,
   include_in_treatment_plan boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX idx_findings_tenant_patient ON findings(tenant_id, patient_id);
 
@@ -203,19 +208,21 @@ CREATE INDEX idx_findings_tenant_patient ON findings(tenant_id, patient_id);
 CREATE TABLE treatment_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   title text NOT NULL,
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'in_progress', 'completed', 'cancelled')),
   total_price numeric(10,2) NOT NULL DEFAULT 0,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(tenant_id, id),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- TREATMENT STAGES
 CREATE TABLE treatment_stages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  treatment_plan_id uuid NOT NULL REFERENCES treatment_plans(id) ON DELETE CASCADE,
+  treatment_plan_id uuid NOT NULL,
   title text NOT NULL,
   teeth integer[] DEFAULT '{}',
   description text,
@@ -225,19 +232,21 @@ CREATE TABLE treatment_stages (
   source text CHECK (source IN ('manual', 'from_finding')),
   order_index integer NOT NULL,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, treatment_plan_id) REFERENCES treatment_plans(tenant_id, id) ON DELETE CASCADE
 );
 
 -- DOCUMENTS METADATA
 CREATE TABLE documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   file_name text NOT NULL,
   file_size integer NOT NULL,
   file_type text,
   storage_path text NOT NULL,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- INTEGRATION TOKENS
