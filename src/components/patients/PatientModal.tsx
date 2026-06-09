@@ -87,7 +87,7 @@ export function PatientModal({ isOpen, onClose, onSave, initialData }: PatientMo
     }
 
     const patientToSave: Patient = {
-      id: formData.id || `p${Date.now()}`,
+      id: formData.id || crypto.randomUUID(),
       fullName,
       phone,
       birthDate: formData.birthDate,
