@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { useTenant } from './contexts/TenantContext';
 import { LoginPage } from './pages/LoginPage';
 import { Layout } from './components/layout/Layout';
 import { SchedulePage } from './pages/SchedulePage';
@@ -20,10 +21,11 @@ import { SettingsPage } from './pages/SettingsPage';
 import { PatientCardPage } from './pages/PatientCardPage';
 
 export function App() {
-  const { authMode, isLoading, user } = useAuth();
+  const { authMode, isLoading: authLoading, user, signOut } = useAuth();
+  const { activeTenant, availableTenants, isLoading: tenantLoading, error: tenantError } = useTenant();
 
   // B) Supabase active + loading
-  if (authMode === 'supabase-active' && isLoading) {
+  if (authMode === 'supabase-active' && authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -36,7 +38,58 @@ export function App() {
     return <LoginPage />;
   }
 
-  // A & D) Dev mode OR Supabase active + user exists
+  // Tenant loading/error/blocked states for supabase-active authenticated users
+  if (authMode === 'supabase-active' && user) {
+    if (tenantLoading) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-slate-600 font-medium">Загрузка клиники...</p>
+        </div>
+      );
+    }
+
+    if (tenantError) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 text-center">
+          <div className="bg-white p-8 rounded-xl shadow-sm max-w-md w-full border border-red-100">
+            <h1 className="text-xl font-bold text-red-600 mb-2">Не удалось загрузить клинику</h1>
+            <p className="text-slate-600 mb-4">
+              Попробуйте выйти и войти снова. Если ошибка повторится, обратитесь к администратору.
+            </p>
+            <p className="text-xs text-slate-400 mb-6">{tenantError.message}</p>
+            <button
+              onClick={() => void signOut()}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors w-full font-medium"
+            >
+              Выйти
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (!activeTenant && availableTenants.length === 0) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 text-center">
+          <div className="bg-white p-8 rounded-xl shadow-sm max-w-md w-full border border-slate-100">
+            <h1 className="text-xl font-bold text-slate-800 mb-2">Клиника не назначена</h1>
+            <p className="text-slate-600 mb-6">
+              Ваш пользователь авторизован, но не привязан ни к одной клинике. Обратитесь к администратору.
+            </p>
+            <button
+              onClick={() => void signOut()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full font-medium"
+            >
+              Выйти
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // A & D) Dev mode OR Supabase active + user exists + activeTenant exists
   return (
     <BrowserRouter>
       <Routes>
