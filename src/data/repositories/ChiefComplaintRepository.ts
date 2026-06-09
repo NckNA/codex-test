@@ -1,5 +1,7 @@
 import type { ChiefComplaint } from '../../types';
 import { storage } from '../../utils/storage';
+import { supabase } from '../../lib/supabaseClient';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export interface IChiefComplaintRepository {
   getChiefComplaint(patientId: string): Promise<ChiefComplaint | null>;
@@ -23,17 +25,78 @@ export const LocalStorageChiefComplaintRepository: IChiefComplaintRepository = {
   }
 };
 
+export class SupabaseChiefComplaintRepository implements IChiefComplaintRepository {
+  private readonly tenantId: string;
+  private readonly client: SupabaseClient;
+
+  constructor(tenantId: string, client: SupabaseClient) {
+    this.tenantId = tenantId;
+    this.client = client;
+  }
+
+  async getChiefComplaint(patientId: string): Promise<ChiefComplaint | null> {
+    const { data, error } = await this.client
+      .from('chief_complaints')
+      .select('*')
+      .eq('tenant_id', this.tenantId)
+      .eq('patient_id', patientId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      patientId: data.patient_id,
+      text: data.text,
+      relatedTeeth: data.related_teeth || [],
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  }
+
+  async saveChiefComplaint(
+    patientId: string,
+    complaint: Omit<ChiefComplaint, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>
+  ): Promise<void> {
+    const { error } = await this.client
+      .from('chief_complaints')
+      .upsert({
+        tenant_id: this.tenantId,
+        patient_id: patientId,
+        text: complaint.text,
+        related_teeth: complaint.relatedTeeth ?? [],
+      }, {
+        onConflict: 'tenant_id,patient_id'
+      });
+
+    if (error) {
+      throw error;
+    }
+  }
+}
+
+export type ChiefComplaintRepositoryBackend = 'local' | 'supabase';
+
+export interface CreateChiefComplaintRepositoryOptions {
+  tenantId?: string | null;
+  backend: ChiefComplaintRepositoryBackend;
+}
+
 /**
  * Factory function to instantiate the ChiefComplaintRepository.
- * 
- * @param tenantId Accepted as a future boundary parameter for Supabase RLS.
- *                 Currently unused because the Supabase implementation is intentionally 
- *                 not included in this task.
- * @returns IChiefComplaintRepository
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function createChiefComplaintRepository(_tenantId?: string): IChiefComplaintRepository {
-  // localStorage remains the only active backend for this repository.
+export function createChiefComplaintRepository(options: CreateChiefComplaintRepositoryOptions): IChiefComplaintRepository {
+  if (options.backend === 'supabase' && options.tenantId && supabase) {
+    return new SupabaseChiefComplaintRepository(options.tenantId, supabase);
+  }
+
+  // Safe fallback to localStorage if explicitly requested, or if Supabase/tenantId are missing
   return LocalStorageChiefComplaintRepository;
 }
 

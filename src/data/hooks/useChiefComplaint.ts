@@ -3,13 +3,23 @@ import type { ChiefComplaint } from '../../types';
 import { createChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
 import { useAsyncQuery } from './useAsyncQuery';
 import { useTenant } from '../../contexts/TenantContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export function useChiefComplaint(patientId: string) {
   const { activeTenant } = useTenant();
+  const { authMode } = useAuth();
   
+  const backend = authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured
+    ? 'supabase'
+    : 'local';
+
   const repo = useMemo(() => {
-    return createChiefComplaintRepository(activeTenant?.tenantId);
-  }, [activeTenant?.tenantId]);
+    return createChiefComplaintRepository({
+      tenantId: activeTenant?.tenantId,
+      backend
+    });
+  }, [activeTenant?.tenantId, backend]);
 
   // Query: load complaint via useAsyncQuery
   const queryFn = useCallback(
