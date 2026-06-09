@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
+import { LoginPage } from './pages/LoginPage';
 import { Layout } from './components/layout/Layout';
 import { SchedulePage } from './pages/SchedulePage';
 import { CrmPage } from './pages/CrmPage';
@@ -18,6 +20,23 @@ import { SettingsPage } from './pages/SettingsPage';
 import { PatientCardPage } from './pages/PatientCardPage';
 
 export function App() {
+  const { authMode, isLoading, user } = useAuth();
+
+  // B) Supabase active + loading
+  if (authMode === 'supabase-active' && isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // C) Supabase active + no user
+  if (authMode === 'supabase-active' && !user) {
+    return <LoginPage />;
+  }
+
+  // A & D) Dev mode OR Supabase active + user exists
   return (
     <BrowserRouter>
       <Routes>

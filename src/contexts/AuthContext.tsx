@@ -13,6 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   error: Error | null;
   authMode: 'dev' | 'supabase-active';
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -82,6 +83,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [authMode]);
 
+  const signIn = async (email: string, password: string) => {
+    if (authMode === 'dev' || !supabase) {
+      return Promise.resolve();
+    }
+
+    setError(null);
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw signInError;
+      
+      if (data.session?.user) {
+        setUser({
+          id: data.session.user.id,
+          email: data.session.user.email ?? undefined
+        });
+      }
+    } catch (err) {
+      console.error('Sign in error:', err);
+      setError(err instanceof Error ? err : new Error('Failed to sign in'));
+      throw err;
+    }
+  };
+
   const signOut = async () => {
     if (authMode === 'dev' || !supabase) {
       return Promise.resolve();
@@ -98,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, error, authMode, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, error, authMode, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
