@@ -218,6 +218,11 @@ CREATE TABLE integration_tokens (
   updated_at timestamptz DEFAULT now(),
   UNIQUE(tenant_id, provider)
 );
+
+**WARNING - Integration Tokens:**
+- service-role access must only exist in Edge Functions/backend proxy
+- Edge Functions must validate the caller `auth.uid()` and tenant membership before using service-role
+- never expose `access_token_encrypted` or `refresh_token_encrypted` to frontend responses
 ```
 
 ## 4. RLS Helper Functions
@@ -290,6 +295,27 @@ USING (has_tenant_role(tenant_id, ARRAY['clinic_admin'::app_role, 'clinic_owner'
 - `audit_logs`: `INSERT` allowed for any user in the tenant, but `UPDATE` and `DELETE` are strictly `FALSE` for everyone.
 - `integration_tokens`: `SELECT`, `INSERT`, `UPDATE`, `DELETE` are explicitly `FALSE` for all frontend roles. These tables are strictly operated upon by `service_role` keys inside Edge Functions/Backend Proxies.
 
+## 5.1 RLS Policy Coverage Matrix
+
+| Table | SELECT policy | INSERT policy | UPDATE policy | DELETE policy | Special notes |
+|---|---|---|---|---|---|
+| **tenants** | Tenant members can read own metadata | Platform admin manage | Platform admin manage | Platform admin manage | Readonly for clinic staff |
+| **profiles** | Users can read own, tenant members read within clinic | Auth hook/Platform admin manage | User update own profile | Platform admin manage | Tied to auth.users |
+| **tenant_users** | Tenant members read own tenant list | Tenant owner/admin manage inside own tenant, platform admin globally | Tenant owner/admin manage inside own tenant | Tenant owner/admin manage inside own tenant | Grants access |
+| **subscriptions** | Tenant owner/admin read own tenant | Platform admin manage | Platform admin manage | FALSE (No clinic delete) | Managed via Stripe webhook |
+| **audit_logs** | Tenant member or platform support | Tenant member | FALSE | FALSE | Immutable records |
+| **patients** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Deletion is restricted |
+| **doctors** | Tenant member | Clinic owner/admin | Clinic owner/admin | Clinic owner/admin | Managed by clinic admin |
+| **appointments** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Status tracks lifecycle |
+| **chief_complaints** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | 1:1 with patient/chart |
+| **dental_charts** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | 1:1 with patient |
+| **tooth_states** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Tied to chart |
+| **findings** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Links to teeth |
+| **treatment_plans** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Drives billing/workflow |
+| **treatment_stages** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Tied to plan |
+| **documents** | Tenant member | Tenant member | Tenant member | Clinic owner/admin | Links to Supabase Storage |
+| **integration_tokens**| FALSE | FALSE | FALSE | FALSE | service-role only in Edge Functions/backend proxy |
+
 ## 6. Role Access Matrix
 
 | Role | Patients | Appointments | Dental Chart / Findings | Treatment Plans | Documents | Billing | Integrations | Audit Logs |
@@ -318,7 +344,7 @@ USING (has_tenant_role(tenant_id, ARRAY['clinic_admin'::app_role, 'clinic_owner'
 ## 8. Security Risks and Mitigations
 
 - **Service-role key leakage:** If exposed in frontend `.env`, an attacker can bypass all RLS. **Mitigation:** Never expose `SUPABASE_SERVICE_ROLE_KEY`. Only expose `SUPABASE_ANON_KEY`.
-- **Wrong tenant_id in inserts:** A user might try to insert a record into someone else's clinic. **Mitigation:** The `WITH CHECK` clause in RLS mathematically prevents this.
+- **Wrong tenant_id in inserts:** A user might try to insert a record into someone else's clinic. **Mitigation:** `WITH CHECK` helps prevent cross-tenant inserts only when RLS is enabled, the policy is correct, every tenant-owned table has `tenant_id`, and no service-role/Edge Function bypass is used.
 - **Missing RLS on a table:** A new table is created but `ENABLE ROW LEVEL SECURITY` is forgotten, exposing all rows to `anon`. **Mitigation:** Implement CI/CD checks (e.g., `supabase db lint` or custom queries) that fail the build if any public schema table lacks RLS.
 - **Edge Function bypassing tenant context:** Service-role bypasses RLS inside Edge Functions. **Mitigation:** Edge Functions must manually instantiate a Supabase client using the user's incoming Authorization JWT rather than defaulting to the admin key, unless explicitly executing elevated actions.
 - **Audit logs being editable:** Attackers covering their tracks. **Mitigation:** `audit_logs` RLS policies must strictly forbid `UPDATE` and `DELETE` operations.

@@ -40,7 +40,9 @@ Drafted Row-Level Security templates that move multi-tenant data isolation into 
 ## Risks
 - **RLS Complexity:** RLS is not magic; a single missing `WITH CHECK` clause can allow data tampering across tenants.
 - **Service Role Leaks:** If `service_role` keys touch the frontend code, all RLS protections are completely neutralized.
-- **Edge Functions Context:** If backend proxies use the `service_role` key blindly, they act as vectors for cross-tenant data leaks. Context must be preserved.
+- Minor RLS wording hardening applied.
+- RLS policy coverage matrix added.
+- No source code changed.
 
 ## Recommended Next Task
 **ARCH-069 — Auth and Tenant Foundation Setup (Supabase Project Creation)**
