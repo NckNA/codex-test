@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { useAuth } from './AuthContext';
 
 export interface ActiveTenant {
   tenantId: string;
@@ -17,22 +18,40 @@ interface TenantContextType {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Skeleton state. Does not connect to real Supabase yet.
-  const [activeTenant] = useState<ActiveTenant | null>(null);
-  const [availableTenants] = useState<ActiveTenant[]>([]);
-  const [isLoading] = useState(false);
-  const [error] = useState<Error | null>(null);
+  const { authMode } = useAuth();
+
+  const devTenant: ActiveTenant = {
+    tenantId: "11111111-1111-1111-1111-111111111111",
+    tenantName: "Demo Clinic",
+    role: "admin",
+  };
+
+  const availableTenants = authMode === 'dev' ? [devTenant] : [];
+  
+  const [activeTenantState, setActiveTenantState] = useState<ActiveTenant | null>(
+    authMode === 'dev' ? devTenant : null
+  );
+
+  const isLoading = authMode !== 'dev';
+  const error = null;
 
   const setActiveTenant = (tenantId: string) => {
     // TODO: implement real tenant switching
     console.warn('Tenant switching not yet implemented. Requested ID:', tenantId);
+    
+    if (authMode === 'dev') {
+       const tenant = availableTenants.find(t => t.tenantId === tenantId);
+       if (tenant) {
+         setActiveTenantState(tenant);
+       }
+    }
   };
 
   // FUTURE SUPABASE REPOSITORIES MUST OBTAIN tenant_id FROM THIS CONTEXT OR AN ADAPTER
   // Do NOT hardcode production tenant IDs.
 
   return (
-    <TenantContext.Provider value={{ activeTenant, availableTenants, setActiveTenant, isLoading, error }}>
+    <TenantContext.Provider value={{ activeTenant: activeTenantState, availableTenants, setActiveTenant, isLoading, error }}>
       {children}
     </TenantContext.Provider>
   );
