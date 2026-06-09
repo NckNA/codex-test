@@ -1,10 +1,27 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { Doctor } from '../../types';
-import { LocalStorageDoctorRepository } from '../repositories/DoctorRepository';
+import { createDoctorRepository } from '../repositories/DoctorRepository';
 import { useAsyncQuery } from './useAsyncQuery';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export function useClinicDoctors() {
-  const queryFn = useCallback(() => LocalStorageDoctorRepository.listDoctors(), []);
+  const { authMode } = useAuth();
+  const { activeTenant } = useTenant();
+
+  const repository = useMemo(() => {
+    const backend = (authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured) 
+      ? 'supabase' 
+      : 'local';
+    
+    return createDoctorRepository({
+      backend,
+      tenantId: activeTenant?.tenantId
+    });
+  }, [authMode, activeTenant?.tenantId]);
+
+  const queryFn = useCallback(() => repository.listDoctors(), [repository]);
 
   const {
     data: doctors,
