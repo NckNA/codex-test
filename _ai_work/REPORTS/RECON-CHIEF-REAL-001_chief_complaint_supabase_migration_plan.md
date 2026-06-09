@@ -25,7 +25,7 @@ This report outlines the migration strategy for moving `ChiefComplaintRepository
 - **Hook Status**: `useChiefComplaint` currently passes `activeTenant?.tenantId` down to the factory.
 
 ## Supabase Schema Fit
-The `chief_complaints` table is perfectly aligned:
+The `chief_complaints` table has a strong schema fit, with one important FK constraint caveat: patient_id must already exist in Supabase patients for the same tenant.
 - **Columns**: `id`, `tenant_id`, `patient_id`, `text`, `related_teeth`, `created_at`, `updated_at`.
 - **Required**: `tenant_id`, `patient_id`, `text`.
 - **Constraints**: `UNIQUE(tenant_id, patient_id)` guarantees one complaint row per patient.
@@ -40,9 +40,12 @@ The `chief_complaints` table is perfectly aligned:
 
 ## Proposed Migration Strategy
 - **Adapter Class**: Introduce `SupabaseChiefComplaintRepository` implementing `IChiefComplaintRepository`.
-- **Factory Logic**: Update `createChiefComplaintRepository(tenantId?: string)` to evaluate backend readiness.
-  - If `tenantId` is valid AND `isSupabaseConfigured` is true -> Return `SupabaseChiefComplaintRepository`.
-  - Else (dev mode, missing env vars, or null tenantId) -> Return `LocalStorageChiefComplaintRepository`.
+- **Factory Logic**: Update the factory to accept an explicit backend signal alongside the tenant ID. For example:
+  `createChiefComplaintRepository({ tenantId, backend: 'local' | 'supabase' })`
+- **Hook Integration**: `useChiefComplaint.ts` must read `authMode` from `useAuth` to route correctly:
+  - `authMode === 'supabase-active'` && `activeTenant?.tenantId` && `isSupabaseConfigured` -> `backend: 'supabase'`
+  - `authMode === 'dev'` -> `backend: 'local'` always, even if `tenantId` is present and Supabase is configured.
+  - missing `tenantId` -> `backend: 'local'` or safe disabled behavior.
 - **Interface Integrity**: Keep `useChiefComplaint` public API identical. Do not alter `LocalStorageChiefComplaintRepository` to preserve dev fallback. Do not touch `PatientRepository` or others.
 
 ## Query Design
@@ -61,12 +64,18 @@ The `chief_complaints` table is perfectly aligned:
   - `text` maps 1:1.
 
 ## Tests Required Before Implementation
-- **Factory routing**: Assert it returns local when `tenantId` is omitted, and Supabase when `tenantId` is present (mocking env vars).
+- **Factory routing**: Assert it returns local when `backend: 'local'`, and Supabase when `backend: 'supabase'`.
+- **Hook fallback isolation**:
+  - Dev mode + Supabase env configured still uses `LocalStorageChiefComplaintRepository` and makes zero Supabase calls.
+  - supabase-active + `activeTenant` + Supabase configured uses `SupabaseChiefComplaintRepository`.
+  - Missing `tenantId` does not use Supabase.
 - **Supabase implementation**:
   - `getChiefComplaint` success returns mapped object.
   - `getChiefComplaint` handles 0 rows by returning `null`.
   - `saveChiefComplaint` properly forms the `upsert` payload, mapping camelCase properties to snake_case.
   - Queries explicitly filter by `tenant_id`.
+- Factory/hook public API remains stable.
+- Existing `localStorage` tests continue passing.
 
 ## Risks and Blockers
 - **Foreign Key Violation Risk**: `chief_complaints` requires the `patient_id` to exist in the Supabase `patients` table. Because `PatientRepository` is still using `localStorage`, attempting to save a complaint for a newly created "local" patient will result in an RLS/Foreign Key Postgres error. Testing will rely exclusively on the `patients` already seeded in the database.
@@ -82,14 +91,19 @@ The `chief_complaints` table is perfectly aligned:
 
 ## Recommended Next Task
 **CHIEF-REAL-001A: Implement SupabaseChiefComplaintRepository behind existing factory**
-- **Allowed files**: `src/data/repositories/ChiefComplaintRepository.ts`, `src/data/repositories/ChiefComplaintRepository.test.ts`.
+- **Allowed files**: 
+  - `src/data/repositories/ChiefComplaintRepository.ts`
+  - `src/data/repositories/ChiefComplaintRepository.test.ts`
+  - `src/data/hooks/useChiefComplaint.ts`
+  - `src/data/hooks/useChiefComplaint.test.tsx`
+  - `_ai_work/REPORTS/CHIEF-REAL-001A_supabase_chief_complaint_repository_report.md`
 - **Forbidden files**: UI, contexts, `App.tsx`, other repositories, `storage.ts`, migrations.
-- **Implementation boundaries**: Confined exclusively to adding the `SupabaseChiefComplaintRepository` class and updating the factory switch.
-- **Tests required**: Unit tests for data mapping and factory behavior.
-- **Validation required**: Verify build passes and `localStorage` fallback remains active in dev mode.
+- **Implementation boundaries**: Confined exclusively to adding the `SupabaseChiefComplaintRepository` class, updating the factory switch, and linking `useAuth` into `useChiefComplaint`.
+- **Tests required**: Unit tests for routing (dev vs supabase-active) and data mapping.
+- **Validation required**: Verify build passes and `localStorage` fallback remains fully active and isolated in dev mode.
 
 ## Final Verdict
-- **READY** for ChiefComplaintRepository implementation
+- **READY** for ChiefComplaintRepository implementation after this routing plan correction
 - **NOT READY** for PatientRepository migration
 - **NOT READY** for AppointmentRepository migration
 - **NOT READY** for TreatmentPlansRepository migration
