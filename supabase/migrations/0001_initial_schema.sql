@@ -107,7 +107,7 @@ CREATE TABLE appointments (
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (tenant_id, doctor_id) REFERENCES doctors(tenant_id, id) ON DELETE SET NULL
+  FOREIGN KEY (tenant_id, doctor_id) REFERENCES doctors(tenant_id, id) ON DELETE SET NULL (doctor_id)
 );
 CREATE INDEX idx_appointments_tenant_id ON appointments(tenant_id);
 CREATE INDEX idx_appointments_patient_id ON appointments(patient_id);

@@ -16,7 +16,7 @@
 
 ## Schema & RLS Scope
 - Implemented the draft `0001_initial_schema.sql` based directly on the design in `DATABASE_SCHEMA.md`.
-- **Tenant-Consistent FKs Fix:** Added `UNIQUE(tenant_id, id)` constraints to parent tables and composite `FOREIGN KEY (tenant_id, child_id) REFERENCES parent(tenant_id, id)` to child tables to strictly guarantee that a child row cannot be inserted linking to a parent in a different tenant.
+- **Tenant-Consistent FKs Fix:** Added `UNIQUE(tenant_id, id)` constraints to parent tables and composite `FOREIGN KEY (tenant_id, child_id) REFERENCES parent(tenant_id, id)` to child tables to strictly guarantee that a child row cannot be inserted linking to a parent in a different tenant. Fixed the nullable `doctor_id` composite foreign key in `appointments` to use `ON DELETE SET NULL (doctor_id)` ensuring `tenant_id` is never nullified when a doctor is deleted.
 - Added `CREATE EXTENSION IF NOT EXISTS pgcrypto;` for local uuid validation.
 - Added all 16 core tables (Tenants, Profiles, Subscriptions, Audit Logs, Patients, Doctors, Appointments, Dental Charts, Findings, etc.).
 - Translated the strict RLS matrices into actual SQL policies, including `get_user_tenants()` helper functions and restrictive `WITH CHECK` clauses for `INSERT`/`UPDATE` operations.
