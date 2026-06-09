@@ -1,4 +1,8 @@
-import { storage } from '../../utils/storage';
+import { LocalStorageDentalChartRepository } from '../repositories/DentalChartRepository';
+import { LocalStorageTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
+import { LocalStorageChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
+import { LocalStorageFindingsRepository } from '../repositories/FindingsRepository';
+import { LocalStorageAppointmentRepository } from '../repositories/AppointmentRepository';
 
 export interface PatientDentalSummary {
   needsTreatment: number;
@@ -37,12 +41,14 @@ export async function getPatientMedicalSummary(patientId: string): Promise<Patie
     return EMPTY_PATIENT_MEDICAL_SUMMARY;
   }
 
-  const chart = storage.getDentalChart(patientId);
-  const plans = storage.getTreatmentPlans(patientId);
-  const complaint = storage.getChiefComplaint(patientId);
-  const findings = storage.getFindings(patientId);
-  
-  const allAppointments = storage.getAppointments();
+  const [chart, plans, complaint, findings, allAppointments] = await Promise.all([
+    LocalStorageDentalChartRepository.getDentalChart(patientId),
+    LocalStorageTreatmentPlansRepository.listTreatmentPlansByPatient(patientId),
+    LocalStorageChiefComplaintRepository.getChiefComplaint(patientId),
+    LocalStorageFindingsRepository.listFindingsByPatient(patientId),
+    LocalStorageAppointmentRepository.listAppointments(),
+  ]);
+
   const patientAppointments = allAppointments
     .filter(a => a.patientId === patientId)
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
