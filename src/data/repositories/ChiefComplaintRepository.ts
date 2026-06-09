@@ -22,3 +22,18 @@ export const LocalStorageChiefComplaintRepository: IChiefComplaintRepository = {
     return Promise.resolve();
   }
 };
+
+/**
+ * Factory function to instantiate the ChiefComplaintRepository.
+ * 
+ * @param tenantId Accepted as a future boundary parameter for Supabase RLS.
+ *                 Currently unused because the Supabase implementation is intentionally 
+ *                 not included in this task.
+ * @returns IChiefComplaintRepository
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function createChiefComplaintRepository(_tenantId?: string): IChiefComplaintRepository {
+  // localStorage remains the only active backend for this repository.
+  return LocalStorageChiefComplaintRepository;
+}
+
