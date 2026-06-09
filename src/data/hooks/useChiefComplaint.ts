@@ -1,13 +1,20 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { ChiefComplaint } from '../../types';
-import { LocalStorageChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
+import { createChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
 import { useAsyncQuery } from './useAsyncQuery';
+import { useTenant } from '../../contexts/TenantContext';
 
 export function useChiefComplaint(patientId: string) {
+  const { activeTenant } = useTenant();
+  
+  const repo = useMemo(() => {
+    return createChiefComplaintRepository(activeTenant?.tenantId);
+  }, [activeTenant?.tenantId]);
+
   // Query: load complaint via useAsyncQuery
   const queryFn = useCallback(
-    () => LocalStorageChiefComplaintRepository.getChiefComplaint(patientId),
-    [patientId]
+    () => repo.getChiefComplaint(patientId),
+    [repo, patientId]
   );
   
   const {
@@ -44,7 +51,7 @@ export function useChiefComplaint(patientId: string) {
     setIsSaveError(false);
     setSaveError(null);
     try {
-      await LocalStorageChiefComplaintRepository.saveChiefComplaint(patientId, input);
+      await repo.saveChiefComplaint(patientId, input);
       await refetchComplaint();
     } catch (err) {
       const parsedError = err instanceof Error ? err : new Error(String(err));
@@ -54,7 +61,7 @@ export function useChiefComplaint(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, refetchComplaint]);
+  }, [patientId, refetchComplaint, repo]);
 
   // Merge error state for public API compatibility
   const isError = isQueryError || isSaveError;
