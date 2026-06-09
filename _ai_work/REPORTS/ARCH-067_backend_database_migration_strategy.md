@@ -81,10 +81,10 @@ Instead of a monolith, the backend interface should be logically partitioned:
 - **Recommendation:** Maybe (good long-term, but slow for MVP).
 
 ### B. Supabase (PostgreSQL + built-in API/Auth)
-- **Benefits:** Instant REST API, built-in Auth, Row-Level Security (RLS) handles multi-tenancy flawlessly at the database level, fast MVP.
+- **Benefits:** Instant REST API, built-in Auth, Row-Level Security (RLS) can strongly enforce tenant isolation when policies, tenant context, JWT claims, and service-role usage are configured correctly, fast MVP.
 - **Risks:** Vendor lock-in (though it's open-source Postgres), server-side logic requires Edge Functions.
-- **Tenant isolation fit:** Perfect (RLS policies `tenant_id = auth.jwt()->>'tenant_id'`).
-- **Medical data fit:** Perfect (it's PostgreSQL).
+- **Tenant isolation fit:** Very Good (RLS policies `tenant_id = auth.jwt()->>'tenant_id'`, but requires careful configuration).
+- **Medical data fit:** Very Good (it's PostgreSQL).
 - **SaaS readiness:** Very High.
 - **Migration complexity:** Low (frontend Repositories just switch to `supabase-js` client).
 - **Recommendation:** **Yes (Preferred)**.
@@ -108,10 +108,17 @@ Instead of a monolith, the backend interface should be logically partitioned:
 
 ## 7. Recommended direction
 - **Preferred option:** **Supabase (PostgreSQL)**
-- **Why:** The application requires strict multi-tenant data isolation and highly relational medical records (teeth, findings, plans). Supabase provides a production-grade PostgreSQL database with Row-Level Security (RLS), which guarantees that tenant data cannot cross-pollinate, even if there's a bug in the application layer. It also provides instant APIs and Auth, drastically reducing backend boilerplate and accelerating the MVP.
+- **Why:** The application requires strict multi-tenant data isolation and highly relational medical records (teeth, findings, plans). Supabase/PostgreSQL is the preferred option because it provides relational modeling plus database-level RLS, but RLS must be explicitly designed, tested, and audited. RLS reduces the blast radius of application-layer bugs, but does not replace correct backend/API design. It also provides instant APIs and Auth, drastically reducing backend boilerplate and accelerating the MVP.
 - **Why not the alternatives:** Firebase NoSQL is too rigid for complex dental charts. Custom backend + raw PostgreSQL requires too much boilerplate for the current prototype phase.
 - **Biggest risks:** Handling amoCRM proxying, as API keys cannot be exposed on the frontend.
 - **Mitigations:** Supabase Edge Functions or a minimal lightweight Node.js proxy can be deployed specifically for server-side amoCRM integration.
+
+### RLS Specific Risks:
+- service-role keys must never be exposed to frontend
+- Edge Functions / backend proxy must preserve tenant context
+- RLS policies must be tested with multiple tenants
+- every tenant-owned table must include `tenant_id`
+- policies must cover SELECT/INSERT/UPDATE/DELETE separately
 
 ## 8. Migration strategy phases
 1. **Backend/database design only:** Map exact PostgreSQL schema, RLS policies, and Auth flows.
