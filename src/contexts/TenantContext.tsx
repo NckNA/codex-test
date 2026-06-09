@@ -80,13 +80,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     let mounted = true;
+    const currentUserId = user.id;
 
     async function loadTenants() {
       try {
         const { data, error } = await supabase!
           .from('tenant_users')
           .select('role, tenant_id, tenants(id, name, status)')
-          .eq('user_id', user.id);
+          .eq('user_id', currentUserId);
 
         if (error) {
           throw error;
@@ -103,7 +104,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             ? current.selectedTenantId
             : tenants[0]?.tenantId ?? null;
 
-          return { userId: user.id, tenants, selectedTenantId, error: null };
+          return { userId: currentUserId, tenants, selectedTenantId, error: null };
         });
       } catch (err) {
         if (!mounted) {
@@ -111,7 +112,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         setLoadedTenantState({
-          userId: user.id,
+          userId: currentUserId,
           tenants: [],
           selectedTenantId: null,
           error: err instanceof Error ? err : new Error('Failed to load tenants'),
