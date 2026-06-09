@@ -18,6 +18,7 @@ The `createAppointmentRepository({ backend, tenantId })` factory returns:
 
 ## Hook Routing Behavior
 `useScheduleAppointments` accurately resolves the repository instance by injecting the `authMode`, `activeTenant`, and `isSupabaseConfigured`.
+- **Memoization**: The repository instance is memoized using `useMemo` with dependencies on `authMode` and `activeTenant?.tenantId` to prevent infinite fetch loops caused by recreating the repository reference on every render.
 - **Supabase mode**: `authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured` evaluates to `'supabase'`.
 - **Dev/Offline mode**: Falls back to `'local'`, guaranteeing no cross-contamination of DB records.
 

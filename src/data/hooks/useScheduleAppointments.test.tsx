@@ -104,4 +104,38 @@ describe('useScheduleAppointments', () => {
     
     await act(async () => { root.unmount(); });
   });
+
+  it('memoizes repository and does not recreate on re-render if dependencies are stable', async () => {
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as any);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1' } } as any);
+
+    let renderCount = 0;
+    const TestComponent = () => {
+      renderCount++;
+      useScheduleAppointments();
+      return null;
+    };
+    
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    
+    await act(async () => {
+      root.render(<TestComponent />);
+    });
+    
+    // Initial render creates the repository once
+    const initialCallCount = mockCreateRepo.mock.calls.length;
+    expect(initialCallCount).toBeGreaterThan(0);
+    
+    // Force a re-render
+    await act(async () => {
+      root.render(<TestComponent />);
+    });
+    
+    expect(renderCount).toBe(2);
+    // Factory should NOT be called again since dependencies haven't changed
+    expect(mockCreateRepo.mock.calls.length).toBe(initialCallCount);
+    
+    await act(async () => { root.unmount(); });
+  });
 });

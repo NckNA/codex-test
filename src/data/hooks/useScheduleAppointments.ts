@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
 import type { Appointment } from '../../types';
 import { createAppointmentRepository } from '../repositories/AppointmentRepository';
@@ -13,10 +13,12 @@ export function useScheduleAppointments() {
   const { authMode } = useAuth();
   const { activeTenant } = useTenant();
 
-  const repository = createAppointmentRepository({
-    backend: (authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured) ? 'supabase' : 'local',
-    tenantId: activeTenant?.tenantId,
-  });
+  const repository = useMemo(() => {
+    return createAppointmentRepository({
+      backend: (authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured) ? 'supabase' : 'local',
+      tenantId: activeTenant?.tenantId,
+    });
+  }, [authMode, activeTenant?.tenantId]);
 
   const queryFn = useCallback(
     () => repository.listAppointments(),

@@ -65,7 +65,8 @@ describe('AppointmentRepository', () => {
       mockDelete.mockReturnValue({ eq: mockEq });
       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockEq.mockImplementation((..._args: any[]) => {
+      mockEq.mockImplementation((...args: any[]) => {
+        void args;
         const chain = { eq: mockEq, order: mockOrder };
         return Object.assign(Promise.resolve({ error: null }), chain);
       });
