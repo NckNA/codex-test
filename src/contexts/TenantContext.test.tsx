@@ -219,4 +219,86 @@ describe('TenantContext behavior', () => {
 
     await unmount(view.root);
   });
+
+  it('does not leak tenants across user switches', async () => {
+    let pendingResolve: (value: unknown) => void;
+    const pendingPromise = new Promise((resolve) => {
+      pendingResolve = resolve;
+    });
+
+    mockEq
+      .mockResolvedValueOnce({
+        data: [tenantRow('11111111-1111-1111-1111-111111111111', 'Demo Clinic A', 'clinic_admin')],
+        error: null,
+      })
+      .mockReturnValueOnce(pendingPromise);
+
+    const useAuthMock = vi.spyOn(AuthContextModule, 'useAuth');
+    useAuthMock.mockReturnValue({
+      ...baseAuth,
+      user: { id: 'user-A', email: 'a@example.com' },
+      isLoading: false,
+      authMode: 'supabase-active',
+    });
+
+    let current: ReturnType<typeof useTenant> | undefined;
+
+    const Probe = () => {
+      current = useTenant();
+      return null;
+    };
+
+    const root = createRoot(document.createElement('div'));
+
+    await act(async () => {
+      root.render(
+        <TenantProvider>
+          <Probe />
+        </TenantProvider>
+      );
+    });
+
+    // Wait for user A to load
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(current!.availableTenants).toHaveLength(1);
+    expect(current!.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
+    expect(current!.isLoading).toBe(false);
+
+    // Switch to user B
+    useAuthMock.mockReturnValue({
+      ...baseAuth,
+      user: { id: 'user-B', email: 'b@example.com' },
+      isLoading: false,
+      authMode: 'supabase-active',
+    });
+
+    // Re-render
+    await act(async () => {
+      root.render(
+        <TenantProvider>
+          <Probe />
+        </TenantProvider>
+      );
+    });
+
+    // User B query is pending.
+    // Assert tenant A is not exposed.
+    expect(current!.isLoading).toBe(true);
+    expect(current!.availableTenants).toEqual([]);
+    expect(current!.activeTenant).toBeNull();
+
+    // Resolve B's promise to cleanup
+    pendingResolve!({ data: [], error: null });
+
+    await act(async () => {
+      await pendingPromise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    await unmount(root);
+  });
 });

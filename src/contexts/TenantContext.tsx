@@ -168,6 +168,21 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   const isLoading = loadedTenantState.userId !== user.id;
+
+  if (isLoading) {
+    return (
+      <TenantContext.Provider value={{
+        activeTenant: null,
+        availableTenants: [],
+        setActiveTenant,
+        isLoading: true,
+        error: null,
+      }}>
+        {children}
+      </TenantContext.Provider>
+    );
+  }
+
   const activeTenant = loadedTenantState.tenants.find((tenant) => tenant.tenantId === loadedTenantState.selectedTenantId) ?? null;
 
   return (
@@ -175,7 +190,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeTenant,
       availableTenants: loadedTenantState.tenants,
       setActiveTenant,
-      isLoading,
+      isLoading: false,
       error: loadedTenantState.error,
     }}>
       {children}

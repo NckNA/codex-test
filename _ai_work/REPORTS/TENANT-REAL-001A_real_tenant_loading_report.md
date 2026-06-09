@@ -48,7 +48,8 @@ Implemented real tenant loading in `TenantContext` for authenticated Supabase us
 - zero tenants;
 - query failure;
 - multiple tenants;
-- rejecting unknown tenant selection.
+- rejecting unknown tenant selection;
+- user switching (preventing data leakage of previous user's tenants).
 
 ## Remaining Risks
 
