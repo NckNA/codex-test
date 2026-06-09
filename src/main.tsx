@@ -22,32 +22,39 @@ import { SettingsPage } from './pages/SettingsPage';
 import { PatientCardPage } from './pages/PatientCardPage';
 import { storage } from './utils/storage';
 
+import { AuthProvider } from './contexts/AuthContext';
+import { TenantProvider } from './contexts/TenantContext';
+
 // Initialize localStorage seed data if not present
 storage.init();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<SchedulePage />} />
-          <Route path="crm" element={<CrmPage />} />
-          <Route path="appointments" element={<AppointmentsPage />} />
-          <Route path="documents" element={<DocumentsPage />} />
-          <Route path="patients" element={<PatientsPage />} />
-          <Route path="patients/:patientId" element={<PatientCardPage />} />
-          <Route path="doctors" element={<DoctorsPage />} />
-          <Route path="medical" element={<MedicalPage />} />
-          <Route path="finance" element={<FinancePage />} />
-          <Route path="warehouse" element={<WarehousePage />} />
-          <Route path="statistics" element={<StatisticsPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="bonus" element={<BonusPage />} />
-          <Route path="mailing" element={<MailingPage />} />
-          <Route path="sms" element={<SmsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <TenantProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<SchedulePage />} />
+              <Route path="crm" element={<CrmPage />} />
+              <Route path="appointments" element={<AppointmentsPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
+              <Route path="patients" element={<PatientsPage />} />
+              <Route path="patients/:patientId" element={<PatientCardPage />} />
+              <Route path="doctors" element={<DoctorsPage />} />
+              <Route path="medical" element={<MedicalPage />} />
+              <Route path="finance" element={<FinancePage />} />
+              <Route path="warehouse" element={<WarehousePage />} />
+              <Route path="statistics" element={<StatisticsPage />} />
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="bonus" element={<BonusPage />} />
+              <Route path="mailing" element={<MailingPage />} />
+              <Route path="sms" element={<SmsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </TenantProvider>
+    </AuthProvider>
   </StrictMode>
 );
