@@ -5,7 +5,7 @@ This document describes how to safely initialize the foundational Supabase proje
 ## Prerequisites
 To run Supabase locally, you will eventually need:
 1. Docker Desktop installed and running.
-2. Supabase CLI installed globally (`npm install -g supabase` or via Homebrew/Scoop).
+2. Supabase CLI is installed as a local dev dependency. Use it via `npx supabase <command>`.
 **Note: Do not install these tools unless explicitly directed or confirmed by your current task workflow.**
 
 ## Purpose of Local Setup
