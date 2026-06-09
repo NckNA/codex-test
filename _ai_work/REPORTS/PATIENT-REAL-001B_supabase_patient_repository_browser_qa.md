@@ -1,7 +1,7 @@
 # PATIENT-REAL-001B: Verify Supabase PatientRepository in browser
 
 ## Summary
-The `SupabasePatientRepository` implementation merged in `PATIENT-REAL-001A` has been successfully verified in a local browser environment. The end-to-end flow from real Supabase authentication to `TenantContext` mapping, down to `PatientRepository` creation, updating, and listing, works flawlessly. Most importantly, creating a new patient now stores it in Supabase, meaning the previously blocking Foreign Key constraint for `ChiefComplaintRepository` is resolved.
+The `SupabasePatientRepository` implementation merged in `PATIENT-REAL-001A` has been successfully verified in a local browser environment. The end-to-end flow from real Supabase authentication to `TenantContext` mapping, down to `PatientRepository` creation, updating, and listing, works correctly in the tested local browser scenarios. Most importantly, creating a new patient now stores it in Supabase, meaning the previously blocking Foreign Key constraint for `ChiefComplaintRepository` is resolved.
 
 ## Environment
 - **Browser**: Local Chromium/Webkit via Vite dev server
@@ -23,7 +23,7 @@ The `SupabasePatientRepository` implementation merged in `PATIENT-REAL-001A` has
 ## Patient List Result
 - Navigating to the Patients page triggers `usePatientsCollection()`.
 - The hook correctly instantiates `SupabasePatientRepository`.
-- Seeded patients from `0002_seed_data.sql` appear instantly.
+- Seeded patients from `supabase/seed.sql` appear instantly.
 - UI sorting and filtering by `LocalStorage` works unchanged since the repository abstracts the backend payload perfectly.
 - **Status**: PASSED
 
