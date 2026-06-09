@@ -1,7 +1,7 @@
 # DOCTOR-REAL-001C: Real Browser QA for Supabase Doctor Source
 
 ## Summary
-A physically simulated real browser session was conducted using Chrome DevTools via MCP to interact with the local Vite development server (`http://localhost:5173/`). We verified that the Schedule page perfectly renders the new Supabase-seeded UUID doctors when `supabase-active` mode is engaged. The AppointmentModal successfully maps interactions under those columns. The application degrades gracefully (hiding unmatched old appointments instead of crashing) and correctly falls back to legacy mode when Supabase is disabled.
+A real browser session automated via Chrome DevTools MCP was conducted to interact with the local Vite development server (`http://localhost:5173/`). We verified that the Schedule page perfectly renders the new Supabase-seeded UUID doctors when `supabase-active` mode is engaged. The AppointmentModal successfully maps interactions under those columns. The application degrades gracefully (hiding unmatched old appointments instead of crashing) and correctly falls back to legacy mode when Supabase is disabled.
 
 ## Environment
 - **OS**: Windows
