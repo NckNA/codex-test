@@ -1,6 +1,8 @@
 -- 0001_initial_schema.sql
 -- Drafted based on _ai_work/DATABASE_SCHEMA.md
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- TENANTS (Clinics/Organizations)
 CREATE TABLE tenants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -75,7 +77,8 @@ CREATE TABLE patients (
   phone text,
   email text,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(tenant_id, id)
 );
 CREATE INDEX idx_patients_tenant_id ON patients(tenant_id);
 
@@ -86,7 +89,8 @@ CREATE TABLE doctors (
   user_id uuid REFERENCES profiles(id),
   specialization text,
   is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(tenant_id, id)
 );
 CREATE INDEX idx_doctors_tenant_id ON doctors(tenant_id);
 
@@ -94,14 +98,16 @@ CREATE INDEX idx_doctors_tenant_id ON doctors(tenant_id);
 CREATE TABLE appointments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-  doctor_id uuid REFERENCES doctors(id) ON DELETE SET NULL,
+  patient_id uuid NOT NULL,
+  doctor_id uuid,
   status text NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show', 'blocked')),
   start_time timestamptz NOT NULL,
   end_time timestamptz NOT NULL,
   notes text,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id, doctor_id) REFERENCES doctors(tenant_id, id) ON DELETE SET NULL
 );
 CREATE INDEX idx_appointments_tenant_id ON appointments(tenant_id);
 CREATE INDEX idx_appointments_patient_id ON appointments(patient_id);
@@ -110,48 +116,53 @@ CREATE INDEX idx_appointments_patient_id ON appointments(patient_id);
 CREATE TABLE chief_complaints (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   text text NOT NULL,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(tenant_id, patient_id)
+  UNIQUE(tenant_id, patient_id),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- DENTAL CHARTS
 CREATE TABLE dental_charts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(tenant_id, patient_id)
+  UNIQUE(tenant_id, patient_id),
+  UNIQUE(tenant_id, id),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- TOOTH STATES (Dental Chart Teeth)
 CREATE TABLE tooth_states (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  dental_chart_id uuid NOT NULL REFERENCES dental_charts(id) ON DELETE CASCADE,
+  dental_chart_id uuid NOT NULL,
   tooth_number integer NOT NULL,
   condition text NOT NULL,
   notes text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  UNIQUE(dental_chart_id, tooth_number)
+  UNIQUE(dental_chart_id, tooth_number),
+  FOREIGN KEY (tenant_id, dental_chart_id) REFERENCES dental_charts(tenant_id, id) ON DELETE CASCADE
 );
 
 -- FINDINGS
 CREATE TABLE findings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   tooth_number integer,
   type text NOT NULL,
   status text NOT NULL DEFAULT 'discovered' CHECK (status IN ('discovered', 'observing', 'recommended', 'included_in_plan', 'completed', 'declined_by_patient')),
   severity text NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'urgent')),
   notes text,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX idx_findings_tenant_patient ON findings(tenant_id, patient_id);
 
@@ -159,37 +170,41 @@ CREATE INDEX idx_findings_tenant_patient ON findings(tenant_id, patient_id);
 CREATE TABLE treatment_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   title text NOT NULL,
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'in_progress', 'completed', 'cancelled')),
   total_price numeric(10,2) NOT NULL DEFAULT 0,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(tenant_id, id),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- TREATMENT STAGES
 CREATE TABLE treatment_stages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  treatment_plan_id uuid NOT NULL REFERENCES treatment_plans(id) ON DELETE CASCADE,
+  treatment_plan_id uuid NOT NULL,
   name text NOT NULL,
   price numeric(10,2) NOT NULL DEFAULT 0,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
   order_index integer NOT NULL,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, treatment_plan_id) REFERENCES treatment_plans(tenant_id, id) ON DELETE CASCADE
 );
 
 -- DOCUMENTS METADATA
 CREATE TABLE documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  patient_id uuid NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+  patient_id uuid NOT NULL,
   file_name text NOT NULL,
   file_size integer NOT NULL,
   file_type text,
   storage_path text NOT NULL,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  FOREIGN KEY (tenant_id, patient_id) REFERENCES patients(tenant_id, id) ON DELETE CASCADE
 );
 
 -- INTEGRATION TOKENS
@@ -235,6 +250,9 @@ AS $$
 $$;
 
 -- 5. RLS Policies
+
+-- WARNING: Current RLS policies are tenant-isolation policies, not final production role authorization policies.
+
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_users ENABLE ROW LEVEL SECURITY;

@@ -16,8 +16,11 @@
 
 ## Schema & RLS Scope
 - Implemented the draft `0001_initial_schema.sql` based directly on the design in `DATABASE_SCHEMA.md`.
+- **Tenant-Consistent FKs Fix:** Added `UNIQUE(tenant_id, id)` constraints to parent tables and composite `FOREIGN KEY (tenant_id, child_id) REFERENCES parent(tenant_id, id)` to child tables to strictly guarantee that a child row cannot be inserted linking to a parent in a different tenant.
+- Added `CREATE EXTENSION IF NOT EXISTS pgcrypto;` for local uuid validation.
 - Added all 16 core tables (Tenants, Profiles, Subscriptions, Audit Logs, Patients, Doctors, Appointments, Dental Charts, Findings, etc.).
 - Translated the strict RLS matrices into actual SQL policies, including `get_user_tenants()` helper functions and restrictive `WITH CHECK` clauses for `INSERT`/`UPDATE` operations.
+- **RLS Role-Scope Clarification:** Explicitly documented that current RLS policies are tenant-isolation policies for the MVP. Full role-authorization RLS is a required follow-up task before production.
 - Integration tokens and audit logs are securely isolated from frontend write/read pathways as designed.
 
 ## Seed Strategy
@@ -36,6 +39,8 @@
 - **Explicit confirmation that no real cloud resources were created:** Confirmed.
 - **Explicit confirmation that no real secrets were added:** Confirmed.
 - **Explicit confirmation that no service-role key was exposed:** Confirmed.
+- **Explicit confirmation that no Supabase SDK was installed:** Confirmed.
+- **Port Conflict Fix:** The collision between `[realtime]` and `[inbucket]` on port 54324 in `config.toml` was resolved by commenting out the explicit realtime port, allowing Supabase defaults to manage it natively.
 
 ## Recommended Next Task
 **ARCH-070 — Validate Supabase SQL schema locally**

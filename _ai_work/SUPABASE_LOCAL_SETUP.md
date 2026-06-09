@@ -11,6 +11,7 @@ To run Supabase locally, you will eventually need:
 ## Purpose of Local Setup
 The local Supabase setup allows us to:
 - Test the SQL schema and Row-Level Security (RLS) policies locally before touching cloud production.
+- **WARNING**: Current RLS policies are tenant-isolation policies, not final production role authorization policies. Role-specific RLS hardening is a required follow-up task before production.
 - Seed mock data (Tenants, Patients) safely.
 - Develop Edge Functions later without risking real patient data.
 

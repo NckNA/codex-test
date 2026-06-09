@@ -19,7 +19,7 @@ pool_mode = "transaction"
 
 [realtime]
 enabled = true
-port = 54324
+# port = 54324 # Collides with inbucket, let Supabase use its default
 
 [studio]
 enabled = true
