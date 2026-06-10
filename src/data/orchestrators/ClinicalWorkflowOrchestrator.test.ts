@@ -605,6 +605,7 @@ describe('ClinicalWorkflowOrchestrator', () => {
         backend: 'supabase'
       });
 
+      const validPatientId = crypto.randomUUID();
       const validPlanId = crypto.randomUUID();
 
       const plan: TreatmentPlan = {
@@ -612,9 +613,9 @@ describe('ClinicalWorkflowOrchestrator', () => {
         stages: []
       };
 
-      // Since plan.patientId !== patientId check runs first, we pass the local id to trigger the UUID check
-      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'invalid-local-id', plan }))
-        .rejects.toThrow('Invalid patient UUID for Supabase deletion');
+      // Since UUID checks run before mismatch checks now, we pass valid patientId to trigger the plan.patientId UUID error
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: validPatientId, plan }))
+        .rejects.toThrow('Invalid plan patient UUID for Supabase deletion');
 
       expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).not.toHaveBeenCalled();
       expect(fakeFindingsRepository.updateFinding).not.toHaveBeenCalled();

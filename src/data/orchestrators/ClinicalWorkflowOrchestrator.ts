@@ -202,10 +202,6 @@ export function createClinicalWorkflowOrchestrator(
         throw new Error('Treatment plan is missing patientId');
       }
 
-      if (plan.patientId !== patientId) {
-        throw new Error(`Treatment plan patient mismatch: expected ${patientId}, got ${plan.patientId}`);
-      }
-
       if (backend === 'supabase') {
         if (!validateUuid(patientId)) {
           throw new Error('Invalid patient UUID for Supabase deletion');
@@ -216,6 +212,10 @@ export function createClinicalWorkflowOrchestrator(
         if (!validateUuid(plan.id)) {
           throw new Error(`Invalid plan UUID for Supabase deletion: ${plan.id}`);
         }
+      }
+
+      if (plan.patientId !== patientId) {
+        throw new Error(`Treatment plan patient mismatch: expected ${patientId}, got ${plan.patientId}`);
       }
 
       // 1. Collect and deduplicate finding IDs from all stages
