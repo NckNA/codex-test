@@ -8,7 +8,8 @@ import { useTenant } from '../../contexts/TenantContext';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 import type {
   ApplyToothStatusChangeInput,
-  CreateTreatmentPlanFromFindingsInput
+  CreateTreatmentPlanFromFindingsInput,
+  DeleteTreatmentPlanWithCleanupInput
 } from '../orchestrators/ClinicalWorkflowOrchestrator';
 import type { DentalChart, TreatmentPlan } from '../../types';
 
@@ -76,10 +77,25 @@ export function useClinicalWorkflow() {
     }
   }, [orchestrator]);
 
+  const deleteTreatmentPlanWithCleanup = useCallback(async (input: DeleteTreatmentPlanWithCleanupInput): Promise<void> => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await orchestrator.deleteTreatmentPlanWithCleanup(input);
+    } catch (e) {
+      const parsedError = e instanceof Error ? e : new Error(String(e));
+      setSaveError(parsedError);
+      throw parsedError;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [orchestrator]);
+
   return {
     isSaving,
     saveError,
     applyToothStatusChange,
     createTreatmentPlanFromFindings,
+    deleteTreatmentPlanWithCleanup,
   };
 }
