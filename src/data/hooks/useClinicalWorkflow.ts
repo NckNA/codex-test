@@ -2,7 +2,7 @@ import { useCallback, useState, useMemo } from 'react';
 import { createClinicalWorkflowOrchestrator } from '../orchestrators/ClinicalWorkflowOrchestrator';
 import { createDentalChartRepository } from '../repositories/DentalChartRepository';
 import { createFindingsRepository } from '../repositories/FindingsRepository';
-import { LocalStorageTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
+import { createTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
@@ -32,13 +32,16 @@ export function useClinicalWorkflow() {
       backend,
     });
 
-    // Explicitly keep TreatmentPlansRepository local since it is not yet migrated to Supabase.
-    const treatmentPlansRepository = LocalStorageTreatmentPlansRepository;
+    const treatmentPlansRepository = createTreatmentPlansRepository({
+      tenantId: activeTenant?.tenantId,
+      backend,
+    });
 
     return createClinicalWorkflowOrchestrator({
       dentalChartRepository,
       findingsRepository,
       treatmentPlansRepository,
+      backend,
     });
   }, [authMode, activeTenant?.tenantId]);
 
