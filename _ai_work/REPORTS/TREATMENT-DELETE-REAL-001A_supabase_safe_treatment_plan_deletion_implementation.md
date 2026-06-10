@@ -35,8 +35,8 @@ Added `deleteTreatmentPlanWithCleanup(input: DeleteTreatmentPlanWithCleanupInput
 The method explicitly separates operations: extracting finding references, issuing plan deletion, and then individually resetting the finding states.
 
 ## 8. New orchestrated delete workflow
-1. **Validate:** Ensures `patientId` and `plan.id` are valid UUIDs in Supabase mode.
-2. **Collect:** Iterates over the plan stages to collect and deduplicate all `findingIds`. Safe skips occur if the finding ID format is invalid.
+1. **Validate:** Ensures `patientId` matches `plan.patientId`. Validates `patientId`, `plan.patientId`, and `plan.id` are valid UUIDs in Supabase mode.
+2. **Collect:** Iterates over the plan stages to collect and deduplicate all `findingIds`. In Supabase mode, actively rejects if any collected `findingId` is not a valid UUID (fail-fast).
 3. **Delete Plan:** Deletes the treatment plan via `TreatmentPlansRepository`.
 4. **Restore Findings:** Updates each finding collected to `status: 'discovered'` and `includeInTreatmentPlan: false` using `FindingsRepository.updateFinding()`.
 5. **Throw on Failure:** Throws a detailed error message aggregating all finding restoration failures, avoiding silent partial failures.
@@ -63,17 +63,20 @@ If a non-admin/owner attempts deletion, Supabase enforces RLS and rejects the qu
 All deletes and updates are heavily scoped by both `tenantId` and `patientId` down inside the repository layers. The orchestrator purely manages flow.
 
 ## 16. UUID/local ID safety
-A stringent `validateUuid` block runs in Supabase backend mode across the `patientId`, `plan.id`, and every `findingId` during stage collection to ensure no invalid IDs are transmitted.
+A stringent `validateUuid` block runs in Supabase backend mode across the `patientId`, `plan.patientId`, `plan.id`, and every `findingId` during stage collection to ensure no invalid IDs are transmitted. If any ID is malformed, it throws immediately before issuing any DB commands.
 
 ## 17. Error handling behavior
 Any error from Supabase (e.g. network timeout or RLS constraint) causes the Promise to reject entirely. In UI, an alert provides human-readable context. For finding updates, all errors are caught and aggregated into a single throw.
 
 ## 18. Tests added/updated
-Added 4 new test suites in `ClinicalWorkflowOrchestrator.test.ts`:
+Added 7 new test suites in `ClinicalWorkflowOrchestrator.test.ts`:
 - Deletes treatment plan and restores linked findings successfully.
 - Rejects if delete fails and does not update findings.
 - Throws combined error if finding restore fails after plan deletion.
 - Validates UUIDs in supabase backend.
+- Rejects in Supabase mode if findingId is invalid UUID.
+- Rejects in Supabase mode if plan.patientId mismatches input patientId.
+- Rejects in Supabase mode if plan.patientId is invalid UUID.
 
 ## 19. Commands run
 - `npm run lint`

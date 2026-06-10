@@ -537,19 +537,87 @@ describe('ClinicalWorkflowOrchestrator', () => {
         backend: 'supabase'
       });
 
+      const validPatientId = crypto.randomUUID();
+
       const plan: TreatmentPlan = {
-        id: 'invalid-id', patientId: 'p1', title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        id: 'invalid-id', patientId: validPatientId, title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
         stages: []
       };
 
-      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'p1', plan }))
-        .rejects.toThrow('Invalid patient UUID for Supabase deletion');
-        
-      const validPatientId = crypto.randomUUID();
       await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: validPatientId, plan }))
         .rejects.toThrow(`Invalid plan UUID for Supabase deletion: invalid-id`);
         
       expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).not.toHaveBeenCalled();
+    });
+
+    it('rejects in Supabase mode if findingId is invalid UUID', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase'
+      });
+
+      const validPatientId = crypto.randomUUID();
+      const validPlanId = crypto.randomUUID();
+
+      const plan: TreatmentPlan = {
+        id: validPlanId, patientId: validPatientId, title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        stages: [{ id: 's1', title: '', teeth: [], description: '', price: 0, status: 'planned', findingIds: ['f1'] }]
+      };
+
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: validPatientId, plan }))
+        .rejects.toThrow('Invalid finding UUID for Supabase deletion cleanup: f1');
+
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).not.toHaveBeenCalled();
+      expect(fakeFindingsRepository.updateFinding).not.toHaveBeenCalled();
+    });
+
+    it('rejects in Supabase mode if plan.patientId mismatches input patientId', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase'
+      });
+
+      const patientIdA = crypto.randomUUID();
+      const patientIdB = crypto.randomUUID();
+      const validPlanId = crypto.randomUUID();
+
+      const plan: TreatmentPlan = {
+        id: validPlanId, patientId: patientIdB, title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        stages: []
+      };
+
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: patientIdA, plan }))
+        .rejects.toThrow(`Treatment plan patient mismatch: expected ${patientIdA}, got ${patientIdB}`);
+
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).not.toHaveBeenCalled();
+      expect(fakeFindingsRepository.updateFinding).not.toHaveBeenCalled();
+    });
+
+    it('rejects in Supabase mode if plan.patientId is invalid UUID', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase'
+      });
+
+      const validPlanId = crypto.randomUUID();
+
+      const plan: TreatmentPlan = {
+        id: validPlanId, patientId: 'invalid-local-id', title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        stages: []
+      };
+
+      // Since plan.patientId !== patientId check runs first, we pass the local id to trigger the UUID check
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'invalid-local-id', plan }))
+        .rejects.toThrow('Invalid patient UUID for Supabase deletion');
+
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).not.toHaveBeenCalled();
+      expect(fakeFindingsRepository.updateFinding).not.toHaveBeenCalled();
     });
   });
 

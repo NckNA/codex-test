@@ -198,9 +198,20 @@ export function createClinicalWorkflowOrchestrator(
     async deleteTreatmentPlanWithCleanup(input: DeleteTreatmentPlanWithCleanupInput): Promise<void> {
       const { patientId, plan } = input;
 
+      if (!plan.patientId) {
+        throw new Error('Treatment plan is missing patientId');
+      }
+
+      if (plan.patientId !== patientId) {
+        throw new Error(`Treatment plan patient mismatch: expected ${patientId}, got ${plan.patientId}`);
+      }
+
       if (backend === 'supabase') {
         if (!validateUuid(patientId)) {
           throw new Error('Invalid patient UUID for Supabase deletion');
+        }
+        if (!validateUuid(plan.patientId)) {
+          throw new Error('Invalid plan patient UUID for Supabase deletion');
         }
         if (!validateUuid(plan.id)) {
           throw new Error(`Invalid plan UUID for Supabase deletion: ${plan.id}`);
@@ -214,8 +225,7 @@ export function createClinicalWorkflowOrchestrator(
           for (const id of stage.findingIds) {
             if (id) {
               if (backend === 'supabase' && !validateUuid(id)) {
-                // We skip invalid UUIDs safely, as they wouldn't have been valid links anyway
-                continue;
+                throw new Error(`Invalid finding UUID for Supabase deletion cleanup: ${id}`);
               }
               findingIdsSet.add(id);
             }
