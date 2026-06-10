@@ -476,10 +476,10 @@ describe('ClinicalWorkflowOrchestrator', () => {
       const f3Update = updatedFindings.find(f => f.id === 'f3');
 
       expect(f1Update?.status).toBe('discovered');
-      expect(f1Update?.includeInTreatmentPlan).toBe(false);
+      expect(f1Update?.includeInTreatmentPlan).toBe(true);
 
       expect(f2Update?.status).toBe('discovered');
-      expect(f2Update?.includeInTreatmentPlan).toBe(false);
+      expect(f2Update?.includeInTreatmentPlan).toBe(true);
 
       expect(f3Update).toBeUndefined(); // f3 was not updated
     });

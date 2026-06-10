@@ -255,7 +255,7 @@ export function createClinicalWorkflowOrchestrator(
           await findingsRepository.updateFinding(patientId, {
             ...finding,
             status: 'discovered',
-            includeInTreatmentPlan: false,
+            includeInTreatmentPlan: true,
             updatedAt: nowIso,
           });
         } catch (e) {

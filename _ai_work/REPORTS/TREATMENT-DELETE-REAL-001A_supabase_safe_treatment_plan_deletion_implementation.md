@@ -38,7 +38,7 @@ The method explicitly separates operations: extracting finding references, issui
 1. **Validate:** Ensures `patientId` matches `plan.patientId`. Validates `patientId`, `plan.patientId`, and `plan.id` are valid UUIDs in Supabase mode.
 2. **Collect:** Iterates over the plan stages to collect and deduplicate all `findingIds`. In Supabase mode, actively rejects if any collected `findingId` is not a valid UUID (fail-fast).
 3. **Delete Plan:** Deletes the treatment plan via `TreatmentPlansRepository`.
-4. **Restore Findings:** Updates each finding collected to `status: 'discovered'` and `includeInTreatmentPlan: false` using `FindingsRepository.updateFinding()`.
+4. **Restore Findings:** Updates each finding collected to `status: 'discovered'` and `includeInTreatmentPlan: true` using `FindingsRepository.updateFinding()`. This ensures the finding is returned to the active candidate pool and remains eligible for future treatment plan generation.
 5. **Throw on Failure:** Throws a detailed error message aggregating all finding restoration failures, avoiding silent partial failures.
 
 ## 9. Treatment plan deletion behavior
