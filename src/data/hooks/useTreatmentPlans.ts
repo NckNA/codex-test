@@ -1,12 +1,33 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
-import { LocalStorageTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
+import { createTreatmentPlansRepository, TreatmentPlansRepositoryConfig } from '../repositories/TreatmentPlansRepository';
 import type { TreatmentPlan } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 
 export function useTreatmentPlans(patientId: string) {
+  const { authMode, isSupabaseConfigured } = useAuth();
+  const { activeTenant } = useTenant();
+
+  const tenantId = activeTenant?.tenantId;
+
+  const repositoryConfig = useMemo<TreatmentPlansRepositoryConfig>(() => {
+    if (authMode === 'supabase-active' && isSupabaseConfigured && tenantId) {
+      return { backend: 'supabase', tenantId };
+    }
+    return { backend: 'local' };
+  }, [authMode, isSupabaseConfigured, tenantId]);
+
+  const repository = useMemo(() => {
+    return createTreatmentPlansRepository(repositoryConfig);
+  }, [repositoryConfig]);
+
   const queryFn = useCallback(async () => {
-    return await LocalStorageTreatmentPlansRepository.listTreatmentPlansByPatient(patientId);
-  }, [patientId]);
+    if (repositoryConfig.backend === 'supabase' && !repositoryConfig.tenantId) {
+      throw new Error('Supabase active but no tenant selected');
+    }
+    return await repository.listTreatmentPlansByPatient(patientId);
+  }, [patientId, repository, repositoryConfig]);
 
   const {
     data: treatmentPlans,
@@ -27,7 +48,7 @@ export function useTreatmentPlans(patientId: string) {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageTreatmentPlansRepository.createTreatmentPlan(patientId, plan);
+      await repository.createTreatmentPlan(patientId, plan);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));
@@ -36,13 +57,13 @@ export function useTreatmentPlans(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, refetch]);
+  }, [patientId, repository, refetch]);
 
   const updateTreatmentPlan = useCallback(async (plan: TreatmentPlan): Promise<void> => {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageTreatmentPlansRepository.updateTreatmentPlan(patientId, plan);
+      await repository.updateTreatmentPlan(patientId, plan);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));
@@ -51,13 +72,13 @@ export function useTreatmentPlans(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, refetch]);
+  }, [patientId, repository, refetch]);
 
   const deleteTreatmentPlan = useCallback(async (planId: string): Promise<void> => {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageTreatmentPlansRepository.deleteTreatmentPlan(patientId, planId);
+      await repository.deleteTreatmentPlan(patientId, planId);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));
@@ -66,7 +87,7 @@ export function useTreatmentPlans(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, refetch]);
+  }, [patientId, repository, refetch]);
 
   return {
     treatmentPlans: treatmentPlans || [],
