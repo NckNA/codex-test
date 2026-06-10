@@ -1,23 +1,29 @@
 # DENTALCHART-REAL-001A: Supabase DentalChartRepository Implementation
 
 ## 1. Summary
-Implemented `SupabaseDentalChartRepository` and integrated it behind the factory function `createDentalChartRepository`. The `useDentalChart` hook was updated to use this factory to safely route to Supabase when the application is running in `supabase-active` mode with a valid `tenantId`. The original local storage behavior remains intact as a fallback.
+Implemented `SupabaseDentalChartRepository` and integrated it behind the factory function `createDentalChartRepository`. 
+The `useDentalChart` hook safely routes to Supabase when the application is running in `supabase-active` mode with a valid `tenantId`. 
+Additionally, the `useClinicalWorkflow` hook was updated to dynamically route `applyToothStatusChange` and `createTreatmentPlanFromFindings` to use the appropriate `DentalChartRepository` and `FindingsRepository` (Supabase or local) based on the context, ensuring the tooth editor correctly saves data to Supabase.
+The original local storage behavior remains intact as a fallback for both charts and treatment plans.
 
 ## 2. Files changed
 - `src/data/repositories/DentalChartRepository.ts`
 - `src/data/repositories/DentalChartRepository.test.ts`
 - `src/data/hooks/useDentalChart.ts`
-- `src/data/hooks/useDentalChart.test.tsx` (new)
-- `_ai_work/REPORTS/DENTALCHART-REAL-001A_supabase_dental_chart_repository_implementation.md` (new)
+- `src/data/hooks/useDentalChart.test.tsx`
+- `src/data/hooks/useClinicalWorkflow.ts`
+- `src/data/hooks/useClinicalWorkflow.test.tsx` (new)
+- `_ai_work/REPORTS/DENTALCHART-REAL-001A_supabase_dental_chart_repository_implementation.md`
 
 ## 3. What was implemented
 - `SupabaseDentalChartRepository`: Implements `getDentalChart` and `saveDentalChart` against the `dental_charts` and `tooth_states` Supabase tables.
 - `createDentalChartRepository`: Factory function routing to Supabase or `LocalStorageDentalChartRepository`.
 - `useDentalChart`: Hook updated to memoize repository creation based on `authMode` and `activeTenant`.
+- `useClinicalWorkflow`: Hook updated to dynamically construct the `ClinicalWorkflowOrchestrator` to properly route saves from the tooth editor to either the Supabase or local repositories for charts and findings. Treatment plans remain strictly local.
 
 ## 4. Factory/routing behavior
-- When `backend === 'supabase'` and a `tenantId` is provided, `createDentalChartRepository` returns an instance of `SupabaseDentalChartRepository`.
-- Otherwise (no tenant, dev mode, missing configuration), it falls back to `LocalStorageDentalChartRepository`.
+- When `backend === 'supabase'` and a `tenantId` is provided, `createDentalChartRepository` and `createFindingsRepository` return instances of their respective Supabase repositories.
+- Otherwise (no tenant, dev mode, missing configuration), they fall back to LocalStorage.
 - This ensures no-tenant mode does not throw unexpected Supabase RLS errors or crash the UI.
 
 ## 5. Supabase query design
@@ -27,7 +33,7 @@ Implemented `SupabaseDentalChartRepository` and integrated it behind the factory
   - Maps db results to `DentalChart`. If any of the 32 teeth are missing, they are merged with default healthy teeth.
   - If no chart exists, it gracefully returns a default empty chart without writing to the database (Read-only get).
 - **`saveDentalChart`**:
-  - Identifies if `chart.id` is a local ID (`chart_p1`). If so, a new UUID is generated.
+  - **Stable Chart ID Strategy**: First selects the existing chart by `tenant_id` + `patient_id`. If it exists, reuses its `id` to guarantee safety with FK-linked `tooth_states`. If it doesn't exist, generates a new UUID once.
   - Upserts the chart into `dental_charts` with `onConflict: 'tenant_id,patient_id'`.
   - Prepares 32 rows for `tooth_states` and uses bulk `upsert` with `onConflict: 'dental_chart_id,tooth_number'`.
 
@@ -55,7 +61,7 @@ Implemented `SupabaseDentalChartRepository` and integrated it behind the factory
   - Reverses the mapping cleanly, providing fallback defaults (e.g. `[]` for surfaces if null) to satisfy the strict TS types.
 
 ## 8. ID/UUID/local ID safety
-- Supabase enforces UUIDs for chart `id`. The repository checks if the passed chart ID starts with `chart_` (the local ID prefix) and replaces it with `crypto.randomUUID()` before saving to Supabase.
+- Supabase enforces UUIDs for chart `id`. The repository always checks for existing UUIDs, and generates `crypto.randomUUID()` exclusively when creating new records. Local IDs (`chart_p1`) are never sent to Supabase.
 - Tooth states do not use explicit frontend IDs. They rely on the composite `dental_chart_id` and `tooth_number` for upsert constraints.
 - Local mode continues using `chart_${patientId}` without impact.
 
@@ -73,9 +79,11 @@ Implemented `SupabaseDentalChartRepository` and integrated it behind the factory
 - **DentalChartRepository.test.ts**:
   - Verified factory fallback behavior.
   - Verified `SupabaseDentalChartRepository.getDentalChart` calls correct tables and merges default teeth.
-  - Verified `SupabaseDentalChartRepository.saveDentalChart` handles local ID substitution and calls `upsert` with correct conflict arrays.
+  - Verified `SupabaseDentalChartRepository.saveDentalChart` uses stable existing chart IDs and correctly performs upserts.
 - **useDentalChart.test.tsx**:
   - Validated context-based routing, ensuring `authMode="dev"` or missing tenant routes to local fallback, and `supabase-active` with tenant routes to Supabase.
+- **useClinicalWorkflow.test.tsx**:
+  - Validated that the orchestrator routes to Supabase DentalChart/Findings repositories in `supabase-active` mode, and safely falls back to local ones otherwise.
 
 ## 12. Commands run
 ```bash

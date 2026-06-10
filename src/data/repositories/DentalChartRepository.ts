@@ -92,13 +92,27 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
   }
 
   async saveDentalChart(patientId: string, chart: DentalChart): Promise<void> {
-    // Local IDs like chart_p1 must not be sent to Supabase UUID fields.
-    let chartId = chart.id;
-    if (chartId.startsWith('chart_')) {
+    // 1. First select existing dental_charts row by tenant_id + patient_id
+    const { data: existingChart, error: fetchError } = await this.client
+      .from('dental_charts')
+      .select('id')
+      .eq('tenant_id', this.tenantId)
+      .eq('patient_id', patientId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    let chartId: string;
+
+    // 2. If existing row exists, use existing.id as stable chartId
+    if (existingChart?.id) {
+      chartId = existingChart.id;
+    } else {
+      // 3. If no row exists, create a new UUID only once
       chartId = crypto.randomUUID();
     }
 
-    // Upsert the dental chart itself
+    // 4. Save/update dental_charts using stable chartId
     const { error: chartError } = await this.client
       .from('dental_charts')
       .upsert({
@@ -113,7 +127,7 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
 
     if (chartError) throw chartError;
 
-    // Use safe upsert for tooth states because unique constraint (dental_chart_id, tooth_number) exists
+    // 5. Save tooth_states using that same stable chartId
     const teethRows = chart.teeth.map(t => ({
       tenant_id: this.tenantId,
       dental_chart_id: chartId,

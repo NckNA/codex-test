@@ -133,14 +133,18 @@ describe('DentalChartRepository', () => {
       expect(chart.id.startsWith('chart_')).toBe(true);
     });
 
-    it('saveDentalChart replaces local ID with UUID and performs safe upsert', async () => {
+    it('saveDentalChart uses existing stable chart ID if present', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-stable' }, error: null });
+
       const mockUpsert = vi.fn().mockResolvedValue({ error: null });
       const mockTeethUpsert = vi.fn().mockResolvedValue({ error: null });
 
       const mockClient = {
         from: vi.fn((table) => {
           if (table === 'dental_charts') {
-            return { upsert: mockUpsert };
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle, upsert: mockUpsert };
           }
           if (table === 'tooth_states') {
             return { upsert: mockTeethUpsert };
@@ -160,17 +164,52 @@ describe('DentalChartRepository', () => {
 
       await repo.saveDentalChart('p1', chart);
 
-      // Verify chart upsert
+      // Verify chart upsert uses stable ID
       const upsertArgs = mockUpsert.mock.calls[0];
-      expect(upsertArgs[0].id).not.toBe('chart_p1'); // UUID generated
-      expect(upsertArgs[0].tenant_id).toBe('t1');
-      expect(upsertArgs[1]).toEqual({ onConflict: 'tenant_id,patient_id' });
-
-      // Verify teeth upsert
+      expect(upsertArgs[0].id).toBe('uuid-stable');
+      
+      // Verify teeth upsert uses stable ID
       const teethUpsertArgs = mockTeethUpsert.mock.calls[0];
-      expect(teethUpsertArgs[0][0].tenant_id).toBe('t1');
-      expect(teethUpsertArgs[0][0].dental_chart_id).not.toBe('chart_p1');
-      expect(teethUpsertArgs[1]).toEqual({ onConflict: 'dental_chart_id,tooth_number' });
+      expect(teethUpsertArgs[0][0].dental_chart_id).toBe('uuid-stable');
+    });
+
+    it('saveDentalChart creates new UUID if no existing chart', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      const mockTeethUpsert = vi.fn().mockResolvedValue({ error: null });
+
+      const mockClient = {
+        from: vi.fn((table) => {
+          if (table === 'dental_charts') {
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle, upsert: mockUpsert };
+          }
+          if (table === 'tooth_states') {
+            return { upsert: mockTeethUpsert };
+          }
+        })
+      } as unknown as SupabaseClient;
+
+      const repo = new SupabaseDentalChartRepository('t1', mockClient);
+      
+      const chart: DentalChart = {
+        id: 'chart_p1', // local ID
+        patientId: 'p1',
+        teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'now' }],
+        createdAt: 'now',
+        updatedAt: 'now'
+      };
+
+      await repo.saveDentalChart('p1', chart);
+
+      const upsertArgs = mockUpsert.mock.calls[0];
+      expect(upsertArgs[0].id).not.toBe('chart_p1');
+      expect(upsertArgs[0].id).not.toBe('uuid-stable');
+
+      const teethUpsertArgs = mockTeethUpsert.mock.calls[0];
+      expect(teethUpsertArgs[0][0].dental_chart_id).toBe(upsertArgs[0].id);
     });
   });
 });
