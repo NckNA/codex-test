@@ -7,35 +7,151 @@ This report re-evaluates the Supabase migration plan for `TreatmentPlansReposito
 This is a RECON/report-only task. The focus is strictly on inspecting repository shapes, UI dependencies, Supabase schema fit, and ID generation strategies. No application code, migrations, or seeds were modified.
 
 ## 3. Files inspected
+
 **Repositories:**
-- `src/data/repositories/PatientRepository.ts`: Checked for UUID readiness. Migrated, ready, no blocker.
-- `src/data/repositories/FindingsRepository.ts`: Checked for UUID findings safety. Migrated, ready, resolves previous blocker.
-- `src/data/repositories/DentalChartRepository.ts`: Checked for tooth_states and charting dependencies. Migrated, ready, no direct dependencies block TreatmentPlans.
-- `src/data/repositories/ChiefComplaintRepository.ts`: Checked for dependencies. Migrated, ready, no blocker.
-- `src/data/repositories/DoctorRepository.ts`: Checked for dependencies. Migrated, ready, no blocker.
-- `src/data/repositories/AppointmentRepository.ts`: Checked for dependencies. Migrated, ready, no blocker.
-- `src/data/repositories/TreatmentPlansRepository.ts`: Core focus. Currently uses `localStorage`. Target for next migration.
+- `src/data/repositories/PatientRepository.ts`
+  - What was checked: Checked for UUID readiness and tenant scoping.
+  - Affects migration: Yes, provides safe UUIDs for `patientId`.
+  - Changes verdict: No, preserves READY verdict.
+  - No effect reason: N/A.
+- `src/data/repositories/FindingsRepository.ts`
+  - What was checked: Checked for UUID safety of findings and UUID resolution of the previous blocker.
+  - Affects migration: Yes, it guarantees that `finding_ids` are safe UUIDs.
+  - Changes verdict: Yes, changes verdict from NOT READY (in previous RECON) to READY.
+  - No effect reason: N/A.
+- `src/data/repositories/DentalChartRepository.ts`
+  - What was checked: Checked for dependencies on `tooth_states` IDs.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: TreatmentPlans stages only store raw `toothNumber` arrays, not foreign keys to `tooth_states`.
+- `src/data/repositories/ChiefComplaintRepository.ts`
+  - What was checked: Checked for related dependencies in the workflow.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Chief complaints are not directly linked by foreign key in the `treatment_plans` schema.
+- `src/data/repositories/DoctorRepository.ts`
+  - What was checked: Checked for doctor dependencies.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: The `treatment_plans` schema does not store a `doctor_id` foreign key.
+- `src/data/repositories/AppointmentRepository.ts`
+  - What was checked: Checked for appointment linkage.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Appointments are decoupled from the core repository CRUD of treatment plans.
+- `src/data/repositories/TreatmentPlansRepository.ts`
+  - What was checked: Checked current shape, methods, and localStorage behavior.
+  - Affects migration: Yes, this is the core target for migration.
+  - Changes verdict: No, confirms READY verdict.
+  - No effect reason: N/A.
 
 **Hooks:**
-- `src/data/hooks/useTreatmentPlans.ts`: Core focus. Hardcodes LocalStorage. Needs update for factory routing.
-- `src/data/hooks/usePatientFindings.ts`: Checked for UUID data supply. Uses Supabase UUIDs in active mode. No blocker.
-- `src/data/hooks/useDentalChart.ts`: Checked for state dependencies. No direct blocker for TreatmentPlans repo CRUD.
-- `src/data/hooks/useClinicalWorkflow.ts`: Checked for generation logic. Uses orchestrator to generate plans. Must NOT be modified during repository migration.
+- `src/data/hooks/useTreatmentPlans.ts`
+  - What was checked: Checked how UI calls the repository.
+  - Affects migration: Yes, requires factory routing update.
+  - Changes verdict: No.
+  - No effect reason: N/A.
+- `src/data/hooks/usePatientFindings.ts`
+  - What was checked: Checked how findings are fetched for the UI.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Fetches UUIDs natively in active mode, confirming environment safety without structural changes to TreatmentPlans.
+- `src/data/hooks/useDentalChart.ts`
+  - What was checked: Checked for overlapping workflow triggers.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Chart states are managed separately from treatment plans.
+- `src/data/hooks/useClinicalWorkflow.ts`
+  - What was checked: Checked generation and orchestrator integration.
+  - Affects migration: Yes, defines the boundary that generation must NOT be touched.
+  - Changes verdict: No.
+  - No effect reason: N/A.
 
 **UI:**
-- `src/components/treatment/TreatmentPlansTab.tsx`: Checked for how plans are rendered and auto-generated.
-- `src/components/treatment/*`: Checked for sub-components (modals, previews).
-- `patient card / clinical workflow related UI`: Checked for workflow dependencies.
+- `src/components/treatment/TreatmentPlansTab.tsx`
+  - What was checked: Checked rendering and dependencies.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: It consumes the hook interface which will remain unchanged.
+- `src/components/treatment/*`
+  - What was checked: Checked `TreatmentPlanModal` and `CreatePlanFromFindingsModal`.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: UI components interact with the hook layer, isolating them from repository details.
+- `patient card / clinical workflow related UI`
+  - What was checked: Checked integration of the tab.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: The repository migration is transparent to the top-level patient card.
 
 **Supabase:**
-- `supabase/migrations/0001_initial_schema.sql`: Checked `treatment_plans` and `treatment_stages` schema.
-- `supabase/seed.sql`: Checked initial seed format constraints.
+- `supabase/migrations/0001_initial_schema.sql`
+  - What was checked: Checked schema for `treatment_plans` and `treatment_stages`.
+  - Affects migration: Yes, dictates the `mapToRow` mapping requirements.
+  - Changes verdict: No.
+  - No effect reason: N/A.
+- `supabase/seed.sql`
+  - What was checked: Checked mock initial data constraints.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Mock seed data is not used in `supabase-active` mode browser QA.
 
 **Previous reports:**
-- `RECON-TREATMENT-REAL-001`: Provided base context and identified the `finding_ids` blocker.
-- `RECON-FINDINGS-REAL-001`, `FINDINGS-REAL-001A`, `FINDINGS-REAL-001B`: Confirmed that findings are now UUID-safe, removing the blocker.
-- `RECON-DENTALCHART-REAL-001`, `DENTALCHART-REAL-001A`, `DENTALCHART-REAL-001B`: Confirmed chart migration. Does not block TreatmentPlans.
-- `PATIENT-REAL-001B`, `CHIEF-REAL-001B`, `APPOINTMENT-REAL-001B`, `DOCTOR-REAL-001C`: Verified prior environment stability.
+- `RECON-TREATMENT-REAL-001`
+  - What was checked: Base context and `finding_ids` blocker.
+  - Affects migration: Yes, sets the baseline risks.
+  - Changes verdict: No.
+  - No effect reason: N/A.
+- `RECON-FINDINGS-REAL-001`
+  - What was checked: Findings migration plan.
+  - Affects migration: Yes, laid groundwork for UUID safety.
+  - Changes verdict: No.
+  - No effect reason: N/A.
+- `FINDINGS-REAL-001A`
+  - What was checked: Findings implementation details.
+  - Affects migration: Yes, proved UUIDs are generated safely.
+  - Changes verdict: No.
+  - No effect reason: N/A.
+- `FINDINGS-REAL-001B`
+  - What was checked: Findings QA results.
+  - Affects migration: Yes, proved findings work in the real browser.
+  - Changes verdict: No.
+  - No effect reason: N/A.
+- `RECON-DENTALCHART-REAL-001`
+  - What was checked: DentalChart migration plan.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Decoupled domain.
+- `DENTALCHART-REAL-001A`
+  - What was checked: DentalChart implementation details.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Decoupled domain.
+- `DENTALCHART-REAL-001B`
+  - What was checked: DentalChart QA limitations (e.g., tooth reset not tested).
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Limitations do not impact the treatment plans schema or logic.
+- `PATIENT-REAL-001B`
+  - What was checked: Patient context stability.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Already tested and stable.
+- `CHIEF-REAL-001B`
+  - What was checked: Chief complaints stability.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Decoupled domain.
+- `APPOINTMENT-REAL-001B`
+  - What was checked: Appointments stability.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Decoupled domain.
+- `DOCTOR-REAL-001C`
+  - What was checked: Doctors stability.
+  - Affects migration: No.
+  - Changes verdict: No.
+  - No effect reason: Decoupled domain.
 
 ## 4. Previous RECON-TREATMENT-REAL-001 findings
 The previous RECON identified a major blocker: `TreatmentStages` optionally references `finding_ids`. Because `FindingsRepository` was still using local string IDs (`'f1'`, `'f2'`), migrating `TreatmentPlansRepository` first would have caused PostgreSQL type errors when attempting to insert string IDs into a `uuid[]` column.
