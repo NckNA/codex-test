@@ -1,18 +1,21 @@
 # Отчет RECON-DENTALCHART-REAL-001: План миграции DentalChartRepository в Supabase
 
 ## 1. Summary (Резюме)
-Данный отчет представляет собой анализ (reconnaissance) готовности `DentalChartRepository` и состояний зубов (tooth states) к миграции в Supabase. Анализ показал, что схема базы данных в Supabase (`dental_charts` и `tooth_states`) полностью готова и соответствует frontend-моделям. Зависимостей, блокирующих реализацию (например, от `TreatmentPlans`), не обнаружено. Зубная формула может быть мигрирована независимо от планов лечения. 
+Данный отчет представляет собой анализ (reconnaissance) готовности `DentalChartRepository` и состояний зубов (tooth states) к миграции в Supabase. Анализ показал, что схема базы данных в Supabase (`dental_charts` и `tooth_states`) структурно совместима с frontend-моделями. Зависимостей, жестко блокирующих реализацию (например, от `TreatmentPlans`), не обнаружено. Зубная формула может быть мигрирована независимо от планов лечения, однако требуется аккуратная обработка bulk-обновлений состояний зубов.
 
 ## 2. Scope (Область анализа)
 Отчет охватывает:
-- Инспекцию файлов репозиториев (`DentalChartRepository`, `FindingsRepository`, `TreatmentPlansRepository`).
+- Инспекцию файлов репозиториев (`DentalChartRepository`, `FindingsRepository`, `TreatmentPlansRepository`, `PatientRepository`, `ChiefComplaintRepository`, `AppointmentRepository`).
 - Инспекцию UI компонентов (`DentalChartTab`, `ClinicalWorkflowOrchestrator`).
 - Анализ типов (`src/types/index.ts`).
-- Проверку текущей SQL-схемы Supabase (`0001_initial_schema.sql`).
+- Проверку текущей SQL-схемы Supabase (`0001_initial_schema.sql`) и файла сидирования данных (`supabase/seed.sql`).
+- Инспекцию предыдущих отчетов по миграции других репозиториев для оценки общего состояния системы.
 - Оценку зависимостей между планами лечения, проблемами (findings) и состояниями зубов.
 
-## 3. Files inspected (Проинспектированные файлы)
-В рамках анализа были изучены:
+## 3. Files and Reports inspected (Проинспектированные файлы и отчеты)
+В рамках анализа были изучены следующие файлы и отчеты:
+
+### Основные файлы DentalChart
 - `src/data/repositories/DentalChartRepository.ts`
 - `src/types/index.ts`
 - `src/utils/storage.ts`
@@ -21,6 +24,19 @@
 - `src/data/orchestrators/ClinicalWorkflowOrchestrator.ts`
 - `src/data/repositories/TreatmentPlansRepository.ts`
 - `supabase/migrations/0001_initial_schema.sql`
+
+### Обязательные дополнительные файлы (Required missing areas)
+- **`src/data/repositories/FindingsRepository.ts`**: Проверена текущая реализация. Репозиторий уже мигрирован на Supabase и использует `uuid` для `id`. Не влияет негативно на миграцию DentalChart; напротив, доказывает, что паттерн фабрики работает. Вердикт: не меняет READY.
+- **`src/data/repositories/PatientRepository.ts`**: Проверено, что `patient_id` теперь генерируется как UUID в Supabase-режиме. Это критично, так как `DentalChartRepository` зависит от валидного `patient_id` (UUID). Вердикт: подтверждает READY.
+- **`src/data/repositories/ChiefComplaintRepository.ts`**: Проверена успешная миграция жалоб. Они привязаны к `patient_id` и независимы от `dental_charts`. Вердикт: не меняет READY. У DentalChart нет жесткой зависимости от реализации жалоб.
+- **`src/data/repositories/AppointmentRepository.ts`**: Проверена реализация записей на прием. Полностью независима от зубной карты. Вердикт: не меняет READY. Влияние отсутствует.
+- **`supabase/seed.sql`**: Изучены mock-данные. Записи для пациентов генерируются с валидными UUID (например, `55555555-5555-5555-5555-555555555555`). Однако, моковых данных для `dental_charts` и `tooth_states` в сиде **NOT FOUND**. Причина: изначально в MVP предполагалось, что карта генерируется пустыми зубами на лету, если ее нет. Это не блокирует миграцию, но при тестировании карта будет создаваться с нуля. Вердикт: не меняет READY.
+
+### Обязательные предыдущие отчеты (Previous reports)
+- **`RECON-FINDINGS-REAL-001`**, **`FINDINGS-REAL-001A`**, **`FINDINGS-REAL-001B`**: Проверены для подтверждения того, что Findings полностью мигрированы и стабильны. Это важно, так как UI позволяет создавать Findings из зубной формулы. Влияние на DentalChart: снимает риски интеграции. Вердикт: не меняет READY.
+- **`RECON-TREATMENT-REAL-001`**: Отчет показал, что планы лечения используют массив чисел (`teeth: number[]`) и `finding_ids`, но не имеют прямых FK на `tooth_states.id`. Влияние: планы лечения не блокируют миграцию зубной формулы.
+- **`PATIENT-REAL-001B`**: Подтвердил стабильность `patient_id` в Supabase.
+- **`CHIEF-REAL-001B`**, **`APPOINTMENT-REAL-001B`**, **`DOCTOR-REAL-001C`**: Изучены для понимания статуса стабильности окружения. Показали, что RLS и Tenant isolation работают корректно для других таблиц. Вердикт: не меняет READY, повышает уверенность в успехе.
 
 ## 4. Current DentalChartRepository shape
 - **Методы**: `getDentalChart(patientId)` и `saveDentalChart(patientId, chart)`.
@@ -36,77 +52,70 @@
 - **Разделение сущностей**: Состояния зубов (`ToothRecord`) хранятся отдельно от диагнозов/проблем (`DentalFinding`).
 
 ## 6. Supabase schema fit
-В `0001_initial_schema.sql` уже предусмотрены таблицы:
-- **`dental_charts`**: Поля (`id`, `tenant_id`, `patient_id`, `complaints`, `diagnosis`) полностью соответствуют frontend типу `DentalChart`.
-- **`tooth_states`**: Поля (`id`, `tenant_id`, `dental_chart_id`, `tooth_number`, `condition`, `surfaces`, `crown` и др.) соответствуют `ToothRecord`. Ограничение `CHECK (condition IN ...)` полностью совпадает с типом `ToothCondition`.
-- **RLS/FK**: Присутствуют `tenant_id` и `patient_id` (FK на `patients`). Есть каскадное удаление.
+В `0001_initial_schema.sql` предусмотрены таблицы:
+- **`dental_charts`**: Поля (`id`, `tenant_id`, `patient_id`, `complaints`, `diagnosis`) совпадают по типам данных с frontend-интерфейсом.
+- **`tooth_states`**: Поля (`id`, `tenant_id`, `dental_chart_id`, `tooth_number`, `condition`, `surfaces` и др.) соответствуют `ToothRecord`. Ограничение `CHECK (condition IN ...)` совпадает с типом `ToothCondition`.
 - **Особые типы**: Массив поверхностей `surfaces text[]` совпадает с логикой frontend.
-- **Вывод**: Схема Supabase **полностью совместима** и не требует модификаций.
+- **Вывод**: Схема Supabase структурно совместима, видимых препятствий в DDL нет, но окончательная совместимость подтвердится только при реализации мапперов (особенно в части конвертации 32 объектов в массив/из массива).
 
 ## 7. UI dependency analysis
-- **Компоненты**: `DentalChartTab` отрисовывает формулу зубов (используя `ToothGrid`) и вызывает `useDentalChart` для загрузки/сохранения. Модальное окно `ToothEditorModal` обновляет локальное состояние выбранного зуба.
-- **События**: Сохранение зуба инициирует `applyToothStatusChange` в `ClinicalWorkflowOrchestrator`, который, в свою очередь, сохраняет зубную карту целиком (`saveDentalChart`). Текстовые поля сохраняются отдельно.
+- **Компоненты**: `DentalChartTab` отрисовывает формулу зубов и вызывает `useDentalChart` для загрузки/сохранения. 
+- **События**: Сохранение зуба инициирует `applyToothStatusChange` в `ClinicalWorkflowOrchestrator`, который сохраняет зубную карту целиком (`saveDentalChart`). Текстовые поля сохраняются отдельно.
 - **Влияние**: UI слабо связан с реализацией хранилища, полагаясь только на `useDentalChart`.
 
 ## 8. Findings dependency analysis
 - **Связь**: Проблемы (findings) связаны с зубами только через целочисленный `toothNumber`. Они не используют FK на `tooth_states.id`.
-- **Изоляция**: `DentalChart` и `FindingsRepository` функционируют независимо. Во время QA для Findings (FINDINGS-REAL-001B) было доказано, что `SupabaseFindingsRepository` может корректно работать параллельно с `LocalStorageDentalChartRepository`.
-- **Риски**: Отсутствуют. Миграция DentalChart никак не сломает логику отображения или сохранения Findings.
+- **Изоляция**: `DentalChart` и `FindingsRepository` функционируют независимо. 
+- **Риски**: Умеренные. Если сохранение зубов (`DentalChartRepository.saveDentalChart`) и проблем (`FindingsRepository.createFinding` внутри оркестратора) пересечется во времени, возможны частичные сбои сети, при которых зуб сохранится, а проблема — нет (или наоборот), так как они не используют общую транзакцию в REST.
 
 ## 9. TreatmentPlans dependency analysis
 - **Связь с зубами**: `TreatmentStage` содержит массив номеров зубов (`teeth: number[]`), а не UUID зубов из БД.
-- **Связь с Findings**: Ранее `TreatmentPlansRepository` был заблокирован из-за того, что планы лечения ожидают массив `finding_ids` (типа `uuid[]`), а проблемы хранились локально как `f1/f2`. Теперь `Findings` успешно мигрировали в Supabase и генерируют UUID.
-- **Зависимость от DentalChart**: Планы лечения **не зависят** напрямую от хранилища `DentalChart`. Они опираются на `Findings` и общую логику приложения. 
-- **Вывод**: `TreatmentPlans` может мигрировать в любой момент (даже до DentalChart), но логично сначала перенести зубную формулу, так как это ключевая часть карты пациента.
+- **Зависимость от DentalChart**: Планы лечения не зависят напрямую от хранилища `DentalChart`. Они опираются на общую бизнес-логику.
+- **Вывод**: `TreatmentPlans` не блокируют DentalChart.
 
 ## 10. ID strategy
-- `DentalChart.id`: Сейчас это локальная строка `chart_uuid`. В Supabase будет заменено на настоящий UUID из `gen_random_uuid()`.
-- `ToothRecord.id`: На frontend отсутствует. При отправке в Supabase таблица `tooth_states` будет генерировать свои UUID. При чтении их можно мапить обратно, игнорируя UUID на клиенте (или добавив опциональное поле). Уникальность зуба определяется композитным ключом `dental_chart_id + tooth_number`.
-- Важное правило: локальные ID `chart_xxx` не должны отправляться на бэкенд, при создании записи в Supabase `id` следует опускать.
+- `DentalChart.id`: В Supabase будет использоваться настоящий UUID из `gen_random_uuid()`.
+- `ToothRecord.id`: На frontend отсутствует. В Supabase таблица `tooth_states` генерирует свои UUID. При чтении их можно мапить обратно, игнорируя UUID на клиенте.
+- Важное правило: локальные ID `chart_xxx` не должны отправляться на бэкенд.
 
 ## 11. Tenant/RLS/FK risk analysis
-- **Tenant**: И `dental_charts`, и `tooth_states` имеют `tenant_id`. При сохранении `saveDentalChart` репозиторию потребуется передавать текущий `tenant_id`.
+- **Tenant**: И `dental_charts`, и `tooth_states` имеют `tenant_id`. При сохранении `saveDentalChart` репозиторию потребуется явно передавать текущий `tenant_id`.
 - **Patient**: `patient_id` используется как FK в `dental_charts`.
-- **RLS**: Политики в БД ожидают строгую привязку к `tenant_id`. Если `tenant_id` отсутствует (no-tenant mode), репозиторий должен выбрасывать ошибку или откатываться в локальный режим, чтобы предотвратить крэши UI или запись в неверный tenant.
-- Опасность утечки данных (cross-tenant) исключена благодаря строгим FK и RLS.
+- **RLS и Утечки**: Опасность утечки данных (cross-tenant) минимизируется на уровне базы данных благодаря FK и RLS. Однако требуется точное применение `tenant_id` и `patient_id` в репозитории для предотвращения RLS-ошибок (403 Forbidden) или нарушения целостности данных при записи. В случае отсутствия `tenant_id` (no-tenant mode), приложение должно откатываться в локальный режим.
 
 ## 12. Migration strategy options
 
 **Option A: Migrate DentalChartRepository now (Рекомендуется)**
-- Создание `SupabaseDentalChartRepository`, использующего `supabase` клиент для операций с `dental_charts` и `tooth_states` внутри одной функции (в идеале транзакционно, но в REST это два последовательных запроса: upsert chart, затем bulk upsert teeth).
-- **Pros**: Завершает перевод клинической части пациента на Supabase (Chart + Findings), подготавливая почву для лечения.
-- **Cons**: Чуть более сложная логика сохранения (upsert 32 записей зубов).
-- **Risk level**: Низкий.
+- Создание `SupabaseDentalChartRepository`, использующего `supabase` клиент. Будет выполнять upsert чарта и bulk upsert (или удаление+вставку) связанных зубов в `tooth_states`.
+- **Pros**: Завершает перевод клинической карты пациента на Supabase.
+- **Cons**: Необходимость управлять 32 записями `tooth_states` при каждом сохранении всей карты.
+- **Risk level**: Средний (из-за отсутствия транзакций в REST API привязка "чарт + зубы" может быть прервана сетевой ошибкой).
 
 **Option B: Keep DentalChart local temporarily and proceed to TreatmentPlans**
-- **Pros**: Позволяет быстрее получить работающие планы лечения в облаке.
-- **Cons**: Оставляет DentalChart локальным, создавая технический долг.
+- **Pros**: Ускоряет переход планов лечения в облако.
+- **Cons**: Создает технический долг.
 - **Risk level**: Низкий.
 
-**Option C: Split into multiple smaller steps**
-- Сначала согласование схемы, затем реализация. В данном случае излишне, так как схема уже 100% готова.
-
 ## 13. Recommended strategy
-**READY for DENTALCHART-REAL-001A**. Рекомендуется приступить к непосредственной реализации `SupabaseDentalChartRepository` за паттерном Factory (аналогично `FindingsRepository`).
+**READY for DENTALCHART-REAL-001A**. Рекомендуется приступить к реализации `SupabaseDentalChartRepository`. База данных находится в хорошем состоянии для принятия этих данных.
 
 ## 14. Tests required
-При реализации потребуются следующие unit-тесты:
-- `createDentalChartRepository`: Фабрика должна корректно возвращать Supabase-версию при `authMode === 'supabase-active'` и `localStorage`-версию в остальных случаях.
-- `getDentalChart`: Проверка запроса к Supabase, включая JOIN (сборку) таблицы `dental_charts` и связанных `tooth_states` в единый объект.
+При реализации потребуются unit-тесты:
+- `createDentalChartRepository`: Фабрика должна корректно возвращать Supabase-версию или fallback.
+- `getDentalChart`: Проверка запроса к Supabase, включая JOIN таблицы `dental_charts` и `tooth_states`.
 - `saveDentalChart`: Проверка upsert-запросов (сохранение chart и bulk сохранение teeth).
-- Проверка локального fallback.
+- Проверка локального fallback и no-tenant поведения.
 
 ## 15. Browser QA plan
-Для будущей задачи браузерного тестирования (DENTALCHART-REAL-001B) необходимо проверить:
-- Открытие карты пациента в режиме `supabase-active` (успешная генерация дефолтной пустой формулы из 32 здоровых зубов).
-- Изменение статуса зуба (например, на Кариес), сохранение, перезагрузка страницы -> статус должен восстановиться из БД.
-- Редактирование текстовых полей жалоб и картины, сохранение, перезагрузка -> текст сохраняется.
-- Dev/local fallback: UI не падает без интернета или `.env`.
-- No-tenant: UI не падает без авторизации/выбора клиники.
+Будущее тестирование в реальном браузере:
+- Открытие карты пациента в режиме `supabase-active` (генерация пустой формулы).
+- Изменение статуса зуба, сохранение, перезагрузка страницы.
+- Редактирование текстовых полей, сохранение, перезагрузка.
+- Dev/local fallback: UI не падает без `isSupabaseConfigured`.
 
 ## 16. Blockers
 **NONE FOUND**. 
-Обоснование: SQL схема в Supabase полностью соответствует frontend-моделям, и зависимости от других модулей либо устранены (Findings уже в Supabase), либо однонаправлены (TreatmentPlans не блокируют DentalChart).
+Обоснование: Осмотр схемы (таблиц `dental_charts`, `tooth_states`) и связанных репозиториев (`Findings`, `TreatmentPlans`) не выявил жестких ограничений, препятствующих созданию мапперов и сохранению данных через REST API Supabase.
 
 ## 17. What was NOT changed
 - Не был изменен ни один файл в директории `src/*`.
@@ -114,7 +123,7 @@
 - `Tooth states` не были реализованы в Supabase.
 - `TreatmentPlansRepository` не был затронут или реализован.
 - Автоматическая генерация планов лечения не затрагивалась.
-- Ни один конфигурационный или package-файл не изменялся.
+- Ни один конфигурационный, миграционный (SQL) или package-файл не изменялся. Файл `seed.sql` только читался.
 
 ## 18. Commands run
 - `npm run lint`
