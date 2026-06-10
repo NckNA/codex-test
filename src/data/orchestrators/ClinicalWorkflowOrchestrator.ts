@@ -134,6 +134,9 @@ export function createClinicalWorkflowOrchestrator(
           if (!validateUuid(finding.id)) {
             throw new Error(`Invalid finding UUID for Supabase generation: ${finding.id}`);
           }
+          if (!finding.patientId || !validateUuid(finding.patientId) || finding.patientId !== patientId) {
+            throw new Error(`Selected finding does not belong to patient: ${finding.id}`);
+          }
         }
       }
 

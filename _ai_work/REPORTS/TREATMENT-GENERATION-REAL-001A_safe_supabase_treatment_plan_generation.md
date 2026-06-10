@@ -48,8 +48,8 @@ If no active tenant exists, the orchestrator forcibly downgrades to `local` back
 * **Supabase mode:** Generates strict `crypto.randomUUID()` values for both `planId` and all `stage.id` entries.
 * **Local mode:** Retains the legacy `plan_${timestamp}` behavior for maximum compatibility.
 
-## 13. finding_ids UUID safety
-The orchestrator now explicitly evaluates `validateUuid` against the passed `patientId` and all source `finding.id` references before initiating a Supabase operation. Invalid arrays are strictly rejected before any writes occur.
+## 13. finding_ids and Patient ownership safety
+The orchestrator now explicitly evaluates `validateUuid` against the passed `patientId` and all source `finding.id` and `finding.patientId` references before initiating a Supabase operation. It explicitly validates that `finding.patientId === patientId` for every selected finding. Invalid arrays or cross-patient finding selections are strictly rejected before any writes occur.
 
 ## 14. Save order and failure behavior
 * The execution flow was hardened. The treatment plan is strictly saved **first**.
@@ -80,7 +80,7 @@ The generation algorithm did NOT issue automated diagnoses, did NOT automaticall
 
 ## 20. Command results
 * **`npm run lint`:** PASS
-* **`npm test`:** PASS (149 tests passed across 25 files).
+* **`npm test`:** PASS (151 tests passed across 25 files).
 * **`npm run build`:** PASS
 
 ## 21. What was NOT changed

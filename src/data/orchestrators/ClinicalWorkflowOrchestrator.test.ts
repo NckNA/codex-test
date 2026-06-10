@@ -390,6 +390,29 @@ describe('ClinicalWorkflowOrchestrator', () => {
       expect(fakeTreatmentPlansRepository.createTreatmentPlan).not.toHaveBeenCalled();
     });
 
+    it('rejects supabase generation if any finding belongs to a different patient', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase',
+      });
+
+      const validPatientIdA = crypto.randomUUID();
+      const validPatientIdB = crypto.randomUUID();
+      const validFindingId = crypto.randomUUID();
+
+      const selectedFindings: DentalFinding[] = [
+        { id: validFindingId, patientId: validPatientIdB, toothNumber: 11, category: 'caries', title: 'Find 1', severity: 'medium', description: '', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+      ];
+
+      await expect(orchestrator.createTreatmentPlanFromFindings({ patientId: validPatientIdA, selectedFindings }))
+        .rejects.toThrow(`Selected finding does not belong to patient: ${validFindingId}`);
+      
+      expect(fakeTreatmentPlansRepository.createTreatmentPlan).not.toHaveBeenCalled();
+      expect(fakeFindingsRepository.updateFinding).not.toHaveBeenCalled();
+    });
+
     it('propagates repository errors and does not update findings if plan creation fails', async () => {
       const orchestrator = createClinicalWorkflowOrchestrator({
         dentalChartRepository: fakeDentalChartRepository,
