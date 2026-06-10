@@ -40,7 +40,9 @@ export interface ClinicalWorkflowOrchestratorDependencies {
   dentalChartRepository: DentalChartRepository;
   findingsRepository: FindingsRepository;
   treatmentPlansRepository: TreatmentPlansRepository;
+  backend?: 'local' | 'supabase';
 }
+
 
 function buildStageDescription(finding: DentalFinding): string {
   return [
@@ -52,7 +54,12 @@ function buildStageDescription(finding: DentalFinding): string {
 export function createClinicalWorkflowOrchestrator(
   dependencies: ClinicalWorkflowOrchestratorDependencies
 ): ClinicalWorkflowOrchestrator {
-  const { dentalChartRepository, findingsRepository, treatmentPlansRepository } = dependencies;
+  const { dentalChartRepository, findingsRepository, treatmentPlansRepository, backend = 'local' } = dependencies;
+
+  const validateUuid = (id: string): boolean => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  };
 
   return {
     async applyToothStatusChange(input: ApplyToothStatusChangeInput): Promise<DentalChart> {
@@ -119,12 +126,25 @@ export function createClinicalWorkflowOrchestrator(
         return null;
       }
 
+      if (backend === 'supabase') {
+        if (!validateUuid(patientId)) {
+          throw new Error('Invalid patient UUID for Supabase generation');
+        }
+        for (const finding of selectedFindings) {
+          if (!validateUuid(finding.id)) {
+            throw new Error(`Invalid finding UUID for Supabase generation: ${finding.id}`);
+          }
+        }
+      }
+
       const date = input.now ?? new Date();
       const nowIso = date.toISOString();
       const planTimestamp = date.getTime();
 
+      const planId = backend === 'supabase' ? crypto.randomUUID() : `plan_${planTimestamp}`;
+
       const stages = selectedFindings.map((finding, index): TreatmentStage => ({
-        id: `stage_${planTimestamp}_${index}_${finding.id}`,
+        id: backend === 'supabase' ? crypto.randomUUID() : `stage_${planTimestamp}_${index}_${finding.id}`,
         title: finding.title,
         teeth: finding.toothNumber ? [finding.toothNumber] : [],
         description: buildStageDescription(finding),
@@ -135,7 +155,7 @@ export function createClinicalWorkflowOrchestrator(
       }));
 
       const plan: TreatmentPlan = {
-        id: `plan_${planTimestamp}`,
+        id: planId,
         patientId,
         title: `План лечения от ${date.toLocaleDateString('ru-RU')}`,
         status: 'draft',
@@ -145,15 +165,22 @@ export function createClinicalWorkflowOrchestrator(
         updatedAt: nowIso,
       };
 
+      // 1. Save the plan first. If this fails, we do NOT touch findings.
       await treatmentPlansRepository.createTreatmentPlan(patientId, plan);
 
+      // 2. Only after successful plan save, update finding statuses.
       for (const finding of selectedFindings) {
-        await findingsRepository.updateFinding(patientId, {
-          ...finding,
-          status: 'included_in_plan',
-          includeInTreatmentPlan: true,
-          updatedAt: nowIso,
-        });
+        try {
+          await findingsRepository.updateFinding(patientId, {
+            ...finding,
+            status: 'included_in_plan',
+            includeInTreatmentPlan: true,
+            updatedAt: nowIso,
+          });
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          throw new Error(`Plan saved, but failed to update finding ${finding.id} status: ${errMsg}`, { cause: e });
+        }
       }
 
       return plan;

@@ -254,7 +254,7 @@ describe('ClinicalWorkflowOrchestrator', () => {
       expect(fakeDentalChartRepository.saveDentalChart).not.toHaveBeenCalled();
     });
 
-    it('creates draft treatment plan and updates findings', async () => {
+    it('creates draft treatment plan and updates findings (local backend)', async () => {
       const orchestrator = createClinicalWorkflowOrchestrator({
         dentalChartRepository: fakeDentalChartRepository,
         findingsRepository: fakeFindingsRepository,
@@ -284,6 +284,7 @@ describe('ClinicalWorkflowOrchestrator', () => {
       expect(result?.updatedAt).toBe(now.toISOString());
       
       expect(result?.stages).toHaveLength(2);
+      expect(result?.stages[0].id).toBe(`stage_${now.getTime()}_0_f1`);
       expect(result?.stages[0].title).toBe('Find 1');
       expect(result?.stages[0].teeth).toEqual([11]);
       expect(result?.stages[0].description).toContain('desc 1');
@@ -312,6 +313,81 @@ describe('ClinicalWorkflowOrchestrator', () => {
       expect(operationsLog[0]).toBe('create-plan');
       expect(operationsLog[1]).toBe('update-finding:f1');
       expect(operationsLog[2]).toBe('update-finding:f2');
+    });
+
+    it('creates draft treatment plan with valid UUIDs in supabase backend', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase',
+      });
+
+      const now = new Date('2026-01-10T12:00:00.000Z');
+      const validPatientId = crypto.randomUUID();
+      const validFindingId1 = crypto.randomUUID();
+      const validFindingId2 = crypto.randomUUID();
+
+      const selectedFindings: DentalFinding[] = [
+        { id: validFindingId1, patientId: validPatientId, toothNumber: 11, category: 'caries', title: 'Find 1', severity: 'medium', description: 'desc 1', recommendation: 'rec 1', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
+        { id: validFindingId2, patientId: validPatientId, category: 'hygiene', title: 'Find 2', severity: 'low', description: 'desc 2', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+      ];
+
+      const result = await orchestrator.createTreatmentPlanFromFindings({
+        patientId: validPatientId,
+        selectedFindings,
+        now
+      });
+
+      expect(fakeTreatmentPlansRepository.createTreatmentPlan).toHaveBeenCalledOnce();
+      expect(result).not.toBeNull();
+      // Should be valid UUID
+      expect(result?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(result?.patientId).toBe(validPatientId);
+      
+      expect(result?.stages).toHaveLength(2);
+      expect(result?.stages[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(result?.stages[0].findingIds).toEqual([validFindingId1]);
+
+      expect(result?.stages[1].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
+      // Verify Findings Updated
+      expect(fakeFindingsRepository.updateFinding).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects supabase generation if patientId is invalid UUID', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase',
+      });
+
+      const selectedFindings: DentalFinding[] = [
+        { id: crypto.randomUUID(), patientId: 'p1', toothNumber: 11, category: 'caries', title: 'Find 1', severity: 'medium', description: '', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+      ];
+
+      await expect(orchestrator.createTreatmentPlanFromFindings({ patientId: 'invalid-id', selectedFindings }))
+        .rejects.toThrow('Invalid patient UUID for Supabase generation');
+      expect(fakeTreatmentPlansRepository.createTreatmentPlan).not.toHaveBeenCalled();
+    });
+
+    it('rejects supabase generation if any finding ID is invalid UUID', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase',
+      });
+
+      const validPatientId = crypto.randomUUID();
+      const selectedFindings: DentalFinding[] = [
+        { id: 'f1', patientId: validPatientId, toothNumber: 11, category: 'caries', title: 'Find 1', severity: 'medium', description: '', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+      ];
+
+      await expect(orchestrator.createTreatmentPlanFromFindings({ patientId: validPatientId, selectedFindings }))
+        .rejects.toThrow('Invalid finding UUID for Supabase generation: f1');
+      expect(fakeTreatmentPlansRepository.createTreatmentPlan).not.toHaveBeenCalled();
     });
 
     it('propagates repository errors and does not update findings if plan creation fails', async () => {
