@@ -1,12 +1,30 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
-import { LocalStorageDentalChartRepository } from '../repositories/DentalChartRepository';
+import { createDentalChartRepository } from '../repositories/DentalChartRepository';
 import type { DentalChart } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export function useDentalChart(patientId: string) {
+  const { authMode } = useAuth();
+  const { activeTenant } = useTenant();
+
+  const repository = useMemo(() => {
+    const backend =
+      authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured
+        ? 'supabase'
+        : 'local';
+
+    return createDentalChartRepository({
+      tenantId: activeTenant?.tenantId,
+      backend,
+    });
+  }, [authMode, activeTenant?.tenantId]);
+
   const queryFn = useCallback(async () => {
-    return await LocalStorageDentalChartRepository.getDentalChart(patientId);
-  }, [patientId]);
+    return await repository.getDentalChart(patientId);
+  }, [repository, patientId]);
 
   const {
     data: dentalChart,
@@ -27,7 +45,7 @@ export function useDentalChart(patientId: string) {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await LocalStorageDentalChartRepository.saveDentalChart(patientId, chart);
+      await repository.saveDentalChart(patientId, chart);
       await refetch();
     } catch (e) {
       const parsedError = e instanceof Error ? e : new Error(String(e));
@@ -36,7 +54,7 @@ export function useDentalChart(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [patientId, refetch]);
+  }, [repository, patientId, refetch]);
 
   return {
     dentalChart,
