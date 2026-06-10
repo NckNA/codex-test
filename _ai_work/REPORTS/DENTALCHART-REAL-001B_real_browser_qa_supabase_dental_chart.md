@@ -5,7 +5,7 @@ Perform real browser QA for Supabase-backed `DentalChartRepository` and tooth st
 
 ## Environment
 * base implementation commit: `cbe3f48e3f60ae60170e7dc005c151794b501733`
-* QA report PR head: `8545dfbc57c5a5a16d86dec587dbc87a0ed4facd`
+* QA report PR head/latest report commit: `7c9fc382a2f36b35c2b038f78b8c04177b4a1c95`
 * local app URL: `http://localhost:5173/`
 * Supabase mode used: `supabase-active`
 * auth user without password: `test@demo.com`
