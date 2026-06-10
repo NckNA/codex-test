@@ -46,7 +46,6 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     treatmentPlans,
     createTreatmentPlan,
     updateTreatmentPlan,
-    deleteTreatmentPlan,
     refetch: refetchTreatmentPlans,
   } = useTreatmentPlans(patientId);
 
@@ -58,6 +57,7 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
   const {
     isSaving: isWorkflowSaving,
     createTreatmentPlanFromFindings,
+    deleteTreatmentPlanWithCleanup,
   } = useClinicalWorkflow();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -105,13 +105,17 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
     }
   };
 
-  const handleDeletePlan = async (planId: string) => {
+  const handleDeletePlan = async (plan: TreatmentPlan) => {
     if (!window.confirm('Вы уверены, что хотите удалить этот план лечения?')) return;
 
     try {
-      await deleteTreatmentPlan(planId);
+      await deleteTreatmentPlanWithCleanup({ patientId, plan });
+      await refetchTreatmentPlans();
+      await refetchFindings();
     } catch (e) {
       console.error('Failed to delete treatment plan', e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.alert(`Не удалось удалить план лечения:\n${msg}`);
     }
   };
 
@@ -202,9 +206,10 @@ export function TreatmentPlansTab({ patientId }: TreatmentPlansTabProps) {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeletePlan(plan.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        onClick={() => handleDeletePlan(plan)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
                         title="Удалить"
+                        disabled={isWorkflowSaving}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

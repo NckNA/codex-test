@@ -31,9 +31,15 @@ export interface CreateTreatmentPlanFromFindingsInput {
   now?: Date;
 }
 
+export interface DeleteTreatmentPlanWithCleanupInput {
+  patientId: string;
+  plan: TreatmentPlan;
+}
+
 export interface ClinicalWorkflowOrchestrator {
   applyToothStatusChange(input: ApplyToothStatusChangeInput): Promise<DentalChart>;
   createTreatmentPlanFromFindings(input: CreateTreatmentPlanFromFindingsInput): Promise<TreatmentPlan | null>;
+  deleteTreatmentPlanWithCleanup(input: DeleteTreatmentPlanWithCleanupInput): Promise<void>;
 }
 
 export interface ClinicalWorkflowOrchestratorDependencies {
@@ -187,6 +193,72 @@ export function createClinicalWorkflowOrchestrator(
       }
 
       return plan;
+    },
+
+    async deleteTreatmentPlanWithCleanup(input: DeleteTreatmentPlanWithCleanupInput): Promise<void> {
+      const { patientId, plan } = input;
+
+      if (backend === 'supabase') {
+        if (!validateUuid(patientId)) {
+          throw new Error('Invalid patient UUID for Supabase deletion');
+        }
+        if (!validateUuid(plan.id)) {
+          throw new Error(`Invalid plan UUID for Supabase deletion: ${plan.id}`);
+        }
+      }
+
+      // 1. Collect and deduplicate finding IDs from all stages
+      const findingIdsSet = new Set<string>();
+      for (const stage of plan.stages) {
+        if (stage.findingIds && Array.isArray(stage.findingIds)) {
+          for (const id of stage.findingIds) {
+            if (id) {
+              if (backend === 'supabase' && !validateUuid(id)) {
+                // We skip invalid UUIDs safely, as they wouldn't have been valid links anyway
+                continue;
+              }
+              findingIdsSet.add(id);
+            }
+          }
+        }
+      }
+      const uniqueFindingIds = Array.from(findingIdsSet);
+
+      let findingsToRestore: DentalFinding[] = [];
+      if (uniqueFindingIds.length > 0) {
+        // We fetch the current findings to ensure we only update what exists and keep existing data intact
+        const allFindings = await findingsRepository.listFindingsByPatient(patientId);
+        findingsToRestore = allFindings.filter(f => uniqueFindingIds.includes(f.id));
+      }
+
+      // 2. Delete the treatment plan first. Stages are deleted via ON DELETE CASCADE in DB.
+      await treatmentPlansRepository.deleteTreatmentPlan(patientId, plan.id);
+
+      // 3. Only after successful plan deletion, restore linked findings.
+      const nowIso = new Date().toISOString();
+      const failedRestores: string[] = [];
+
+      for (const finding of findingsToRestore) {
+        try {
+          // If the finding was included in a plan, we revert it to 'discovered'.
+          // We could use its previous state if we tracked it, but 'discovered' is safe.
+          await findingsRepository.updateFinding(patientId, {
+            ...finding,
+            status: 'discovered',
+            includeInTreatmentPlan: false,
+            updatedAt: nowIso,
+          });
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          failedRestores.push(`Finding ${finding.id}: ${errMsg}`);
+        }
+      }
+
+      // If any finding cleanup failed, we throw a clear error.
+      // Note: Transaction limitation: The plan is already deleted.
+      if (failedRestores.length > 0) {
+        throw new Error(`Treatment plan was deleted successfully, but failed to restore linked findings: \n${failedRestores.join('\n')}`);
+      }
     }
   };
 }

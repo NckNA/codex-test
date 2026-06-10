@@ -433,6 +433,126 @@ describe('ClinicalWorkflowOrchestrator', () => {
     });
   });
 
+  describe('deleteTreatmentPlanWithCleanup', () => {
+    it('deletes treatment plan and restores linked findings successfully', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+      });
+
+      findings = [
+        { id: 'f1', patientId: 'p1', category: 'caries', title: 'F1', severity: 'medium', status: 'included_in_plan', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
+        { id: 'f2', patientId: 'p1', category: 'caries', title: 'F2', severity: 'medium', status: 'included_in_plan', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
+        { id: 'f3', patientId: 'p1', category: 'pain', title: 'F3', severity: 'low', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '', description: '' }, // Not in plan
+      ];
+
+      const plan: TreatmentPlan = {
+        id: 'plan_1',
+        patientId: 'p1',
+        title: 'Plan 1',
+        status: 'draft',
+        totalPrice: 0,
+        createdAt: '',
+        updatedAt: '',
+        stages: [
+          { id: 's1', title: 'Stage 1', teeth: [], description: '', price: 0, status: 'planned', findingIds: ['f1', 'f2'] },
+          { id: 's2', title: 'Stage 2', teeth: [], description: '', price: 0, status: 'planned', findingIds: ['f1'] } // duplicate findingId
+        ]
+      };
+
+      await orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'p1', plan });
+
+      // Verify Plan deleted
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).toHaveBeenCalledOnce();
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).toHaveBeenCalledWith('p1', 'plan_1');
+
+      // Verify Findings restored (only f1 and f2 exactly once each due to deduplication)
+      expect(fakeFindingsRepository.listFindingsByPatient).toHaveBeenCalledOnce();
+      expect(fakeFindingsRepository.updateFinding).toHaveBeenCalledTimes(2);
+
+      const f1Update = updatedFindings.find(f => f.id === 'f1');
+      const f2Update = updatedFindings.find(f => f.id === 'f2');
+      const f3Update = updatedFindings.find(f => f.id === 'f3');
+
+      expect(f1Update?.status).toBe('discovered');
+      expect(f1Update?.includeInTreatmentPlan).toBe(false);
+
+      expect(f2Update?.status).toBe('discovered');
+      expect(f2Update?.includeInTreatmentPlan).toBe(false);
+
+      expect(f3Update).toBeUndefined(); // f3 was not updated
+    });
+
+    it('rejects if delete fails and does not update findings', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+      });
+
+      fakeTreatmentPlansRepository.deleteTreatmentPlan = vi.fn().mockRejectedValue(new Error('Delete Error'));
+
+      const plan: TreatmentPlan = {
+        id: 'plan_1', patientId: 'p1', title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        stages: [{ id: 's1', title: '', teeth: [], description: '', price: 0, status: 'planned', findingIds: ['f1'] }]
+      };
+
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'p1', plan })).rejects.toThrow('Delete Error');
+
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).toHaveBeenCalledOnce();
+      expect(fakeFindingsRepository.updateFinding).not.toHaveBeenCalled();
+    });
+
+    it('throws combined error if finding restore fails after plan deletion', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+      });
+
+      findings = [
+        { id: 'f1', patientId: 'p1', category: 'caries', title: 'F1', severity: 'medium', status: 'included_in_plan', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
+      ];
+
+      fakeFindingsRepository.updateFinding = vi.fn().mockRejectedValue(new Error('Update failed'));
+
+      const plan: TreatmentPlan = {
+        id: 'plan_1', patientId: 'p1', title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        stages: [{ id: 's1', title: '', teeth: [], description: '', price: 0, status: 'planned', findingIds: ['f1'] }]
+      };
+
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'p1', plan }))
+        .rejects.toThrow(/Treatment plan was deleted successfully, but failed to restore linked findings: \nFinding f1: Update failed/);
+
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).toHaveBeenCalledOnce();
+      expect(fakeFindingsRepository.updateFinding).toHaveBeenCalledOnce();
+    });
+
+    it('validates UUIDs in supabase backend', async () => {
+      const orchestrator = createClinicalWorkflowOrchestrator({
+        dentalChartRepository: fakeDentalChartRepository,
+        findingsRepository: fakeFindingsRepository,
+        treatmentPlansRepository: fakeTreatmentPlansRepository,
+        backend: 'supabase'
+      });
+
+      const plan: TreatmentPlan = {
+        id: 'invalid-id', patientId: 'p1', title: '', status: 'draft', totalPrice: 0, createdAt: '', updatedAt: '',
+        stages: []
+      };
+
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: 'p1', plan }))
+        .rejects.toThrow('Invalid patient UUID for Supabase deletion');
+        
+      const validPatientId = crypto.randomUUID();
+      await expect(orchestrator.deleteTreatmentPlanWithCleanup({ patientId: validPatientId, plan }))
+        .rejects.toThrow(`Invalid plan UUID for Supabase deletion: invalid-id`);
+        
+      expect(fakeTreatmentPlansRepository.deleteTreatmentPlan).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Exports', () => {
     it('exports LocalStorageClinicalWorkflowOrchestrator', () => {
       expect(LocalStorageClinicalWorkflowOrchestrator).toBeDefined();

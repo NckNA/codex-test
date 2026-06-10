@@ -76,20 +76,7 @@ export function useTreatmentPlans(patientId: string) {
     }
   }, [patientId, repository, refetch]);
 
-  const deleteTreatmentPlan = useCallback(async (planId: string): Promise<void> => {
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      await repository.deleteTreatmentPlan(patientId, planId);
-      await refetch();
-    } catch (e) {
-      const parsedError = e instanceof Error ? e : new Error(String(e));
-      setSaveError(parsedError);
-      throw parsedError;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [patientId, repository, refetch]);
+
 
   return {
     treatmentPlans: treatmentPlans || [],
@@ -100,7 +87,6 @@ export function useTreatmentPlans(patientId: string) {
     saveError,
     createTreatmentPlan,
     updateTreatmentPlan,
-    deleteTreatmentPlan,
     refetch,
   };
 }
