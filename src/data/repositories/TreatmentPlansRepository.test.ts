@@ -3,16 +3,28 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { LocalStorageTreatmentPlansRepository, createTreatmentPlansRepository, SupabaseTreatmentPlansRepository } from './TreatmentPlansRepository';
 import type { TreatmentPlan, TreatmentStage } from '../../types';
 
+import type { Mock } from 'vitest';
+
+interface MockQueryBuilder {
+  select: Mock;
+  insert: Mock;
+  update: Mock;
+  delete: Mock;
+  upsert: Mock;
+  eq: Mock;
+  then: Mock;
+}
+
 const { mockQueryBuilder, mockSupabase } = vi.hoisted(() => {
-  const qb: any = {
+  const qb: MockQueryBuilder = {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     upsert: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    then: vi.fn((resolve: (value: unknown) => void) => resolve({ data: [], error: null })),
   };
-  qb.then = vi.fn((resolve) => resolve({ data: [], error: null }));
   return {
     mockQueryBuilder: qb,
     mockSupabase: {
@@ -31,7 +43,7 @@ describe('TreatmentPlansRepository', () => {
     vi.clearAllMocks();
     
     // Default success mock for supabase
-    mockQueryBuilder.then.mockImplementation((resolve: any) => resolve({ data: [], error: null }));
+    mockQueryBuilder.then.mockImplementation((resolve: (value: unknown) => void) => resolve({ data: [], error: null }));
   });
 
   describe('LocalStorageTreatmentPlansRepository', () => {
@@ -114,7 +126,7 @@ describe('TreatmentPlansRepository', () => {
     });
 
     it('listTreatmentPlansByPatient correctly maps nullable fields', async () => {
-      mockQueryBuilder.then.mockImplementationOnce((resolve: any) => resolve({
+      mockQueryBuilder.then.mockImplementationOnce((resolve: (value: unknown) => void) => resolve({
         data: [{
           id: validPlanUuid,
           patient_id: validUuid,
@@ -199,7 +211,7 @@ describe('TreatmentPlansRepository', () => {
     });
 
     it('createTreatmentPlan throws on Supabase error', async () => {
-      mockQueryBuilder.then.mockImplementationOnce((resolve: any) => resolve({ data: null, error: { message: 'DB Error' } }));
+      mockQueryBuilder.then.mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: { message: 'DB Error' } }));
       const plan: TreatmentPlan = { id: validPlanUuid, patientId: validUuid, title: 'A', status: 'draft', stages: [], totalPrice: 0, createdAt: '', updatedAt: '' };
       await expect(repo.createTreatmentPlan(validUuid, plan)).rejects.toThrow('Failed to create treatment plan in Supabase: DB Error');
     });

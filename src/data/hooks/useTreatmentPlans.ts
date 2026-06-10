@@ -18,7 +18,7 @@ export function useTreatmentPlans(patientId: string) {
       return { backend: 'supabase', tenantId };
     }
     return { backend: 'local' };
-  }, [authMode, isSupabaseConfigured, tenantId]);
+  }, [authMode, tenantId]);
 
   const repository = useMemo(() => {
     return createTreatmentPlansRepository(repositoryConfig);

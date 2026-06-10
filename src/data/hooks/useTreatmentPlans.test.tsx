@@ -7,6 +7,7 @@ import { useTreatmentPlans } from './useTreatmentPlans';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import * as TreatmentPlansRepositoryModule from '../repositories/TreatmentPlansRepository';
+import * as SupabaseClientModule from '../../lib/supabaseClient';
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: vi.fn(),
@@ -14,6 +15,11 @@ vi.mock('../../contexts/AuthContext', () => ({
 
 vi.mock('../../contexts/TenantContext', () => ({
   useTenant: vi.fn(),
+}));
+
+vi.mock('../../lib/supabaseClient', () => ({
+  isSupabaseConfigured: false,
+  supabase: {},
 }));
 
 vi.mock('./useAsyncQuery', () => ({
@@ -34,7 +40,10 @@ describe('useTreatmentPlans hook', () => {
   it('routes to local backend when authMode is dev', async () => {
     const factorySpy = vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'dev', isSupabaseConfigured: false } as unknown as ReturnType<typeof useAuth>);
+    // Override isSupabaseConfigured dynamically using Object.defineProperty since it's a mocked export
+    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: false, configurable: true });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'dev' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
@@ -59,7 +68,9 @@ describe('useTreatmentPlans hook', () => {
   it('routes to local backend if Supabase is active but not configured', async () => {
     const factorySpy = vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active', isSupabaseConfigured: false } as unknown as ReturnType<typeof useAuth>);
+    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: false, configurable: true });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
@@ -84,7 +95,9 @@ describe('useTreatmentPlans hook', () => {
   it('routes to local backend if Supabase is active but no tenant selected', async () => {
     const factorySpy = vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active', isSupabaseConfigured: true } as unknown as ReturnType<typeof useAuth>);
+    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: true, configurable: true });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
@@ -109,7 +122,9 @@ describe('useTreatmentPlans hook', () => {
   it('routes to Supabase backend when supabase-active, configured, and tenant selected', async () => {
     const factorySpy = vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active', isSupabaseConfigured: true } as unknown as ReturnType<typeof useAuth>);
+    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: true, configurable: true });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
