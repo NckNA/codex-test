@@ -1,12 +1,14 @@
 import { useCallback, useState, useMemo } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
-import { createTreatmentPlansRepository, TreatmentPlansRepositoryConfig } from '../repositories/TreatmentPlansRepository';
+import { createTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
+import type { TreatmentPlansRepositoryConfig } from '../repositories/TreatmentPlansRepository';
 import type { TreatmentPlan } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export function useTreatmentPlans(patientId: string) {
-  const { authMode, isSupabaseConfigured } = useAuth();
+  const { authMode } = useAuth();
   const { activeTenant } = useTenant();
 
   const tenantId = activeTenant?.tenantId;

@@ -1,5 +1,5 @@
 import { storage } from '../../utils/storage';
-import type { TreatmentPlan } from '../../types';
+import type { TreatmentPlan, TreatmentStage } from '../../types';
 import { supabase } from '../../lib/supabaseClient';
 
 export interface TreatmentPlansRepository {
@@ -28,7 +28,11 @@ export const LocalStorageTreatmentPlansRepository: TreatmentPlansRepository = {
 };
 
 export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepository {
-  constructor(private tenantId: string) {}
+  private readonly tenantId: string;
+
+  constructor(tenantId: string) {
+    this.tenantId = tenantId;
+  }
 
   private validateUuid(id: string): string | null {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,7 +44,7 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
       throw new Error(`Invalid patient UUID: ${patientId}`);
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('treatment_plans')
       .select('*, treatment_stages(*)')
       .eq('tenant_id', this.tenantId)
@@ -88,7 +92,7 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
       updated_at: plan.updatedAt || new Date().toISOString(),
     };
 
-    const { error: planError } = await supabase
+    const { error: planError } = await supabase!
       .from('treatment_plans')
       .insert(planRow);
 
@@ -114,7 +118,7 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
         };
       });
 
-      const { error: stagesError } = await supabase
+      const { error: stagesError } = await supabase!
         .from('treatment_stages')
         .insert(stageRows);
 
@@ -136,7 +140,7 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
       updated_at: new Date().toISOString(),
     };
 
-    const { error: planError } = await supabase
+    const { error: planError } = await supabase!
       .from('treatment_plans')
       .update(planRow)
       .eq('tenant_id', this.tenantId)
@@ -147,18 +151,7 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
       throw new Error(`Failed to update treatment plan in Supabase: ${planError.message}`);
     }
 
-    // Replace stages using delete + insert
-    // Note: Due to lack of transactional support in simple REST, there's a partial save risk here.
-    const { error: deleteStagesError } = await supabase
-      .from('treatment_stages')
-      .delete()
-      .eq('tenant_id', this.tenantId)
-      .eq('treatment_plan_id', planId);
-
-    if (deleteStagesError) {
-      throw new Error(`Failed to clear existing treatment stages in Supabase: ${deleteStagesError.message}`);
-    }
-
+    // Option B: Non-delete update strategy using upsert to comply with restrictive RLS policies
     if (plan.stages.length > 0) {
       const stageRows = plan.stages.map((stage, index) => {
         const safeFindingIds = (stage.findingIds || []).filter(id => this.validateUuid(id));
@@ -177,12 +170,12 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
         };
       });
 
-      const { error: insertStagesError } = await supabase
+      const { error: upsertStagesError } = await supabase!
         .from('treatment_stages')
-        .insert(stageRows);
+        .upsert(stageRows);
 
-      if (insertStagesError) {
-        throw new Error(`Failed to insert updated treatment stages in Supabase: ${insertStagesError.message}`);
+      if (upsertStagesError) {
+        throw new Error(`Failed to upsert treatment stages in Supabase: ${upsertStagesError.message}`);
       }
     }
   }
@@ -191,7 +184,7 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
     if (!this.validateUuid(patientId)) throw new Error(`Invalid patient UUID: ${patientId}`);
     if (!this.validateUuid(planId)) throw new Error(`Invalid plan UUID: ${planId}`);
 
-    const { error } = await supabase
+    const { error } = await supabase!
       .from('treatment_plans')
       .delete()
       .eq('tenant_id', this.tenantId)
