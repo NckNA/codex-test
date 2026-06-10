@@ -20,6 +20,7 @@ Paused documents/contracts/admin-task implementation to prioritize the doctor-fa
 ## 5. Files changed
 - `src/components/dental/DentalChartTab.tsx`
 - `src/components/dental/ToothGrid.tsx`
+- `src/components/dental/ToothGrid.test.tsx` (NEW)
 
 ## 6. Previous problem
 - Tiny square click targets (`w-8 h-10`) made selecting a specific tooth inconvenient.
@@ -51,7 +52,12 @@ Paused documents/contracts/admin-task implementation to prioritize the doctor-fa
 - The larger footprint and dedicated `isSelected` state provide the exact UI structure needed for the next phase, where clicking a tooth might load a complex "Structured Editing Panel" (for crown, root, gum, surfaces) instead of a simple modal. The visual real estate is now prepared.
 
 ## 13. Tests added/updated
-- No specific tests needed to be updated as the core logic (calling `onToothClick`) remained the same, and UI modifications were exclusively styling/CSS class alterations.
+- Added `src/components/dental/ToothGrid.test.tsx` to assert that:
+  - `ToothGrid` properly renders tooth buttons with appropriate labels.
+  - Clicking a tooth correctly triggers the click handler with the expected tooth object.
+  - The currently selected tooth receives the proper visual classes (e.g. `bg-blue-50`, `ring-2`), while unselected teeth do not.
+- Note: A full integration test for `DentalChartTab` modal opening was not added because testing `DentalChartTab` requires extremely expensive mocking of the complex `useDentalChart`, `usePatientFindings`, and `useClinicalWorkflow` hooks in the current testing setup. However, the core visual and interaction logic is safely tested at the `ToothGrid` layer.
+- The unrelated `DOCUMENTS-RECON-001` report file was successfully removed from PR #194 to ensure a clean, isolated scope.
 
 ## 14. Commands run
 - `npm run lint`
