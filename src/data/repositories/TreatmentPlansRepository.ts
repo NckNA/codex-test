@@ -151,31 +151,59 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
       throw new Error(`Failed to update treatment plan in Supabase: ${planError.message}`);
     }
 
-    // Option B: Non-delete update strategy using upsert to comply with restrictive RLS policies
-    if (plan.stages.length > 0) {
-      const stageRows = plan.stages.map((stage, index) => {
-        const safeFindingIds = (stage.findingIds || []).filter(id => this.validateUuid(id));
-        return {
-          id: this.validateUuid(stage.id) ? stage.id : crypto.randomUUID(),
-          tenant_id: this.tenantId,
-          treatment_plan_id: planId,
-          title: stage.title,
-          teeth: stage.teeth,
-          description: stage.description || null,
-          price: stage.price,
-          status: stage.status,
-          finding_ids: safeFindingIds.length > 0 ? safeFindingIds : null,
-          source: stage.source || null,
-          order_index: index,
-        };
-      });
+    // Fetch existing stage IDs for this exact plan to verify ownership
+    const { data: existingStages, error: existingStagesError } = await supabase!
+      .from('treatment_stages')
+      .select('id')
+      .eq('tenant_id', this.tenantId)
+      .eq('treatment_plan_id', planId);
 
-      const { error: upsertStagesError } = await supabase!
-        .from('treatment_stages')
-        .upsert(stageRows);
+    if (existingStagesError) {
+      throw new Error(`Failed to fetch existing stages: ${existingStagesError.message}`);
+    }
 
-      if (upsertStagesError) {
-        throw new Error(`Failed to upsert treatment stages in Supabase: ${upsertStagesError.message}`);
+    const validStageIds = new Set(existingStages?.map(s => s.id) || []);
+
+    // Process each stage securely
+    for (const [index, stage] of plan.stages.entries()) {
+      const isExistingValidStage = this.validateUuid(stage.id) && validStageIds.has(stage.id);
+      const stageIdToUse = isExistingValidStage ? stage.id : crypto.randomUUID();
+
+      const stageRow = {
+        id: stageIdToUse,
+        tenant_id: this.tenantId,
+        treatment_plan_id: planId,
+        title: stage.title,
+        description: stage.description || null,
+        teeth: stage.teeth?.length ? stage.teeth : null,
+        price: typeof stage.price === 'number' ? stage.price : null,
+        status: stage.status || 'planned',
+        finding_ids: (stage.findingIds || []).filter(id => this.validateUuid(id)),
+        order_index: index,
+        source: stage.source || null,
+      };
+
+      if (isExistingValidStage) {
+        // Safe update for stages proven to belong to this plan
+        const { error: updateStageError } = await supabase!
+          .from('treatment_stages')
+          .update(stageRow)
+          .eq('tenant_id', this.tenantId)
+          .eq('treatment_plan_id', planId)
+          .eq('id', stage.id);
+        
+        if (updateStageError) {
+          throw new Error(`Failed to update treatment stage in Supabase: ${updateStageError.message}`);
+        }
+      } else {
+        // Safe insert for new or external/invalid stages
+        const { error: insertStageError } = await supabase!
+          .from('treatment_stages')
+          .insert(stageRow);
+
+        if (insertStageError) {
+          throw new Error(`Failed to insert treatment stage in Supabase: ${insertStageError.message}`);
+        }
       }
     }
   }

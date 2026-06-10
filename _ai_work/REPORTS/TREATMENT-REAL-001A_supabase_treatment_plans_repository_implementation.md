@@ -45,7 +45,10 @@ Repository-only manual treatment plan CRUD. No automatic generation, no document
 - Missing optional dates injected with ISO string backups.
 
 ## 10. Treatment stages/items mapping
-- For updates, stages are saved using `upsert()` based on UUIDs. This complies with strict RLS policies that block non-admin `DELETE` operations on `treatment_stages`. 
+- For updates, stages are saved securely by first `select`-ing the stage IDs that already belong to this exact `treatment_plan_id`. 
+- If a stage has a valid UUID that is verified to belong to the parent plan, it is updated securely.
+- Any local, invalid, or external valid UUIDs (attempting to move stages across plans) are stripped, and the stage is safely inserted with a new generated UUID.
+- This complies with strict RLS policies that block non-admin `DELETE` operations on `treatment_stages`. Removed stages in the UI are simply not modified/deleted in Supabase.
 - Nested items receive `tenant_id` and `treatment_plan_id`.
 - `order_index` is safely injected from the array index.
 - Empty fields map to `null` where appropriate.
@@ -55,10 +58,11 @@ Repository-only manual treatment plan CRUD. No automatic generation, no document
 - Any non-UUID (e.g., local mock strings) are silently stripped to avoid PostgreSQL type errors inside the `uuid[]` column.
 
 ## 12. Tenant/RLS/FK safety
-- `tenant_id` and `treatment_plan_id` injected on every stage insert/upsert.
+- `tenant_id` and `treatment_plan_id` injected on every stage insert/update.
 - Validated `patientId` explicitly.
 - Foreign Keys natively enforce cascade deletes in the database schema.
-- Non-admin compliant by switching away from `delete` to `upsert` for stage modification.
+- Non-admin compliant by switching away from `delete` to safe `update/insert` logic for stage modification.
+- **DELETE LIMITATION**: The `deleteTreatmentPlan` method natively uses `.delete()` on `treatment_plans`. Under current RLS, this will fail for non-admin/non-owner users and throw a Supabase error. This is intentional to comply with RLS without altering migrations.
 
 ## 13. Local fallback behavior
 - Factory cleanly returns `LocalStorageTreatmentPlansRepository` when Supabase criteria are unmet, ensuring `dev` mode continues normally.

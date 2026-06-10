@@ -221,7 +221,18 @@ describe('TreatmentPlansRepository', () => {
       await expect(repo.updateTreatmentPlan(validUuid, plan)).rejects.toThrow('Invalid plan UUID');
     });
 
-    it('updateTreatmentPlan updates plan and uses upsert for stages', async () => {
+    it('updateTreatmentPlan updates plan and uses select + safe update/insert logic for stages', async () => {
+      const validStageUuid = '111e6543-e21b-12d3-a456-426614174000';
+      const externalStageUuid = '222e6543-e21b-12d3-a456-426614174000';
+      
+      // Mock the plan update success first, then the select existing stages to return only validStageUuid
+      mockQueryBuilder.then
+        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: [], error: null }))
+        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({
+          data: [{ id: validStageUuid }],
+          error: null
+        }));
+
       const plan: TreatmentPlan = {
         id: validPlanUuid,
         patientId: validUuid,
@@ -232,10 +243,28 @@ describe('TreatmentPlansRepository', () => {
         updatedAt: '2023-01-01',
         stages: [
           {
-            id: 'local_stage_2',
-            title: 'Stage 2',
+            id: validStageUuid, // Owned stage
+            title: 'Stage 1',
             teeth: [12],
             price: 100,
+            status: 'planned',
+            findingIds: [],
+            description: '',
+          } as TreatmentStage,
+          {
+            id: externalStageUuid, // External/unowned stage
+            title: 'Stage 2',
+            teeth: [13],
+            price: 50,
+            status: 'planned',
+            findingIds: [],
+            description: '',
+          } as TreatmentStage,
+          {
+            id: 'local_stage_1', // Local unassigned stage
+            title: 'Stage 3',
+            teeth: [14],
+            price: 50,
             status: 'planned',
             findingIds: [],
             description: '',
@@ -245,17 +274,36 @@ describe('TreatmentPlansRepository', () => {
 
       await repo.updateTreatmentPlan(validUuid, plan);
 
+      // Verifying plan update filtering
       expect(mockQueryBuilder.update).toHaveBeenCalled();
-      // Verifying update filtering
       expect(mockQueryBuilder.eq).toHaveBeenCalledWith('tenant_id', 'tenant_1');
       expect(mockQueryBuilder.eq).toHaveBeenCalledWith('patient_id', validUuid);
       expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', validPlanUuid);
 
-      // Verifying upsert strategy for stages
-      expect(mockQueryBuilder.upsert).toHaveBeenCalled();
-      const upsertArgs = mockQueryBuilder.upsert.mock.calls[0][0];
-      expect(upsertArgs[0].tenant_id).toBe('tenant_1');
-      expect(upsertArgs[0].treatment_plan_id).toBe(validPlanUuid);
+      // Verifying stage select logic
+      expect(mockSupabase.from).toHaveBeenCalledWith('treatment_stages');
+      expect(mockQueryBuilder.select).toHaveBeenCalledWith('id');
+      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('treatment_plan_id', validPlanUuid);
+
+      // Valid stage should be updated
+      expect(mockQueryBuilder.update).toHaveBeenCalledWith(expect.objectContaining({ id: validStageUuid }));
+      
+      // External stage and local stage should be inserted with new generated UUIDs
+      // The insert should be called twice (for the external stage and local stage)
+      expect(mockQueryBuilder.insert).toHaveBeenCalledTimes(2);
+      const firstInsert = mockQueryBuilder.insert.mock.calls[0][0];
+      const secondInsert = mockQueryBuilder.insert.mock.calls[1][0];
+
+      expect(firstInsert.id).not.toBe(externalStageUuid);
+      expect(secondInsert.id).not.toBe('local_stage_1');
+      expect(firstInsert.treatment_plan_id).toBe(validPlanUuid);
+      expect(secondInsert.treatment_plan_id).toBe(validPlanUuid);
+    });
+
+    it('deleteTreatmentPlan proves delete Supabase error is thrown for non-admin', async () => {
+      mockQueryBuilder.then.mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: { message: 'new row violates row-level security policy' } }));
+      
+      await expect(repo.deleteTreatmentPlan(validUuid, validPlanUuid)).rejects.toThrow('Failed to delete treatment plan in Supabase: new row violates row-level security policy');
     });
 
     it('deleteTreatmentPlan filters securely by tenant_id, patient_id, and id', async () => {
