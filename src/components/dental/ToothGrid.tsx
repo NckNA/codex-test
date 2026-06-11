@@ -1,4 +1,4 @@
-import type { ToothNumber, ToothRecord, DentalFinding, ToothCondition } from '../../types';
+import type { ToothNumber, ToothRecord, DentalFinding, ToothCondition, ClinicalZone } from '../../types';
 import { AnatomicalTooth } from './icons/AnatomicalTeeth';
 import { SurfaceRing } from './icons/SurfaceRing';
 import type { SurfaceType } from './icons/SurfaceRing';
@@ -36,6 +36,51 @@ const LEGEND_CONDITIONS: ToothCondition[] = [
   'needs_treatment',
 ];
 
+const ZONE_LABELS: Record<ClinicalZone, string> = {
+  crown: 'Коронка',
+  endodontics: 'Каналы',
+  root: 'Корень',
+  periodontium: 'Десна',
+  bone: 'Кость',
+  orthopedics: 'Ортопедия',
+  planning: 'Планирование',
+};
+
+const ZONE_STATE_LABELS: Record<ZoneMarkerState, string> = {
+  planned: 'в плане',
+  active: 'активно',
+  risk: 'риск',
+};
+
+const ZONE_PRIORITY: Record<ZoneMarkerState, number> = {
+  planned: 1,
+  active: 2,
+  risk: 3,
+};
+
+const ZONE_OVERLAY_CLASSES: Record<ClinicalZone, string> = {
+  crown: 'left-1/2 top-[24%] h-4 w-5 -translate-x-1/2 rounded-full border',
+  endodontics: 'left-1/2 top-[30%] h-8 w-1 -translate-x-1/2 rounded-full border',
+  root: 'bottom-[7%] left-1/2 h-7 w-5 -translate-x-1/2 rounded-b-full border',
+  periodontium: 'left-1/2 top-[15%] h-2 w-[125%] -translate-x-1/2 rounded-full border',
+  bone: 'bottom-0 left-1/2 h-2 w-7 -translate-x-1/2 rounded-full border',
+  orthopedics: 'left-1/2 top-[20%] h-7 w-7 -translate-x-1/2 rounded-full border-2 border-dashed bg-transparent',
+  planning: 'bottom-1 right-0 h-2.5 w-2.5 rounded-full border',
+};
+
+const ZONE_STATE_CLASSES: Record<ZoneMarkerState, string> = {
+  planned: 'border-emerald-500 bg-emerald-300/45 shadow-emerald-300/40',
+  active: 'border-sky-500 bg-sky-300/45 shadow-sky-300/40',
+  risk: 'border-red-500 bg-red-300/55 shadow-red-300/50',
+};
+
+type ZoneMarkerState = 'planned' | 'active' | 'risk';
+
+interface ZoneMarker {
+  zone: ClinicalZone;
+  state: ZoneMarkerState;
+}
+
 const getToothColors = (condition: string) => {
   switch (condition) {
     case 'healthy': return { fill: '#ffffff', stroke: '#9CA3AF' }; // white, gray-400
@@ -60,14 +105,67 @@ const getActiveFindings = (findings: DentalFinding[]) => (
   findings.filter(f => ['discovered', 'recommended', 'included_in_plan', 'observing'].includes(f.status))
 );
 
-const ToothTooltip = ({ tooth, activeFindings, isUpper }: { tooth: ToothRecord, activeFindings: DentalFinding[], isUpper: boolean }) => {
+const hasText = (value?: string) => Boolean(value?.trim());
+
+const mergeZoneMarker = (markers: Map<ClinicalZone, ZoneMarkerState>, zone: ClinicalZone, state: ZoneMarkerState) => {
+  const current = markers.get(zone);
+  if (!current || ZONE_PRIORITY[state] > ZONE_PRIORITY[current]) {
+    markers.set(zone, state);
+  }
+};
+
+const getFindingZoneState = (finding: DentalFinding): ZoneMarkerState => {
+  if (finding.severity === 'high' || finding.severity === 'urgent') return 'risk';
+  if (finding.status === 'included_in_plan') return 'planned';
+  return 'active';
+};
+
+const getWorkRecordZoneState = (status: string): ZoneMarkerState | null => {
+  if (status === 'planned' || status === 'approved') return 'planned';
+  if (status === 'in_progress') return 'active';
+  return null;
+};
+
+const getZoneMarkers = (tooth: ToothRecord, activeFindings: DentalFinding[]): ZoneMarker[] => {
+  const markers = new Map<ClinicalZone, ZoneMarkerState>();
+
+  if (hasText(tooth.workCrown)) mergeZoneMarker(markers, 'crown', 'planned');
+  if (hasText(tooth.crown)) mergeZoneMarker(markers, 'crown', 'active');
+  if (hasText(tooth.workCanal)) mergeZoneMarker(markers, 'endodontics', 'planned');
+  if (hasText(tooth.canal)) mergeZoneMarker(markers, 'endodontics', 'active');
+  if (hasText(tooth.workRoot)) mergeZoneMarker(markers, 'root', 'planned');
+  if (hasText(tooth.root)) mergeZoneMarker(markers, 'root', 'active');
+  if (hasText(tooth.workGum)) mergeZoneMarker(markers, 'periodontium', 'planned');
+  if (hasText(tooth.gum)) mergeZoneMarker(markers, 'periodontium', 'active');
+  if (hasText(tooth.workBone)) mergeZoneMarker(markers, 'bone', 'planned');
+  if (hasText(tooth.bone)) mergeZoneMarker(markers, 'bone', 'active');
+
+  tooth.plannedWorkRecords?.forEach(record => {
+    const state = getWorkRecordZoneState(record.status);
+    if (state) mergeZoneMarker(markers, record.zone, state);
+  });
+
+  activeFindings.forEach(finding => {
+    if (finding.clinicalZone) {
+      mergeZoneMarker(markers, finding.clinicalZone, getFindingZoneState(finding));
+    }
+  });
+
+  return Array.from(markers, ([zone, state]) => ({ zone, state }));
+};
+
+const getZoneSummary = (markers: ZoneMarker[]) => (
+  markers.map(marker => `${ZONE_LABELS[marker.zone]} (${ZONE_STATE_LABELS[marker.state]})`).join(', ')
+);
+
+const ToothTooltip = ({ tooth, activeFindings, zoneMarkers, isUpper }: { tooth: ToothRecord, activeFindings: DentalFinding[], zoneMarkers: ZoneMarker[], isUpper: boolean }) => {
   const diagnosesCount = tooth.diagnoses?.length ?? 0;
   const plannedWorksCount = tooth.plannedWorkRecords?.length ?? tooth.plannedWorks?.length ?? 0;
   const tooltipPosition = isUpper ? 'top-full mt-3' : 'bottom-full mb-3';
 
   return (
     <div
-      className={`pointer-events-none absolute left-1/2 ${tooltipPosition} z-30 w-56 -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-left text-xs text-slate-700 opacity-0 shadow-xl shadow-slate-900/10 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100`}
+      className={`pointer-events-none absolute left-1/2 ${tooltipPosition} z-30 w-60 -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-left text-xs text-slate-700 opacity-0 shadow-xl shadow-slate-900/10 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100`}
       role="tooltip"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -80,14 +178,32 @@ const ToothTooltip = ({ tooth, activeFindings, isUpper }: { tooth: ToothRecord, 
         <div>Диагнозы: <span className="font-medium text-slate-900">{diagnosesCount}</span></div>
         <div>Работы: <span className="font-medium text-slate-900">{plannedWorksCount}</span></div>
         <div>Находки: <span className="font-medium text-slate-900">{activeFindings.length}</span></div>
+        {zoneMarkers.length > 0 && (
+          <div>Зоны: <span className="font-medium text-slate-900">{getZoneSummary(zoneMarkers)}</span></div>
+        )}
       </div>
     </div>
   );
 };
 
+const ZoneMarkerOverlay = ({ markers, toothNumber }: { markers: ZoneMarker[], toothNumber: number }) => (
+  <>
+    {markers.map(marker => (
+      <span
+        key={marker.zone}
+        data-testid={`zone-marker-${toothNumber}-${marker.zone}-${marker.state}`}
+        className={`pointer-events-none absolute z-10 shadow-sm ${ZONE_OVERLAY_CLASSES[marker.zone]} ${ZONE_STATE_CLASSES[marker.state]}`}
+        title={`${ZONE_LABELS[marker.zone]}: ${ZONE_STATE_LABELS[marker.state]}`}
+        aria-hidden="true"
+      />
+    ))}
+  </>
+);
+
 const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, onClick: () => void }) => {
   const isUpper = (tooth?.toothNumber || 0) < 30;
   const activeFindings = getActiveFindings(findings);
+  const zoneMarkers = getZoneMarkers(tooth, activeFindings);
 
   const getIndicator = () => {
     if (activeFindings.length === 0) return null;
@@ -121,13 +237,14 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
       aria-label={`Редактировать зуб ${tooth?.toothNumber}: ${getConditionLabel(visualCondition)}`}
       className={`group relative flex flex-col items-center p-1.5 transition-all focus:outline-none ${selectedClasses}`}
     >
-      <ToothTooltip tooth={tooth} activeFindings={activeFindings} isUpper={isUpper} />
+      <ToothTooltip tooth={tooth} activeFindings={activeFindings} zoneMarkers={zoneMarkers} isUpper={isUpper} />
 
       {isUpper && (
         <>
           {/* Upper Anatomical Tooth */}
           <div className="relative flex h-16 w-7 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-20 sm:w-9">
             {getIndicator()}
+            <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} />
             {/* Gum line background band for upper teeth (behind roots) */}
             <div className="absolute top-2 -z-10 h-4 w-[120%] rounded-full bg-pink-100/70"></div>
             <div className={`h-full w-full transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
@@ -162,6 +279,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
           {/* Lower Anatomical Tooth (Flipped) */}
           <div className="relative flex h-16 w-7 rotate-180 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-20 sm:w-9">
             {getIndicator()}
+            <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} />
             {/* Gum line background band for lower teeth (behind roots, now at bottom because flipped) */}
             <div className="absolute top-2 -z-10 h-4 w-[120%] rounded-full bg-pink-100/70"></div>
             <div className={`h-full w-full transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
@@ -213,6 +331,18 @@ const ToothLegend = () => (
       <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
         <span className="h-3 w-3 rounded-full border-2 border-white bg-red-500 shadow-sm" aria-hidden="true" />
         Срочно
+      </div>
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-3 w-3 rounded-full border border-sky-500 bg-sky-300/60 shadow-sm" aria-hidden="true" />
+        Зона активна
+      </div>
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-3 w-3 rounded-full border border-emerald-500 bg-emerald-300/60 shadow-sm" aria-hidden="true" />
+        Зона в плане
+      </div>
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-3 w-3 rounded-full border border-red-500 bg-red-300/70 shadow-sm" aria-hidden="true" />
+        Зона риска
       </div>
     </div>
   </div>

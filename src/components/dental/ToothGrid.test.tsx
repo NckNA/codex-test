@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { ToothGrid } from './ToothGrid';
-import type { ToothRecord } from '../../types';
+import type { ToothRecord, DentalFinding } from '../../types';
 
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -78,7 +78,7 @@ describe('ToothGrid', () => {
     });
   });
 
-  it('renders jaw labels and condition legend', async () => {
+  it('renders jaw labels, condition legend and zone legend', async () => {
     const handleToothClick = vi.fn();
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -92,6 +92,114 @@ describe('ToothGrid', () => {
     expect(container.textContent).toContain('Легенда зубной карты');
     expect(container.textContent).toContain('Кариес');
     expect(container.textContent).toContain('Активная находка');
+    expect(container.textContent).toContain('Зона активна');
+    expect(container.textContent).toContain('Зона в плане');
+    expect(container.textContent).toContain('Зона риска');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('renders a planned crown zone marker from planned work records', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const teethWithPlannedWork = fullMockTeeth.map(tooth => tooth.toothNumber === 18
+      ? {
+          ...tooth,
+          plannedWorkRecords: [
+            {
+              id: 'pwr-18-crown',
+              workId: 'work-filling',
+              zone: 'crown' as const,
+              status: 'planned' as const,
+              createdAt: '2023-01-01T00:00:00.000Z',
+              updatedAt: '2023-01-01T00:00:00.000Z'
+            }
+          ]
+        }
+      : tooth);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={teethWithPlannedWork} onToothClick={handleToothClick} />);
+    });
+
+    expect(container.querySelector('[data-testid="zone-marker-18-crown-planned"]')).not.toBeNull();
+    expect(container.textContent).toContain('Зоны: Коронка (в плане)');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('renders a risk zone marker from a high severity finding and overrides planned marker', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const teethWithPlannedBoneWork = fullMockTeeth.map(tooth => tooth.toothNumber === 17
+      ? {
+          ...tooth,
+          plannedWorkRecords: [
+            {
+              id: 'pwr-17-bone',
+              workId: 'work-bone',
+              zone: 'bone' as const,
+              status: 'planned' as const,
+              createdAt: '2023-01-01T00:00:00.000Z',
+              updatedAt: '2023-01-01T00:00:00.000Z'
+            }
+          ]
+        }
+      : tooth);
+    const findings: DentalFinding[] = [
+      {
+        id: 'finding-17-bone',
+        patientId: 'p1',
+        toothNumber: 17,
+        title: 'Риск по кости',
+        category: 'risk_zone',
+        severity: 'high',
+        description: 'Есть риск по костной ткани',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        status: 'discovered',
+        clinicalZone: 'bone',
+        createdAt: '2023-01-01T00:00:00.000Z',
+        updatedAt: '2023-01-01T00:00:00.000Z'
+      }
+    ];
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={teethWithPlannedBoneWork} findings={findings} onToothClick={handleToothClick} />);
+    });
+
+    expect(container.querySelector('[data-testid="zone-marker-17-bone-risk"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="zone-marker-17-bone-planned"]')).toBeNull();
+    expect(container.textContent).toContain('Зоны: Кость (риск)');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('renders active zone markers from legacy tooth fields', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const teethWithLegacyZone = fullMockTeeth.map(tooth => tooth.toothNumber === 18
+      ? {
+          ...tooth,
+          gum: 'Гингивит'
+        }
+      : tooth);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={teethWithLegacyZone} onToothClick={handleToothClick} />);
+    });
+
+    expect(container.querySelector('[data-testid="zone-marker-18-periodontium-active"]')).not.toBeNull();
+    expect(container.textContent).toContain('Зоны: Десна (активно)');
 
     await act(async () => {
       root.unmount();
