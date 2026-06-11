@@ -50,7 +50,10 @@ describe('clinical dictionaries', () => {
   });
 
   it('returns diagnosis-dependent works for selected diagnoses', () => {
-    const works = getWorksByDiagnoses('natural', 'crown', ['dx_caries_enamel']);
+    const works = getWorksByDiagnoses('natural', 'crown', [
+      'dx_caries_initial',
+      'dx_caries_enamel',
+    ]);
 
     expect(works.map((work) => work.id)).toContain('work_fissure_sealing');
     expect(works.map((work) => work.id)).toContain('work_remineralization');
