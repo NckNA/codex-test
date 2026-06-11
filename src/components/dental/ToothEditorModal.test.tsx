@@ -26,11 +26,11 @@ describe('ToothEditorModal', () => {
   const mockTooth: ToothRecord = {
     toothNumber: 11,
     condition: 'healthy',
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   };
 
-  it('renders all structured clinical section headers without requiring tab switching', async () => {
-    await act(async () => {
+  function renderModal(onSave = vi.fn()) {
+    act(() => {
       root.render(
         <ToothEditorModal
           isOpen={true}
@@ -38,106 +38,123 @@ describe('ToothEditorModal', () => {
           patientId="p1"
           existingFindings={[]}
           onClose={() => {}}
-          onSave={() => {}}
+          onSave={onSave}
         />
       );
+    });
+
+    return onSave;
+  }
+
+  function getSelectByValue(value: string): HTMLSelectElement {
+    const select = Array.from(container.querySelectorAll('select')).find((item) => item.value === value) as HTMLSelectElement | undefined;
+    expect(select).toBeTruthy();
+    return select!;
+  }
+
+  function clickByText(text: string) {
+    const element = Array.from(container.querySelectorAll('button, label')).find((item) => item.textContent?.includes(text));
+    expect(element).toBeTruthy();
+
+    act(() => {
+      element!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  }
+
+  it('renders the prototype editor shell with anatomical status, visual state, notes, and dictionary zones', () => {
+    renderModal();
+
+    const html = container.innerHTML;
+    expect(html).toContain('Анатомический статус');
+    expect(html).toContain('Отображение на формуле');
+    expect(html).toContain('Общие заметки');
+    expect(html).toContain('Создать клиническую проблему');
+    expect(html).toContain('Коронка');
+    expect(html).toContain('Каналы');
+    expect(html).toContain('Десна');
+    expect(html).toContain('Диагнозы / состояния');
+  });
+
+  it('changes available tabs when anatomical status changes', () => {
+    renderModal();
+
+    const presenceSelect = getSelectByValue('natural');
+
+    act(() => {
+      presenceSelect.value = 'missing';
+      presenceSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
     const html = container.innerHTML;
-    expect(html).toContain('Основное состояние');
-    expect(html).toContain('Коронка / Реставрация');
-    expect(html).toContain('Корни / Каналы');
-    expect(html).toContain('Десна / Мягкие ткани');
-    expect(html).toContain('Костная ткань');
-    expect(html).toContain('Клинические заметки');
-    expect(html).toContain('Создать или обновить проблему по этому зубу');
+    expect(html).toContain('Планирование');
+    expect(html).toContain('Кость');
+    expect(html).toContain('Отсутствие зуба');
+    expect(html).not.toContain('Каналы');
   });
 
-  it('zone tabs highlight sections but do not hide other clinical sections', async () => {
-    await act(async () => {
-      root.render(
-        <ToothEditorModal
-          isOpen={true}
-          tooth={mockTooth}
-          patientId="p1"
-          existingFindings={[]}
-          onClose={() => {}}
-          onSave={() => {}}
-        />
-      );
-    });
+  it('shows treatment works after selecting a diagnosis', () => {
+    renderModal();
 
-    await act(async () => {
-      const rootTab = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Каналы');
-      rootTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    expect(container.innerHTML).toContain('Выберите диагноз выше');
+    clickByText('Кариес эмали');
 
-    let html = container.innerHTML;
-    expect(html).toContain('Коронка / Реставрация');
-    expect(html).toContain('Корни / Каналы');
-    expect(html).toContain('Десна / Мягкие ткани');
-    expect(html).toContain('Костная ткань');
-
-    await act(async () => {
-      const gumTab = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Десна');
-      gumTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    html = container.innerHTML;
-    expect(html).toContain('Коронка / Реставрация');
-    expect(html).toContain('Корни / Каналы');
-    expect(html).toContain('Десна / Мягкие ткани');
-    expect(html).toContain('Костная ткань');
+    const html = container.innerHTML;
+    expect(html).toContain('Пломба 1 поверхность');
   });
 
-  it('condition select works and shows surfaces when condition requires treatment', async () => {
-    await act(async () => {
-      root.render(
-        <ToothEditorModal
-          isOpen={true}
-          tooth={mockTooth}
-          patientId="p1"
-          existingFindings={[]}
-          onClose={() => {}}
-          onSave={() => {}}
-        />
-      );
+  it('saves compatibility fields without creating a finding by default', () => {
+    const onSave = renderModal();
+
+    clickByText('Кариес эмали');
+    clickByText('Пломба 1 поверхность');
+    clickByText('Сохранить изменения');
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const [savedTooth, findingPayload] = onSave.mock.calls[0] as [ToothRecord, unknown];
+
+    expect(savedTooth.presenceStatus).toBe('natural');
+    expect(savedTooth.diagnoses).toContain('dx_caries_enamel');
+    expect(savedTooth.plannedWorks).toContain('work_filling_1_surface');
+    expect(savedTooth.plannedWorkRecords?.[0]).toMatchObject({
+      workId: 'work_filling_1_surface',
+      zone: 'crown',
+      status: 'planned',
     });
-
-    const select = container.querySelector('select[name="condition"]') as HTMLSelectElement;
-    expect(select).not.toBeNull();
-    expect(select.value).toBe('healthy');
-    expect(container.innerHTML).not.toContain('Поверхности');
-
-    await act(async () => {
-      select.value = 'caries';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-
-    expect(container.innerHTML).toContain('Поверхности');
-    expect(container.innerHTML).toContain('Жевательная');
-    expect(container.innerHTML).toContain('Мезиальная');
+    expect(savedTooth.visualState).toBe('caries');
+    expect(savedTooth.condition).toBe('caries');
+    expect(findingPayload).toBeNull();
   });
 
-  it('save and reset buttons remain available', async () => {
-    await act(async () => {
-      root.render(
-        <ToothEditorModal
-          isOpen={true}
-          tooth={mockTooth}
-          patientId="p1"
-          existingFindings={[]}
-          onClose={() => {}}
-          onSave={() => {}}
-        />
-      );
+  it('creates a finding payload when requested', () => {
+    const onSave = renderModal();
+
+    clickByText('Создать клиническую проблему');
+    clickByText('Кариес эмали');
+    clickByText('Сохранить изменения');
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const [, findingPayload] = onSave.mock.calls[0] as [ToothRecord, { title?: string; description?: string }];
+
+    expect(findingPayload.title).toContain('зуб 11');
+    expect(findingPayload.description).toContain('Кариес эмали');
+  });
+
+  it('supports manual visual state override and reset', () => {
+    renderModal();
+
+    clickByText('Изменить вручную');
+    const visualSelect = getSelectByValue('healthy');
+
+    act(() => {
+      visualSelect.value = 'filled';
+      visualSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    const saveButton = container.querySelector('button[type="submit"]');
-    const resetText = container.innerHTML;
+    expect(container.innerHTML).toContain('Вернуть автоматический расчёт');
+    clickByText('Сбросить');
 
-    expect(saveButton).not.toBeNull();
-    expect(saveButton!.textContent).toBe('Сохранить');
-    expect(resetText).toContain('Сбросить (Здоров)');
+    const html = container.innerHTML;
+    expect(html).toContain('Расчётное состояние');
+    expect(html).not.toContain('Вернуть автоматический расчёт');
   });
 });
