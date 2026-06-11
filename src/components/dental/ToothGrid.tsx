@@ -80,7 +80,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
           </div>
           {/* Upper Surface Ring */}
           <div className="w-5 h-5 sm:w-6 sm:h-6 mt-1 mb-1 opacity-90">
-             <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} />
+             <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} filledColor={colors.stroke} />
           </div>
           {/* Upper Tooth Number */}
           <div className={`text-xs sm:text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
@@ -97,7 +97,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
           </div>
           {/* Lower Surface Ring */}
           <div className="w-5 h-5 sm:w-6 sm:h-6 mt-1 mb-1 opacity-90">
-             <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} />
+             <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} filledColor={colors.stroke} />
           </div>
           {/* Lower Anatomical Tooth (Flipped) */}
           <div className="relative w-7 h-16 sm:w-9 sm:h-20 flex justify-center drop-shadow-sm group-hover:drop-shadow-md rotate-180">
