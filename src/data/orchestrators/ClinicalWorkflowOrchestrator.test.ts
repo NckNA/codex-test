@@ -68,12 +68,12 @@ describe('ClinicalWorkflowOrchestrator', () => {
       const initialChart: DentalChart = {
         id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old',
         teeth: [
-          { toothNumber: 11, condition: 'healthy', updatedAt: 'old' },
-          { toothNumber: 12, condition: 'healthy', updatedAt: 'old' }
+          { toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' },
+          { toothNumber: 12, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' }
         ]
       };
       
-      const updatedTooth: ToothRecord = { toothNumber: 11, condition: 'caries', updatedAt: 'new' };
+      const updatedTooth: ToothRecord = { toothNumber: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries', updatedAt: 'new' };
 
       const result = await orchestrator.applyToothStatusChange({
         patientId: 'p1',
@@ -102,10 +102,10 @@ describe('ClinicalWorkflowOrchestrator', () => {
 
       const initialChart: DentalChart = {
         id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old',
-        teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'old' }]
+        teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' }]
       };
       
-      const updatedTooth: ToothRecord = { toothNumber: 11, condition: 'caries', updatedAt: 'new' };
+      const updatedTooth: ToothRecord = { toothNumber: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries', updatedAt: 'new' };
 
       // Missing title
       await orchestrator.applyToothStatusChange({
@@ -128,8 +128,8 @@ describe('ClinicalWorkflowOrchestrator', () => {
 
       await orchestrator.applyToothStatusChange({
         patientId: 'p1',
-        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'old' }] },
-        updatedTooth: { toothNumber: 11, condition: 'caries', updatedAt: 'new' },
+        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' }] },
+        updatedTooth: { toothNumber: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries', updatedAt: 'new' },
         findingPayload: {
           title: 'Deep caries',
           category: 'caries',
@@ -168,8 +168,8 @@ describe('ClinicalWorkflowOrchestrator', () => {
 
       await orchestrator.applyToothStatusChange({
         patientId: 'p1',
-        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'old' }] },
-        updatedTooth: { toothNumber: 11, condition: 'caries', updatedAt: 'new' },
+        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' }] },
+        updatedTooth: { toothNumber: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries', updatedAt: 'new' },
         findingPayload: {
           title: 'New title',
           category: 'caries',
@@ -202,8 +202,8 @@ describe('ClinicalWorkflowOrchestrator', () => {
 
       await orchestrator.applyToothStatusChange({
         patientId: 'p1',
-        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'old' }] },
-        updatedTooth: { toothNumber: 11, condition: 'caries', updatedAt: 'new' },
+        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' }] },
+        updatedTooth: { toothNumber: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries', updatedAt: 'new' },
         findingPayload: { title: 'New', category: 'caries', severity: 'high' }
       });
 
@@ -225,8 +225,8 @@ describe('ClinicalWorkflowOrchestrator', () => {
 
       await orchestrator.applyToothStatusChange({
         patientId: 'p1',
-        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'old' }] },
-        updatedTooth: { toothNumber: 11, condition: 'caries', updatedAt: 'new' },
+        chart: { id: 'c1', patientId: 'p1', createdAt: 'old', updatedAt: 'old', teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'old' }] },
+        updatedTooth: { toothNumber: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries', updatedAt: 'new' },
         findingPayload: { title: 'New', category: 'caries', severity: 'high' }
       });
 

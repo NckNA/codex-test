@@ -74,24 +74,93 @@ export type ToothNumber =
   | 48 | 47 | 46 | 45 | 44 | 43 | 42 | 41
   | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38;
 
-export type ToothCondition =
-  | 'healthy'
-  | 'caries'
-  | 'filled'
-  | 'missing'
-  | 'crown'
-  | 'implant'
+export type ToothPresenceStatus = 
+  | 'natural'          // естественный зуб
+  | 'missing'          // отсутствует давно / зона дефекта
+  | 'extracted_recent' // недавно удалён / лунка
+  | 'implant'          // установлен имплант
+  | 'root_remnant'     // остаток корня
+  | 'unerupted'        // непрорезавшийся зуб
+  | 'impacted'         // ретинированный / дистопированный
+  | 'primary'          // молочный зуб
+  | 'supernumerary';   // сверхкомплектный зуб
+
+export type VisualState = 
+  | 'healthy' 
+  | 'caries' 
+  | 'pulpitis' 
+  | 'periodontitis' 
+  | 'implant' 
+  | 'missing' 
+  | 'crown' 
+  | 'filled' 
   | 'root'
-  | 'pulpitis'
-  | 'periodontitis'
-  | 'needs_treatment';
+  | 'needs_treatment'
+  | 'sensitivity'
+  | 'crack'
+  | 'hygiene_required';
 
 export type ToothSurface = 'occlusal' | 'mesial' | 'distal' | 'vestibular' | 'oral';
 
+export type ClinicalZone = 
+  | 'crown' 
+  | 'surfaces'
+  | 'endo' 
+  | 'root' 
+  | 'perio' 
+  | 'periodontium'
+  | 'bone' 
+  | 'prosthetics'
+  | 'ortho' 
+  | 'orthodontics'
+  | 'occlusion'
+  | 'implant_body' 
+  | 'implant_superstructure' 
+  | 'supra'
+  | 'implant_gum'
+  | 'surgery'
+  | 'planning'
+  | 'diagnostics'
+  | 'bone_gum'
+  | 'primary_crown'
+  | 'primary_endo'
+  // New zones from user
+  | 'healing'
+  | 'complications'
+  | 'sutures'
+  | 'maintenance'
+  | 'shift'
+  | 'socket';
+
+export interface PlannedWorkRecord {
+  id: string;
+  workId: string;
+  diagnosisIds: string[];
+  zone: ClinicalZone;
+  toothId: string;
+  surfaces?: ToothSurface[];
+  status: 'planned' | 'completed' | 'cancelled';
+  note?: string;
+}
+
 export interface ToothRecord {
   toothNumber: ToothNumber;
-  condition: ToothCondition;
+  dentition?: 'permanent' | 'primary';
+  presenceStatus: ToothPresenceStatus;
+  visualState?: VisualState;
+  
+  diagnoses: string[];
+  plannedWorks: string[]; // Legacy MVP format
+  plannedWorkRecords?: PlannedWorkRecord[]; // New object structure
+  completedWorks: string[];
+  
+  visualStateOverride?: VisualState;
+  isVisualStateManual?: boolean;
+
   surfaces?: ToothSurface[];
+  
+  // Legacy text fields (for backward compatibility during migration)
+  condition?: VisualState;
   crown?: string;
   workCrown?: string;
   root?: string;
@@ -102,6 +171,7 @@ export interface ToothRecord {
   workBone?: string;
   canal?: string;
   workCanal?: string;
+  
   notes?: string;
   updatedAt: string;
 }

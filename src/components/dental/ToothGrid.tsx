@@ -25,6 +25,9 @@ const getToothColors = (condition: string) => {
     case 'pulpitis': return { fill: '#FEE2E2', stroke: '#EF4444' }; // red-100, red-500
     case 'periodontitis': return { fill: '#FFE4E6', stroke: '#F43F5E' }; // rose-100, rose-500
     case 'needs_treatment': return { fill: '#FEF3C7', stroke: '#F59E0B' }; // amber-100, amber-500
+    case 'sensitivity': return { fill: '#ECFEFF', stroke: '#06B6D4' }; // cyan-50, cyan-500
+    case 'crack': return { fill: '#FFF1F2', stroke: '#E11D48' }; // rose-50, rose-600
+    case 'hygiene_required': return { fill: '#FEF9C3', stroke: '#A16207' }; // yellow-100, yellow-700 (calculus marker)
     default: return { fill: '#ffffff', stroke: '#9CA3AF' };
   }
 };
@@ -48,8 +51,9 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
     return <div className="absolute top-0 right-0 w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow-sm z-20"></div>;
   };
 
-  const colors = getToothColors(tooth?.condition || 'healthy');
-  const isMissing = tooth?.condition === 'missing';
+  const visualState = tooth?.visualState || tooth?.condition || 'healthy';
+  const colors = getToothColors(visualState);
+  const isMissing = tooth?.presenceStatus === 'missing' || tooth?.presenceStatus === 'extracted_recent' || visualState === 'missing';
   
   // Extract surfaces from tooth data
   const surfaces = (tooth.surfaces as unknown as SurfaceType[]) || [];

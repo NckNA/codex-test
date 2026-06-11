@@ -25,7 +25,7 @@ describe('ToothEditorModal', () => {
 
   const mockTooth: ToothRecord = {
     toothNumber: 11,
-    condition: 'healthy',
+    presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy',
     updatedAt: new Date().toISOString()
   };
 

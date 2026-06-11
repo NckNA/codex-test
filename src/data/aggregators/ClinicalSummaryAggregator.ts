@@ -53,8 +53,11 @@ export async function getPatientMedicalSummary(patientId: string): Promise<Patie
     .filter(a => a.patientId === patientId)
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
 
-  const needsTreatment = chart.teeth.filter(t => ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(t.condition)).length;
-  const missing = chart.teeth.filter(t => t.condition === 'missing').length;
+  const needsTreatment = chart.teeth.filter(t => {
+    const state = t.visualState || t.condition;
+    return state && ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(state);
+  }).length;
+  const missing = chart.teeth.filter(t => t.presenceStatus === 'missing' || t.visualState === 'missing' || t.condition === 'missing').length;
   const activePlans = plans.filter(p => ['draft', 'in_progress', 'approved'].includes(p.status)).length;
   const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
 

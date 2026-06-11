@@ -19,6 +19,7 @@ import { MailingPage } from './pages/MailingPage';
 import { SmsPage } from './pages/SmsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { PatientCardPage } from './pages/PatientCardPage';
+import { ClinicalDictionariesPage } from './pages/ClinicalDictionariesPage';
 
 export function App() {
   const { authMode, isLoading: authLoading, user, signOut } = useAuth();
@@ -110,6 +111,7 @@ export function App() {
           <Route path="mailing" element={<MailingPage />} />
           <Route path="sms" element={<SmsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings/clinical-dictionaries" element={<ClinicalDictionariesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

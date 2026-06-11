@@ -24,7 +24,7 @@ describe('DentalChartRepository', () => {
         id: 'chart_1',
         patientId: 'patient_1',
         teeth: [
-          { toothNumber: 11, condition: 'healthy', updatedAt: 'now' }
+          { toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'now' }
         ],
         createdAt: 'now',
         updatedAt: 'now'
@@ -84,7 +84,7 @@ describe('DentalChartRepository', () => {
       const mockEq = vi.fn().mockReturnThis();
       const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-1', patient_id: 'p1' }, error: null });
 
-      const mockTeethEq2 = vi.fn().mockResolvedValue({ data: [{ tooth_number: 11, condition: 'caries' }], error: null });
+      const mockTeethEq2 = vi.fn().mockResolvedValue({ data: [{ tooth_number: 11, presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries' }], error: null });
       const mockTeethEq1 = vi.fn().mockReturnValue({ eq: mockTeethEq2 });
       const mockTeethSelect = vi.fn().mockReturnValue({ eq: mockTeethEq1 });
 
@@ -157,7 +157,7 @@ describe('DentalChartRepository', () => {
       const chart: DentalChart = {
         id: 'chart_p1', // local ID
         patientId: 'p1',
-        teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'now' }],
+        teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'now' }],
         createdAt: 'now',
         updatedAt: 'now'
       };
@@ -197,7 +197,7 @@ describe('DentalChartRepository', () => {
       const chart: DentalChart = {
         id: 'chart_p1', // local ID
         patientId: 'p1',
-        teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'now' }],
+        teeth: [{ toothNumber: 11, presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy', updatedAt: 'now' }],
         createdAt: 'now',
         updatedAt: 'now'
       };

@@ -1,5 +1,5 @@
 import { storage } from '../../utils/storage';
-import type { DentalChart, ToothRecord, ToothNumber, ToothCondition, ToothSurface } from '../../types';
+import type { DentalChart, ToothRecord, ToothNumber, ToothSurface } from '../../types';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -64,7 +64,13 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
     (teethData || []).forEach(row => {
       dbTeethMap.set(row.tooth_number, {
         toothNumber: row.tooth_number as ToothNumber,
-        condition: row.condition as ToothCondition,
+        dentition: 'permanent',
+        presenceStatus: (row as any).presence_status || 'natural',
+        visualState: row.condition as any, // Legacy mapping
+        diagnoses: (row as any).diagnoses || [],
+        plannedWorks: (row as any).planned_works || [],
+        completedWorks: (row as any).completed_works || [],
+        condition: row.condition as any, // Legacy
         surfaces: (row.surfaces || []) as ToothSurface[],
         crown: row.crown || undefined,
         root: row.root || undefined,
@@ -132,7 +138,11 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
       tenant_id: this.tenantId,
       dental_chart_id: chartId,
       tooth_number: t.toothNumber,
-      condition: t.condition,
+      presence_status: t.presenceStatus,
+      condition: t.visualState || t.condition || 'healthy', // Legacy column
+      diagnoses: t.diagnoses,
+      planned_works: t.plannedWorks,
+      completed_works: t.completedWorks,
       surfaces: t.surfaces || [],
       crown: t.crown || null,
       root: t.root || null,

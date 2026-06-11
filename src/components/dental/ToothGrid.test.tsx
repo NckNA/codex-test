@@ -11,7 +11,7 @@ describe('ToothGrid', () => {
   const mockTeeth: ToothRecord[] = [
     {
       toothNumber: 18,
-      condition: 'healthy',
+      presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy',
       surfaces: [],
       crown: '',
       root: '',
@@ -23,7 +23,7 @@ describe('ToothGrid', () => {
     },
     {
       toothNumber: 17,
-      condition: 'caries',
+      presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries',
       surfaces: ['occlusal'],
       crown: '',
       root: '',
@@ -43,7 +43,7 @@ describe('ToothGrid', () => {
     const existing = mockTeeth.find(t => t.toothNumber === num);
     return existing || {
       toothNumber: num,
-      condition: 'healthy',
+      presenceStatus: 'natural', visualState: 'healthy', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'healthy',
       surfaces: [],
       crown: '',
       root: '',
@@ -92,7 +92,7 @@ describe('ToothGrid', () => {
     expect(handleToothClick).toHaveBeenCalledTimes(1);
     expect(handleToothClick).toHaveBeenCalledWith(expect.objectContaining({
       toothNumber: 17,
-      condition: 'caries'
+      presenceStatus: 'natural', visualState: 'caries', diagnoses: [], plannedWorks: [], completedWorks: [], condition: 'caries'
     }));
 
     await act(async () => {

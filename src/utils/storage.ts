@@ -95,7 +95,12 @@ export const storage = {
 
     const teeth: ToothRecord[] = teethNumbers.map(num => ({
       toothNumber: num,
-      condition: 'healthy',
+      dentition: 'permanent',
+      presenceStatus: 'natural',
+      visualState: 'healthy',
+      diagnoses: [],
+      plannedWorks: [],
+      completedWorks: [],
       updatedAt: new Date().toISOString()
     }));
 
