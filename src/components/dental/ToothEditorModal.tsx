@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCcw } from 'lucide-react';
+import { SuggestionInput } from './SuggestionInput';
+import type { ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, ToothCondition, ToothSurface, DentalFinding, FindingCategory, FindingSeverity, FindingStatus } from '../../types';
 
 interface ToothEditorModalProps {
@@ -7,6 +9,7 @@ interface ToothEditorModalProps {
   tooth: ToothRecord | null;
   patientId: string;
   existingFindings: DentalFinding[];
+  defaultZone?: ToothZone;
   onClose: () => void;
   onSave: (tooth: ToothRecord, findingData: Partial<DentalFinding> | null) => void;
 }
@@ -32,8 +35,9 @@ const SURFACES: { value: ToothSurface; label: string }[] = [
   { value: 'oral', label: 'Оральная (L/P)' },
 ];
 
-export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditorModalProps) {
+export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }: ToothEditorModalProps) {
   const [formData, setFormData] = useState<Partial<ToothRecord>>({});
+  const [activeZone, setActiveZone] = useState<ToothZone>('crown');
 
   const [createFinding, setCreateFinding] = useState(false);
   const [findingData, setFindingData] = useState<Partial<DentalFinding>>({
@@ -50,6 +54,7 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
 
   useEffect(() => {
     if (isOpen && tooth) {
+      setActiveZone(defaultZone || 'crown');
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({ ...tooth, surfaces: tooth.surfaces || [] });
       setCreateFinding(false);
@@ -130,10 +135,15 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
       condition: 'healthy',
       surfaces: [],
       crown: '',
+      workCrown: '',
       root: '',
+      workRoot: '',
       gum: '',
+      workGum: '',
       bone: '',
+      workBone: '',
       canal: '',
+      workCanal: '',
       notes: ''
     });
   };
@@ -150,100 +160,164 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
           </button>
         </div>
 
+        <div className="flex border-b border-slate-200">
+          <button type="button" onClick={() => setActiveZone('crown')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'crown' ? 'border-blue-500 text-blue-700 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Коронка</button>
+          <button type="button" onClick={() => setActiveZone('root')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'root' ? 'border-purple-500 text-purple-700 bg-purple-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Каналы</button>
+          <button type="button" onClick={() => setActiveZone('gum')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'gum' ? 'border-rose-500 text-rose-700 bg-rose-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Десна</button>
+          <button type="button" onClick={() => setActiveZone('bone')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'bone' ? 'border-amber-500 text-amber-700 bg-amber-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Кость</button>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-4">
           <form id="tooth-form" onSubmit={handleSubmit} className="space-y-6">
-            {/* A. Basic condition */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <label className="block text-sm font-semibold text-slate-800 mb-2">Основное состояние</label>
-              <select
-                name="condition"
-                value={formData.condition || 'healthy'}
-                onChange={handleChange}
-                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium bg-white shadow-sm"
-              >
-                {CONDITIONS.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* B. Surfaces */}
-            {['caries', 'filled', 'needs_treatment'].includes(formData.condition || '') && (
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-3">Поверхности</label>
-                <div className="flex flex-wrap gap-2">
-                  {SURFACES.map(s => (
-                    <button
-                      key={s.value}
-                      type="button"
-                      onClick={() => handleSurfaceToggle(s.value)}
-                      className={`px-4 py-2 text-sm rounded-lg border transition-all ${
-                        (formData.surfaces || []).includes(s.value)
-                          ? 'bg-blue-50 border-blue-500 text-blue-700 font-semibold shadow-inner'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
+            
+            {activeZone === 'crown' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                {/* A. Basic condition */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <label className="block text-sm font-semibold text-slate-800 mb-2">Основное состояние зуба</label>
+                  <select
+                    name="condition"
+                    value={formData.condition || 'healthy'}
+                    onChange={handleChange}
+                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium bg-white shadow-sm"
+                  >
+                    {CONDITIONS.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
                 </div>
+
+                {/* B. Surfaces */}
+                {['caries', 'filled', 'needs_treatment'].includes(formData.condition || '') && (
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <label className="block text-sm font-semibold text-slate-800 mb-3">Поверхности</label>
+                    <div className="flex flex-wrap gap-2">
+                      {SURFACES.map(s => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => handleSurfaceToggle(s.value)}
+                          className={`px-4 py-2 text-sm rounded-lg border transition-all ${
+                            (formData.surfaces || []).includes(s.value)
+                              ? 'bg-blue-50 border-blue-500 text-blue-700 font-semibold shadow-inner'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* C. Crown */}
+                <SuggestionInput
+                  label="Проблема: Коронка / Реставрация"
+                  name="crown"
+                  value={formData.crown || ''}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  placeholder="Материал, дефекты..."
+                  suggestions={[
+                    "Кариес эмали", "Кариес дентина", "Глубокий кариес", 
+                    "Скол эмали", "Скол коронки", "Дефект пломбы", "Вторичный кариес"
+                  ]}
+                />
+                
+                <SuggestionInput
+                  label="Запланированная работа (Коронка)"
+                  name="workCrown"
+                  value={formData.workCrown || ''}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  placeholder="План лечения..."
+                  suggestions={[
+                    "Фотополимерная реставрация", "Керамическая вкладка", 
+                    "Металлокерамическая коронка", "Циркониевая коронка", "Винир"
+                  ]}
+                />
               </div>
             )}
 
-            {/* Structured Clinical Sections */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* C. Crown */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Коронка / Реставрация</label>
-                <input
-                  type="text"
-                  name="crown"
-                  value={formData.crown || ''}
-                  onChange={handleChange}
-                  placeholder="Материал, дефекты..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                />
-              </div>
-
-              {/* D. Gum / soft tissue */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Десна / Мягкие ткани</label>
-                <input
-                  type="text"
-                  name="gum"
-                  value={formData.gum || ''}
-                  onChange={handleChange}
-                  placeholder="Рецессия, воспаление..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                />
-              </div>
-
-              {/* E. Roots / canals */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Корни / Каналы</label>
-                <input
-                  type="text"
+            {activeZone === 'root' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                <SuggestionInput
+                  label="Проблема: Корни / Каналы"
                   name="canal"
                   value={formData.canal || ''}
-                  onChange={handleChange}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
                   placeholder="Пломбировка, изменения..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                  suggestions={[
+                    "Каналы запломбированы до верхушки", "Каналы недопломбированы", 
+                    "Пустой канал", "Анкерный штифт", "Стекловолоконный штифт", 
+                    "Обломок инструмента", "Перфорация"
+                  ]}
+                />
+                <SuggestionInput
+                  label="Запланированная работа (Каналы)"
+                  name="workCanal"
+                  value={formData.workCanal || ''}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  placeholder="План лечения..."
+                  suggestions={[
+                    "Механическая и медикаментозная обработка", "Распломбировка каналов", 
+                    "Пломбировка гуттаперчей", "Установка СВШ"
+                  ]}
                 />
               </div>
+            )}
 
-              {/* F. Bone */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Костная ткань</label>
-                <input
-                  type="text"
+            {activeZone === 'gum' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                <SuggestionInput
+                  label="Проблема: Десна / Мягкие ткани"
+                  name="gum"
+                  value={formData.gum || ''}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  placeholder="Рецессия, воспаление..."
+                  suggestions={[
+                    "Гингивит", "Рецессия десны", "Кровоточивость при зондировании", 
+                    "Пародонтальный карман", "Свищ", "Отек"
+                  ]}
+                />
+                <SuggestionInput
+                  label="Запланированная работа (Десна)"
+                  name="workGum"
+                  value={formData.workGum || ''}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  placeholder="План лечения..."
+                  suggestions={[
+                    "Закрытый кюретаж", "Открытый кюретаж", "Вектор-терапия", 
+                    "Пластика десны", "Удаление зубных отложений"
+                  ]}
+                />
+              </div>
+            )}
+
+            {activeZone === 'bone' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                <SuggestionInput
+                  label="Проблема: Костная ткань"
                   name="bone"
                   value={formData.bone || ''}
-                  onChange={handleChange}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
                   placeholder="Резорбция, карманы..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                  suggestions={[
+                    "Без видимых изменений", "Убыль костной ткани 1/3", 
+                    "Убыль костной ткани 1/2", "Киста", "Гранулема", "Остеосклероз"
+                  ]}
+                />
+                <SuggestionInput
+                  label="Запланированная работа (Костная ткань)"
+                  name="workBone"
+                  value={formData.workBone || ''}
+                  onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  placeholder="План лечения..."
+                  suggestions={[
+                    "Резекция верхушки корня", "Цистотомия", 
+                    "Направленная костная регенерация", "Удаление зуба"
+                  ]}
                 />
               </div>
-            </div>
+            )}
 
             {/* G. Clinical notes */}
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
