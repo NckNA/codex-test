@@ -9,9 +9,11 @@ This task was strictly limited to visual and CSS-based updates to `ToothGrid.tsx
 ## 3. Files inspected
 - `src/components/dental/ToothGrid.tsx`
 - `src/components/dental/ToothGrid.test.tsx`
+- `src/components/dental/ToothEditorModal.test.tsx`
 
 ## 4. Files changed
 - `src/components/dental/ToothGrid.tsx`
+- `src/components/dental/ToothEditorModal.test.tsx`
 
 ## 5. Previous visual problem
 Teeth were rendered as simple, flat, pill-shaped blocks (`w-10 h-14` / `w-12 h-16` with rounded tops and bottoms). They did not anatomically resemble teeth, reducing the professional feel of the chart.
