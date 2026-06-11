@@ -151,6 +151,34 @@ function deriveVisualState(
   return diagnosisIds.length > 0 || plannedWorkIds.length > 0 ? 'needs_treatment' : 'healthy';
 }
 
+function deriveFindingCategory(
+  presenceStatus: ToothPresenceStatus,
+  zone: ClinicalZone,
+  diagnosisIds: string[],
+): FindingCategory {
+  const diagnosisSet = new Set(diagnosisIds);
+
+  if (presenceStatus === 'missing') return 'missing_tooth';
+  if (presenceStatus === 'implant') return 'implantology';
+  if (['dx_caries_initial', 'dx_caries_enamel', 'dx_caries_dentin', 'dx_deep_caries', 'dx_root_caries'].some((id) => diagnosisSet.has(id))) return 'caries';
+  if (['dx_irreversible_pulpitis', 'dx_reversible_pulpitis', 'dx_pulp_necrosis'].some((id) => diagnosisSet.has(id))) return 'pain';
+  if (['dx_apical_periodontitis', 'dx_radicular_cyst'].some((id) => diagnosisSet.has(id))) return 'root_problem';
+  if (['dx_periodontal_pocket', 'dx_peri_implantitis'].some((id) => diagnosisSet.has(id))) return 'gum_problem';
+
+  if (zone === 'endodontics' || zone === 'root') return 'root_problem';
+  if (zone === 'periodontium') return 'gum_problem';
+  if (zone === 'bone') return 'risk_zone';
+  if (zone === 'orthopedics' || zone === 'planning') return 'prosthetics';
+  return 'other';
+}
+
+function deriveFindingSeverity(diagnosisIds: string[]): FindingSeverity {
+  const diagnosisSet = new Set(diagnosisIds);
+  if (['dx_irreversible_pulpitis', 'dx_pulp_necrosis', 'dx_apical_periodontitis'].some((id) => diagnosisSet.has(id))) return 'high';
+  if (['dx_deep_caries', 'dx_radicular_cyst', 'dx_peri_implantitis'].some((id) => diagnosisSet.has(id))) return 'medium';
+  return 'medium';
+}
+
 function formatPrice(price?: number): string | null {
   if (typeof price !== 'number') return null;
   return `${price.toLocaleString('ru-RU')} ₸`;
@@ -366,9 +394,9 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
     const selectedWorkNames = plannedWorkIds.map((id) => defaultClinicalWorks.find((work) => work.id === id)?.name || id);
 
     return {
-      title: `Клиническая запись: зуб ${tooth.toothNumber}`,
-      category: 'other' as FindingCategory,
-      severity: 'medium' as FindingSeverity,
+      title: `Клиническая запись: зуб ${tooth.toothNumber} · ${ZONE_LABELS[currentZone]}`,
+      category: deriveFindingCategory(currentPresence, currentZone, diagnosisIds),
+      severity: deriveFindingSeverity(diagnosisIds),
       description: [
         `Анатомический статус: ${presenceLabel}`,
         `Зона: ${ZONE_LABELS[currentZone]}`,
@@ -379,6 +407,10 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       status: 'discovered' as FindingStatus,
       isChiefComplaintRelated: false,
       includeInTreatmentPlan: selectedWorkNames.length > 0,
+      clinicalZone: currentZone,
+      diagnosisIds,
+      plannedWorkIds,
+      plannedWorkRecordIds: plannedWorkRecords.map((record) => record.id),
     };
   };
 

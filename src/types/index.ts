@@ -195,6 +195,10 @@ export interface DentalFinding {
   isChiefComplaintRelated: boolean;
   includeInTreatmentPlan: boolean;
   status: FindingStatus;
+  clinicalZone?: ClinicalZone;
+  diagnosisIds?: string[];
+  plannedWorkIds?: string[];
+  plannedWorkRecordIds?: string[];
   createdAt: string;
   updatedAt: string;
 }

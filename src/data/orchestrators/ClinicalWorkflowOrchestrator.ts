@@ -16,6 +16,10 @@ export type ToothStatusFindingInput =
     | 'isChiefComplaintRelated'
     | 'includeInTreatmentPlan'
     | 'status'
+    | 'clinicalZone'
+    | 'diagnosisIds'
+    | 'plannedWorkIds'
+    | 'plannedWorkRecordIds'
   >>;
 
 export interface ApplyToothStatusChangeInput {
@@ -49,12 +53,50 @@ export interface ClinicalWorkflowOrchestratorDependencies {
   backend?: 'local' | 'supabase';
 }
 
-
 function buildStageDescription(finding: DentalFinding): string {
   return [
     finding.description,
     finding.recommendation ? `Рекомендация: ${finding.recommendation}` : '',
   ].filter(Boolean).join('\n\n');
+}
+
+function activeFindingMatches(
+  finding: DentalFinding,
+  updatedTooth: ToothRecord,
+  findingPayload: ToothStatusFindingInput,
+  activeStatuses: string[],
+): boolean {
+  if (finding.toothNumber !== updatedTooth.toothNumber) return false;
+  if (finding.category !== findingPayload.category) return false;
+  if (!activeStatuses.includes(finding.status)) return false;
+
+  if (findingPayload.clinicalZone && finding.clinicalZone && finding.clinicalZone !== findingPayload.clinicalZone) {
+    return false;
+  }
+
+  return true;
+}
+
+function applyFindingPayload(
+  baseFinding: DentalFinding,
+  findingPayload: ToothStatusFindingInput,
+): DentalFinding {
+  return {
+    ...baseFinding,
+    title: findingPayload.title,
+    category: findingPayload.category,
+    severity: findingPayload.severity,
+    description: findingPayload.description || '',
+    riskDescription: findingPayload.riskDescription || '',
+    recommendation: findingPayload.recommendation || '',
+    isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
+    includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
+    status: findingPayload.status || baseFinding.status,
+    clinicalZone: findingPayload.clinicalZone,
+    diagnosisIds: findingPayload.diagnosisIds || [],
+    plannedWorkIds: findingPayload.plannedWorkIds || [],
+    plannedWorkRecordIds: findingPayload.plannedWorkRecordIds || [],
+  };
 }
 
 export function createClinicalWorkflowOrchestrator(
@@ -87,25 +129,10 @@ export function createClinicalWorkflowOrchestrator(
       const findings = await findingsRepository.listFindingsByPatient(patientId);
       const activeStatuses = ['discovered', 'recommended', 'included_in_plan', 'observing'];
       
-      const existingActiveFinding = findings.find(f => 
-        f.toothNumber === updatedTooth.toothNumber &&
-        f.category === findingPayload.category &&
-        activeStatuses.includes(f.status)
-      );
+      const existingActiveFinding = findings.find(f => activeFindingMatches(f, updatedTooth, findingPayload, activeStatuses));
 
       if (existingActiveFinding) {
-        await findingsRepository.updateFinding(patientId, {
-          ...existingActiveFinding,
-          title: findingPayload.title,
-          category: findingPayload.category,
-          severity: findingPayload.severity,
-          description: findingPayload.description || '',
-          riskDescription: findingPayload.riskDescription || '',
-          recommendation: findingPayload.recommendation || '',
-          isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
-          includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
-          status: findingPayload.status || existingActiveFinding.status,
-        });
+        await findingsRepository.updateFinding(patientId, applyFindingPayload(existingActiveFinding, findingPayload));
       } else {
         const createFindingInput: CreateFindingInput = {
           toothNumber: updatedTooth.toothNumber,
@@ -118,6 +145,10 @@ export function createClinicalWorkflowOrchestrator(
           isChiefComplaintRelated: findingPayload.isChiefComplaintRelated || false,
           includeInTreatmentPlan: findingPayload.includeInTreatmentPlan || false,
           status: findingPayload.status || 'discovered',
+          clinicalZone: findingPayload.clinicalZone,
+          diagnosisIds: findingPayload.diagnosisIds || [],
+          plannedWorkIds: findingPayload.plannedWorkIds || [],
+          plannedWorkRecordIds: findingPayload.plannedWorkRecordIds || [],
         };
         await findingsRepository.createFinding(patientId, createFindingInput);
       }

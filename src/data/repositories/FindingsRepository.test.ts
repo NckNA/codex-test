@@ -35,7 +35,11 @@ describe('FindingsRepository', () => {
         severity: 'high',
         isChiefComplaintRelated: false,
         includeInTreatmentPlan: false,
-        status: 'discovered'
+        status: 'discovered',
+        clinicalZone: 'crown',
+        diagnosisIds: ['dx_caries_dentin'],
+        plannedWorkIds: ['work_filling_1_surface'],
+        plannedWorkRecordIds: ['record_1'],
       };
 
       await LocalStorageFindingsRepository.createFinding('patient_1', findingDraft);
@@ -50,6 +54,10 @@ describe('FindingsRepository', () => {
       expect(typeof saved.updatedAt).toBe('string');
       expect(saved.title).toBe('Caries');
       expect(saved.status).toBe('discovered');
+      expect(saved.clinicalZone).toBe('crown');
+      expect(saved.diagnosisIds).toEqual(['dx_caries_dentin']);
+      expect(saved.plannedWorkIds).toEqual(['work_filling_1_surface']);
+      expect(saved.plannedWorkRecordIds).toEqual(['record_1']);
     });
 
     it('updateFinding updates only matching patient/finding', async () => {
@@ -158,6 +166,10 @@ describe('FindingsRepository', () => {
           is_chief_complaint_related: true,
           include_in_treatment_plan: false,
           status: 'discovered',
+          clinical_zone: 'periodontium',
+          diagnosis_ids: ['dx_gingivitis'],
+          planned_work_ids: ['work_hygiene_instruction'],
+          planned_work_record_ids: ['record_1'],
           created_at: '2020',
           updated_at: '2020',
         }],
@@ -180,12 +192,46 @@ describe('FindingsRepository', () => {
         isChiefComplaintRelated: true,
         includeInTreatmentPlan: false,
         status: 'discovered',
+        clinicalZone: 'periodontium',
+        diagnosisIds: ['dx_gingivitis'],
+        plannedWorkIds: ['work_hygiene_instruction'],
+        plannedWorkRecordIds: ['record_1'],
         createdAt: '2020',
         updatedAt: '2020',
       });
     });
 
-    it('createFinding maps inputs properly and generates UUID', async () => {
+    it('listFindingsByPatient defaults link arrays for old rows without link fields', async () => {
+      mockOrder.mockResolvedValue({
+        data: [{
+          id: 'uuid-1',
+          patient_id: 'patient1',
+          tooth_number: 11,
+          title: 'Old finding',
+          category: 'caries',
+          severity: 'medium',
+          description: 'desc',
+          risk_description: null,
+          recommendation: null,
+          is_chief_complaint_related: false,
+          include_in_treatment_plan: false,
+          status: 'discovered',
+          created_at: '2020',
+          updated_at: '2020',
+        }],
+        error: null,
+      });
+
+      const repo = new SupabaseFindingsRepository('tenant1', mockClient);
+      const res = await repo.listFindingsByPatient('patient1');
+
+      expect(res[0].clinicalZone).toBeUndefined();
+      expect(res[0].diagnosisIds).toEqual([]);
+      expect(res[0].plannedWorkIds).toEqual([]);
+      expect(res[0].plannedWorkRecordIds).toEqual([]);
+    });
+
+    it('createFinding maps inputs properly and includes structured link fields', async () => {
       const repo = new SupabaseFindingsRepository('tenant1', mockClient);
       await repo.createFinding('patient1', {
         toothNumber: undefined,
@@ -196,6 +242,10 @@ describe('FindingsRepository', () => {
         isChiefComplaintRelated: false,
         includeInTreatmentPlan: false,
         status: 'discovered',
+        clinicalZone: 'periodontium',
+        diagnosisIds: ['dx_gingivitis'],
+        plannedWorkIds: ['work_hygiene_instruction'],
+        plannedWorkRecordIds: ['record_1'],
       });
 
       expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
@@ -212,7 +262,36 @@ describe('FindingsRepository', () => {
         is_chief_complaint_related: false,
         include_in_treatment_plan: false,
         status: 'discovered',
+        clinical_zone: 'periodontium',
+        diagnosis_ids: ['dx_gingivitis'],
+        planned_work_ids: ['work_hygiene_instruction'],
+        planned_work_record_ids: ['record_1'],
       }));
+    });
+
+    it('createFinding falls back to legacy payload if link columns are missing', async () => {
+      mockInsert
+        .mockReturnValueOnce({ error: { message: "Could not find the 'clinical_zone' column of 'findings' in the schema cache" } })
+        .mockReturnValueOnce({ error: null });
+
+      const repo = new SupabaseFindingsRepository('tenant1', mockClient);
+      await repo.createFinding('patient1', {
+        toothNumber: 11,
+        title: 'Legacy compatible',
+        category: 'caries',
+        severity: 'medium',
+        description: 'desc',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        status: 'discovered',
+        clinicalZone: 'crown',
+        diagnosisIds: ['dx_caries_enamel'],
+      });
+
+      expect(mockInsert).toHaveBeenCalledTimes(2);
+      expect(mockInsert.mock.calls[0][0]).toHaveProperty('clinical_zone', 'crown');
+      expect(mockInsert.mock.calls[1][0]).not.toHaveProperty('clinical_zone');
+      expect(mockInsert.mock.calls[1][0]).not.toHaveProperty('diagnosis_ids');
     });
 
     it('updateFinding maps and filters by tenant_id', async () => {
@@ -233,6 +312,10 @@ describe('FindingsRepository', () => {
         isChiefComplaintRelated: true,
         includeInTreatmentPlan: true,
         status: 'completed',
+        clinicalZone: 'crown',
+        diagnosisIds: ['dx_caries_enamel'],
+        plannedWorkIds: ['work_filling_1_surface'],
+        plannedWorkRecordIds: ['record_1'],
         createdAt: '2020',
         updatedAt: '2020',
       });
@@ -242,6 +325,10 @@ describe('FindingsRepository', () => {
         status: 'completed',
         is_chief_complaint_related: true,
         include_in_treatment_plan: true,
+        clinical_zone: 'crown',
+        diagnosis_ids: ['dx_caries_enamel'],
+        planned_work_ids: ['work_filling_1_surface'],
+        planned_work_record_ids: ['record_1'],
       }));
       expect(mockEq).toHaveBeenCalledWith('tenant_id', 'tenant1');
       expect(mockEq).toHaveBeenCalledWith('patient_id', 'patient1');
