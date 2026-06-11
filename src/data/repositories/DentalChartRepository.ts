@@ -16,6 +16,16 @@ export interface CreateDentalChartRepositoryOptions {
   backend: DentalChartRepositoryBackend;
 }
 
+const DENTAL_CHART_EDITOR_COLUMN_NAMES = [
+  'presence_status',
+  'visual_state',
+  'visual_state_override',
+  'diagnoses',
+  'planned_works',
+  'planned_work_records',
+  'completed_works',
+] as const;
+
 const readStringArray = (value: unknown): string[] => {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 };
@@ -23,6 +33,58 @@ const readStringArray = (value: unknown): string[] => {
 const readPlannedWorkRecords = (value: unknown): ToothRecord['plannedWorkRecords'] => {
   return Array.isArray(value) ? value as ToothRecord['plannedWorkRecords'] : [];
 };
+
+const errorText = (error: unknown): string => {
+  if (!error || typeof error !== 'object') return '';
+
+  const candidate = error as { message?: unknown; details?: unknown; hint?: unknown };
+
+  return [candidate.message, candidate.details, candidate.hint]
+    .filter((part): part is string => typeof part === 'string')
+    .join(' ')
+    .toLowerCase();
+};
+
+const isMissingEditorColumnError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+
+  const candidate = error as { code?: unknown };
+  const code = typeof candidate.code === 'string' ? candidate.code : '';
+  const text = errorText(error);
+  const mentionsEditorColumn = DENTAL_CHART_EDITOR_COLUMN_NAMES.some(column => text.includes(column));
+
+  if (!mentionsEditorColumn) return false;
+
+  return code === 'PGRST204'
+    || code === '42703'
+    || text.includes('schema cache')
+    || text.includes('column');
+};
+
+const createLegacyToothStateRow = (tenantId: string, chartId: string, tooth: ToothRecord) => ({
+  tenant_id: tenantId,
+  dental_chart_id: chartId,
+  tooth_number: tooth.toothNumber,
+  condition: tooth.condition,
+  surfaces: tooth.surfaces || [],
+  crown: tooth.crown || null,
+  root: tooth.root || null,
+  gum: tooth.gum || null,
+  bone: tooth.bone || null,
+  canal: tooth.canal || null,
+  notes: tooth.notes || null,
+});
+
+const createEditorToothStateRow = (tenantId: string, chartId: string, tooth: ToothRecord) => ({
+  ...createLegacyToothStateRow(tenantId, chartId, tooth),
+  presence_status: tooth.presenceStatus || null,
+  visual_state: tooth.visualState || null,
+  visual_state_override: tooth.visualStateOverride || null,
+  diagnoses: tooth.diagnoses || [],
+  planned_works: tooth.plannedWorks || [],
+  planned_work_records: tooth.plannedWorkRecords || [],
+  completed_works: tooth.completedWorks || [],
+});
 
 export const LocalStorageDentalChartRepository: DentalChartRepository = {
   async getDentalChart(patientId: string): Promise<DentalChart> {
@@ -148,26 +210,7 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
     if (chartError) throw chartError;
 
     // 5. Save tooth_states using that same stable chartId.
-    const teethRows = normalizedChart.teeth.map(t => ({
-      tenant_id: this.tenantId,
-      dental_chart_id: chartId,
-      tooth_number: t.toothNumber,
-      condition: t.condition,
-      surfaces: t.surfaces || [],
-      crown: t.crown || null,
-      root: t.root || null,
-      gum: t.gum || null,
-      bone: t.bone || null,
-      canal: t.canal || null,
-      notes: t.notes || null,
-      presence_status: t.presenceStatus || null,
-      visual_state: t.visualState || null,
-      visual_state_override: t.visualStateOverride || null,
-      diagnoses: t.diagnoses || [],
-      planned_works: t.plannedWorks || [],
-      planned_work_records: t.plannedWorkRecords || [],
-      completed_works: t.completedWorks || [],
-    }));
+    const teethRows = normalizedChart.teeth.map(t => createEditorToothStateRow(this.tenantId, chartId, t));
 
     const { error: teethError } = await this.client
       .from('tooth_states')
@@ -175,7 +218,20 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
         onConflict: 'dental_chart_id,tooth_number'
       });
 
-    if (teethError) throw teethError;
+    if (teethError) {
+      if (!isMissingEditorColumnError(teethError)) {
+        throw teethError;
+      }
+
+      const legacyTeethRows = normalizedChart.teeth.map(t => createLegacyToothStateRow(this.tenantId, chartId, t));
+      const { error: legacyTeethError } = await this.client
+        .from('tooth_states')
+        .upsert(legacyTeethRows, {
+          onConflict: 'dental_chart_id,tooth_number'
+        });
+
+      if (legacyTeethError) throw legacyTeethError;
+    }
   }
 }
 
