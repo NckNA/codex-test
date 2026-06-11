@@ -3,15 +3,49 @@ import { AnatomicalTooth } from './icons/AnatomicalTeeth';
 import { SurfaceRing } from './icons/SurfaceRing';
 import type { SurfaceType } from './icons/SurfaceRing';
 
+export type DentitionMode = 'adult' | 'child';
+
 interface ToothGridProps {
   teeth: ToothRecord[];
   findings?: DentalFinding[];
   onToothClick: (tooth: ToothRecord) => void;
   selectedToothNumber?: number;
+  dentitionMode?: DentitionMode;
+  onDentitionModeChange?: (mode: DentitionMode) => void;
 }
 
-const UPPER_JAW: ToothNumber[] = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
-const LOWER_JAW: ToothNumber[] = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+const ADULT_UPPER_JAW: ToothNumber[] = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
+const ADULT_LOWER_JAW: ToothNumber[] = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+const CHILD_UPPER_JAW: ToothNumber[] = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
+const CHILD_LOWER_JAW: ToothNumber[] = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
+
+const DISPLAY_FALLBACK_UPDATED_AT = '1970-01-01T00:00:00.000Z';
+
+const DENTITION_CONFIG: Record<DentitionMode, {
+  label: string;
+  helper: string;
+  upper: ToothNumber[];
+  lower: ToothNumber[];
+  upperSubtitle: string;
+  lowerSubtitle: string;
+}> = {
+  adult: {
+    label: 'Постоянная формула',
+    helper: 'FDI 18–28 / 48–38',
+    upper: ADULT_UPPER_JAW,
+    lower: ADULT_LOWER_JAW,
+    upperSubtitle: 'FDI 18–28',
+    lowerSubtitle: 'FDI 48–38',
+  },
+  child: {
+    label: 'Молочная формула',
+    helper: 'FDI 55–65 / 85–75',
+    upper: CHILD_UPPER_JAW,
+    lower: CHILD_LOWER_JAW,
+    upperSubtitle: 'FDI 55–65',
+    lowerSubtitle: 'FDI 85–75',
+  },
+};
 
 const TOOTH_CONDITION_LABELS: Record<ToothCondition, string> = {
   healthy: 'Здоров',
@@ -83,16 +117,16 @@ interface ZoneMarker {
 
 const getToothColors = (condition: string) => {
   switch (condition) {
-    case 'healthy': return { fill: '#ffffff', stroke: '#9CA3AF' }; // white, gray-400
-    case 'caries': return { fill: '#FFEDD5', stroke: '#F97316' }; // orange-100, orange-500
-    case 'filled': return { fill: '#DBEAFE', stroke: '#3B82F6' }; // blue-100, blue-500
-    case 'missing': return { fill: '#F1F5F9', stroke: '#CBD5E1', opacity: 0.4 }; // slate-100, slate-300
-    case 'crown': return { fill: '#FEF3C7', stroke: '#EAB308' }; // yellow-100, yellow-500
-    case 'implant': return { fill: '#F3E8FF', stroke: '#A855F7' }; // purple-100, purple-500
-    case 'root': return { fill: '#FEF2F2', stroke: '#EF4444' }; // red-50, red-500
-    case 'pulpitis': return { fill: '#FEE2E2', stroke: '#EF4444' }; // red-100, red-500
-    case 'periodontitis': return { fill: '#FFE4E6', stroke: '#F43F5E' }; // rose-100, rose-500
-    case 'needs_treatment': return { fill: '#FEF3C7', stroke: '#F59E0B' }; // amber-100, amber-500
+    case 'healthy': return { fill: '#ffffff', stroke: '#9CA3AF' };
+    case 'caries': return { fill: '#FFEDD5', stroke: '#F97316' };
+    case 'filled': return { fill: '#DBEAFE', stroke: '#3B82F6' };
+    case 'missing': return { fill: '#F1F5F9', stroke: '#CBD5E1', opacity: 0.4 };
+    case 'crown': return { fill: '#FEF3C7', stroke: '#EAB308' };
+    case 'implant': return { fill: '#F3E8FF', stroke: '#A855F7' };
+    case 'root': return { fill: '#FEF2F2', stroke: '#EF4444' };
+    case 'pulpitis': return { fill: '#FEE2E2', stroke: '#EF4444' };
+    case 'periodontitis': return { fill: '#FFE4E6', stroke: '#F43F5E' };
+    case 'needs_treatment': return { fill: '#FEF3C7', stroke: '#F59E0B' };
     default: return { fill: '#ffffff', stroke: '#9CA3AF' };
   }
 };
@@ -125,6 +159,20 @@ const getWorkRecordZoneState = (status: string): ZoneMarkerState | null => {
   if (status === 'in_progress') return 'active';
   return null;
 };
+
+const createDisplayTooth = (toothNumber: ToothNumber, dentitionMode: DentitionMode): ToothRecord => ({
+  toothNumber,
+  condition: 'healthy',
+  surfaces: [],
+  notes: '',
+  updatedAt: DISPLAY_FALLBACK_UPDATED_AT,
+  presenceStatus: dentitionMode === 'child' ? 'deciduous' : 'natural',
+  visualState: 'healthy',
+  diagnoses: [],
+  plannedWorks: [],
+  plannedWorkRecords: [],
+  completedWorks: [],
+});
 
 const getZoneMarkers = (tooth: ToothRecord, activeFindings: DentalFinding[]): ZoneMarker[] => {
   const markers = new Map<ClinicalZone, ZoneMarkerState>();
@@ -200,8 +248,7 @@ const ZoneMarkerOverlay = ({ markers, toothNumber }: { markers: ZoneMarker[], to
   </>
 );
 
-const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, onClick: () => void }) => {
-  const isUpper = (tooth?.toothNumber || 0) < 30;
+const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, isUpper: boolean, onClick: () => void }) => {
   const activeFindings = getActiveFindings(findings);
   const zoneMarkers = getZoneMarkers(tooth, activeFindings);
 
@@ -223,8 +270,6 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
   const visualCondition = tooth.visualState ?? tooth.condition ?? 'healthy';
   const colors = getToothColors(visualCondition);
   const isMissing = visualCondition === 'missing';
-
-  // Extract surfaces from tooth data
   const surfaces = (tooth.surfaces as unknown as SurfaceType[]) || [];
   const selectedClasses = isSelected
     ? 'z-10 scale-105 rounded-xl bg-blue-50 shadow-md ring-2 ring-blue-400 ring-offset-2 ring-offset-white'
@@ -234,18 +279,16 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
     <button
       type="button"
       onClick={onClick}
-      aria-label={`Редактировать зуб ${tooth?.toothNumber}: ${getConditionLabel(visualCondition)}`}
+      aria-label={`Редактировать зуб ${tooth.toothNumber}: ${getConditionLabel(visualCondition)}`}
       className={`group relative flex flex-col items-center p-1.5 transition-all focus:outline-none ${selectedClasses}`}
     >
       <ToothTooltip tooth={tooth} activeFindings={activeFindings} zoneMarkers={zoneMarkers} isUpper={isUpper} />
 
       {isUpper && (
         <>
-          {/* Upper Anatomical Tooth */}
           <div className="relative flex h-16 w-7 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-20 sm:w-9">
             {getIndicator()}
             <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} />
-            {/* Gum line background band for upper teeth (behind roots) */}
             <div className="absolute top-2 -z-10 h-4 w-[120%] rounded-full bg-pink-100/70"></div>
             <div className={`h-full w-full transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
               <AnatomicalTooth
@@ -255,32 +298,26 @@ const ToothColumn = ({ tooth, findings = [], isSelected, onClick }: { tooth: Too
               />
             </div>
           </div>
-          {/* Upper Surface Ring */}
           <div className="mb-1 mt-1 h-5 w-5 opacity-90 sm:h-6 sm:w-6">
             <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} filledColor={colors.stroke} />
           </div>
-          {/* Upper Tooth Number */}
           <div className={`text-xs font-bold sm:text-sm ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
-            {tooth?.toothNumber}
+            {tooth.toothNumber}
           </div>
         </>
       )}
 
       {!isUpper && (
         <>
-          {/* Lower Tooth Number */}
           <div className={`text-xs font-bold sm:text-sm ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
-            {tooth?.toothNumber}
+            {tooth.toothNumber}
           </div>
-          {/* Lower Surface Ring */}
           <div className="mb-1 mt-1 h-5 w-5 opacity-90 sm:h-6 sm:w-6">
             <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} filledColor={colors.stroke} />
           </div>
-          {/* Lower Anatomical Tooth (Flipped) */}
           <div className="relative flex h-16 w-7 rotate-180 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-20 sm:w-9">
             {getIndicator()}
             <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} />
-            {/* Gum line background band for lower teeth (behind roots, now at bottom because flipped) */}
             <div className="absolute top-2 -z-10 h-4 w-[120%] rounded-full bg-pink-100/70"></div>
             <div className={`h-full w-full transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
               <AnatomicalTooth
@@ -304,6 +341,25 @@ const JawLabel = ({ title, subtitle }: { title: string, subtitle: string }) => (
       <div className="text-[11px] text-slate-400">{subtitle}</div>
     </div>
     <div className="h-px w-20 bg-gradient-to-l from-transparent to-slate-200" />
+  </div>
+);
+
+const DentitionModeSwitch = ({ mode, onChange }: { mode: DentitionMode, onChange?: (mode: DentitionMode) => void }) => (
+  <div className="flex rounded-full border border-slate-200 bg-white p-1 shadow-sm" aria-label="Режим зубной формулы">
+    {(['adult', 'child'] as const).map(option => {
+      const isActive = mode === option;
+      return (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={isActive}
+          onClick={() => onChange?.(option)}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
+        >
+          {option === 'adult' ? 'Постоянные' : 'Молочные'}
+        </button>
+      );
+    })}
   </div>
 );
 
@@ -348,44 +404,63 @@ const ToothLegend = () => (
   </div>
 );
 
-export function ToothGrid({ teeth, findings = [], onToothClick, selectedToothNumber }: ToothGridProps) {
-  const getTooth = (num: number) => teeth.find(t => t.toothNumber === num) as ToothRecord;
+export function ToothGrid({
+  teeth,
+  findings = [],
+  onToothClick,
+  selectedToothNumber,
+  dentitionMode = 'adult',
+  onDentitionModeChange,
+}: ToothGridProps) {
+  const config = DENTITION_CONFIG[dentitionMode];
+  const getTooth = (num: ToothNumber) => teeth.find(t => t.toothNumber === num) ?? createDisplayTooth(num, dentitionMode);
   const getFindingsForTooth = (num: number) => findings.filter(f => f.toothNumber === num);
+  const renderTooth = (num: ToothNumber, isUpper: boolean) => {
+    const tooth = getTooth(num);
+    return (
+      <ToothColumn
+        key={num}
+        tooth={tooth}
+        findings={getFindingsForTooth(num)}
+        isSelected={selectedToothNumber === num}
+        isUpper={isUpper}
+        onClick={() => onToothClick(tooth)}
+      />
+    );
+  };
 
   return (
     <div className="mx-auto w-max min-w-max rounded-3xl border border-slate-100 bg-white px-5 py-5 shadow-sm shadow-slate-900/5">
       <div className="rounded-2xl bg-gradient-to-b from-white via-white to-slate-50 px-4 py-5">
-        <JawLabel title="Верхняя челюсть" subtitle="FDI 18–28" />
-        {/* Upper Jaw Row */}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 shadow-sm">
+          <div>
+            <div className="text-sm font-semibold text-slate-800">{config.label}</div>
+            <div className="text-xs text-slate-500">{config.helper}</div>
+          </div>
+          <DentitionModeSwitch mode={dentitionMode} onChange={onDentitionModeChange} />
+        </div>
+
+        <JawLabel title="Верхняя челюсть" subtitle={config.upperSubtitle} />
         <div className="relative flex items-center justify-center gap-4 sm:gap-6">
           <div className="flex gap-1 sm:gap-1.5">
-            {UPPER_JAW.slice(0, 8).map(num => (
-              <ToothColumn key={num} tooth={getTooth(num)} findings={getFindingsForTooth(num)} isSelected={selectedToothNumber === num} onClick={() => onToothClick(getTooth(num))} />
-            ))}
+            {config.upper.slice(0, Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
           <div className="h-32 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
           <div className="flex gap-1 sm:gap-1.5">
-            {UPPER_JAW.slice(8, 16).map(num => (
-              <ToothColumn key={num} tooth={getTooth(num)} findings={getFindingsForTooth(num)} isSelected={selectedToothNumber === num} onClick={() => onToothClick(getTooth(num))} />
-            ))}
+            {config.upper.slice(Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
         </div>
 
         <div className="my-6 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
-        <JawLabel title="Нижняя челюсть" subtitle="FDI 48–38" />
-        {/* Lower Jaw Row */}
+        <JawLabel title="Нижняя челюсть" subtitle={config.lowerSubtitle} />
         <div className="relative flex items-center justify-center gap-4 sm:gap-6">
           <div className="flex gap-1 sm:gap-1.5">
-            {LOWER_JAW.slice(0, 8).map(num => (
-              <ToothColumn key={num} tooth={getTooth(num)} findings={getFindingsForTooth(num)} isSelected={selectedToothNumber === num} onClick={() => onToothClick(getTooth(num))} />
-            ))}
+            {config.lower.slice(0, Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>
           <div className="h-32 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
           <div className="flex gap-1 sm:gap-1.5">
-            {LOWER_JAW.slice(8, 16).map(num => (
-              <ToothColumn key={num} tooth={getTooth(num)} findings={getFindingsForTooth(num)} isSelected={selectedToothNumber === num} onClick={() => onToothClick(getTooth(num))} />
-            ))}
+            {config.lower.slice(Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>
         </div>
 
