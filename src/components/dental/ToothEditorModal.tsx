@@ -170,7 +170,7 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
         </div>
 
         <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 bg-slate-50/60">
-          Вкладки только подсвечивают выбранную область. Все клинические разделы остаются видимыми, чтобы врач не искал данные по углам интерфейсного лабиринта.
+          Вкладки подсвечивают выбранную область. Все клинические разделы ниже остаются видимыми.
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
