@@ -343,6 +343,141 @@ describe('DentalChartRepository', () => {
       });
     });
 
+    it('saveDentalChart retries legacy tooth rows when editor columns are missing', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-stable' }, error: null });
+
+      const missingColumnError = {
+        code: 'PGRST204',
+        message: "Could not find the 'presence_status' column of 'tooth_states' in the schema cache",
+      };
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      const mockTeethUpsert = vi.fn()
+        .mockResolvedValueOnce({ error: missingColumnError })
+        .mockResolvedValueOnce({ error: null });
+
+      const mockClient = {
+        from: vi.fn((table) => {
+          if (table === 'dental_charts') {
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle, upsert: mockUpsert };
+          }
+          if (table === 'tooth_states') {
+            return { upsert: mockTeethUpsert };
+          }
+        })
+      } as unknown as SupabaseClient;
+
+      const plannedWorkRecord = {
+        id: 'pwr-1',
+        workId: 'work_filling_1_surface',
+        zone: 'crown' as const,
+        status: 'planned' as const,
+        createdAt: '2026-06-11T00:00:00.000Z',
+        updatedAt: '2026-06-11T00:00:00.000Z',
+      };
+
+      const repo = new SupabaseDentalChartRepository('t1', mockClient);
+      const chart: DentalChart = {
+        id: 'chart_p1',
+        patientId: 'p1',
+        teeth: [{
+          toothNumber: 11,
+          condition: 'caries',
+          surfaces: ['occlusal'],
+          crown: 'old crown note',
+          root: 'old root note',
+          gum: 'old gum note',
+          bone: 'old bone note',
+          canal: 'old canal note',
+          notes: 'general note',
+          presenceStatus: 'natural',
+          visualStateOverride: 'filled',
+          diagnoses: ['dx_caries_enamel'],
+          plannedWorks: ['work_filling_1_surface'],
+          plannedWorkRecords: [plannedWorkRecord],
+          completedWorks: ['work_polishing'],
+          updatedAt: 'now'
+        }],
+        createdAt: 'now',
+        updatedAt: 'now'
+      };
+
+      await repo.saveDentalChart('p1', chart);
+
+      expect(mockTeethUpsert).toHaveBeenCalledTimes(2);
+
+      const firstAttemptRow = mockTeethUpsert.mock.calls[0][0][0];
+      expect(firstAttemptRow).toMatchObject({
+        condition: 'caries',
+        presence_status: 'natural',
+        visual_state: 'filled',
+        visual_state_override: 'filled',
+        diagnoses: ['dx_caries_enamel'],
+        planned_works: ['work_filling_1_surface'],
+        planned_work_records: [plannedWorkRecord],
+        completed_works: ['work_polishing'],
+      });
+
+      const fallbackRow = mockTeethUpsert.mock.calls[1][0][0];
+      expect(fallbackRow).toMatchObject({
+        tenant_id: 't1',
+        dental_chart_id: 'uuid-stable',
+        tooth_number: 11,
+        condition: 'caries',
+        surfaces: ['occlusal'],
+        crown: 'old crown note',
+        root: 'old root note',
+        gum: 'old gum note',
+        bone: 'old bone note',
+        canal: 'old canal note',
+        notes: 'general note',
+      });
+      expect(fallbackRow).not.toHaveProperty('presence_status');
+      expect(fallbackRow).not.toHaveProperty('visual_state');
+      expect(fallbackRow).not.toHaveProperty('visual_state_override');
+      expect(fallbackRow).not.toHaveProperty('diagnoses');
+      expect(fallbackRow).not.toHaveProperty('planned_works');
+      expect(fallbackRow).not.toHaveProperty('planned_work_records');
+      expect(fallbackRow).not.toHaveProperty('completed_works');
+    });
+
+    it('saveDentalChart does not swallow unrelated tooth upsert errors', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-stable' }, error: null });
+
+      const unrelatedError = {
+        code: '23514',
+        message: 'new row for relation tooth_states violates check constraint',
+      };
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      const mockTeethUpsert = vi.fn().mockResolvedValue({ error: unrelatedError });
+
+      const mockClient = {
+        from: vi.fn((table) => {
+          if (table === 'dental_charts') {
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle, upsert: mockUpsert };
+          }
+          if (table === 'tooth_states') {
+            return { upsert: mockTeethUpsert };
+          }
+        })
+      } as unknown as SupabaseClient;
+
+      const repo = new SupabaseDentalChartRepository('t1', mockClient);
+      const chart: DentalChart = {
+        id: 'chart_p1',
+        patientId: 'p1',
+        teeth: [{ toothNumber: 11, condition: 'healthy', updatedAt: 'now' }],
+        createdAt: 'now',
+        updatedAt: 'now'
+      };
+
+      await expect(repo.saveDentalChart('p1', chart)).rejects.toEqual(unrelatedError);
+      expect(mockTeethUpsert).toHaveBeenCalledTimes(1);
+    });
+
     it('saveDentalChart creates new UUID if no existing chart', async () => {
       const mockSelect = vi.fn().mockReturnThis();
       const mockEq = vi.fn().mockReturnThis();
