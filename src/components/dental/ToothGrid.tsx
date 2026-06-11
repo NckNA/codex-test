@@ -44,6 +44,7 @@ const getConditionAbbr = (condition: string) => {
 };
 
 const ToothItem = ({ tooth, findings = [], isSelected, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, onClick: () => void }) => {
+  const isUpper = (tooth?.toothNumber || 0) < 30;
 
   const getIndicator = () => {
     if (!findings || findings.length === 0) return null;
@@ -55,36 +56,73 @@ const ToothItem = ({ tooth, findings = [], isSelected, onClick }: { tooth: Tooth
     const isObservingOnly = active.every(f => f.status === 'observing');
 
     if (hasHighOrUrgent) {
-      return <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm z-20"></div>;
+      return <div className={`absolute ${isUpper ? '-bottom-1.5' : '-top-1.5'} -right-1.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm z-20`}></div>;
     }
 
     if (isObservingOnly) {
-      return <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-slate-400 rounded-full border-2 border-white shadow-sm opacity-80 z-20"></div>;
+      return <div className={`absolute ${isUpper ? '-bottom-1.5' : '-top-1.5'} -right-1.5 w-3 h-3 bg-slate-400 rounded-full border-2 border-white shadow-sm opacity-80 z-20`}></div>;
     }
 
-    return <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow-sm z-20"></div>;
+    return <div className={`absolute ${isUpper ? '-bottom-1.5' : '-top-1.5'} -right-1.5 w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow-sm z-20`}></div>;
   };
+
+  const toothNumberEl = (
+    <div className={`text-sm font-bold transition-colors ${isSelected ? 'text-blue-700' : 'text-slate-600 group-hover:text-blue-600'}`}>
+      {tooth?.toothNumber}
+    </div>
+  );
+
+  const conditionClasses = getToothColor(tooth?.condition || 'healthy');
+  const bgColorClass = conditionClasses.split(' ').find(c => c.startsWith('bg-')) || 'bg-white';
+  const borderColorClass = conditionClasses.split(' ').find(c => c.startsWith('border-')) || 'border-slate-300';
+  const textColorClass = conditionClasses.split(' ').find(c => c.startsWith('text-')) || '';
+  
+  const hoverBorder = isSelected ? 'border-blue-500' : 'group-hover:border-blue-400';
 
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`Редактировать зуб ${tooth?.toothNumber}`}
-      className={`flex flex-col items-center gap-1.5 p-1.5 sm:p-2 cursor-pointer group relative focus:outline-none transition-all rounded-xl ${
+      className={`flex flex-col items-center gap-1.5 p-1 sm:p-1.5 cursor-pointer group relative focus:outline-none transition-all rounded-xl ${
         isSelected 
           ? 'bg-blue-50 ring-2 ring-blue-500 shadow-md scale-105 z-10' 
           : 'hover:bg-slate-100 hover:scale-105'
       }`}
     >
-      <div className={`text-sm font-bold transition-colors ${isSelected ? 'text-blue-700' : 'text-slate-600 group-hover:text-blue-600'}`}>
-        {tooth?.toothNumber}
-      </div>
-      <div className={`w-10 h-14 sm:w-12 sm:h-16 rounded-t-md rounded-b-2xl border-2 flex items-center justify-center transition-all shadow-sm ${getToothColor(tooth?.condition)} ${
-        isSelected ? 'border-blue-500 shadow-md' : 'group-hover:shadow-md'
-      } relative`}>
+      {isUpper && toothNumberEl}
+
+      <div className="w-9 h-12 sm:w-11 sm:h-14 flex flex-col relative transition-all drop-shadow-sm group-hover:drop-shadow-md">
         {getIndicator()}
-        <span className="text-sm font-bold">{getConditionAbbr(tooth?.condition || 'healthy')}</span>
+        
+        {isUpper ? (
+          <>
+            {/* Upper Roots */}
+            <div className="h-[35%] flex justify-between px-[15%] -mb-[2px] relative z-0">
+              <div className={`w-[35%] h-full rounded-t-full border-2 border-b-0 ${bgColorClass} ${borderColorClass} ${hoverBorder} transition-colors`}></div>
+              <div className={`w-[35%] h-full rounded-t-full border-2 border-b-0 ${bgColorClass} ${borderColorClass} ${hoverBorder} transition-colors`}></div>
+            </div>
+            {/* Upper Crown */}
+            <div className={`flex-1 rounded-b-[40%] rounded-t-sm border-2 flex items-center justify-center relative z-10 ${bgColorClass} ${borderColorClass} ${hoverBorder} ${textColorClass} transition-colors`}>
+              <span className="text-xs font-bold leading-none">{getConditionAbbr(tooth?.condition || 'healthy')}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Lower Crown */}
+            <div className={`flex-1 rounded-t-[40%] rounded-b-sm border-2 flex items-center justify-center relative z-10 ${bgColorClass} ${borderColorClass} ${hoverBorder} ${textColorClass} transition-colors`}>
+              <span className="text-xs font-bold leading-none">{getConditionAbbr(tooth?.condition || 'healthy')}</span>
+            </div>
+            {/* Lower Roots */}
+            <div className="h-[35%] flex justify-between px-[15%] -mt-[2px] relative z-0">
+              <div className={`w-[35%] h-full rounded-b-full border-2 border-t-0 ${bgColorClass} ${borderColorClass} ${hoverBorder} transition-colors`}></div>
+              <div className={`w-[35%] h-full rounded-b-full border-2 border-t-0 ${bgColorClass} ${borderColorClass} ${hoverBorder} transition-colors`}></div>
+            </div>
+          </>
+        )}
       </div>
+
+      {!isUpper && toothNumberEl}
     </button>
   );
 };
