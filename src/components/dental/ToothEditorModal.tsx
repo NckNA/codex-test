@@ -54,10 +54,13 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
 
   useEffect(() => {
     if (isOpen && tooth) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveZone(defaultZone || 'crown');
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({ ...tooth, surfaces: tooth.surfaces || [] });
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCreateFinding(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFindingData({
         title: '',
         category: 'other',
