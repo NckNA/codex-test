@@ -334,7 +334,7 @@ describe('DentalChartRepository', () => {
         canal: 'old canal note',
         notes: 'general note',
         presence_status: 'natural',
-        visual_state: 'caries',
+        visual_state: 'filled',
         visual_state_override: 'filled',
         diagnoses: ['dx_caries_enamel'],
         planned_works: ['work_filling_1_surface'],
