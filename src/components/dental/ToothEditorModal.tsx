@@ -151,15 +151,15 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <form id="tooth-form" onSubmit={handleSubmit} className="space-y-4">
-            {/* Состояние */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Состояние</label>
+          <form id="tooth-form" onSubmit={handleSubmit} className="space-y-6">
+            {/* A. Basic condition */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <label className="block text-sm font-semibold text-slate-800 mb-2">Основное состояние</label>
               <select
                 name="condition"
                 value={formData.condition || 'healthy'}
                 onChange={handleChange}
-                className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium bg-white shadow-sm"
               >
                 {CONDITIONS.map(c => (
                   <option key={c.value} value={c.value}>{c.label}</option>
@@ -167,19 +167,19 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
               </select>
             </div>
 
-            {/* Поверхности */}
+            {/* B. Surfaces */}
             {['caries', 'filled', 'needs_treatment'].includes(formData.condition || '') && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Поверхности</label>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label className="block text-sm font-semibold text-slate-800 mb-3">Поверхности</label>
                 <div className="flex flex-wrap gap-2">
                   {SURFACES.map(s => (
                     <button
                       key={s.value}
                       type="button"
                       onClick={() => handleSurfaceToggle(s.value)}
-                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                      className={`px-4 py-2 text-sm rounded-lg border transition-all ${
                         (formData.surfaces || []).includes(s.value)
-                          ? 'bg-blue-50 border-blue-500 text-blue-700 font-medium'
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 font-semibold shadow-inner'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
@@ -190,202 +190,211 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Десна</label>
-                <input
-                  type="text"
-                  name="gum"
-                  value={formData.gum || ''}
-                  onChange={handleChange}
-                  placeholder="Состояние десны..."
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Кость</label>
-                <input
-                  type="text"
-                  name="bone"
-                  value={formData.bone || ''}
-                  onChange={handleChange}
-                  placeholder="Состояние кости..."
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Коронка</label>
+            {/* Structured Clinical Sections */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* C. Crown */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label className="block text-sm font-semibold text-slate-800 mb-2">Коронка / Реставрация</label>
                 <input
                   type="text"
                   name="crown"
                   value={formData.crown || ''}
                   onChange={handleChange}
-                  placeholder="Материал..."
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="Материал, дефекты..."
+                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Корень / Каналы</label>
+
+              {/* D. Gum / soft tissue */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label className="block text-sm font-semibold text-slate-800 mb-2">Десна / Мягкие ткани</label>
+                <input
+                  type="text"
+                  name="gum"
+                  value={formData.gum || ''}
+                  onChange={handleChange}
+                  placeholder="Рецессия, воспаление..."
+                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                />
+              </div>
+
+              {/* E. Roots / canals */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label className="block text-sm font-semibold text-slate-800 mb-2">Корни / Каналы</label>
                 <input
                   type="text"
                   name="canal"
                   value={formData.canal || ''}
                   onChange={handleChange}
-                  placeholder="Заметки по каналам..."
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="Пломбировка, изменения..."
+                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                />
+              </div>
+
+              {/* F. Bone */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <label className="block text-sm font-semibold text-slate-800 mb-2">Костная ткань</label>
+                <input
+                  type="text"
+                  name="bone"
+                  value={formData.bone || ''}
+                  onChange={handleChange}
+                  placeholder="Резорбция, карманы..."
+                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Заметки</label>
+            {/* G. Clinical notes */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <label className="block text-sm font-semibold text-slate-800 mb-2">Клинические заметки</label>
               <textarea
                 name="notes"
                 value={formData.notes || ''}
                 onChange={handleChange}
                 rows={3}
-                placeholder="Дополнительная информация о зубе..."
-                className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                placeholder="Дополнительная информация о зубе для врача..."
+                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50 hover:bg-white transition-colors"
               ></textarea>
             </div>
 
-            <div className="pt-4 border-t border-slate-200 mt-4">
-              <label className="flex items-center gap-2 mb-4 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={createFinding}
-                  onChange={(e) => setCreateFinding(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-slate-800">Создать или обновить проблему по этому зубу</span>
-              </label>
+            {/* H. Linked problem / finding */}
+            <div className="pt-2">
+              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createFinding}
+                    onChange={(e) => setCreateFinding(e.target.checked)}
+                    className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-semibold text-blue-900">Создать или обновить проблему по этому зубу</span>
+                </label>
 
-              {createFinding && (
-                <div className="space-y-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <label className="flex items-center gap-2 cursor-pointer mb-2">
-                    <input
-                      type="checkbox"
-                      checked={findingData.isChiefComplaintRelated}
-                      onChange={(e) => setFindingData({ ...findingData, isChiefComplaintRelated: e.target.checked })}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">Связано с основной жалобой</span>
-                  </label>
+                {createFinding && (
+                  <div className="mt-5 space-y-5 bg-white p-5 rounded-xl border border-blue-100 shadow-sm">
+                    <label className="flex items-center gap-2 cursor-pointer pb-2 border-b border-slate-100">
+                      <input
+                        type="checkbox"
+                        checked={findingData.isChiefComplaintRelated}
+                        onChange={(e) => setFindingData({ ...findingData, isChiefComplaintRelated: e.target.checked })}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-slate-700">Связано с основной жалобой</span>
+                    </label>
 
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Название проблемы <span className="text-red-500">*</span></label>
-                    <input
-                      type="text"
-                      value={findingData.title || ''}
-                      onChange={(e) => setFindingData({ ...findingData, title: e.target.value })}
-                      required
-                      placeholder="Например: Глубокий кариес"
-                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Категория <span className="text-red-500">*</span></label>
-                      <select
-                        value={findingData.category}
-                        onChange={(e) => setFindingData({ ...findingData, category: e.target.value as FindingCategory })}
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Название проблемы <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={findingData.title || ''}
+                        onChange={(e) => setFindingData({ ...findingData, title: e.target.value })}
                         required
-                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                      >
-                        <option value="caries">Кариес</option>
-                        <option value="missing_tooth">Отсутствующий зуб</option>
-                        <option value="gum_problem">Проблема десны</option>
-                        <option value="root_problem">Проблема корня</option>
-                        <option value="bite_problem">Проблема прикуса</option>
-                        <option value="aesthetic_problem">Эстетическая проблема</option>
-                        <option value="pain">Боль</option>
-                        <option value="risk_zone">Зона риска</option>
-                        <option value="hygiene">Гигиена</option>
-                        <option value="prosthetics">Протезирование</option>
-                        <option value="implantology">Имплантация</option>
-                        <option value="other">Другое</option>
-                      </select>
+                        placeholder="Например: Глубокий кариес"
+                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Категория <span className="text-red-500">*</span></label>
+                        <select
+                          value={findingData.category}
+                          onChange={(e) => setFindingData({ ...findingData, category: e.target.value as FindingCategory })}
+                          required
+                          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                        >
+                          <option value="caries">Кариес</option>
+                          <option value="missing_tooth">Отсутствующий зуб</option>
+                          <option value="gum_problem">Проблема десны</option>
+                          <option value="root_problem">Проблема корня</option>
+                          <option value="bite_problem">Проблема прикуса</option>
+                          <option value="aesthetic_problem">Эстетическая проблема</option>
+                          <option value="pain">Боль</option>
+                          <option value="risk_zone">Зона риска</option>
+                          <option value="hygiene">Гигиена</option>
+                          <option value="prosthetics">Протезирование</option>
+                          <option value="implantology">Имплантация</option>
+                          <option value="other">Другое</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Серьезность <span className="text-red-500">*</span></label>
+                        <select
+                          value={findingData.severity}
+                          onChange={(e) => setFindingData({ ...findingData, severity: e.target.value as FindingSeverity })}
+                          required
+                          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                        >
+                          <option value="low">Низкая</option>
+                          <option value="medium">Средняя</option>
+                          <option value="high">Высокая</option>
+                          <option value="urgent">Срочно</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Статус <span className="text-red-500">*</span></label>
+                        <select
+                          value={findingData.status}
+                          onChange={(e) => setFindingData({ ...findingData, status: e.target.value as FindingStatus })}
+                          required
+                          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                        >
+                          <option value="discovered">Выявлено</option>
+                          <option value="recommended">Рекомендовано</option>
+                          <option value="included_in_plan">Включено в план</option>
+                          <option value="observing">Наблюдение</option>
+                          <option value="declined_by_patient">Пациент отказался</option>
+                          <option value="completed">Завершено</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center pt-6">
+                        <label className="flex items-center gap-2 cursor-pointer bg-blue-50 px-3 py-2 rounded-lg border border-blue-100 w-full hover:bg-blue-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={findingData.includeInTreatmentPlan}
+                            onChange={(e) => setFindingData({ ...findingData, includeInTreatmentPlan: e.target.checked })}
+                            className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-semibold text-blue-800">В план лечения</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Описание (для врача)</label>
+                      <textarea
+                        value={findingData.description || ''}
+                        onChange={(e) => setFindingData({ ...findingData, description: e.target.value })}
+                        rows={2}
+                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50 hover:bg-white transition-colors"
+                      ></textarea>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Серьезность <span className="text-red-500">*</span></label>
-                      <select
-                        value={findingData.severity}
-                        onChange={(e) => setFindingData({ ...findingData, severity: e.target.value as FindingSeverity })}
-                        required
-                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                      >
-                        <option value="low">Низкая</option>
-                        <option value="medium">Средняя</option>
-                        <option value="high">Высокая</option>
-                        <option value="urgent">Срочно</option>
-                      </select>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Описание рисков (пациенту)</label>
+                      <textarea
+                        value={findingData.riskDescription || ''}
+                        onChange={(e) => setFindingData({ ...findingData, riskDescription: e.target.value })}
+                        rows={2}
+                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50 hover:bg-white transition-colors"
+                      ></textarea>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Статус <span className="text-red-500">*</span></label>
-                      <select
-                        value={findingData.status}
-                        onChange={(e) => setFindingData({ ...findingData, status: e.target.value as FindingStatus })}
-                        required
-                        className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                      >
-                        <option value="discovered">Выявлено</option>
-                        <option value="recommended">Рекомендовано</option>
-                        <option value="included_in_plan">Включено в план</option>
-                        <option value="observing">Наблюдение</option>
-                        <option value="declined_by_patient">Пациент отказался</option>
-                        <option value="completed">Завершено</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center pt-5">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={findingData.includeInTreatmentPlan}
-                          onChange={(e) => setFindingData({ ...findingData, includeInTreatmentPlan: e.target.checked })}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-medium text-blue-800">В план лечения</span>
-                      </label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Рекомендация</label>
+                      <input
+                        type="text"
+                        value={findingData.recommendation || ''}
+                        onChange={(e) => setFindingData({ ...findingData, recommendation: e.target.value })}
+                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
+                      />
                     </div>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Описание (для врача)</label>
-                    <textarea
-                      value={findingData.description || ''}
-                      onChange={(e) => setFindingData({ ...findingData, description: e.target.value })}
-                      rows={2}
-                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                    ></textarea>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Описание рисков (пациенту)</label>
-                    <textarea
-                      value={findingData.riskDescription || ''}
-                      onChange={(e) => setFindingData({ ...findingData, riskDescription: e.target.value })}
-                      rows={2}
-                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                    ></textarea>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Рекомендация</label>
-                    <input
-                      type="text"
-                      value={findingData.recommendation || ''}
-                      onChange={(e) => setFindingData({ ...findingData, recommendation: e.target.value })}
-                      className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-
           </form>
         </div>
 
