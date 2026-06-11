@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { ToothGrid } from './ToothGrid';
-import type { ToothRecord, DentalFinding } from '../../types';
+import type { ToothRecord, DentalFinding, ToothNumber } from '../../types';
 
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -35,11 +35,11 @@ describe('ToothGrid', () => {
     }
   ];
 
-  const UPPER_JAW = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
-  const LOWER_JAW = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-  const allToothNumbers = [...UPPER_JAW, ...LOWER_JAW];
+  const ADULT_UPPER_JAW: ToothNumber[] = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
+  const ADULT_LOWER_JAW: ToothNumber[] = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+  const allAdultToothNumbers = [...ADULT_UPPER_JAW, ...ADULT_LOWER_JAW];
 
-  const fullMockTeeth = allToothNumbers.map(num => {
+  const fullMockTeeth = allAdultToothNumbers.map(num => {
     const existing = mockTeeth.find(t => t.toothNumber === num);
     return existing || {
       toothNumber: num,
@@ -89,12 +89,93 @@ describe('ToothGrid', () => {
 
     expect(container.textContent).toContain('Верхняя челюсть');
     expect(container.textContent).toContain('Нижняя челюсть');
+    expect(container.textContent).toContain('Постоянная формула');
+    expect(container.textContent).toContain('FDI 18–28');
     expect(container.textContent).toContain('Легенда зубной карты');
     expect(container.textContent).toContain('Кариес');
     expect(container.textContent).toContain('Активная находка');
     expect(container.textContent).toContain('Зона активна');
     expect(container.textContent).toContain('Зона в плане');
     expect(container.textContent).toContain('Зона риска');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('renders child dentition numbers when child mode is active', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={fullMockTeeth} dentitionMode="child" onToothClick={handleToothClick} />);
+    });
+
+    expect(container.textContent).toContain('Молочная формула');
+    expect(container.textContent).toContain('FDI 55–65');
+    expect(container.textContent).toContain('FDI 85–75');
+    expect(findToothButton(container, 55)).not.toBeNull();
+    expect(findToothButton(container, 85)).not.toBeNull();
+    expect(findToothButton(container, 18)).toBeUndefined();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('calls dentition mode change callback from the toggle', async () => {
+    const handleToothClick = vi.fn();
+    const handleDentitionModeChange = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <ToothGrid
+          teeth={fullMockTeeth}
+          onToothClick={handleToothClick}
+          dentitionMode="adult"
+          onDentitionModeChange={handleDentitionModeChange}
+        />
+      );
+    });
+
+    const childToggle = Array.from(container.querySelectorAll('button')).find(btn => btn.textContent === 'Молочные');
+    expect(childToggle).not.toBeNull();
+
+    await act(async () => {
+      childToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(handleDentitionModeChange).toHaveBeenCalledWith('child');
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('creates a deciduous display tooth for child teeth that are not stored yet', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={fullMockTeeth} dentitionMode="child" onToothClick={handleToothClick} />);
+    });
+
+    const button55 = findToothButton(container, 55);
+    expect(button55).not.toBeNull();
+
+    await act(async () => {
+      button55?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(handleToothClick).toHaveBeenCalledWith(expect.objectContaining({
+      toothNumber: 55,
+      condition: 'healthy',
+      presenceStatus: 'deciduous'
+    }));
 
     await act(async () => {
       root.unmount();
@@ -206,7 +287,7 @@ describe('ToothGrid', () => {
     });
   });
 
-  it('calls onToothClick when a tooth is clicked', async () => {
+  it('calls onToothClick when an adult tooth is clicked', async () => {
     const handleToothClick = vi.fn();
     const container = document.createElement('div');
     const root = createRoot(container);
