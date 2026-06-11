@@ -128,7 +128,12 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
       <div className="flex flex-col lg:flex-row">
         <div className="flex-1 p-6 bg-slate-50 overflow-x-auto border-b lg:border-b-0 lg:border-r border-slate-200">
-          <ToothGrid teeth={dentalChart.teeth} findings={findings} onToothClick={handleToothClick} />
+          <ToothGrid 
+            teeth={dentalChart.teeth} 
+            findings={findings} 
+            onToothClick={handleToothClick}
+            selectedToothNumber={selectedTooth?.toothNumber}
+          />
         </div>
 
         <div className="w-full lg:w-64 bg-white p-5 shrink-0 flex flex-col">
