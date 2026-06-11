@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ToothGrid } from './ToothGrid';
+import { ToothGrid, type DentitionMode } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
 import { ToothZoneSelectorModal, type ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, DentalFinding } from '../../types';
@@ -56,6 +56,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   const [isZoneSelectorOpen, setIsZoneSelectorOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState<ToothZone | undefined>();
+  const [dentitionMode, setDentitionMode] = useState<DentitionMode>('adult');
 
   const [complaints, setComplaints] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -76,6 +77,14 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   const handleToothClick = (tooth: ToothRecord) => {
     setSelectedTooth(tooth);
     setIsZoneSelectorOpen(true);
+  };
+
+  const handleDentitionModeChange = (mode: DentitionMode) => {
+    setDentitionMode(mode);
+    setSelectedTooth(null);
+    setSelectedZone(undefined);
+    setIsZoneSelectorOpen(false);
+    setIsModalOpen(false);
   };
 
   const handleZoneSelect = (zone: ToothZone) => {
@@ -136,16 +145,23 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
       <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-        <h3 className="font-semibold text-slate-800">Зубная карта (FDI)</h3>
+        <h3 className="font-semibold text-slate-800 flex flex-wrap items-center gap-2">
+          Зубная карта (FDI)
+          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+            {dentitionMode === 'adult' ? 'Постоянная' : 'Молочная'}
+          </span>
+        </h3>
       </div>
 
       <div className="flex flex-col lg:flex-row">
         <div className="flex-1 p-6 bg-slate-50 overflow-x-auto border-b lg:border-b-0 lg:border-r border-slate-200">
-          <ToothGrid 
-            teeth={dentalChart.teeth} 
-            findings={findings} 
+          <ToothGrid
+            teeth={dentalChart.teeth}
+            findings={findings}
             onToothClick={handleToothClick}
             selectedToothNumber={selectedTooth?.toothNumber}
+            dentitionMode={dentitionMode}
+            onDentitionModeChange={handleDentitionModeChange}
           />
         </div>
 
