@@ -77,6 +77,14 @@ function activeFindingMatches(
   return true;
 }
 
+function upsertToothRecord(teeth: ToothRecord[], updatedTooth: ToothRecord): ToothRecord[] {
+  const hasExistingTooth = teeth.some(t => t.toothNumber === updatedTooth.toothNumber);
+  if (!hasExistingTooth) {
+    return [...teeth, updatedTooth];
+  }
+  return teeth.map(t => t.toothNumber === updatedTooth.toothNumber ? updatedTooth : t);
+}
+
 function applyFindingPayload(
   baseFinding: DentalFinding,
   findingPayload: ToothStatusFindingInput,
@@ -116,7 +124,7 @@ export function createClinicalWorkflowOrchestrator(
 
       const updatedChart: DentalChart = {
         ...chart,
-        teeth: chart.teeth.map(t => t.toothNumber === updatedTooth.toothNumber ? updatedTooth : t),
+        teeth: upsertToothRecord(chart.teeth, updatedTooth),
         updatedAt: now,
       };
 
@@ -128,7 +136,7 @@ export function createClinicalWorkflowOrchestrator(
 
       const findings = await findingsRepository.listFindingsByPatient(patientId);
       const activeStatuses = ['discovered', 'recommended', 'included_in_plan', 'observing'];
-      
+
       const existingActiveFinding = findings.find(f => activeFindingMatches(f, updatedTooth, findingPayload, activeStatuses));
 
       if (existingActiveFinding) {
@@ -158,7 +166,7 @@ export function createClinicalWorkflowOrchestrator(
 
     async createTreatmentPlanFromFindings(input: CreateTreatmentPlanFromFindingsInput): Promise<TreatmentPlan | null> {
       const { patientId, selectedFindings } = input;
-      
+
       if (selectedFindings.length === 0) {
         return null;
       }
