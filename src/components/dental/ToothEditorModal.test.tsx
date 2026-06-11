@@ -61,12 +61,23 @@ describe('ToothEditorModal', () => {
     });
   }
 
+  function clickByAriaLabel(label: string) {
+    const element = container.querySelector(`[aria-label="${label}"]`);
+    expect(element).toBeTruthy();
+
+    act(() => {
+      element!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  }
+
   it('renders the prototype editor shell with anatomical status, visual state, notes, and dictionary zones', () => {
     renderModal();
 
     const html = container.innerHTML;
     expect(html).toContain('Анатомический статус');
     expect(html).toContain('Отображение на формуле');
+    expect(html).toContain('Выбранное');
+    expect(html).toContain('Пока ничего не выбрано');
     expect(html).toContain('Общие заметки');
     expect(html).toContain('Создать клиническую проблему');
     expect(html).toContain('Коронка');
@@ -100,6 +111,37 @@ describe('ToothEditorModal', () => {
 
     const html = container.innerHTML;
     expect(html).toContain('Пломба 1 поверхность');
+  });
+
+  it('shows selected diagnosis and work chips with quick zone clearing', () => {
+    renderModal();
+
+    clickByText('Кариес эмали');
+    clickByText('Пломба 1 поверхность');
+
+    let html = container.innerHTML;
+    expect(html).toContain('Планируемые работы');
+    expect(html).toContain('Очистить зону');
+    expect(html).toContain('Диагнозы: 1/');
+    expect(html).toContain('Работы: 1/');
+
+    clickByText('Очистить зону');
+
+    html = container.innerHTML;
+    expect(html).toContain('Пока ничего не выбрано');
+    expect(html).toContain('Диагнозы: 0/');
+    expect(html).toContain('Работы: 0/');
+  });
+
+  it('removes selected diagnosis from the summary chip', () => {
+    renderModal();
+
+    clickByText('Кариес эмали');
+    expect(container.innerHTML).toContain('Убрать: Кариес эмали');
+
+    clickByAriaLabel('Убрать: Кариес эмали');
+
+    expect(container.innerHTML).toContain('Пока ничего не выбрано');
   });
 
   it('saves compatibility fields without creating a finding by default', () => {
