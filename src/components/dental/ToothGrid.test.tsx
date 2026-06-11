@@ -116,13 +116,13 @@ describe('ToothGrid', () => {
     });
 
     const button18 = Array.from(container.querySelectorAll('button')).find(btn => btn.getAttribute('aria-label') === 'Редактировать зуб 18');
-    expect(button18?.className).toContain('bg-blue-50');
-    expect(button18?.className).toContain('ring-2');
-    expect(button18?.className).toContain('ring-blue-500');
+    expect(button18?.className).toContain('bg-blue-50/50');
+    expect(button18?.className).toContain('ring-1');
+    expect(button18?.className).toContain('ring-blue-300');
 
     const button17 = Array.from(container.querySelectorAll('button')).find(btn => btn.getAttribute('aria-label') === 'Редактировать зуб 17');
-    expect(button17?.className).not.toContain('bg-blue-50');
-    expect(button17?.className).not.toContain('ring-2');
+    expect(button17?.className).not.toContain('bg-blue-50/50');
+    expect(button17?.className).not.toContain('ring-1');
 
     await act(async () => {
       root.unmount();
