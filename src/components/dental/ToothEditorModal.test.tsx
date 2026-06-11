@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { ToothEditorModal } from './ToothEditorModal';
-import type { ToothRecord } from '../../types';
+import type { DentalFinding, ToothRecord } from '../../types';
 
 describe('ToothEditorModal', () => {
   let container: HTMLDivElement;
@@ -167,18 +167,28 @@ describe('ToothEditorModal', () => {
     expect(findingPayload).toBeNull();
   });
 
-  it('creates a finding payload when requested', () => {
+  it('creates a structured finding payload when requested', () => {
     const onSave = renderModal();
 
     clickByText('Создать клиническую проблему');
     clickByText('Кариес эмали');
+    clickByText('Пломба 1 поверхность');
     clickByText('Сохранить изменения');
 
     expect(onSave).toHaveBeenCalledTimes(1);
-    const [, findingPayload] = onSave.mock.calls[0] as [ToothRecord, { title?: string; description?: string }];
+    const [, findingPayload] = onSave.mock.calls[0] as [ToothRecord, Partial<DentalFinding>];
 
     expect(findingPayload.title).toContain('зуб 11');
+    expect(findingPayload.title).toContain('Коронка');
+    expect(findingPayload.category).toBe('caries');
+    expect(findingPayload.severity).toBe('medium');
     expect(findingPayload.description).toContain('Кариес эмали');
+    expect(findingPayload.description).toContain('Пломба 1 поверхность');
+    expect(findingPayload.clinicalZone).toBe('crown');
+    expect(findingPayload.diagnosisIds).toEqual(['dx_caries_enamel']);
+    expect(findingPayload.plannedWorkIds).toEqual(['work_filling_1_surface']);
+    expect(findingPayload.plannedWorkRecordIds).toHaveLength(1);
+    expect(findingPayload.includeInTreatmentPlan).toBe(true);
   });
 
   it('supports manual visual state override and reset', () => {
