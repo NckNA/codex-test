@@ -1,5 +1,6 @@
 import type { Patient, Doctor, Appointment, DentalChart, TreatmentPlan, ToothNumber, ToothRecord, ChiefComplaint, DentalFinding } from '../types';
 import { demoDoctors, demoPatients, demoAppointments, demoChiefComplaints, demoDentalFindings } from '../data/seed';
+import { normalizeDentalChart, normalizeToothRecord } from './dentalChartNormalization';
 
 const STORAGE_KEYS = {
   INITIALIZED: 'df_initialized',
@@ -93,19 +94,20 @@ export const storage = {
       31,32,33,34,35,36,37,38
     ];
 
-    const teeth: ToothRecord[] = teethNumbers.map(num => ({
+    const now = new Date().toISOString();
+    const teeth: ToothRecord[] = teethNumbers.map(num => normalizeToothRecord({
       toothNumber: num,
       condition: 'healthy',
-      updatedAt: new Date().toISOString()
+      updatedAt: now
     }));
 
-    return {
+    return normalizeDentalChart({
       id: `chart_${patientId}`,
       patientId,
       teeth,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      createdAt: now,
+      updatedAt: now
+    });
   },
 
   getAllDentalCharts: (): Record<string, DentalChart> => {
@@ -119,12 +121,12 @@ export const storage = {
       storage.saveDentalChart(patientId, defaultChart);
       return defaultChart;
     }
-    return charts[patientId];
+    return normalizeDentalChart(charts[patientId]);
   },
 
   saveDentalChart: (patientId: string, chart: DentalChart) => {
     const charts = storage.getAllDentalCharts();
-    charts[patientId] = chart;
+    charts[patientId] = normalizeDentalChart(chart);
     localStorage.setItem(STORAGE_KEYS.DENTAL_CHARTS, JSON.stringify(charts));
   },
 
