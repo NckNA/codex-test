@@ -16,6 +16,14 @@ export interface CreateDentalChartRepositoryOptions {
   backend: DentalChartRepositoryBackend;
 }
 
+const readStringArray = (value: unknown): string[] => {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+};
+
+const readPlannedWorkRecords = (value: unknown): ToothRecord['plannedWorkRecords'] => {
+  return Array.isArray(value) ? value as ToothRecord['plannedWorkRecords'] : [];
+};
+
 export const LocalStorageDentalChartRepository: DentalChartRepository = {
   async getDentalChart(patientId: string): Promise<DentalChart> {
     return normalizeDentalChart(storage.getDentalChart(patientId));
@@ -63,6 +71,8 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
     const dbTeethMap = new Map<number, ToothRecord>();
 
     (teethData || []).forEach(row => {
+      const toothRow = row as Record<string, unknown>;
+
       dbTeethMap.set(row.tooth_number, normalizeToothRecord({
         toothNumber: row.tooth_number as ToothNumber,
         condition: row.condition as ToothCondition,
@@ -74,6 +84,13 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
         canal: row.canal || undefined,
         notes: row.notes || undefined,
         updatedAt: row.updated_at,
+        presenceStatus: toothRow.presence_status as ToothRecord['presenceStatus'] || undefined,
+        visualState: toothRow.visual_state as ToothRecord['visualState'] || undefined,
+        visualStateOverride: toothRow.visual_state_override as ToothRecord['visualStateOverride'] || undefined,
+        diagnoses: readStringArray(toothRow.diagnoses),
+        plannedWorks: readStringArray(toothRow.planned_works),
+        plannedWorkRecords: readPlannedWorkRecords(toothRow.planned_work_records),
+        completedWorks: readStringArray(toothRow.completed_works),
       }));
     });
 
@@ -131,7 +148,6 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
     if (chartError) throw chartError;
 
     // 5. Save tooth_states using that same stable chartId.
-    // Forward-compatible fields are normalized in memory only until DB schema supports them.
     const teethRows = normalizedChart.teeth.map(t => ({
       tenant_id: this.tenantId,
       dental_chart_id: chartId,
@@ -144,6 +160,13 @@ export class SupabaseDentalChartRepository implements DentalChartRepository {
       bone: t.bone || null,
       canal: t.canal || null,
       notes: t.notes || null,
+      presence_status: t.presenceStatus || null,
+      visual_state: t.visualState || null,
+      visual_state_override: t.visualStateOverride || null,
+      diagnoses: t.diagnoses || [],
+      planned_works: t.plannedWorks || [],
+      planned_work_records: t.plannedWorkRecords || [],
+      completed_works: t.completedWorks || [],
     }));
 
     const { error: teethError } = await this.client
