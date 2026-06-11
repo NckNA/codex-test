@@ -116,6 +116,94 @@ describe('DentalChartRepository', () => {
       expect(chart.teeth).toHaveLength(32); // should merge with default
     });
 
+    it('getDentalChart reads persisted editor fields from tooth_states', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-1', patient_id: 'p1' }, error: null });
+
+      const plannedWorkRecord = {
+        id: 'pwr-1',
+        workId: 'work_filling_1_surface',
+        zone: 'crown',
+        status: 'planned',
+        createdAt: '2026-06-11T00:00:00.000Z',
+        updatedAt: '2026-06-11T00:00:00.000Z',
+      };
+
+      const mockTeethEq2 = vi.fn().mockResolvedValue({
+        data: [{
+          tooth_number: 11,
+          condition: 'caries',
+          surfaces: ['occlusal'],
+          presence_status: 'natural',
+          visual_state: 'caries',
+          visual_state_override: 'filled',
+          diagnoses: ['dx_caries_enamel'],
+          planned_works: ['work_filling_1_surface'],
+          planned_work_records: [plannedWorkRecord],
+          completed_works: ['work_polishing'],
+        }],
+        error: null
+      });
+      const mockTeethEq1 = vi.fn().mockReturnValue({ eq: mockTeethEq2 });
+      const mockTeethSelect = vi.fn().mockReturnValue({ eq: mockTeethEq1 });
+
+      const mockClient = {
+        from: vi.fn((table) => {
+          if (table === 'dental_charts') {
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle };
+          }
+          if (table === 'tooth_states') {
+            return { select: mockTeethSelect };
+          }
+        })
+      } as unknown as SupabaseClient;
+
+      const repo = new SupabaseDentalChartRepository('t1', mockClient);
+      const chart = await repo.getDentalChart('p1');
+      const tooth = chart.teeth.find(t => t.toothNumber === 11);
+
+      expect(tooth?.presenceStatus).toBe('natural');
+      expect(tooth?.visualState).toBe('filled');
+      expect(tooth?.visualStateOverride).toBe('filled');
+      expect(tooth?.diagnoses).toEqual(['dx_caries_enamel']);
+      expect(tooth?.plannedWorks).toEqual(['work_filling_1_surface']);
+      expect(tooth?.plannedWorkRecords).toEqual([plannedWorkRecord]);
+      expect(tooth?.completedWorks).toEqual(['work_polishing']);
+    });
+
+    it('getDentalChart safely normalizes old tooth_states rows without new editor fields', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-1', patient_id: 'p1' }, error: null });
+
+      const mockTeethEq2 = vi.fn().mockResolvedValue({ data: [{ tooth_number: 11, condition: 'implant' }], error: null });
+      const mockTeethEq1 = vi.fn().mockReturnValue({ eq: mockTeethEq2 });
+      const mockTeethSelect = vi.fn().mockReturnValue({ eq: mockTeethEq1 });
+
+      const mockClient = {
+        from: vi.fn((table) => {
+          if (table === 'dental_charts') {
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle };
+          }
+          if (table === 'tooth_states') {
+            return { select: mockTeethSelect };
+          }
+        })
+      } as unknown as SupabaseClient;
+
+      const repo = new SupabaseDentalChartRepository('t1', mockClient);
+      const chart = await repo.getDentalChart('p1');
+      const tooth = chart.teeth.find(t => t.toothNumber === 11);
+
+      expect(tooth?.presenceStatus).toBe('implant');
+      expect(tooth?.visualState).toBe('implant');
+      expect(tooth?.diagnoses).toEqual([]);
+      expect(tooth?.plannedWorks).toEqual([]);
+      expect(tooth?.plannedWorkRecords).toEqual([]);
+      expect(tooth?.completedWorks).toEqual([]);
+    });
+
     it('getDentalChart returns default chart when no Supabase chart exists', async () => {
       const mockSelect = vi.fn().mockReturnThis();
       const mockEq = vi.fn().mockReturnThis();
@@ -171,6 +259,88 @@ describe('DentalChartRepository', () => {
       // Verify teeth upsert uses stable ID
       const teethUpsertArgs = mockTeethUpsert.mock.calls[0];
       expect(teethUpsertArgs[0][0].dental_chart_id).toBe('uuid-stable');
+    });
+
+    it('saveDentalChart persists old and new tooth editor fields', async () => {
+      const mockSelect = vi.fn().mockReturnThis();
+      const mockEq = vi.fn().mockReturnThis();
+      const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'uuid-stable' }, error: null });
+
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      const mockTeethUpsert = vi.fn().mockResolvedValue({ error: null });
+
+      const mockClient = {
+        from: vi.fn((table) => {
+          if (table === 'dental_charts') {
+            return { select: mockSelect, eq: mockEq, maybeSingle: mockMaybeSingle, upsert: mockUpsert };
+          }
+          if (table === 'tooth_states') {
+            return { upsert: mockTeethUpsert };
+          }
+        })
+      } as unknown as SupabaseClient;
+
+      const plannedWorkRecord = {
+        id: 'pwr-1',
+        workId: 'work_filling_1_surface',
+        zone: 'crown' as const,
+        status: 'planned' as const,
+        createdAt: '2026-06-11T00:00:00.000Z',
+        updatedAt: '2026-06-11T00:00:00.000Z',
+      };
+
+      const repo = new SupabaseDentalChartRepository('t1', mockClient);
+      const chart: DentalChart = {
+        id: 'chart_p1',
+        patientId: 'p1',
+        teeth: [{
+          toothNumber: 11,
+          condition: 'caries',
+          surfaces: ['occlusal'],
+          crown: 'old crown note',
+          root: 'old root note',
+          gum: 'old gum note',
+          bone: 'old bone note',
+          canal: 'old canal note',
+          notes: 'general note',
+          presenceStatus: 'natural',
+          visualState: 'caries',
+          visualStateOverride: 'filled',
+          diagnoses: ['dx_caries_enamel'],
+          plannedWorks: ['work_filling_1_surface'],
+          plannedWorkRecords: [plannedWorkRecord],
+          completedWorks: ['work_polishing'],
+          updatedAt: 'now'
+        }],
+        createdAt: 'now',
+        updatedAt: 'now'
+      };
+
+      await repo.saveDentalChart('p1', chart);
+
+      const teethUpsertArgs = mockTeethUpsert.mock.calls[0];
+      const savedTooth = teethUpsertArgs[0][0];
+
+      expect(savedTooth).toMatchObject({
+        tenant_id: 't1',
+        dental_chart_id: 'uuid-stable',
+        tooth_number: 11,
+        condition: 'caries',
+        surfaces: ['occlusal'],
+        crown: 'old crown note',
+        root: 'old root note',
+        gum: 'old gum note',
+        bone: 'old bone note',
+        canal: 'old canal note',
+        notes: 'general note',
+        presence_status: 'natural',
+        visual_state: 'caries',
+        visual_state_override: 'filled',
+        diagnoses: ['dx_caries_enamel'],
+        planned_works: ['work_filling_1_surface'],
+        planned_work_records: [plannedWorkRecord],
+        completed_works: ['work_polishing'],
+      });
     });
 
     it('saveDentalChart creates new UUID if no existing chart', async () => {
