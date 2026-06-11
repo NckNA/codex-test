@@ -8,7 +8,7 @@ import { ToothRecord } from '../../types';
 
 describe('ToothEditorModal', () => {
   let container: HTMLDivElement | null = null;
-  let root: any = null;
+  let root: ReturnType<typeof createRoot> | null = null;
 
   beforeEach(() => {
     container = document.createElement('div');
