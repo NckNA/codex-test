@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCcw } from 'lucide-react';
+import { SuggestionInput } from './SuggestionInput';
 import type { ToothRecord, ToothCondition, ToothSurface, DentalFinding, FindingCategory, FindingSeverity, FindingStatus } from '../../types';
 
 interface ToothEditorModalProps {
@@ -193,56 +194,57 @@ export function ToothEditorModal({ isOpen, tooth, onClose, onSave }: ToothEditor
             {/* Structured Clinical Sections */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* C. Crown */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Коронка / Реставрация</label>
-                <input
-                  type="text"
-                  name="crown"
-                  value={formData.crown || ''}
-                  onChange={handleChange}
-                  placeholder="Материал, дефекты..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                />
-              </div>
+              <SuggestionInput
+                label="Коронка / Реставрация"
+                name="crown"
+                value={formData.crown || ''}
+                onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                placeholder="Материал, дефекты..."
+                suggestions={[
+                  "Кариес эмали", "Кариес дентина", "Глубокий кариес", 
+                  "Скол эмали", "Скол коронки", "Дефект пломбы", "Вторичный кариес"
+                ]}
+              />
 
               {/* D. Gum / soft tissue */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Десна / Мягкие ткани</label>
-                <input
-                  type="text"
-                  name="gum"
-                  value={formData.gum || ''}
-                  onChange={handleChange}
-                  placeholder="Рецессия, воспаление..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                />
-              </div>
+              <SuggestionInput
+                label="Десна / Мягкие ткани"
+                name="gum"
+                value={formData.gum || ''}
+                onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                placeholder="Рецессия, воспаление..."
+                suggestions={[
+                  "Гингивит", "Рецессия десны", "Кровоточивость при зондировании", 
+                  "Пародонтальный карман", "Свищ", "Отек"
+                ]}
+              />
 
               {/* E. Roots / canals */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Корни / Каналы</label>
-                <input
-                  type="text"
-                  name="canal"
-                  value={formData.canal || ''}
-                  onChange={handleChange}
-                  placeholder="Пломбировка, изменения..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                />
-              </div>
+              <SuggestionInput
+                label="Корни / Каналы"
+                name="canal"
+                value={formData.canal || ''}
+                onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                placeholder="Пломбировка, изменения..."
+                suggestions={[
+                  "Каналы запломбированы до верхушки", "Каналы недопломбированы", 
+                  "Пустой канал", "Анкерный штифт", "Стекловолоконный штифт", 
+                  "Обломок инструмента", "Перфорация"
+                ]}
+              />
 
               {/* F. Bone */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Костная ткань</label>
-                <input
-                  type="text"
-                  name="bone"
-                  value={formData.bone || ''}
-                  onChange={handleChange}
-                  placeholder="Резорбция, карманы..."
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                />
-              </div>
+              <SuggestionInput
+                label="Костная ткань"
+                name="bone"
+                value={formData.bone || ''}
+                onChange={handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                placeholder="Резорбция, карманы..."
+                suggestions={[
+                  "Без видимых изменений", "Убыль костной ткани 1/3", 
+                  "Убыль костной ткани 1/2", "Киста", "Гранулема", "Остеосклероз"
+                ]}
+              />
             </div>
 
             {/* G. Clinical notes */}
