@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, Layers, Activity, Droplet, Box } from 'lucide-react';
 
 export type ToothZone = 'crown' | 'root' | 'gum' | 'bone';
