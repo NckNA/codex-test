@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ToothGrid } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
-import { ToothZoneSelectorModal, ToothZone } from './ToothZoneSelectorModal';
+import { ToothZoneSelectorModal, type ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, DentalFinding } from '../../types';
 import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
 import { Save, AlertTriangle } from 'lucide-react';

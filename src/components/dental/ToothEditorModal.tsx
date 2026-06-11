@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCcw } from 'lucide-react';
 import { SuggestionInput } from './SuggestionInput';
-import { ToothZone } from './ToothZoneSelectorModal';
+import type { ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, ToothCondition, ToothSurface, DentalFinding, FindingCategory, FindingSeverity, FindingStatus } from '../../types';
 
 interface ToothEditorModalProps {
