@@ -86,6 +86,41 @@ export type ToothCondition =
   | 'periodontitis'
   | 'needs_treatment';
 
+export type ToothPresenceStatus =
+  | 'natural'
+  | 'missing'
+  | 'implant'
+  | 'root_remnant'
+  | 'deciduous'
+  | 'impacted';
+
+export type ToothVisualState = ToothCondition;
+
+export type ClinicalZone =
+  | 'crown'
+  | 'endodontics'
+  | 'root'
+  | 'periodontium'
+  | 'bone'
+  | 'orthopedics'
+  | 'planning';
+
+export type PlannedWorkRecordStatus =
+  | 'planned'
+  | 'approved'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled';
+
+export interface PlannedWorkRecord {
+  id: string;
+  workId: string;
+  zone: ClinicalZone;
+  status: PlannedWorkRecordStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ToothSurface = 'occlusal' | 'mesial' | 'distal' | 'vestibular' | 'oral';
 
 export interface ToothRecord {
@@ -104,6 +139,13 @@ export interface ToothRecord {
   workCanal?: string;
   notes?: string;
   updatedAt: string;
+  presenceStatus?: ToothPresenceStatus;
+  visualState?: ToothVisualState;
+  visualStateOverride?: ToothVisualState;
+  diagnoses?: string[];
+  plannedWorks?: string[];
+  plannedWorkRecords?: PlannedWorkRecord[];
+  completedWorks?: string[];
 }
 
 export interface DentalChart {
