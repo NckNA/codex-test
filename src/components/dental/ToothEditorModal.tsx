@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BookOpen, Plus, RefreshCcw, Save, X } from 'lucide-react';
 import type {
   ClinicalZone,
@@ -285,14 +285,14 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
 
     setFormData((prev) => {
       if (!prev) return prev;
+      const { visualStateOverride: _visualStateOverride, ...rest } = prev;
 
       return {
-        ...prev,
+        ...rest,
         presenceStatus,
         diagnoses: [],
         plannedWorks: [],
         plannedWorkRecords: [],
-        visualStateOverride: undefined,
       };
     });
     setManualVisualState(false);
@@ -358,9 +358,10 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
 
   const resetToHealthy = () => {
     const now = new Date().toISOString();
+    const { visualStateOverride: _visualStateOverride, ...toothWithoutOverride } = formData;
 
     setFormData({
-      ...formData,
+      ...toothWithoutOverride,
       condition: 'healthy',
       surfaces: [],
       crown: '',
@@ -376,7 +377,6 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       notes: '',
       presenceStatus: 'natural',
       visualState: 'healthy',
-      visualStateOverride: undefined,
       diagnoses: [],
       plannedWorks: [],
       plannedWorkRecords: [],
@@ -414,14 +414,16 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
   };
 
   const handleSave = () => {
-    const nextTooth: ToothRecord = {
+    const nextToothBase: ToothRecord = {
       ...formData,
       condition: computedVisualState,
       visualState: computedVisualState,
-      visualStateOverride: manualVisualState ? formData.visualStateOverride || computedVisualState : undefined,
       plannedWorks: getWorkIds(formData.plannedWorkRecords || []),
       updatedAt: new Date().toISOString(),
     };
+    const nextTooth: ToothRecord = manualVisualState
+      ? { ...nextToothBase, visualStateOverride: formData.visualStateOverride || computedVisualState }
+      : nextToothBase;
 
     onSave(nextTooth, buildFindingPayload());
   };
@@ -493,7 +495,11 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
                       type="button"
                       onClick={() => {
                         setManualVisualState(false);
-                        setFormData((prev) => prev ? { ...prev, visualStateOverride: undefined } : prev);
+                        setFormData((prev) => {
+                          if (!prev) return prev;
+                          const { visualStateOverride: _visualStateOverride, ...rest } = prev;
+                          return rest;
+                        });
                       }}
                       className="text-xs font-medium text-slate-500 hover:text-slate-700 underline"
                     >
