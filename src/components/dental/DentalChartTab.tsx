@@ -30,6 +30,10 @@ function normalizeFindingPayload(
     isChiefComplaintRelated: findingPayload.isChiefComplaintRelated,
     includeInTreatmentPlan: findingPayload.includeInTreatmentPlan,
     status: findingPayload.status,
+    clinicalZone: findingPayload.clinicalZone,
+    diagnosisIds: findingPayload.diagnosisIds,
+    plannedWorkIds: findingPayload.plannedWorkIds,
+    plannedWorkRecordIds: findingPayload.plannedWorkRecordIds,
   };
 }
 
