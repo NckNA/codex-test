@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ToothGrid } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
+import { ToothZoneSelectorModal, ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, DentalFinding } from '../../types';
 import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
 import { Save, AlertTriangle } from 'lucide-react';
@@ -48,7 +49,9 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   const { applyToothStatusChange } = useClinicalWorkflow();
 
   const [selectedTooth, setSelectedTooth] = useState<ToothRecord | null>(null);
+  const [isZoneSelectorOpen, setIsZoneSelectorOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<ToothZone | undefined>();
 
   const [complaints, setComplaints] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -68,6 +71,12 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
   const handleToothClick = (tooth: ToothRecord) => {
     setSelectedTooth(tooth);
+    setIsZoneSelectorOpen(true);
+  };
+
+  const handleZoneSelect = (zone: ToothZone) => {
+    setSelectedZone(zone);
+    setIsZoneSelectorOpen(false);
     setIsModalOpen(true);
   };
 
@@ -208,11 +217,19 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
         </button>
       </div>
 
+      <ToothZoneSelectorModal
+        isOpen={isZoneSelectorOpen}
+        toothNumber={selectedTooth?.toothNumber || null}
+        onClose={() => setIsZoneSelectorOpen(false)}
+        onSelectZone={handleZoneSelect}
+      />
+
       <ToothEditorModal
         isOpen={isModalOpen}
         patientId={patientId}
         existingFindings={findings}
         tooth={selectedTooth}
+        defaultZone={selectedZone}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTooth}
       />

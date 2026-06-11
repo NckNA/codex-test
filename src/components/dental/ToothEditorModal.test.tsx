@@ -29,7 +29,7 @@ describe('ToothEditorModal', () => {
     updatedAt: new Date().toISOString()
   };
 
-  it('renders structured clinical section headers', async () => {
+  it('renders structured clinical section headers based on active tab', async () => {
     await act(async () => {
       root.render(
         <ToothEditorModal
@@ -43,14 +43,36 @@ describe('ToothEditorModal', () => {
       );
     });
 
-    const html = container.innerHTML;
+    let html = container.innerHTML;
+    // By default, crown tab is active
     expect(html).toContain('Основное состояние');
     expect(html).toContain('Коронка / Реставрация');
-    expect(html).toContain('Десна / Мягкие ткани');
-    expect(html).toContain('Корни / Каналы');
-    expect(html).toContain('Костная ткань');
     expect(html).toContain('Клинические заметки');
     expect(html).toContain('Создать или обновить проблему по этому зубу');
+    
+    // Switch to Root tab
+    await act(async () => {
+      const rootTab = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Каналы');
+      rootTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    html = container.innerHTML;
+    expect(html).toContain('Корни / Каналы');
+
+    // Switch to Gum tab
+    await act(async () => {
+      const gumTab = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Десна');
+      gumTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    html = container.innerHTML;
+    expect(html).toContain('Десна / Мягкие ткани');
+
+    // Switch to Bone tab
+    await act(async () => {
+      const boneTab = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Кость');
+      boneTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    html = container.innerHTML;
+    expect(html).toContain('Костная ткань');
   });
 
   it('condition select works and shows surfaces when condition requires treatment', async () => {

@@ -93,10 +93,15 @@ export interface ToothRecord {
   condition: ToothCondition;
   surfaces?: ToothSurface[];
   crown?: string;
+  workCrown?: string;
   root?: string;
+  workRoot?: string;
   gum?: string;
+  workGum?: string;
   bone?: string;
+  workBone?: string;
   canal?: string;
+  workCanal?: string;
   notes?: string;
   updatedAt: string;
 }
