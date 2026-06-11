@@ -76,11 +76,21 @@ const ZONE_HINTS: Record<ClinicalZone, string> = {
   planning: 'Планирование восстановления отсутствующего зуба',
 };
 
+const DIAGNOSIS_BY_ID = new Map(defaultDiagnoses.map((diagnosis) => [diagnosis.id, diagnosis]));
+const WORK_BY_ID = new Map(defaultClinicalWorks.map((work) => [work.id, work]));
+
 type CheckboxItem = {
   id: string;
   name: string;
   description?: string;
   price?: number;
+};
+
+type SelectedChipProps = {
+  label: string;
+  meta?: string;
+  tone: 'red' | 'blue' | 'emerald';
+  onRemove: () => void;
 };
 
 function mapToClinicalZone(zone?: ToothZone): ClinicalZone {
@@ -185,6 +195,24 @@ function ClinicalCheckboxList({ items, selectedIds, onToggle }: { items: Checkbo
   );
 }
 
+function SelectedChip({ label, meta, tone, onRemove }: SelectedChipProps) {
+  const toneClasses: Record<SelectedChipProps['tone'], string> = {
+    red: 'border-red-200 bg-red-50 text-red-900',
+    blue: 'border-blue-200 bg-blue-50 text-blue-900',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+  };
+
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${toneClasses[tone]}`}>
+      <span className="truncate">{label}</span>
+      {meta && <span className="shrink-0 text-[10px] opacity-70">· {meta}</span>}
+      <button type="button" onClick={onRemove} className="shrink-0 rounded-full p-0.5 opacity-70 hover:bg-white/70 hover:opacity-100" aria-label={`Убрать: ${label}`}>
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
 export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }: ToothEditorModalProps) {
   const [formData, setFormData] = useState<ToothRecord | null>(null);
   const [activeZone, setActiveZone] = useState<ClinicalZone>('crown');
@@ -228,6 +256,18 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
   const presenceLabel = PRESENCE_STATUSES.find((status) => status.value === currentPresence)?.label || currentPresence;
   const visualLabel = VISUAL_STATES.find((state) => state.value === computedVisualState)?.label || computedVisualState;
   const hasZoneData = availableDiagnoses.length > 0 || allZoneWorks.length > 0;
+  const selectedDiagnosisItems = diagnosisIds.map((id) => ({ id, label: DIAGNOSIS_BY_ID.get(id)?.name || id }));
+  const selectedWorkItems = plannedWorkRecords.map((record) => ({
+    id: record.id,
+    workId: record.workId,
+    label: WORK_BY_ID.get(record.workId)?.name || record.workId,
+    zoneLabel: ZONE_LABELS[record.zone],
+  }));
+  const availableDiagnosisIds = new Set(availableDiagnoses.map((diagnosis) => diagnosis.id));
+  const selectedZoneDiagnosisCount = diagnosisIds.filter((id) => availableDiagnosisIds.has(id)).length;
+  const hasSelectedItems = selectedDiagnosisItems.length > 0 || selectedWorkItems.length > 0;
+  const hasCurrentZoneSelections = selectedZoneDiagnosisCount > 0 || currentZoneWorkIds.length > 0;
+  const hasWorkWithoutDiagnosis = selectedWorkItems.length > 0 && diagnosisIds.length === 0;
 
   const setPresenceStatus = (presenceStatus: ToothPresenceStatus) => {
     const nextZone = getFirstAvailableZone(presenceStatus);
@@ -264,6 +304,27 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
 
       return { ...prev, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
     });
+  };
+
+  const removeWorkRecord = (recordId: string) => {
+    setFormData((prev) => {
+      if (!prev) return prev;
+      const nextRecords = (prev.plannedWorkRecords || []).filter((record) => record.id !== recordId);
+      return { ...prev, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
+    });
+  };
+
+  const clearCurrentZoneSelections = () => {
+    setFormData((prev) => {
+      if (!prev) return prev;
+      const nextDiagnosisIds = (prev.diagnoses || []).filter((id) => !availableDiagnosisIds.has(id));
+      const nextRecords = (prev.plannedWorkRecords || []).filter((record) => record.zone !== currentZone);
+      return { ...prev, diagnoses: nextDiagnosisIds, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
+    });
+  };
+
+  const clearAllClinicalSelections = () => {
+    setFormData((prev) => prev ? { ...prev, diagnoses: [], plannedWorks: [], plannedWorkRecords: [] } : prev);
   };
 
   const setVisualStateOverride = (visualState: ToothVisualState) => {
@@ -377,6 +438,56 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
               </div>
             </section>
 
+            <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Выбранное</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Диагнозы и работы по зубу</p>
+                </div>
+                {hasSelectedItems && (
+                  <button type="button" onClick={clearAllClinicalSelections} className="text-xs font-medium text-slate-500 hover:text-slate-800 underline">
+                    Очистить всё
+                  </button>
+                )}
+              </div>
+
+              {!hasSelectedItems ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+                  Пока ничего не выбрано. Выберите диагноз или работу справа.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedDiagnosisItems.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Диагнозы</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedDiagnosisItems.map((item) => (
+                          <SelectedChip key={item.id} label={item.label} tone="red" onRemove={() => toggleDiagnosis(item.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedWorkItems.length > 0 && (
+                    <div>
+                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Планируемые работы</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedWorkItems.map((item) => (
+                          <SelectedChip key={item.id} label={item.label} meta={item.zoneLabel} tone="emerald" onRemove={() => removeWorkRecord(item.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {hasWorkWithoutDiagnosis && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Есть работа без диагноза. Это допустимо для базовых действий, но для лечебного плана лучше указать диагноз.
+                </div>
+              )}
+            </section>
+
             <section>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Общие заметки</label>
               <textarea value={formData.notes || ''} onChange={(event) => setFormData({ ...formData, notes: event.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[110px] resize-none" placeholder="Дополнительные комментарии врача..." />
@@ -401,8 +512,21 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
             </div>
 
             <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <h3 className="text-sm font-semibold text-slate-800">{ZONE_LABELS[currentZone]}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">{ZONE_HINTS[currentZone]}</p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">{ZONE_LABELS[currentZone]}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{ZONE_HINTS[currentZone]}</p>
+                </div>
+                {hasCurrentZoneSelections && (
+                  <button type="button" onClick={clearCurrentZoneSelections} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+                    Очистить зону
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                <span className="rounded-full bg-white px-2 py-1 border border-slate-200">Диагнозы: {selectedZoneDiagnosisCount}/{availableDiagnoses.length}</span>
+                <span className="rounded-full bg-white px-2 py-1 border border-slate-200">Работы: {currentZoneWorkIds.length}/{allZoneWorks.length}</span>
+              </div>
             </div>
 
             {!hasZoneData ? (
@@ -415,7 +539,7 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
               <div className="space-y-5">
                 {availableDiagnoses.length > 0 && (
                   <section className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"><AlertCircle className="w-3.5 h-3.5 text-red-400" />Диагнозы / состояния</h3>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"><AlertCircle className="w-3.5 h-3.5 text-red-400" />Диагнозы / состояния <span className="text-slate-400 normal-case">{selectedZoneDiagnosisCount} выбрано</span></h3>
                     <ClinicalCheckboxList items={availableDiagnoses.map(toCheckboxItem)} selectedIds={diagnosisIds} onToggle={toggleDiagnosis} />
                   </section>
                 )}
@@ -428,7 +552,7 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
                 )}
 
                 <section className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100">
-                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3 flex items-center gap-2"><Plus className="w-3.5 h-3.5" />Лечебные работы</h3>
+                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3 flex items-center gap-2"><Plus className="w-3.5 h-3.5" />Лечебные работы <span className="text-emerald-500 normal-case">{currentZoneWorkIds.length} выбрано</span></h3>
                   {allZoneWorks.some((work) => work.workAccessType === 'requires_diagnosis') && diagnosisIds.length === 0 ? (
                     <p className="text-xs text-slate-500 italic">Выберите диагноз выше, чтобы увидеть доступные лечебные работы.</p>
                   ) : treatmentWorks.length === 0 ? (
