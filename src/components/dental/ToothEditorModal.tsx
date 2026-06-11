@@ -1,8 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { X, RefreshCcw } from 'lucide-react';
-import { SuggestionInput } from './SuggestionInput';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, BookOpen, Plus, RefreshCcw, Save, X } from 'lucide-react';
+import type {
+  ClinicalZone,
+  DentalFinding,
+  FindingCategory,
+  FindingSeverity,
+  FindingStatus,
+  PlannedWorkRecord,
+  ToothPresenceStatus,
+  ToothRecord,
+  ToothVisualState,
+} from '../../types';
 import type { ToothZone } from './ToothZoneSelectorModal';
-import type { ToothRecord, ToothCondition, ToothSurface, DentalFinding, FindingCategory, FindingSeverity, FindingStatus } from '../../types';
+import { normalizeToothRecord } from '../../utils/dentalChartNormalization';
+import {
+  defaultClinicalWorks,
+  defaultDiagnoses,
+  getAvailableZonesForPresence,
+  getBaseWorksByPresenceAndZone,
+  getDiagnosesByPresenceAndZone,
+  getWorksByDiagnoses,
+  getWorksByPresenceAndZone,
+  type ClinicalDiagnosis,
+  type ClinicalWork,
+} from '../../config/clinicalDictionaries';
 
 interface ToothEditorModalProps {
   isOpen: boolean;
@@ -14,11 +35,20 @@ interface ToothEditorModalProps {
   onSave: (tooth: ToothRecord, findingData: Partial<DentalFinding> | null) => void;
 }
 
-const CONDITIONS: { value: ToothCondition; label: string }[] = [
+const PRESENCE_STATUSES: { value: ToothPresenceStatus; label: string; hint: string }[] = [
+  { value: 'natural', label: 'Естественный зуб', hint: 'Обычный постоянный зуб' },
+  { value: 'missing', label: 'Отсутствует', hint: 'Зуб удалён или отсутствует' },
+  { value: 'implant', label: 'Имплант', hint: 'Установлен имплант' },
+  { value: 'root_remnant', label: 'Остаток корня', hint: 'Коронковая часть отсутствует' },
+  { value: 'deciduous', label: 'Молочный зуб', hint: 'Временный зуб' },
+  { value: 'impacted', label: 'Ретинированный', hint: 'Не прорезался / расположен неправильно' },
+];
+
+const VISUAL_STATES: { value: ToothVisualState; label: string }[] = [
   { value: 'healthy', label: 'Здоров' },
   { value: 'caries', label: 'Кариес' },
   { value: 'filled', label: 'Пломба' },
-  { value: 'missing', label: 'Удалён' },
+  { value: 'missing', label: 'Удалён / отсутствует' },
   { value: 'crown', label: 'Коронка' },
   { value: 'implant', label: 'Имплант' },
   { value: 'root', label: 'Корень' },
@@ -27,111 +57,310 @@ const CONDITIONS: { value: ToothCondition; label: string }[] = [
   { value: 'needs_treatment', label: 'Требует лечения' },
 ];
 
-const SURFACES: { value: ToothSurface; label: string }[] = [
-  { value: 'occlusal', label: 'Жевательная (O)' },
-  { value: 'mesial', label: 'Мезиальная (M)' },
-  { value: 'distal', label: 'Дистальная (D)' },
-  { value: 'vestibular', label: 'Вестибулярная (V)' },
-  { value: 'oral', label: 'Оральная (L/P)' },
-];
+const ZONE_LABELS: Record<ClinicalZone, string> = {
+  crown: 'Коронка',
+  endodontics: 'Каналы',
+  root: 'Корень',
+  periodontium: 'Десна',
+  bone: 'Кость',
+  orthopedics: 'Ортопедия',
+  planning: 'Планирование',
+};
+
+const ZONE_HINTS: Record<ClinicalZone, string> = {
+  crown: 'Диагнозы и работы по коронковой части зуба',
+  endodontics: 'Эндодонтия, пульпа и корневые каналы',
+  root: 'Корень, верхушка корня и периапикальные изменения',
+  periodontium: 'Десна, пародонт и мягкие ткани',
+  bone: 'Костная ткань и хирургическое планирование',
+  orthopedics: 'Ортопедические конструкции и протезирование',
+  planning: 'Планирование восстановления отсутствующего зуба',
+};
+
+function mapToClinicalZone(zone?: ToothZone): ClinicalZone {
+  if (zone === 'gum') return 'periodontium';
+  if (zone === 'root') return 'endodontics';
+  if (zone === 'bone') return 'bone';
+  return 'crown';
+}
+
+function createRecordId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `planned_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function getFirstAvailableZone(presenceStatus: ToothPresenceStatus, preferredZone?: ClinicalZone): ClinicalZone {
+  const availableZones = getAvailableZonesForPresence(presenceStatus);
+
+  if (preferredZone && availableZones.includes(preferredZone)) {
+    return preferredZone;
+  }
+
+  return availableZones[0] || 'crown';
+}
+
+function deriveVisualState(
+  presenceStatus: ToothPresenceStatus,
+  diagnosisIds: string[],
+  plannedWorkIds: string[],
+  fallbackCondition: ToothVisualState,
+): ToothVisualState {
+  if (presenceStatus === 'missing') return 'missing';
+  if (presenceStatus === 'implant') return 'implant';
+  if (presenceStatus === 'root_remnant') return 'root';
+
+  const diagnosisSet = new Set(diagnosisIds);
+  const workSet = new Set(plannedWorkIds);
+
+  if ([
+    'dx_irreversible_pulpitis',
+    'dx_reversible_pulpitis',
+    'dx_pulp_necrosis',
+  ].some((id) => diagnosisSet.has(id))) {
+    return 'pulpitis';
+  }
+
+  if ([
+    'dx_apical_periodontitis',
+    'dx_periodontal_pocket',
+    'dx_peri_implantitis',
+    'dx_radicular_cyst',
+  ].some((id) => diagnosisSet.has(id))) {
+    return 'periodontitis';
+  }
+
+  if ([
+    'dx_caries_initial',
+    'dx_caries_enamel',
+    'dx_caries_dentin',
+    'dx_deep_caries',
+    'dx_root_caries',
+  ].some((id) => diagnosisSet.has(id))) {
+    return 'caries';
+  }
+
+  if ([
+    'work_implant_crown',
+    'work_crown',
+  ].some((id) => workSet.has(id))) {
+    return 'crown';
+  }
+
+  if (fallbackCondition !== 'healthy') {
+    return fallbackCondition;
+  }
+
+  return diagnosisIds.length > 0 || plannedWorkIds.length > 0 ? 'needs_treatment' : 'healthy';
+}
+
+function formatPrice(price?: number): string | null {
+  if (typeof price !== 'number') return null;
+  return `${price.toLocaleString('ru-RU')} ₸`;
+}
+
+function getWorkIds(records: PlannedWorkRecord[]): string[] {
+  return [...new Set(records.map((record) => record.workId))];
+}
+
+function getZoneWorkIds(records: PlannedWorkRecord[], zone: ClinicalZone): string[] {
+  return records.filter((record) => record.zone === zone).map((record) => record.workId);
+}
+
+function ClinicalCheckboxList({
+  items,
+  selectedIds,
+  onToggle,
+}: {
+  items: Array<{ id: string; name: string; description?: string; price?: number }>;
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => {
+        const isSelected = selectedIds.includes(item.id);
+        const price = formatPrice(item.price);
+
+        return (
+          <label
+            key={item.id}
+            className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors cursor-pointer ${
+              isSelected
+                ? 'border-blue-300 bg-blue-50 text-blue-950'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggle(item.id)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="flex-1">
+              <span className="font-medium">{item.name}</span>
+              {item.description && <span className="block text-xs text-slate-500 mt-0.5">{item.description}</span>}
+              {price && <span className="block text-xs font-semibold text-slate-500 mt-1">{price}</span>}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
 
 export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }: ToothEditorModalProps) {
-  const [formData, setFormData] = useState<Partial<ToothRecord>>({});
-  const [activeZone, setActiveZone] = useState<ToothZone>('crown');
-
+  const [formData, setFormData] = useState<ToothRecord | null>(null);
+  const [activeZone, setActiveZone] = useState<ClinicalZone>('crown');
+  const [manualVisualState, setManualVisualState] = useState(false);
   const [createFinding, setCreateFinding] = useState(false);
-  const [findingData, setFindingData] = useState<Partial<DentalFinding>>({
-    title: '',
-    category: 'other',
-    severity: 'medium',
-    description: '',
-    riskDescription: '',
-    recommendation: '',
-    isChiefComplaintRelated: false,
-    includeInTreatmentPlan: false,
-    status: 'discovered'
-  });
 
   useEffect(() => {
     if (isOpen && tooth) {
+      const normalizedTooth = normalizeToothRecord(tooth);
+      const preferredZone = mapToClinicalZone(defaultZone);
+      const nextZone = getFirstAvailableZone(normalizedTooth.presenceStatus || 'natural', preferredZone);
+
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveZone(defaultZone || 'crown');
+      setFormData(normalizedTooth);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFormData({ ...tooth, surfaces: tooth.surfaces || [] });
+      setActiveZone(nextZone);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setManualVisualState(Boolean(normalizedTooth.visualStateOverride));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCreateFinding(false);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFindingData({
-        title: '',
-        category: 'other',
-        severity: 'medium',
-        description: '',
-        riskDescription: '',
-        recommendation: '',
-        isChiefComplaintRelated: false,
-        includeInTreatmentPlan: false,
-        status: 'discovered'
-      });
     }
   }, [isOpen, tooth, defaultZone]);
 
-  if (!isOpen || !tooth) return null;
+  const currentPresence = formData?.presenceStatus || 'natural';
+  const availableZones = useMemo(() => getAvailableZonesForPresence(currentPresence), [currentPresence]);
+  const currentZone = availableZones.includes(activeZone) ? activeZone : getFirstAvailableZone(currentPresence);
+  const diagnosisIds = formData?.diagnoses || [];
+  const plannedWorkRecords = formData?.plannedWorkRecords || [];
+  const plannedWorkIds = getWorkIds(plannedWorkRecords);
+  const currentZoneWorkIds = getZoneWorkIds(plannedWorkRecords, currentZone);
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const availableDiagnoses = useMemo(
+    () => getDiagnosesByPresenceAndZone(currentPresence, currentZone),
+    [currentPresence, currentZone],
+  );
 
-    if (name === 'condition' && tooth) {
-      applyDefaultFindingSuggestion(value as ToothCondition, tooth.toothNumber);
-    }
+  const allZoneWorks = useMemo(
+    () => getWorksByPresenceAndZone(currentPresence, currentZone),
+    [currentPresence, currentZone],
+  );
+
+  const baseWorks = useMemo(
+    () => getBaseWorksByPresenceAndZone(currentPresence, currentZone),
+    [currentPresence, currentZone],
+  );
+
+  const treatmentWorks = useMemo(
+    () => getWorksByDiagnoses(currentPresence, currentZone, diagnosisIds).filter((work) => work.workAccessType === 'requires_diagnosis'),
+    [currentPresence, currentZone, diagnosisIds],
+  );
+
+  if (!isOpen || !tooth || !formData) return null;
+
+  const automaticVisualState = deriveVisualState(
+    currentPresence,
+    diagnosisIds,
+    plannedWorkIds,
+    formData.condition,
+  );
+  const computedVisualState = manualVisualState && formData.visualStateOverride
+    ? formData.visualStateOverride
+    : automaticVisualState;
+
+  const presenceLabel = PRESENCE_STATUSES.find((status) => status.value === currentPresence)?.label || currentPresence;
+  const visualLabel = VISUAL_STATES.find((state) => state.value === computedVisualState)?.label || computedVisualState;
+  const hasZoneData = availableDiagnoses.length > 0 || allZoneWorks.length > 0;
+
+  const setPresenceStatus = (presenceStatus: ToothPresenceStatus) => {
+    const nextZone = getFirstAvailableZone(presenceStatus);
+
+    setFormData((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        presenceStatus,
+        diagnoses: [],
+        plannedWorks: [],
+        plannedWorkRecords: [],
+        visualStateOverride: undefined,
+      };
+    });
+    setManualVisualState(false);
+    setActiveZone(nextZone);
   };
 
-  const applyDefaultFindingSuggestion = (condition: ToothCondition, toothNumber: number) => {
-    if (condition === 'caries') {
-      setFindingData(prev => ({ ...prev, category: 'caries', title: `Кариес ${toothNumber} зуба`, severity: 'medium', description: 'Выявлено кариозное поражение.', recommendation: 'Рекомендовано лечение кариеса.' }));
-    } else if (condition === 'missing') {
-      setFindingData(prev => ({ ...prev, category: 'missing_tooth', title: `Отсутствует ${toothNumber} зуб`, severity: 'medium', description: 'Зуб отсутствует.', recommendation: 'Рекомендована консультация по восстановлению зубного ряда.' }));
-    } else if (condition === 'pulpitis') {
-      setFindingData(prev => ({ ...prev, category: 'pain', title: `Подозрение на пульпит ${toothNumber} зуба`, severity: 'high', description: 'Требуется клиническая оценка и лечение каналов по показаниям.', recommendation: 'Рекомендовано лечение у врача-стоматолога.' }));
-    } else if (condition === 'periodontitis') {
-      setFindingData(prev => ({ ...prev, category: 'root_problem', title: `Проблема корня / периодонта ${toothNumber} зуба`, severity: 'high', description: 'Выявлены признаки проблемы в области корня/периодонта.', recommendation: 'Рекомендована дополнительная диагностика и лечение по показаниям.' }));
-    } else if (condition === 'needs_treatment') {
-      setFindingData(prev => ({ ...prev, category: 'other', title: `Требует лечения ${toothNumber} зуб`, severity: 'medium', description: 'Зуб требует внимания врача.', recommendation: 'Рекомендовано включить в план лечения.' }));
-    } else {
-      setFindingData(prev => ({ ...prev, title: '', description: '', recommendation: '' }));
-    }
+  const toggleDiagnosis = (diagnosisId: string) => {
+    setFormData((prev) => {
+      if (!prev) return prev;
+
+      const nextDiagnosisIds = prev.diagnoses?.includes(diagnosisId)
+        ? prev.diagnoses.filter((id) => id !== diagnosisId)
+        : [...(prev.diagnoses || []), diagnosisId];
+
+      const allowedWorkIds = new Set(
+        getWorksByDiagnoses(prev.presenceStatus || 'natural', currentZone, nextDiagnosisIds).map((work) => work.id),
+      );
+      const nextRecords = (prev.plannedWorkRecords || []).filter((record) => (
+        record.zone !== currentZone || allowedWorkIds.has(record.workId)
+      ));
+
+      return {
+        ...prev,
+        diagnoses: nextDiagnosisIds,
+        plannedWorkRecords: nextRecords,
+        plannedWorks: getWorkIds(nextRecords),
+      };
+    });
   };
 
-  const handleSurfaceToggle = (surface: ToothSurface) => {
-    const current = formData.surfaces || [];
-    if (current.includes(surface)) {
-      setFormData(prev => ({ ...prev, surfaces: current.filter(s => s !== surface) }));
-    } else {
-      setFormData(prev => ({ ...prev, surfaces: [...current, surface] }));
-    }
+  const toggleWork = (work: ClinicalWork) => {
+    setFormData((prev) => {
+      if (!prev) return prev;
+
+      const currentRecords = prev.plannedWorkRecords || [];
+      const hasWork = currentRecords.some((record) => record.zone === currentZone && record.workId === work.id);
+      const now = new Date().toISOString();
+      const nextRecords = hasWork
+        ? currentRecords.filter((record) => !(record.zone === currentZone && record.workId === work.id))
+        : [
+          ...currentRecords,
+          {
+            id: createRecordId(),
+            workId: work.id,
+            zone: currentZone,
+            status: 'planned',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ];
+
+      return {
+        ...prev,
+        plannedWorkRecords: nextRecords,
+        plannedWorks: getWorkIds(nextRecords),
+      };
+    });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    let findingPayload: Partial<DentalFinding> | null = null;
-    if (createFinding) {
-      findingPayload = { ...findingData };
-      if (findingPayload.includeInTreatmentPlan) {
-        findingPayload.status = 'recommended';
-      }
-    }
-
-    onSave({
-      ...tooth,
-      ...formData,
-      updatedAt: new Date().toISOString()
-    } as ToothRecord, findingPayload);
+  const setVisualStateOverride = (visualState: ToothVisualState) => {
+    setFormData((prev) => prev ? { ...prev, visualStateOverride: visualState } : prev);
   };
 
-  const handleReset = () => {
+  const resetToHealthy = () => {
+    const now = new Date().toISOString();
+
     setFormData({
-      toothNumber: tooth.toothNumber,
+      ...formData,
       condition: 'healthy',
       surfaces: [],
       crown: '',
@@ -144,336 +373,261 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       workBone: '',
       canal: '',
       workCanal: '',
-      notes: ''
+      notes: '',
+      presenceStatus: 'natural',
+      visualState: 'healthy',
+      visualStateOverride: undefined,
+      diagnoses: [],
+      plannedWorks: [],
+      plannedWorkRecords: [],
+      completedWorks: [],
+      updatedAt: now,
     });
+    setManualVisualState(false);
+    setActiveZone('crown');
+    setCreateFinding(false);
   };
 
-  const zoneSectionClass = (zone: ToothZone, ringClass: string) =>
-    `space-y-6 rounded-xl transition-shadow ${activeZone === zone ? `ring-2 ${ringClass} p-3 -m-3` : ''}`;
+  const buildFindingPayload = (): Partial<DentalFinding> | null => {
+    if (!createFinding) return null;
 
-  const inputChangeHandler = handleChange as unknown as (e: React.ChangeEvent<HTMLInputElement>) => void;
+    const selectedDiagnosisNames = diagnosisIds
+      .map((id) => defaultDiagnoses.find((diagnosis) => diagnosis.id === id)?.name || id);
+    const selectedWorkNames = plannedWorkIds
+      .map((id) => defaultClinicalWorks.find((work) => work.id === id)?.name || id);
+
+    return {
+      title: `Клиническая запись: зуб ${tooth.toothNumber}`,
+      category: 'other' as FindingCategory,
+      severity: 'medium' as FindingSeverity,
+      description: [
+        `Анатомический статус: ${presenceLabel}`,
+        `Зона: ${ZONE_LABELS[currentZone]}`,
+        selectedDiagnosisNames.length > 0 ? `Диагнозы: ${selectedDiagnosisNames.join(', ')}` : '',
+        selectedWorkNames.length > 0 ? `Работы: ${selectedWorkNames.join(', ')}` : '',
+        formData.notes ? `Заметка: ${formData.notes}` : '',
+      ].filter(Boolean).join(' | '),
+      status: 'discovered' as FindingStatus,
+      isChiefComplaintRelated: false,
+      includeInTreatmentPlan: selectedWorkNames.length > 0,
+    };
+  };
+
+  const handleSave = () => {
+    const nextTooth: ToothRecord = {
+      ...formData,
+      condition: computedVisualState,
+      visualState: computedVisualState,
+      visualStateOverride: manualVisualState ? formData.visualStateOverride || computedVisualState : undefined,
+      plannedWorks: getWorkIds(formData.plannedWorkRecords || []),
+      updatedAt: new Date().toISOString(),
+    };
+
+    onSave(nextTooth, buildFindingPayload());
+  };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            Редактирование зуба <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{tooth.toothNumber}</span>
-          </h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/70">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              Зуб <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{tooth.toothNumber}</span>
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">Клиническая запись · {presenceLabel}</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex border-b border-slate-200">
-          <button type="button" onClick={() => setActiveZone('crown')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'crown' ? 'border-blue-500 text-blue-700 bg-blue-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Коронка</button>
-          <button type="button" onClick={() => setActiveZone('root')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'root' ? 'border-purple-500 text-purple-700 bg-purple-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Каналы</button>
-          <button type="button" onClick={() => setActiveZone('gum')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'gum' ? 'border-rose-500 text-rose-700 bg-rose-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Десна</button>
-          <button type="button" onClick={() => setActiveZone('bone')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${activeZone === 'bone' ? 'border-amber-500 text-amber-700 bg-amber-50/30' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>Кость</button>
-        </div>
-
-        <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 bg-slate-50/60">
-          Вкладки подсвечивают выбранную область. Все клинические разделы ниже остаются видимыми.
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4">
-          <form id="tooth-form" onSubmit={handleSubmit} className="space-y-8">
-            <div className={zoneSectionClass('crown', 'ring-blue-100')}>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Основное состояние зуба</label>
+        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
+          <aside className="space-y-5">
+            <section className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Анатомический статус</label>
                 <select
-                  name="condition"
-                  value={formData.condition || 'healthy'}
-                  onChange={handleChange}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-medium bg-white shadow-sm"
+                  value={currentPresence}
+                  onChange={(event) => setPresenceStatus(event.target.value as ToothPresenceStatus)}
+                  className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {CONDITIONS.map(c => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
+                  {PRESENCE_STATUSES.map((status) => (
+                    <option key={status.value} value={status.value}>{status.label}</option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-blue-700/80">
+                  {PRESENCE_STATUSES.find((status) => status.value === currentPresence)?.hint}
+                </p>
               </div>
 
-              {['caries', 'filled', 'needs_treatment'].includes(formData.condition || '') && (
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <label className="block text-sm font-semibold text-slate-800 mb-3">Поверхности</label>
-                  <div className="flex flex-wrap gap-2">
-                    {SURFACES.map(s => (
-                      <button
-                        key={s.value}
-                        type="button"
-                        onClick={() => handleSurfaceToggle(s.value)}
-                        className={`px-4 py-2 text-sm rounded-lg border transition-all ${
-                          (formData.surfaces || []).includes(s.value)
-                            ? 'bg-blue-50 border-blue-500 text-blue-700 font-semibold shadow-inner'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
+              <div>
+                <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Отображение на формуле</label>
+                {!manualVisualState ? (
+                  <div className="p-3 bg-white border border-blue-200 rounded-lg text-sm text-slate-700 space-y-2">
+                    <div>
+                      Расчётное состояние: <span className="font-semibold">{visualLabel}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualVisualState(true);
+                        setVisualStateOverride(computedVisualState);
+                      }}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Изменить вручную
+                    </button>
                   </div>
-                </div>
-              )}
-
-              <SuggestionInput
-                label="Проблема: Коронка / Реставрация"
-                name="crown"
-                value={formData.crown || ''}
-                onChange={inputChangeHandler}
-                placeholder="Материал, дефекты..."
-                suggestions={[
-                  'Кариес эмали', 'Кариес дентина', 'Глубокий кариес',
-                  'Скол эмали', 'Скол коронки', 'Дефект пломбы', 'Вторичный кариес'
-                ]}
-              />
-
-              <SuggestionInput
-                label="Запланированная работа (Коронка)"
-                name="workCrown"
-                value={formData.workCrown || ''}
-                onChange={inputChangeHandler}
-                placeholder="План лечения..."
-                suggestions={[
-                  'Фотополимерная реставрация', 'Керамическая вкладка',
-                  'Металлокерамическая коронка', 'Циркониевая коронка', 'Винир'
-                ]}
-              />
-            </div>
-
-            <div className={zoneSectionClass('root', 'ring-purple-100')}>
-              <SuggestionInput
-                label="Проблема: Корни / Каналы"
-                name="canal"
-                value={formData.canal || ''}
-                onChange={inputChangeHandler}
-                placeholder="Пломбировка, изменения..."
-                suggestions={[
-                  'Каналы запломбированы до верхушки', 'Каналы недопломбированы',
-                  'Пустой канал', 'Анкерный штифт', 'Стекловолоконный штифт',
-                  'Обломок инструмента', 'Перфорация'
-                ]}
-              />
-              <SuggestionInput
-                label="Запланированная работа (Каналы)"
-                name="workCanal"
-                value={formData.workCanal || ''}
-                onChange={inputChangeHandler}
-                placeholder="План лечения..."
-                suggestions={[
-                  'Механическая и медикаментозная обработка', 'Распломбировка каналов',
-                  'Пломбировка гуттаперчей', 'Установка СВШ'
-                ]}
-              />
-            </div>
-
-            <div className={zoneSectionClass('gum', 'ring-rose-100')}>
-              <SuggestionInput
-                label="Проблема: Десна / Мягкие ткани"
-                name="gum"
-                value={formData.gum || ''}
-                onChange={inputChangeHandler}
-                placeholder="Рецессия, воспаление..."
-                suggestions={[
-                  'Гингивит', 'Рецессия десны', 'Кровоточивость при зондировании',
-                  'Пародонтальный карман', 'Свищ', 'Отек'
-                ]}
-              />
-              <SuggestionInput
-                label="Запланированная работа (Десна)"
-                name="workGum"
-                value={formData.workGum || ''}
-                onChange={inputChangeHandler}
-                placeholder="План лечения..."
-                suggestions={[
-                  'Закрытый кюретаж', 'Открытый кюретаж', 'Вектор-терапия',
-                  'Пластика десны', 'Удаление зубных отложений'
-                ]}
-              />
-            </div>
-
-            <div className={zoneSectionClass('bone', 'ring-amber-100')}>
-              <SuggestionInput
-                label="Проблема: Костная ткань"
-                name="bone"
-                value={formData.bone || ''}
-                onChange={inputChangeHandler}
-                placeholder="Резорбция, карманы..."
-                suggestions={[
-                  'Без видимых изменений', 'Убыль костной ткани 1/3',
-                  'Убыль костной ткани 1/2', 'Киста', 'Гранулема', 'Остеосклероз'
-                ]}
-              />
-              <SuggestionInput
-                label="Запланированная работа (Костная ткань)"
-                name="workBone"
-                value={formData.workBone || ''}
-                onChange={inputChangeHandler}
-                placeholder="План лечения..."
-                suggestions={[
-                  'Резекция верхушки корня', 'Цистотомия',
-                  'Направленная костная регенерация', 'Удаление зуба'
-                ]}
-              />
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <label className="block text-sm font-semibold text-slate-800 mb-2">Клинические заметки</label>
-              <textarea
-                name="notes"
-                value={formData.notes || ''}
-                onChange={handleChange}
-                rows={3}
-                placeholder="Дополнительная информация о зубе для врача..."
-                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50 hover:bg-white transition-colors"
-              ></textarea>
-            </div>
-
-            <div className="pt-2">
-              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={createFinding}
-                    onChange={(e) => setCreateFinding(e.target.checked)}
-                    className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-semibold text-blue-900">Создать или обновить проблему по этому зубу</span>
-                </label>
-
-                {createFinding && (
-                  <div className="mt-5 space-y-5 bg-white p-5 rounded-xl border border-blue-100 shadow-sm">
-                    <label className="flex items-center gap-2 cursor-pointer pb-2 border-b border-slate-100">
-                      <input
-                        type="checkbox"
-                        checked={findingData.isChiefComplaintRelated}
-                        onChange={(e) => setFindingData({ ...findingData, isChiefComplaintRelated: e.target.checked })}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-slate-700">Связано с основной жалобой</span>
-                    </label>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Название проблемы <span className="text-red-500">*</span></label>
-                      <input
-                        type="text"
-                        value={findingData.title || ''}
-                        onChange={(e) => setFindingData({ ...findingData, title: e.target.value })}
-                        required
-                        placeholder="Например: Глубокий кариес"
-                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Категория <span className="text-red-500">*</span></label>
-                        <select
-                          value={findingData.category}
-                          onChange={(e) => setFindingData({ ...findingData, category: e.target.value as FindingCategory })}
-                          required
-                          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                        >
-                          <option value="caries">Кариес</option>
-                          <option value="missing_tooth">Отсутствующий зуб</option>
-                          <option value="gum_problem">Проблема десны</option>
-                          <option value="root_problem">Проблема корня</option>
-                          <option value="bite_problem">Проблема прикуса</option>
-                          <option value="aesthetic_problem">Эстетическая проблема</option>
-                          <option value="pain">Боль</option>
-                          <option value="risk_zone">Зона риска</option>
-                          <option value="hygiene">Гигиена</option>
-                          <option value="prosthetics">Протезирование</option>
-                          <option value="implantology">Имплантация</option>
-                          <option value="other">Другое</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Серьезность <span className="text-red-500">*</span></label>
-                        <select
-                          value={findingData.severity}
-                          onChange={(e) => setFindingData({ ...findingData, severity: e.target.value as FindingSeverity })}
-                          required
-                          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                        >
-                          <option value="low">Низкая</option>
-                          <option value="medium">Средняя</option>
-                          <option value="high">Высокая</option>
-                          <option value="urgent">Срочно</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Статус <span className="text-red-500">*</span></label>
-                        <select
-                          value={findingData.status}
-                          onChange={(e) => setFindingData({ ...findingData, status: e.target.value as FindingStatus })}
-                          required
-                          className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                        >
-                          <option value="discovered">Выявлено</option>
-                          <option value="recommended">Рекомендовано</option>
-                          <option value="included_in_plan">Включено в план</option>
-                          <option value="observing">Наблюдение</option>
-                          <option value="declined_by_patient">Пациент отказался</option>
-                          <option value="completed">Завершено</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center pt-6">
-                        <label className="flex items-center gap-2 cursor-pointer bg-blue-50 px-3 py-2 rounded-lg border border-blue-100 w-full hover:bg-blue-100 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={findingData.includeInTreatmentPlan}
-                            onChange={(e) => setFindingData({ ...findingData, includeInTreatmentPlan: e.target.checked })}
-                            className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm font-semibold text-blue-800">В план лечения</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Описание (для врача)</label>
-                      <textarea
-                        value={findingData.description || ''}
-                        onChange={(e) => setFindingData({ ...findingData, description: e.target.value })}
-                        rows={2}
-                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50 hover:bg-white transition-colors"
-                      ></textarea>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Описание рисков (пациенту)</label>
-                      <textarea
-                        value={findingData.riskDescription || ''}
-                        onChange={(e) => setFindingData({ ...findingData, riskDescription: e.target.value })}
-                        rows={2}
-                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-none bg-slate-50 hover:bg-white transition-colors"
-                      ></textarea>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Рекомендация</label>
-                      <input
-                        type="text"
-                        value={findingData.recommendation || ''}
-                        onChange={(e) => setFindingData({ ...findingData, recommendation: e.target.value })}
-                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 hover:bg-white transition-colors"
-                      />
-                    </div>
+                ) : (
+                  <div className="space-y-2">
+                    <select
+                      value={formData.visualStateOverride || computedVisualState}
+                      onChange={(event) => setVisualStateOverride(event.target.value as ToothVisualState)}
+                      className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {VISUAL_STATES.map((state) => (
+                        <option key={state.value} value={state.value}>{state.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualVisualState(false);
+                        setFormData((prev) => prev ? { ...prev, visualStateOverride: undefined } : prev);
+                      }}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-700 underline"
+                    >
+                      Вернуть автоматический расчёт
+                    </button>
                   </div>
                 )}
               </div>
+            </section>
+
+            <section>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Общие заметки</label>
+              <textarea
+                value={formData.notes || ''}
+                onChange={(event) => setFormData({ ...formData, notes: event.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[110px] resize-none"
+                placeholder="Дополнительные комментарии врача..."
+              />
+            </section>
+
+            <section className="bg-orange-50 p-4 rounded-xl border border-orange-100">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createFinding}
+                  onChange={(event) => setCreateFinding(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 text-orange-500 border-slate-300 rounded focus:ring-orange-500"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-orange-900">Создать клиническую проблему</span>
+                  <span className="block text-xs text-orange-700 mt-1">Находка будет создана по выбранным диагнозам, зоне и заметке врача.</span>
+                </span>
+              </label>
+            </section>
+          </aside>
+
+          <main className="min-w-0 flex flex-col">
+            <div className="flex overflow-x-auto border-b border-slate-200 mb-4" style={{ scrollbarWidth: 'none' }}>
+              {availableZones.map((zone) => (
+                <button
+                  key={zone}
+                  type="button"
+                  onClick={() => setActiveZone(zone)}
+                  className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                    currentZone === zone
+                      ? 'border-blue-500 text-blue-700 bg-blue-50/40'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  {ZONE_LABELS[zone]}
+                </button>
+              ))}
             </div>
-          </form>
+
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <h3 className="text-sm font-semibold text-slate-800">{ZONE_LABELS[currentZone]}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{ZONE_HINTS[currentZone]}</p>
+            </div>
+
+            {!hasZoneData ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                <BookOpen className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-600">Справочник не настроен для этой зоны</p>
+                <p className="text-xs text-slate-400 mt-1">Диагнозы и работы появятся после настройки справочников.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {availableDiagnoses.length > 0 && (
+                  <section className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                      Диагнозы / состояния
+                    </h3>
+                    <ClinicalCheckboxList
+                      items={availableDiagnoses.map((diagnosis: ClinicalDiagnosis) => ({
+                        id: diagnosis.id,
+                        name: diagnosis.name,
+                        description: diagnosis.description,
+                      }))}
+                      selectedIds={diagnosisIds}
+                      onToggle={toggleDiagnosis}
+                    />
+                  </section>
+                )}
+
+                {baseWorks.length > 0 && (
+                  <section className="bg-blue-50/40 p-4 rounded-xl border border-blue-100">
+                    <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <Plus className="w-3.5 h-3.5" />
+                      Базовые / доступные работы
+                    </h3>
+                    <ClinicalCheckboxList
+                      items={baseWorks.map((work) => ({ id: work.id, name: work.name, description: work.description, price: work.price }))}
+                      selectedIds={currentZoneWorkIds}
+                      onToggle={(id) => {
+                        const work = baseWorks.find((item) => item.id === id);
+                        if (work) toggleWork(work);
+                      }}
+                    />
+                  </section>
+                )}
+
+                <section className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100">
+                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Plus className="w-3.5 h-3.5" />
+                    Лечебные работы
+                  </h3>
+                  {allZoneWorks.some((work) => work.workAccessType === 'requires_diagnosis') && diagnosisIds.length === 0 ? (
+                    <p className="text-xs text-slate-500 italic">Выберите диагноз выше, чтобы увидеть доступные лечебные работы.</p>
+                  ) : treatmentWorks.length === 0 ? (
+                    <p className="text-xs text-slate-500 italic">Нет лечебных работ для выбранных диагнозов в этой зоне.</p>
+                  ) : (
+                    <ClinicalCheckboxList
+                      items={treatmentWorks.map((work) => ({ id: work.id, name: work.name, description: work.description, price: work.price }))}
+                      selectedIds={currentZoneWorkIds}
+                      onToggle={(id) => {
+                        const work = treatmentWorks.find((item) => item.id === id);
+                        if (work) toggleWork(work);
+                      }}
+                    />
+                  )}
+                </section>
+              </div>
+            )}
+          </main>
         </div>
 
-        <div className="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+        <div className="flex items-center justify-between gap-3 p-4 border-t border-slate-200 bg-slate-50">
           <button
             type="button"
-            onClick={handleReset}
+            onClick={resetToHealthy}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
           >
-            <RefreshCcw className="w-4 h-4" /> Сбросить (Здоров)
+            <RefreshCcw className="w-4 h-4" /> Сбросить
           </button>
           <div className="flex gap-2">
             <button
@@ -484,11 +638,12 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
               Отмена
             </button>
             <button
-              type="submit"
-              form="tooth-form"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+              type="button"
+              onClick={handleSave}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
             >
-              Сохранить
+              <Save className="w-4 h-4" />
+              Сохранить изменения
             </button>
           </div>
         </div>
