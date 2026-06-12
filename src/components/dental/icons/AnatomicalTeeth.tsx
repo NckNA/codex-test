@@ -11,8 +11,9 @@ interface ToothShape {
   root: string;
   crown: string;
   neckLine: string;
-  detailLines: string[];
-  highlightLines: string[];
+  rootLines: string[];
+  fissures: string[];
+  highlights: string[];
 }
 
 const getToothType = (number: number): ToothType => {
@@ -26,59 +27,78 @@ const getToothType = (number: number): ToothType => {
 
 const TOOTH_SHAPES: Record<ToothType, ToothShape> = {
   incisor: {
-    root: 'M12.4 23.8 C10.5 17.6 10.8 8.3 13.5 3.5 C15.1 0.8 16.9 0.8 18.5 3.5 C21.2 8.3 21.5 17.6 19.6 23.8 C17.7 25.4 14.3 25.4 12.4 23.8 Z',
-    crown: 'M7.2 22.6 C7.2 18 10.5 15.7 16 15.7 C21.5 15.7 24.8 18 24.8 22.6 L25.8 39.2 C26.4 48.6 22 54 16 54 C10 54 5.6 48.6 6.2 39.2 Z',
-    neckLine: 'M8.2 23.4 C11.6 25.4 20.4 25.4 23.8 23.4',
-    detailLines: [
-      'M11 27 C12.8 28.4 19.2 28.4 21 27',
-      'M12.4 34.5 C14 35.4 18 35.4 19.6 34.5',
+    root: 'M14.2 28.8 C11.9 20.3 12.1 8.5 15.4 2.8 C17.2 -0.2 18.8 -0.2 20.6 2.8 C23.9 8.5 24.1 20.3 21.8 28.8 C19.6 31 16.4 31 14.2 28.8 Z',
+    crown: 'M8.9 27.4 C8.7 21.4 12.4 18.4 18 18.4 C23.6 18.4 27.3 21.4 27.1 27.4 L27.9 45.2 C28.4 56.1 24.3 62.4 18 62.4 C11.7 62.4 7.6 56.1 8.1 45.2 Z',
+    neckLine: 'M9.8 28.4 C13.1 31.1 22.9 31.1 26.2 28.4',
+    rootLines: [
+      'M18 3.8 C16.7 10.1 16.6 19.7 17.2 28.5',
     ],
-    highlightLines: [
-      'M11.4 18.8 C9.7 22.6 9.7 31.5 10.5 39.6',
-      'M14 17.4 C15.4 16.9 17.6 16.9 19 17.4',
+    fissures: [
+      'M12.6 34.4 C14.8 36 21.2 36 23.4 34.4',
+      'M13.4 43.2 C15.1 44.2 20.9 44.2 22.6 43.2',
+      'M14.2 52.2 C15.8 53 20.2 53 21.8 52.2',
+    ],
+    highlights: [
+      'M13 20.9 C11.2 26.4 11.1 39.8 12.3 51.8',
+      'M15.1 19.7 C16.9 19.1 19.1 19.1 20.9 19.7',
     ],
   },
   canine: {
-    root: 'M11.4 24.5 C8.8 16.2 10.2 6.8 14.7 2.2 C15.6 1.3 16.4 1.3 17.3 2.2 C21.8 6.8 23.2 16.2 20.6 24.5 C18.5 26.4 13.5 26.4 11.4 24.5 Z',
-    crown: 'M7.3 23.5 C7.2 18.4 10.7 15.8 16 15.8 C21.3 15.8 24.8 18.4 24.7 23.5 L23.7 37.5 C22.8 44.6 18.7 51.4 16 54 C13.3 51.4 9.2 44.6 8.3 37.5 Z',
-    neckLine: 'M8.3 24.3 C11.4 26.8 20.6 26.8 23.7 24.3',
-    detailLines: [
-      'M12 29.5 C14.3 31.2 17.7 31.2 20 29.5',
-      'M16 17.2 C15.6 25.4 15.6 41.8 16 51.5',
+    root: 'M13.2 29.2 C10.2 18.8 11.8 7.1 16.4 2.1 C17.5 0.8 18.5 0.8 19.6 2.1 C24.2 7.1 25.8 18.8 22.8 29.2 C20.5 31.7 15.5 31.7 13.2 29.2 Z',
+    crown: 'M8.9 27.8 C8.6 21.8 12.5 18.5 18 18.5 C23.5 18.5 27.4 21.8 27.1 27.8 L26 43.8 C25.2 52.8 20.8 59.8 18 62.4 C15.2 59.8 10.8 52.8 10 43.8 Z',
+    neckLine: 'M10 29 C13.4 32.1 22.6 32.1 26 29',
+    rootLines: [
+      'M18 3.8 C17 11.9 17 21.6 17.8 29.2',
     ],
-    highlightLines: [
-      'M11.8 18.7 C10.2 22.7 10.2 31.9 11.2 39.4',
-      'M14.1 17.5 C15.4 17 17.4 17 18.7 17.5',
+    fissures: [
+      'M13.1 35.2 C15.6 37 20.4 37 22.9 35.2',
+      'M18 19.8 C17.4 31.7 17.4 49.6 18 60.1',
+      'M14.1 44.5 C15.8 45.7 20.2 45.7 21.9 44.5',
+    ],
+    highlights: [
+      'M13.2 20.9 C11.4 26.9 11.5 40.2 12.9 51.7',
+      'M15.1 19.8 C16.8 19.2 19.2 19.2 20.9 19.8',
     ],
   },
   premolar: {
-    root: 'M8.3 24.4 C7.6 16.4 9.4 6.8 12.7 2.3 C14.9 5.9 15.6 15.5 15.8 24.2 C16.4 15.5 17.2 5.9 19.3 2.3 C22.6 6.8 24.4 16.4 23.7 24.4 C20.6 26.4 11.4 26.4 8.3 24.4 Z',
-    crown: 'M5.2 23.6 C5.2 18.4 9.2 15.7 16 15.7 C22.8 15.7 26.8 18.4 26.8 23.6 L26.1 39.2 C25.8 48.7 21.3 54 16 54 C10.7 54 6.2 48.7 5.9 39.2 Z',
-    neckLine: 'M6.2 24.5 C10.8 27.2 21.2 27.2 25.8 24.5',
-    detailLines: [
-      'M10.2 29.2 C13 31.4 19 31.4 21.8 29.2',
-      'M16 17.8 C15.4 27 15.4 43.5 16 52.4',
-      'M10.7 38 C13.4 39.5 18.6 39.5 21.3 38',
+    root: 'M9.7 29.2 C8.8 18.8 10.9 7.2 14.9 2.4 C17 7.2 17.5 18 17.7 28.7 C18.4 18 19 7.2 21.1 2.4 C25.1 7.2 27.2 18.8 26.3 29.2 C22.8 31.9 13.2 31.9 9.7 29.2 Z',
+    crown: 'M6.8 27.8 C6.6 21.6 11.1 18.3 18 18.3 C24.9 18.3 29.4 21.6 29.2 27.8 L28.5 45.1 C28.1 56 23.4 62.5 18 62.5 C12.6 62.5 7.9 56 7.5 45.1 Z',
+    neckLine: 'M8 29.2 C12.4 32.8 23.6 32.8 28 29.2',
+    rootLines: [
+      'M14.9 3.9 C14.3 11.7 14.5 21.8 15.4 29',
+      'M21.1 3.9 C21.7 11.7 21.5 21.8 20.6 29',
     ],
-    highlightLines: [
-      'M10.2 18.6 C8.5 23 8.7 32.4 9.8 40',
-      'M13.2 17.3 C15 16.8 17 16.8 18.8 17.3',
+    fissures: [
+      'M11.8 35.4 C14.8 38.1 21.2 38.1 24.2 35.4',
+      'M18 20.6 C17.3 33.6 17.3 50.7 18 60.5',
+      'M12.4 46.1 C15.2 48 20.8 48 23.6 46.1',
+      'M12 27.4 C14.8 29.1 21.2 29.1 24 27.4',
+    ],
+    highlights: [
+      'M11.7 20.8 C9.7 27.3 10 40.6 11.5 51.9',
+      'M14.4 19.8 C16.5 19.1 19.5 19.1 21.6 19.8',
     ],
   },
   molar: {
-    root: 'M5.7 24.5 C5.1 16.9 6.8 7.7 10.2 2.7 C12.4 6.3 12.8 15.5 13 23.7 C13.6 14.7 14.7 5.9 16 2.2 C17.3 5.9 18.4 14.7 19 23.7 C19.2 15.5 19.6 6.3 21.8 2.7 C25.2 7.7 26.9 16.9 26.3 24.5 C22.3 26.8 9.7 26.8 5.7 24.5 Z',
-    crown: 'M3.8 23.8 C3.8 18 8.2 15.4 16 15.4 C23.8 15.4 28.2 18 28.2 23.8 L27.5 39 C27.1 49.1 22.2 54.2 16 54.2 C9.8 54.2 4.9 49.1 4.5 39 Z',
-    neckLine: 'M5.2 24.7 C10.6 28 21.4 28 26.8 24.7',
-    detailLines: [
-      'M9.4 30.4 C12.2 33 19.8 33 22.6 30.4',
-      'M8.8 39.2 C12.8 41.4 19.2 41.4 23.2 39.2',
-      'M16 17.5 C15.1 27.6 15.1 43.8 16 52.8',
-      'M10.5 19.2 C12.4 25.4 12.4 36.2 10.8 45.2',
-      'M21.5 19.2 C19.6 25.4 19.6 36.2 21.2 45.2',
+    root: 'M6.8 29.2 C6.1 19.1 8 8.2 11.7 2.7 C14 7 14.5 18.4 14.8 28.5 C15.6 17.5 16.5 6.6 18 2.2 C19.5 6.6 20.4 17.5 21.2 28.5 C21.5 18.4 22 7 24.3 2.7 C28 8.2 29.9 19.1 29.2 29.2 C25 32.3 11 32.3 6.8 29.2 Z',
+    crown: 'M5.1 28 C4.8 21.1 9.7 18 18 18 C26.3 18 31.2 21.1 30.9 28 L30.3 45.1 C29.8 56.5 24.5 62.8 18 62.8 C11.5 62.8 6.2 56.5 5.7 45.1 Z',
+    neckLine: 'M6.5 29.4 C11.9 33.4 24.1 33.4 29.5 29.4',
+    rootLines: [
+      'M11.7 4.1 C10.9 12.1 11.2 21.9 12.2 29',
+      'M18 3.8 C17.4 12.5 17.4 22.4 18 29.4',
+      'M24.3 4.1 C25.1 12.1 24.8 21.9 23.8 29',
     ],
-    highlightLines: [
-      'M9.6 18.4 C7.7 23.1 8 32.7 9.4 40.2',
-      'M12.3 17.2 C14.4 16.5 17.6 16.5 19.7 17.2',
+    fissures: [
+      'M10.7 36.3 C14 39.4 22 39.4 25.3 36.3',
+      'M9.9 47.2 C14.2 49.8 21.8 49.8 26.1 47.2',
+      'M18 20.4 C17 33.9 17 51.3 18 61',
+      'M11.2 21.8 C13.4 30.4 13.2 43.4 11.7 55.2',
+      'M24.8 21.8 C22.6 30.4 22.8 43.4 24.3 55.2',
+      'M9.8 28 C12.8 30.2 23.2 30.2 26.2 28',
+    ],
+    highlights: [
+      'M10.8 20.9 C8.7 27.5 9.1 40.8 10.7 52',
+      'M13.8 19.5 C16.3 18.8 19.7 18.8 22.2 19.5',
     ],
   },
 };
@@ -91,30 +111,32 @@ export function AnatomicalTooth({
 }: ToothSvgProps) {
   const type = getToothType(toothNumber);
   const shape = TOOTH_SHAPES[type];
+  const rootFill = fillColor === '#ffffff' ? '#F8FAFC' : fillColor;
 
   return (
     <svg
       aria-hidden="true"
       focusable="false"
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 32 56"
+      viewBox="0 0 36 64"
       preserveAspectRatio="xMidYMid meet"
       className={`h-full w-full ${className}`}
     >
       <path
         d={shape.root}
-        fill={fillColor}
+        fill={rootFill}
         stroke={strokeColor}
-        strokeWidth="1.35"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        opacity="0.96"
         vectorEffect="non-scaling-stroke"
       />
       <path
         d={shape.crown}
         fill={fillColor}
         stroke={strokeColor}
-        strokeWidth="1.45"
+        strokeWidth="1.65"
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
@@ -123,35 +145,48 @@ export function AnatomicalTooth({
         d={shape.neckLine}
         fill="none"
         stroke={strokeColor}
-        strokeWidth="0.95"
+        strokeWidth="1"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.45"
+        opacity="0.5"
         vectorEffect="non-scaling-stroke"
       />
-      {shape.detailLines.map((line, index) => (
+      {shape.rootLines.map((line, index) => (
         <path
-          key={`${type}-detail-${index}`}
+          key={`${type}-root-${index}`}
           d={line}
           fill="none"
           stroke={strokeColor}
-          strokeWidth="0.75"
+          strokeWidth="0.85"
           strokeLinecap="round"
           strokeLinejoin="round"
-          opacity="0.24"
+          opacity="0.25"
           vectorEffect="non-scaling-stroke"
         />
       ))}
-      {shape.highlightLines.map((line, index) => (
+      {shape.fissures.map((line, index) => (
+        <path
+          key={`${type}-fissure-${index}`}
+          d={line}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="0.82"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity="0.3"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+      {shape.highlights.map((line, index) => (
         <path
           key={`${type}-highlight-${index}`}
           d={line}
           fill="none"
           stroke="#FFFFFF"
-          strokeWidth="1.35"
+          strokeWidth="1.45"
           strokeLinecap="round"
           strokeLinejoin="round"
-          opacity="0.55"
+          opacity="0.6"
           vectorEffect="non-scaling-stroke"
         />
       ))}
