@@ -1,45 +1,62 @@
 # RECON REPORT: DENTALCHART-DICTIONARY-EDITOR-RECON-001
 
-## 1. Где сейчас лежат диагнозы / состояния
-Вся база диагнозов захардкожена в файле `src/config/clinicalDictionaries.ts` в виде статического массива `defaultDiagnoses` (интерфейс `ClinicalDiagnosis`).
+## Verdict
+The current dictionary structure is entirely static and not ready for a dynamic, tenant-based editing model. However, the data interfaces already support required fields (like `price` for works and `allowedDiagnosisIds`). The system is ready to be refactored into an editable `DictionariesRepository` without massive structural changes, provided that direct imports of static dictionaries are completely eliminated from components.
 
-## 2. Где сейчас лежат базовые / доступные работы
-Работы также захардкожены в `src/config/clinicalDictionaries.ts` в статическом массиве `defaultWorks` (интерфейс `ClinicalWork`).
+## Current dictionary sources
+- **Diagnoses**: Located in `src/config/clinicalDictionaries.ts` as `defaultDiagnoses` (`ClinicalDiagnosis[]`).
+- **Works**: Located in `src/config/clinicalDictionaries.ts` as `defaultWorks` (`ClinicalWork[]`).
+- **Data model**: `ClinicalWork` already has an optional `price?: number` field. Diagnoses inherently do not have prices.
 
-## 3. Есть ли уже поля цены
-Да, в интерфейсе `ClinicalWork` (`src/config/clinicalDictionaries.ts`) уже заложено опциональное поле `price?: number`. На данный момент в самом массиве `defaultWorks` цены отсутствуют или не используются. Диагнозы (`ClinicalDiagnosis`), согласно бизнес-правилам, поля цены не имеют.
+## Tooth editor flow
+- In `ToothEditorModal.tsx`, the diagnosis-to-work mapping relies on `allowedDiagnosisIds` in the `ClinicalWork` object.
+- When a diagnosis is selected, works with that diagnosis ID in their `allowedDiagnosisIds` (plus works that are globally `base_available`) are loaded into the UI.
+- This linkage is used purely for filtering and populating the available works in the tooth editor, not for calculating base pricing.
 
-## 4. Где хранятся выбранные лечебные работы по зубу
-Пользовательские (уже назначенные пациенту) работы сохраняются в `localStorage` через `DentalChartRepository` (ключ `codex_dental_charts`). Внутри карты пациента (объект `DentalChart`) каждый зуб представлен как `ToothRecord`, который содержит:
-- `plannedWorks` и `completedWorks` (массивы ID работ).
-- `plannedWorkRecords` (массив объектов типа `PlannedWorkRecord` со статусом, зоной и датами).
+## Persistence analysis
+- Selected tooth treatments are persisted in `DentalChartRepository` within `localStorage` under the `codex_dental_charts` key.
+- Inside a patient's chart (`ToothRecord`), assigned works are saved in `plannedWorks` and `plannedWorkRecords`.
+- Currently, prices are not explicitly snapshotted into `ToothRecord` or `PlannedWorkRecord`.
 
-## 5. Как сейчас работает связь диагноз → работы
-Связь реализована через интерфейс базовой работы `ClinicalWork`, который содержит массив `allowedDiagnosisIds: string[]`. 
-Когда врач выбирает диагноз на зубе в модалке `ToothEditorModal`, компонент фильтрует общий статический список `defaultWorks` и оставляет только те работы, у которых в `allowedDiagnosisIds` есть ID выбранного диагноза (либо те, что доступны "по умолчанию" — `workAccessType === 'base_available'`).
+## Tenant / RLS notes
+- Future Supabase implementation will require dictionaries to be tenant-scoped.
+- Tenant A must have their own pricing and works list separate from Tenant B.
+- Row Level Security (RLS) policies will need to enforce that dictionaries are selected and modified only `WHERE tenant_id = auth.uid()`.
+- The current static approach (`import { defaultWorks }`) prevents tenant scoping and mandates moving dictionaries into a state/context or repository layer.
 
-## 6. Что статично в коде
-Полностью статичны:
-- Сами справочники: списки диагнозов (`defaultDiagnoses`) и списки работ (`defaultWorks`).
-- Логика маппинга диагноз-работа (через статические ID внутри констант).
-- Базовые цены на работы (которые предстоит сделать редактируемыми).
+## Recommended MVP model
+1. Create `ClinicalDictionariesRepository` (localStorage-backed for now) to store mutable `diagnoses` and `works`.
+2. Implement a Seeding mechanism: if the repository is empty, populate it using the static constants from `clinicalDictionaries.ts`.
+3. Create a custom hook `useDictionaries` (or Context Provider) to expose the repository data throughout the app.
+4. Refactor `ToothGrid` and `ToothEditorModal` to consume `useDictionaries()` instead of statically importing the constants.
+5. Create a basic "Dictionaries" editor in the Doctor section to CRUD works/diagnoses, edit prices, and manage `allowedDiagnosisIds`.
+6. Update the `ToothEditorModal` submission flow so that when a work is assigned to a tooth, its *current* price is saved alongside the work record (in `PlannedWorkRecord` or similar existing structure).
 
-## 7. Что localStorage
-- Карты пациентов (`DentalChartRepository`).
-- Состояния зубов (`ToothRecord`).
-- Запланированные и выполненные работы для каждого пациента.
-- Жалобы (`ChiefComplaintRepository`), диагнозы (`FindingsRepository`).
+## Risks
+1. **Direct Imports**: Many files currently use `import { defaultDiagnoses, ... }`. If not thoroughly replaced with the new hook, this will create two conflicting sources of truth.
+2. **Tenant Migration**: If dictionaries are persisted locally now, moving to Supabase later will require careful migration scripts to ensure tenant scoping.
+3. **Seeding/Migration**: Updating the default static constants later won't automatically update existing users' localStorage.
+4. **Referential Integrity**: Disabling or deleting a dictionary item in the editor might break existing tooth records (`DentalChart`) that reference the deleted ID. A soft-delete (`isActive` flag) mechanism should be considered.
 
-## 8. Что Supabase-ready
-Пользовательские данные (карты, планы лечения, профили пациентов) архитектурно готовы к переносу в Supabase, так как используют полноценные репозитории с UUID, полями `createdAt` / `updatedAt` и четкой типизацией.
-Сами **справочники диагнозов и работ НЕ готовы** к базе данных, так как они импортируются напрямую как JS-константы.
+## Explicitly out of scope
+- Treatment plan generation, approval, or automation.
+- Role-based access control (RBAC).
+- Billing, cashier, and invoice generation.
+- Discounts system.
+- Supabase migrations or backend schema changes.
 
-## 9. Как потом безопасно сделать редактор во "Врачебной части"
-Для безопасного внедрения редактора справочников и цен потребуется выполнить следующие шаги (без влияния на текущий UI):
+## Proposed next implementation tasks
+**Task: DENTALCHART-DICTIONARY-EDITOR-MVP-001**
+- **Goal**: Make dental chart dictionaries editable with prices, ensuring selected tooth work captures the price.
+- **Allowed Files**: `src/config/clinicalDictionaries.ts`, `src/data/repositories/ClinicalDictionariesRepository.ts` (new), `src/data/hooks/useDictionaries.ts` (new), `src/components/dental/ToothEditorModal.tsx`, `src/components/dental/ToothGrid.tsx`, UI components for the Doctor section.
+- **Forbidden Files**: Treatment plans, billing modules, Supabase schema, patient repo, RBAC logic.
 
-1. **Создать `ClinicalDictionariesRepository`**: Написать новый репозиторий поверх `localStorage` (ключ `codex_dictionaries`), который будет хранить `diagnoses` и `works`.
-2. **Механизм сидирования (Seeding)**: При инициализации репозитория проверять: если `localStorage` пуст, скопировать в него дефолтные значения из статического `clinicalDictionaries.ts`. Это заполнит первоначальную базу.
-3. **Контекст / Хук `useDictionaries`**: Создать Provider и хук, который будет читать справочники из репозитория и поставлять их во все компоненты приложения (заменив прямые импорты констант `defaultDiagnoses` и `defaultWorks`).
-4. **Рефакторинг `ToothEditorModal` и `ToothGrid`**: Перевести эти компоненты на использование динамических данных из `useDictionaries()`. Связь диагноз-работа при этом не сломается, так как структура данных останется прежней.
-5. **Создание UI Редактора (позже)**: Реализовать таблицу во "Врачебной части" (Settings/Dictionaries) для CRUD-операций: добавление новых работ, изменение `price`, управление массивом `allowedDiagnosisIds`.
-6. **Фиксация цены при назначении**: Важный бизнес-аспект — при назначении работы на зуб, текущая `price` из справочника должна копироваться внутрь сущности `PlannedWorkRecord`. Это нужно для того, чтобы будущее изменение цены в справочнике не изменило стоимость в уже составленных и согласованных планах лечения.
+## Required QA for next implementation
+- Verify that changing a price in the Doctor section updates the available works list correctly.
+- Verify that assigning a work to a tooth saves the *current* price at the time of assignment.
+- Verify that changing the price in the dictionary *after* assignment does not alter the price on already assigned teeth.
+- Verify that linking/unlinking a diagnosis to a work correctly filters the options in `ToothEditorModal`.
+- Verify `npm run lint` and `npm run test` pass.
+
+## Final recommendation
+Proceed with the MVP implementation as described. Focus strictly on replacing static imports with a `localStorage` repository pattern, ensuring price snapshotting on assignment, and building a basic CRUD UI in the Doctor section, while strictly avoiding treatment plans and billing features.
