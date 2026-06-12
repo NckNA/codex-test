@@ -364,15 +364,15 @@ const DentitionModeSwitch = ({ mode, onChange }: { mode: DentitionMode, onChange
 );
 
 const ToothLegend = () => (
-  <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3">
-    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Легенда зубной карты</div>
-    <div className="flex flex-wrap gap-2">
+  <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+    <div className="mb-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">Легенда зубной карты</div>
+    <div className="flex flex-wrap gap-1.5">
       {LEGEND_CONDITIONS.map(condition => {
         const colors = getToothColors(condition);
         return (
-          <div key={condition} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+          <div key={condition} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
             <span
-              className="h-3 w-3 rounded-full border"
+              className="h-2.5 w-2.5 rounded-full border"
               style={{ backgroundColor: colors.fill, borderColor: colors.stroke }}
               aria-hidden="true"
             />
@@ -380,24 +380,24 @@ const ToothLegend = () => (
           </div>
         );
       })}
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
-        <span className="h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow-sm" aria-hidden="true" />
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500 shadow-sm" aria-hidden="true" />
         Активная находка
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
-        <span className="h-3 w-3 rounded-full border-2 border-white bg-red-500 shadow-sm" aria-hidden="true" />
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500 shadow-sm" aria-hidden="true" />
         Срочно
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
-        <span className="h-3 w-3 rounded-full border border-sky-500 bg-sky-300/60 shadow-sm" aria-hidden="true" />
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-2.5 w-2.5 rounded-full border border-sky-500 bg-sky-300/60 shadow-sm" aria-hidden="true" />
         Зона активна
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
-        <span className="h-3 w-3 rounded-full border border-emerald-500 bg-emerald-300/60 shadow-sm" aria-hidden="true" />
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-2.5 w-2.5 rounded-full border border-emerald-500 bg-emerald-300/60 shadow-sm" aria-hidden="true" />
         Зона в плане
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
-        <span className="h-3 w-3 rounded-full border border-red-500 bg-red-300/70 shadow-sm" aria-hidden="true" />
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+        <span className="h-2.5 w-2.5 rounded-full border border-red-500 bg-red-300/70 shadow-sm" aria-hidden="true" />
         Зона риска
       </div>
     </div>
@@ -430,9 +430,9 @@ export function ToothGrid({
   };
 
   return (
-    <div className="mx-auto w-max min-w-max rounded-3xl border border-slate-100 bg-white px-5 py-5 shadow-sm shadow-slate-900/5">
-      <div className="rounded-2xl bg-gradient-to-b from-white via-white to-slate-50 px-4 py-5">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 shadow-sm">
+    <div className="mx-auto w-full max-w-5xl overflow-x-auto rounded-3xl border border-slate-100 bg-white p-3 sm:p-5 shadow-sm shadow-slate-900/5">
+      <div className="min-w-fit rounded-2xl bg-gradient-to-b from-white via-white to-slate-50 p-3 sm:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 shadow-sm">
           <div>
             <div className="text-sm font-semibold text-slate-800">{config.label}</div>
             <div className="text-xs text-slate-500">{config.helper}</div>
@@ -441,25 +441,25 @@ export function ToothGrid({
         </div>
 
         <JawLabel title="Верхняя челюсть" subtitle={config.upperSubtitle} />
-        <div className="relative flex items-center justify-center gap-4 sm:gap-6">
-          <div className="flex gap-1 sm:gap-1.5">
+        <div className="relative flex items-center justify-center gap-2 sm:gap-4">
+          <div className="flex gap-0.5 sm:gap-1">
             {config.upper.slice(0, Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
-          <div className="h-32 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
-          <div className="flex gap-1 sm:gap-1.5">
+          <div className="h-28 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
+          <div className="flex gap-0.5 sm:gap-1">
             {config.upper.slice(Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
         </div>
 
-        <div className="my-6 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+        <div className="my-4 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
         <JawLabel title="Нижняя челюсть" subtitle={config.lowerSubtitle} />
-        <div className="relative flex items-center justify-center gap-4 sm:gap-6">
-          <div className="flex gap-1 sm:gap-1.5">
+        <div className="relative flex items-center justify-center gap-2 sm:gap-4">
+          <div className="flex gap-0.5 sm:gap-1">
             {config.lower.slice(0, Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>
-          <div className="h-32 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
-          <div className="flex gap-1 sm:gap-1.5">
+          <div className="h-28 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
+          <div className="flex gap-0.5 sm:gap-1">
             {config.lower.slice(Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>
         </div>
