@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ToothGrid, type DentitionMode } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
-import { ToothZoneSelectorModal, type ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, DentalFinding } from '../../types';
 import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
 import { Save, AlertTriangle } from 'lucide-react';
@@ -53,9 +52,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   const { applyToothStatusChange } = useClinicalWorkflow();
 
   const [selectedTooth, setSelectedTooth] = useState<ToothRecord | null>(null);
-  const [isZoneSelectorOpen, setIsZoneSelectorOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<ToothZone | undefined>();
   const [dentitionMode, setDentitionMode] = useState<DentitionMode>('adult');
 
   const [complaints, setComplaints] = useState('');
@@ -76,21 +73,13 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
   const handleToothClick = (tooth: ToothRecord) => {
     setSelectedTooth(tooth);
-    setIsZoneSelectorOpen(true);
+    setIsModalOpen(true);
   };
 
   const handleDentitionModeChange = (mode: DentitionMode) => {
     setDentitionMode(mode);
     setSelectedTooth(null);
-    setSelectedZone(undefined);
-    setIsZoneSelectorOpen(false);
     setIsModalOpen(false);
-  };
-
-  const handleZoneSelect = (zone: ToothZone) => {
-    setSelectedZone(zone);
-    setIsZoneSelectorOpen(false);
-    setIsModalOpen(true);
   };
 
   const handleSaveTooth = async (
@@ -144,7 +133,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-      <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+      <div className="p-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
         <h3 className="font-semibold text-slate-800 flex flex-wrap items-center gap-2">
           Зубная карта (FDI)
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -154,7 +143,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
       </div>
 
       <div className="flex flex-col lg:flex-row">
-        <div className="flex-1 p-6 bg-slate-50 overflow-x-auto border-b lg:border-b-0 lg:border-r border-slate-200">
+        <div className="min-w-0 flex-1 bg-slate-50 p-4 border-b lg:border-b-0 lg:border-r border-slate-200">
           <ToothGrid
             teeth={dentalChart.teeth}
             findings={findings}
@@ -165,11 +154,11 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
           />
         </div>
 
-        <div className="w-full lg:w-64 bg-white p-5 shrink-0 flex flex-col">
-          <h4 className="font-medium text-slate-800 mb-4 flex items-center gap-2">
+        <div className="w-full lg:w-56 bg-white p-4 shrink-0 flex flex-col">
+          <h4 className="font-medium text-slate-800 mb-3 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-500" /> Проблемы по карте
           </h4>
-          <div className="space-y-4 text-sm">
+          <div className="space-y-3 text-sm">
             <div className="flex justify-between items-center">
               <span className="text-slate-600">Активных проблем:</span>
               <span className="font-semibold text-slate-800">{summary.active}</span>
@@ -190,21 +179,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="px-6 py-3 border-y border-slate-200 bg-white flex flex-wrap gap-4 text-xs">
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-slate-300 bg-white"></div> Здоров</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-orange-400 bg-orange-100"></div> Кариес (C)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-blue-400 bg-blue-100"></div> Пломба (F)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-slate-300 bg-slate-100 opacity-50"></div> Удалён (X)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-yellow-400 bg-yellow-100"></div> Коронка (Cr)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-purple-400 bg-purple-100"></div> Имплант (I)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-red-300 bg-red-50"></div> Корень (R)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-red-500 bg-red-100"></div> Пульпит (P)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-rose-500 bg-rose-100"></div> Периодонтит (Pt)</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm border border-amber-500 bg-amber-100"></div> Требует лечения (!)</div>
-      </div>
-
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-white">
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white border-t border-slate-200">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Жалобы</label>
           <textarea
@@ -237,19 +212,11 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
         </button>
       </div>
 
-      <ToothZoneSelectorModal
-        isOpen={isZoneSelectorOpen}
-        toothNumber={selectedTooth?.toothNumber || null}
-        onClose={() => setIsZoneSelectorOpen(false)}
-        onSelectZone={handleZoneSelect}
-      />
-
       <ToothEditorModal
         isOpen={isModalOpen}
         patientId={patientId}
         existingFindings={findings}
         tooth={selectedTooth}
-        defaultZone={selectedZone}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTooth}
       />
