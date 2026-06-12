@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ToothGrid, type DentitionMode } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
-import { ToothZoneSelectorModal, type ToothZone } from './ToothZoneSelectorModal';
 import type { ToothRecord, DentalFinding } from '../../types';
 import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
 import { Save, AlertTriangle } from 'lucide-react';
@@ -53,9 +52,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   const { applyToothStatusChange } = useClinicalWorkflow();
 
   const [selectedTooth, setSelectedTooth] = useState<ToothRecord | null>(null);
-  const [isZoneSelectorOpen, setIsZoneSelectorOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<ToothZone | undefined>();
   const [dentitionMode, setDentitionMode] = useState<DentitionMode>('adult');
 
   const [complaints, setComplaints] = useState('');
@@ -76,21 +73,13 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
 
   const handleToothClick = (tooth: ToothRecord) => {
     setSelectedTooth(tooth);
-    setIsZoneSelectorOpen(true);
+    setIsModalOpen(true);
   };
 
   const handleDentitionModeChange = (mode: DentitionMode) => {
     setDentitionMode(mode);
     setSelectedTooth(null);
-    setSelectedZone(undefined);
-    setIsZoneSelectorOpen(false);
     setIsModalOpen(false);
-  };
-
-  const handleZoneSelect = (zone: ToothZone) => {
-    setSelectedZone(zone);
-    setIsZoneSelectorOpen(false);
-    setIsModalOpen(true);
   };
 
   const handleSaveTooth = async (
@@ -223,19 +212,11 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
         </button>
       </div>
 
-      <ToothZoneSelectorModal
-        isOpen={isZoneSelectorOpen}
-        toothNumber={selectedTooth?.toothNumber || null}
-        onClose={() => setIsZoneSelectorOpen(false)}
-        onSelectZone={handleZoneSelect}
-      />
-
       <ToothEditorModal
         isOpen={isModalOpen}
         patientId={patientId}
         existingFindings={findings}
         tooth={selectedTooth}
-        defaultZone={selectedZone}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveTooth}
       />

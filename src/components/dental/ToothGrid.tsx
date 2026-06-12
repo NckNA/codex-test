@@ -2,6 +2,7 @@ import type { ToothNumber, ToothRecord, DentalFinding, ToothCondition, ClinicalZ
 import { AnatomicalTooth } from './icons/AnatomicalTeeth';
 import { SurfaceRing } from './icons/SurfaceRing';
 import type { SurfaceType } from './icons/SurfaceRing';
+import { defaultDiagnoses } from '../../config/clinicalDictionaries';
 
 export type DentitionMode = 'adult' | 'child';
 
@@ -103,7 +104,7 @@ const getZoneOverlayClasses = (zone: ClinicalZone, isUpper: boolean) => {
     case 'periodontium':
       return 'left-1/2 top-[43%] h-2 w-[112%] -translate-x-1/2 rounded-full border';
     case 'bone':
-      return `left-1/2 h-2 w-[78%] -translate-x-1/2 rounded-full border ${isUpper ? 'top-0' : 'bottom-0'}`;
+      return `left-1/2 h-[34%] w-[118%] -translate-x-1/2 rounded-[45%] border border-dashed ${isUpper ? 'top-[2%]' : 'bottom-[2%]'}`;
     case 'orthopedics':
       return `left-1/2 h-[39%] w-[82%] -translate-x-1/2 rounded-xl border-2 border-dashed bg-transparent ${isUpper ? 'bottom-[1%]' : 'top-[1%]'}`;
     case 'planning':
@@ -112,9 +113,9 @@ const getZoneOverlayClasses = (zone: ClinicalZone, isUpper: boolean) => {
 };
 
 const ZONE_STATE_CLASSES: Record<ZoneMarkerState, string> = {
-  planned: 'border-emerald-500 bg-emerald-400/20 shadow-emerald-300/30',
-  active: 'border-sky-500 bg-sky-400/20 shadow-sky-300/30',
-  risk: 'border-red-500 bg-red-400/20 shadow-red-300/40',
+  planned: 'border-emerald-500/80 bg-emerald-400/10 shadow-emerald-300/20',
+  active: 'border-sky-500/80 bg-sky-400/10 shadow-sky-300/20',
+  risk: 'border-red-500/90 bg-red-400/10 shadow-red-300/30',
 };
 
 type ZoneMarkerState = 'planned' | 'active' | 'risk';
@@ -123,6 +124,19 @@ interface ZoneMarker {
   zone: ClinicalZone;
   state: ZoneMarkerState;
 }
+
+type ZoneAccentMap = Partial<Record<ClinicalZone, string>>;
+
+const DIAGNOSIS_BY_ID = new Map(defaultDiagnoses.map(diagnosis => [diagnosis.id, diagnosis]));
+
+const getDiagnosisAccentColor = (diagnosisId: string) => {
+  if (diagnosisId.includes('caries')) return '#F97316';
+  if (diagnosisId.includes('pulp') || diagnosisId.includes('necrosis')) return '#EF4444';
+  if (diagnosisId.includes('periodont') || diagnosisId.includes('cyst')) return '#E11D48';
+  if (diagnosisId.includes('gingiv') || diagnosisId.includes('recession')) return '#F43F5E';
+  if (diagnosisId.includes('bone') || diagnosisId.includes('atrophy')) return '#F59E0B';
+  return '#0EA5E9';
+};
 
 const getToothColors = (condition: string) => {
   switch (condition) {
@@ -186,6 +200,12 @@ const createDisplayTooth = (toothNumber: ToothNumber, dentitionMode: DentitionMo
 const getZoneMarkers = (tooth: ToothRecord, activeFindings: DentalFinding[]): ZoneMarker[] => {
   const markers = new Map<ClinicalZone, ZoneMarkerState>();
 
+  tooth.diagnoses?.forEach(diagnosisId => {
+    DIAGNOSIS_BY_ID.get(diagnosisId)?.allowedZones.forEach(zone => {
+      mergeZoneMarker(markers, zone, 'active');
+    });
+  });
+
   if (hasText(tooth.workCrown)) mergeZoneMarker(markers, 'crown', 'planned');
   if (hasText(tooth.crown)) mergeZoneMarker(markers, 'crown', 'active');
   if (hasText(tooth.workCanal)) mergeZoneMarker(markers, 'endodontics', 'planned');
@@ -209,6 +229,40 @@ const getZoneMarkers = (tooth: ToothRecord, activeFindings: DentalFinding[]): Zo
   });
 
   return Array.from(markers, ([zone, state]) => ({ zone, state }));
+};
+
+const getZoneAccents = (
+  tooth: ToothRecord,
+  activeFindings: DentalFinding[],
+  zoneMarkers: ZoneMarker[],
+): ZoneAccentMap => {
+  const accents: ZoneAccentMap = {};
+
+  zoneMarkers.forEach(marker => {
+    accents[marker.zone] = marker.state === 'risk'
+      ? '#EF4444'
+      : marker.state === 'planned'
+        ? '#10B981'
+        : '#0EA5E9';
+  });
+
+  tooth.diagnoses?.forEach(diagnosisId => {
+    const diagnosis = DIAGNOSIS_BY_ID.get(diagnosisId);
+    diagnosis?.allowedZones.forEach(zone => {
+      accents[zone] = getDiagnosisAccentColor(diagnosisId);
+    });
+  });
+
+  activeFindings.forEach(finding => {
+    if (!finding.clinicalZone) return;
+    if (finding.severity === 'high' || finding.severity === 'urgent') {
+      accents[finding.clinicalZone] = '#EF4444';
+    } else if (finding.status === 'included_in_plan') {
+      accents[finding.clinicalZone] = '#10B981';
+    }
+  });
+
+  return accents;
 };
 
 const getZoneSummary = (markers: ZoneMarker[]) => (
@@ -269,6 +323,7 @@ const getToothWidthClasses = (toothNumber: number) => {
 const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, isUpper: boolean, onClick: () => void }) => {
   const activeFindings = getActiveFindings(findings);
   const zoneMarkers = getZoneMarkers(tooth, activeFindings);
+  const zoneAccents = getZoneAccents(tooth, activeFindings, zoneMarkers);
 
   const getIndicator = () => {
     if (activeFindings.length === 0) return null;
@@ -299,7 +354,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
       type="button"
       onClick={onClick}
       aria-label={`Редактировать зуб ${tooth.toothNumber}: ${getConditionLabel(visualCondition)}`}
-      className={`group relative flex flex-col items-center p-1 transition-all hover:z-40 focus-visible:z-40 focus:outline-none ${selectedClasses}`}
+      className={`group relative z-10 flex flex-col items-center p-1 transition-all hover:z-40 focus-visible:z-40 focus:outline-none ${selectedClasses}`}
     >
       <ToothTooltip tooth={tooth} activeFindings={activeFindings} zoneMarkers={zoneMarkers} isUpper={isUpper} />
 
@@ -316,6 +371,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
                 strokeColor={isSelected ? '#2563EB' : colors.stroke}
                 isSelected={isSelected}
                 condition={visualCondition}
+                zoneAccents={zoneAccents}
               />
             </div>
           </div>
@@ -357,6 +413,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
                 strokeColor={isSelected ? '#2563EB' : colors.stroke}
                 isSelected={isSelected}
                 condition={visualCondition}
+                zoneAccents={zoneAccents}
               />
             </div>
           </div>
@@ -475,6 +532,11 @@ export function ToothGrid({
 
         <JawLabel title="Верхняя челюсть" subtitle={config.upperSubtitle} />
         <div className="relative flex items-center justify-center gap-2">
+          <div
+            data-testid="upper-bone-layer"
+            className="pointer-events-none absolute left-1/2 top-5 z-0 h-9 w-[91%] -translate-x-1/2 rounded-[45%] border-y border-amber-300/80 bg-amber-100/80 shadow-inner shadow-amber-200/50"
+            aria-hidden="true"
+          />
           <div className="flex gap-0.5">
             {config.upper.slice(0, Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
@@ -488,6 +550,11 @@ export function ToothGrid({
 
         <JawLabel title="Нижняя челюсть" subtitle={config.lowerSubtitle} />
         <div className="relative flex items-center justify-center gap-2">
+          <div
+            data-testid="lower-bone-layer"
+            className="pointer-events-none absolute bottom-5 left-1/2 z-0 h-9 w-[91%] -translate-x-1/2 rounded-[45%] border-y border-amber-300/80 bg-amber-100/80 shadow-inner shadow-amber-200/50"
+            aria-hidden="true"
+          />
           <div className="flex gap-0.5">
             {config.lower.slice(0, Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>

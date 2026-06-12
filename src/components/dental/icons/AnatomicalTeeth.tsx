@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import type { ClinicalZone } from '../../../types';
 
 interface ToothSvgProps {
   fillColor?: string;
@@ -7,6 +8,7 @@ interface ToothSvgProps {
   toothNumber: number;
   isSelected?: boolean;
   condition?: string;
+  zoneAccents?: Partial<Record<ClinicalZone, string>>;
 }
 
 interface ToothProfile {
@@ -66,10 +68,10 @@ const SECOND_PREMOLAR: ToothProfile = {
 };
 
 const UPPER_FIRST_MOLAR: ToothProfile = {
-  root: 'M9 49 C8 38 6 22 8 10 C9 5 12 4 14 9 C17 18 18 29 20 35 C21 25 21 13 23 6 C24 2 27 3 28 8 C29 18 29 28 29 35 C32 27 34 15 37 8 C39 4 42 6 42 11 C43 25 40 39 38 49 Q24 43 9 49 Z',
+  root: 'M9 49 C8 38 6 22 8 10 C9 5 12 4 14 9 C17 18 18 29 20 35 C21 25 21 13 22 6 C23 1 27 1 28 7 C30 18 29 29 29 35 C32 27 34 15 37 8 C39 4 42 6 42 11 C43 25 40 39 38 49 Q24 43 9 49 Z',
   crown: 'M10 49 Q24 43 38 49 C42 61 40 78 33 84 Q29 89 24 85 Q19 89 15 84 C8 78 6 61 10 49 Z',
   neckLine: 'M10 49 Q24 43 38 49',
-  rootDetails: ['M12 11 C12 23 15 36 19 45', 'M25 8 C25 22 25 34 24 43', 'M39 11 C37 24 34 37 29 45'],
+  rootDetails: ['M12 11 C12 23 15 36 19 45', 'M25 6 C25 20 25 34 24 43', 'M39 11 C37 24 34 37 29 45'],
   crownDetails: ['M13 69 Q18 61 24 68 Q30 60 35 69', 'M14 76 Q19 84 24 78 Q29 84 34 76', 'M24 67 L24 79'],
 };
 
@@ -82,10 +84,10 @@ const LOWER_FIRST_MOLAR: ToothProfile = {
 };
 
 const UPPER_SECOND_MOLAR: ToothProfile = {
-  root: 'M10 49 C9 37 7 22 10 10 C11 6 14 5 16 9 C19 18 20 29 22 34 C23 24 23 13 24 7 C25 4 27 4 28 8 C30 18 30 28 30 34 C32 27 34 16 37 9 C39 5 41 7 41 11 C42 25 40 38 37 49 Q24 44 10 49 Z',
+  root: 'M10 49 C9 37 7 22 10 10 C11 6 14 5 16 9 C19 18 20 29 22 34 C23 24 22 13 24 6 C25 2 28 3 29 8 C30 18 30 28 30 34 C32 27 34 16 37 9 C39 5 41 7 41 11 C42 25 40 38 37 49 Q24 44 10 49 Z',
   crown: 'M11 49 Q24 44 37 49 C40 62 39 78 32 84 Q28 88 24 85 Q20 88 16 84 C9 78 8 62 11 49 Z',
   neckLine: 'M11 49 Q24 44 37 49',
-  rootDetails: ['M13 12 C14 25 17 37 20 45', 'M26 9 C25 23 25 35 24 43', 'M38 12 C36 25 33 37 28 45'],
+  rootDetails: ['M13 12 C14 25 17 37 20 45', 'M26 7 C25 21 25 35 24 43', 'M38 12 C36 25 33 37 28 45'],
   crownDetails: ['M14 69 Q19 62 24 68 Q29 62 34 69', 'M16 77 Q20 82 24 78 Q28 82 32 77'],
 };
 
@@ -97,7 +99,15 @@ const LOWER_SECOND_MOLAR: ToothProfile = {
   crownDetails: ['M14 69 Q19 62 24 68 Q29 62 34 69', 'M16 77 Q20 82 24 78 Q28 82 32 77', 'M24 65 L24 80'],
 };
 
-const THIRD_MOLAR: ToothProfile = {
+const UPPER_THIRD_MOLAR: ToothProfile = {
+  root: 'M11 49 C10 37 8 23 10 11 C11 6 14 5 16 10 C19 18 20 28 22 34 C23 24 22 14 24 7 C25 3 28 4 29 9 C30 19 30 28 30 35 C32 27 34 17 37 10 C39 6 41 8 41 13 C42 27 39 39 37 49 Q24 44 11 49 Z',
+  crown: 'M12 49 Q24 44 36 49 C40 63 37 78 31 83 Q27 88 23 85 Q18 88 14 83 C8 77 8 62 12 49 Z',
+  neckLine: 'M12 49 Q24 44 36 49',
+  rootDetails: ['M14 13 C15 26 18 37 20 45', 'M26 9 C25 23 25 35 24 43', 'M38 13 C36 26 33 38 28 45'],
+  crownDetails: ['M14 69 Q20 61 24 69 Q29 62 34 69', 'M16 77 Q20 83 24 78 Q28 83 32 77'],
+};
+
+const LOWER_THIRD_MOLAR: ToothProfile = {
   root: 'M12 49 C11 36 9 21 12 10 C13 6 16 5 19 9 C22 16 23 25 24 32 C26 24 29 14 33 9 C36 5 39 7 39 12 C40 26 38 39 36 49 Q24 45 12 49 Z',
   crown: 'M12 49 Q24 45 36 49 C40 63 37 78 31 83 Q27 88 23 85 Q18 88 14 83 C8 77 8 62 12 49 Z',
   neckLine: 'M12 49 Q24 45 36 49',
@@ -123,7 +133,7 @@ const getToothProfile = (toothNumber: number): ToothProfile => {
       return SECOND_PREMOLAR;
     case 6: return isUpper ? UPPER_FIRST_MOLAR : LOWER_FIRST_MOLAR;
     case 7: return isUpper ? UPPER_SECOND_MOLAR : LOWER_SECOND_MOLAR;
-    case 8: return THIRD_MOLAR;
+    case 8: return isUpper ? UPPER_THIRD_MOLAR : LOWER_THIRD_MOLAR;
     default: return CENTRAL_INCISOR;
   }
 };
@@ -146,13 +156,17 @@ export function AnatomicalTooth({
   toothNumber,
   isSelected = false,
   condition,
+  zoneAccents = {},
 }: ToothSvgProps) {
   const profile = getToothProfile(toothNumber);
   const quadrant = Math.floor(toothNumber / 10);
   const isMirrored = [1, 4, 5, 8].includes(quadrant);
   const isPrimary = quadrant >= 5;
-  const accent = getConditionAccent(condition);
-  const clipId = `tooth-crown-${useId().replace(/:/g, '')}`;
+  const hasZoneAccents = Object.keys(zoneAccents).length > 0;
+  const accent = hasZoneAccents ? null : getConditionAccent(condition);
+  const id = useId().replace(/:/g, '');
+  const crownClipId = `tooth-crown-${id}`;
+  const rootClipId = `tooth-root-${id}`;
   const rootFill = fillColor === '#ffffff' ? '#F1F5F9' : fillColor;
   const profileTransform = [
     isMirrored ? 'translate(48 0) scale(-1 1)' : '',
@@ -163,14 +177,19 @@ export function AnatomicalTooth({
     <svg
       aria-hidden="true"
       focusable="false"
+      data-tooth-number={toothNumber}
+      data-root-count={profile.rootDetails.length}
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 48 92"
       preserveAspectRatio="xMidYMid meet"
       className={`h-full w-full overflow-visible transition-all ${className} ${isSelected ? 'drop-shadow-[0_0_5px_rgba(59,130,246,0.55)]' : ''}`}
     >
       <defs>
-        <clipPath id={clipId}>
-          <path d={profile.crown} transform={profileTransform || undefined} />
+        <clipPath id={crownClipId}>
+          <path d={profile.crown} />
+        </clipPath>
+        <clipPath id={rootClipId}>
+          <path d={profile.root} />
         </clipPath>
       </defs>
 
@@ -184,6 +203,16 @@ export function AnatomicalTooth({
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
+        {zoneAccents.root && (
+          <g clipPath={`url(#${rootClipId})`}>
+            <path
+              data-testid={`tooth-zone-accent-${toothNumber}-root`}
+              d="M8 7 C15 2 22 8 24 20 C26 33 23 44 15 51 L7 49 Z"
+              fill={zoneAccents.root}
+              opacity="0.88"
+            />
+          </g>
+        )}
         <path
           d={profile.crown}
           fill={fillColor}
@@ -193,6 +222,44 @@ export function AnatomicalTooth({
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
+        {zoneAccents.crown && (
+          <g clipPath={`url(#${crownClipId})`}>
+            <path
+              data-testid={`tooth-zone-accent-${toothNumber}-crown`}
+              d="M29 49 C39 55 39 70 31 82 C25 76 24 60 29 49 Z"
+              fill={zoneAccents.crown}
+              opacity="0.9"
+            />
+          </g>
+        )}
+        {zoneAccents.endodontics && (
+          <path
+            data-testid={`tooth-zone-accent-${toothNumber}-endodontics`}
+            d="M24 11 C23 27 24 44 24 67"
+            fill="none"
+            stroke={zoneAccents.endodontics}
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            opacity="0.9"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        {zoneAccents.periodontium && (
+          <path
+            data-testid={`tooth-zone-accent-${toothNumber}-periodontium`}
+            d="M10 48 Q24 40 38 48 L37 55 Q24 48 11 55 Z"
+            fill={zoneAccents.periodontium}
+            opacity="0.62"
+          />
+        )}
+        {zoneAccents.orthopedics && (
+          <path
+            data-testid={`tooth-zone-accent-${toothNumber}-orthopedics`}
+            d={profile.crown}
+            fill={zoneAccents.orthopedics}
+            opacity="0.22"
+          />
+        )}
         <path
           d={profile.neckLine}
           fill="none"
@@ -230,7 +297,7 @@ export function AnatomicalTooth({
       </g>
 
       {accent && (
-        <g clipPath={`url(#${clipId})`}>
+        <g clipPath={`url(#${crownClipId})`} transform={profileTransform || undefined}>
           {accent.kind === 'side' && (
             <path d="M31 51 C38 57 38 70 31 80 C26 75 25 61 31 51 Z" fill={accent.color} opacity="0.92" />
           )}

@@ -287,6 +287,71 @@ describe('ToothGrid', () => {
     });
   });
 
+  it('maps a root caries diagnosis to the root without coloring the crown', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const teethWithRootCaries = fullMockTeeth.map(tooth => tooth.toothNumber === 11
+      ? {
+          ...tooth,
+          condition: 'caries' as const,
+          visualState: 'caries' as const,
+          diagnoses: ['dx_root_caries']
+        }
+      : tooth);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={teethWithRootCaries} onToothClick={handleToothClick} />);
+    });
+
+    expect(container.querySelector('[data-testid="zone-marker-11-root-active"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tooth-zone-accent-11-root"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tooth-zone-accent-11-crown"]')).toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('renders visible alveolar bone layers for both jaws', async () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={fullMockTeeth} onToothClick={vi.fn()} />);
+    });
+
+    expect(container.querySelector('[data-testid="upper-bone-layer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="lower-bone-layer"]')).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('renders upper molars with three root branches', async () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<ToothGrid teeth={fullMockTeeth} onToothClick={vi.fn()} />);
+    });
+
+    [18, 17, 16, 26, 27, 28].forEach(toothNumber => {
+      const toothSvg = container.querySelector(`[data-tooth-number="${toothNumber}"]`);
+      expect(toothSvg?.getAttribute('data-root-count')).toBe('3');
+    });
+
+    [48, 47, 46, 36, 37, 38].forEach(toothNumber => {
+      const toothSvg = container.querySelector(`[data-tooth-number="${toothNumber}"]`);
+      expect(toothSvg?.getAttribute('data-root-count')).toBe('2');
+    });
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
   it('calls onToothClick when an adult tooth is clicked', async () => {
     const handleToothClick = vi.fn();
     const container = document.createElement('div');
