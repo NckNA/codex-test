@@ -15,70 +15,16 @@ interface ToothProfile {
   root: string;
   crown: string;
   neckLine: string;
-  rootLines: string[];
-  fissures: string[];
-  highlights: string[];
+  rootDetails: string[];
+  crownDetails: string[];
 }
 
-type ToothType = 'incisor' | 'canine' | 'premolar' | 'molar_upper' | 'molar_lower';
-
-const TOOTH_SHAPES: Record<ToothType, ToothShape> = {
-  incisor: {
-    root: 'M 10 24 C 10 14 15 6 18 4 C 21 6 26 14 26 24 Z',
-    crown: 'M 10 24 C 10 35 8 45 8 52 C 18 54 28 54 28 52 C 28 45 26 35 26 24 Z',
-    neckLine: 'M 10 24 C 14 26 22 26 26 24',
-    rootLines: ['M 18 6 L 18 20'],
-    fissures: [],
-    highlights: ['M 11 32 Q 10 40 10 48'],
-  },
-  canine: {
-    root: 'M 9 24 C 9 12 14 4 18 2 C 22 4 27 12 27 24 Z',
-    crown: 'M 9 24 C 9 35 8 42 18 54 C 28 42 27 35 27 24 Z',
-    neckLine: 'M 9 24 C 14 26 22 26 27 24',
-    rootLines: ['M 18 5 L 18 20'],
-    fissures: [],
-    highlights: ['M 11 32 Q 10 40 14 48'],
-  },
-  premolar: {
-    root: 'M 9 24 C 9 12 13 4 18 4 C 23 4 27 12 27 24 Z',
-    crown: 'M 9 24 C 9 35 7 45 12 48 C 16 50 20 50 24 48 C 29 45 27 35 27 24 Z',
-    neckLine: 'M 9 24 C 14 26 22 26 27 24',
-    rootLines: ['M 18 6 L 18 20'],
-    fissures: [],
-    highlights: ['M 11 32 Q 10 40 12 45'],
-  },
-  molar_upper: {
-    root: 'M 8 24 C 7 15 7 8 9 6 C 11 8 13 11 14 14 C 15 10 16 6 18 4 C 20 6 21 10 22 14 C 23 11 25 8 27 6 C 29 8 29 15 28 24 Z',
-    crown: 'M 8 24 C 6 35 5 45 8 50 C 14 52 22 52 28 50 C 31 45 30 35 28 24 Z',
-    neckLine: 'M 8 24 C 14 26 22 26 28 24',
-    rootLines: [
-      'M 10 8 L 12 20',
-      'M 18 6 L 18 20',
-      'M 26 8 L 24 20'
-    ],
-    fissures: [
-      'M 10 44 A 8 5 0 1 0 26 44 A 8 5 0 1 0 10 44',
-      'M 14 44 L 22 44',
-      'M 18 40 L 18 48'
-    ],
-    highlights: ['M 8 32 Q 7 40 9 45'],
-  },
-  molar_lower: {
-    root: 'M 8 24 C 7 15 8 8 10 6 C 13 8 16 12 18 16 C 20 12 23 8 26 6 C 28 8 29 15 28 24 Z',
-    crown: 'M 8 24 C 6 35 5 45 8 50 C 14 52 22 52 28 50 C 31 45 30 35 28 24 Z',
-    neckLine: 'M 8 24 C 14 26 22 26 28 24',
-    rootLines: [
-      'M 11 8 L 14 20',
-      'M 25 8 L 22 20'
-    ],
-    fissures: [
-      'M 10 44 A 8 5 0 1 0 26 44 A 8 5 0 1 0 10 44',
-      'M 14 44 L 22 44',
-      'M 18 40 L 18 44',
-      'M 22 40 L 18 44'
-    ],
-    highlights: ['M 8 32 Q 7 40 9 45'],
-  },
+const CENTRAL_INCISOR: ToothProfile = {
+  root: 'M21 5 Q24 1 27 5 C31 14 33 31 34 48 Q24 44 14 48 C15 31 17 14 21 5 Z',
+  crown: 'M14 48 Q24 44 34 48 L35 78 Q35 87 24 88 Q13 87 13 78 Z',
+  neckLine: 'M14 48 Q24 44 34 48',
+  rootDetails: ['M24 9 C23 21 23 34 24 44'],
+  crownDetails: ['M17 80 Q24 84 31 80', 'M18 55 C17 64 17 72 19 77', 'M30 55 C31 64 31 72 29 77'],
 };
 
 const LATERAL_INCISOR: ToothProfile = {
