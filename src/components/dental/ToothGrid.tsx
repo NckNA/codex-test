@@ -92,20 +92,29 @@ const ZONE_PRIORITY: Record<ZoneMarkerState, number> = {
   risk: 3,
 };
 
-const ZONE_OVERLAY_CLASSES: Record<ClinicalZone, string> = {
-  crown: 'left-1/2 top-[24%] h-4 w-5 -translate-x-1/2 rounded-full border',
-  endodontics: 'left-1/2 top-[30%] h-8 w-1 -translate-x-1/2 rounded-full border',
-  root: 'bottom-[7%] left-1/2 h-7 w-5 -translate-x-1/2 rounded-b-full border',
-  periodontium: 'left-1/2 top-[15%] h-2 w-[125%] -translate-x-1/2 rounded-full border',
-  bone: 'bottom-0 left-1/2 h-2 w-7 -translate-x-1/2 rounded-full border',
-  orthopedics: 'left-1/2 top-[20%] h-7 w-7 -translate-x-1/2 rounded-full border-2 border-dashed bg-transparent',
-  planning: 'bottom-1 right-0 h-2.5 w-2.5 rounded-full border',
+const getZoneOverlayClasses = (zone: ClinicalZone, isUpper: boolean) => {
+  switch (zone) {
+    case 'crown':
+      return `left-1/2 h-[36%] w-[72%] -translate-x-1/2 rounded-xl border ${isUpper ? 'bottom-[3%]' : 'top-[3%]'}`;
+    case 'endodontics':
+      return 'left-1/2 top-[18%] h-[62%] w-1.5 -translate-x-1/2 rounded-full border';
+    case 'root':
+      return `left-1/2 h-[42%] w-[58%] -translate-x-1/2 rounded-xl border ${isUpper ? 'top-[3%]' : 'bottom-[3%]'}`;
+    case 'periodontium':
+      return 'left-1/2 top-[43%] h-2 w-[112%] -translate-x-1/2 rounded-full border';
+    case 'bone':
+      return `left-1/2 h-2 w-[78%] -translate-x-1/2 rounded-full border ${isUpper ? 'top-0' : 'bottom-0'}`;
+    case 'orthopedics':
+      return `left-1/2 h-[39%] w-[82%] -translate-x-1/2 rounded-xl border-2 border-dashed bg-transparent ${isUpper ? 'bottom-[1%]' : 'top-[1%]'}`;
+    case 'planning':
+      return 'left-0 top-0 h-2.5 w-2.5 rounded-full border';
+  }
 };
 
 const ZONE_STATE_CLASSES: Record<ZoneMarkerState, string> = {
-  planned: 'border-emerald-500 bg-emerald-400/50 mix-blend-multiply shadow-emerald-300/40',
-  active: 'border-sky-500 bg-sky-400/50 mix-blend-multiply shadow-sky-300/40',
-  risk: 'border-red-500 bg-red-400/50 mix-blend-multiply shadow-red-300/50',
+  planned: 'border-emerald-500 bg-emerald-400/20 shadow-emerald-300/30',
+  active: 'border-sky-500 bg-sky-400/20 shadow-sky-300/30',
+  risk: 'border-red-500 bg-red-400/20 shadow-red-300/40',
 };
 
 type ZoneMarkerState = 'planned' | 'active' | 'risk';
@@ -117,17 +126,17 @@ interface ZoneMarker {
 
 const getToothColors = (condition: string) => {
   switch (condition) {
-    case 'healthy': return { fill: '#ffffff', stroke: '#9CA3AF' };
-    case 'caries': return { fill: '#FFEDD5', stroke: '#F97316' };
-    case 'filled': return { fill: '#DBEAFE', stroke: '#3B82F6' };
-    case 'missing': return { fill: '#F1F5F9', stroke: '#CBD5E1', opacity: 0.4 };
-    case 'crown': return { fill: '#FEF3C7', stroke: '#EAB308' };
-    case 'implant': return { fill: '#F3E8FF', stroke: '#A855F7' };
-    case 'root': return { fill: '#FEF2F2', stroke: '#EF4444' };
-    case 'pulpitis': return { fill: '#FEE2E2', stroke: '#EF4444' };
-    case 'periodontitis': return { fill: '#FFE4E6', stroke: '#F43F5E' };
-    case 'needs_treatment': return { fill: '#FEF3C7', stroke: '#F59E0B' };
-    default: return { fill: '#ffffff', stroke: '#9CA3AF' };
+    case 'healthy': return { fill: '#ffffff', stroke: '#64748B', accent: '#CBD5E1' };
+    case 'caries': return { fill: '#ffffff', stroke: '#64748B', accent: '#F97316' };
+    case 'filled': return { fill: '#ffffff', stroke: '#64748B', accent: '#0EA5E9' };
+    case 'missing': return { fill: '#F8FAFC', stroke: '#CBD5E1', accent: '#CBD5E1', opacity: 0.4 };
+    case 'crown': return { fill: '#FEF3C7', stroke: '#B45309', accent: '#EAB308' };
+    case 'implant': return { fill: '#F3E8FF', stroke: '#7E22CE', accent: '#A855F7' };
+    case 'root': return { fill: '#FFF1F2', stroke: '#E11D48', accent: '#FB7185' };
+    case 'pulpitis': return { fill: '#ffffff', stroke: '#64748B', accent: '#EF4444' };
+    case 'periodontitis': return { fill: '#ffffff', stroke: '#64748B', accent: '#F43F5E' };
+    case 'needs_treatment': return { fill: '#ffffff', stroke: '#64748B', accent: '#F59E0B' };
+    default: return { fill: '#ffffff', stroke: '#64748B', accent: '#CBD5E1' };
   }
 };
 
@@ -234,13 +243,13 @@ const ToothTooltip = ({ tooth, activeFindings, zoneMarkers, isUpper }: { tooth: 
   );
 };
 
-const ZoneMarkerOverlay = ({ markers, toothNumber }: { markers: ZoneMarker[], toothNumber: number }) => (
+const ZoneMarkerOverlay = ({ markers, toothNumber, isUpper }: { markers: ZoneMarker[], toothNumber: number, isUpper: boolean }) => (
   <>
     {markers.map(marker => (
       <span
         key={marker.zone}
         data-testid={`zone-marker-${toothNumber}-${marker.zone}-${marker.state}`}
-        className={`pointer-events-none absolute z-10 shadow-sm ${ZONE_OVERLAY_CLASSES[marker.zone]} ${ZONE_STATE_CLASSES[marker.state]}`}
+        className={`pointer-events-none absolute z-10 shadow-sm ${getZoneOverlayClasses(marker.zone, isUpper)} ${ZONE_STATE_CLASSES[marker.state]}`}
         title={`${ZONE_LABELS[marker.zone]}: ${ZONE_STATE_LABELS[marker.state]}`}
         aria-hidden="true"
       />
@@ -259,12 +268,12 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
     const isObservingOnly = activeFindings.every(f => f.status === 'observing');
 
     if (hasHighOrUrgent) {
-      return <div className="absolute right-0 top-0 z-20 h-3 w-3 rounded-full border-2 border-white bg-red-500 shadow-sm" title="Есть срочная/важная находка"></div>;
+      return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500 shadow-sm shadow-red-300/60" title="Есть срочная/важная находка"></div>;
     }
     if (isObservingOnly) {
-      return <div className="absolute right-0 top-0 z-20 h-3 w-3 rounded-full border-2 border-white bg-slate-400 opacity-80 shadow-sm" title="На наблюдении"></div>;
+      return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-slate-400 opacity-90 shadow-sm" title="На наблюдении"></div>;
     }
-    return <div className="absolute right-0 top-0 z-20 h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow-sm" title="Есть активная находка"></div>;
+    return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky-500 shadow-sm shadow-sky-300/60" title="Есть активная находка"></div>;
   };
 
   const visualCondition = tooth.visualState ?? tooth.condition ?? 'healthy';
@@ -272,37 +281,43 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
   const isMissing = visualCondition === 'missing';
   const surfaces = (tooth.surfaces as unknown as SurfaceType[]) || [];
   const selectedClasses = isSelected
-    ? 'z-10 scale-105 rounded-xl bg-blue-50 shadow-md ring-2 ring-blue-400 ring-offset-2 ring-offset-white'
-    : 'rounded-xl hover:bg-slate-50 hover:shadow-sm hover:scale-105 focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-300';
+    ? 'z-20 scale-[1.03] rounded-xl bg-blue-50 shadow-md ring-2 ring-blue-400 ring-offset-1 ring-offset-white'
+    : 'rounded-xl hover:bg-slate-50 hover:shadow-sm hover:scale-[1.03] focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-sky-300';
 
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`Редактировать зуб ${tooth.toothNumber}: ${getConditionLabel(visualCondition)}`}
-      className={`group relative flex flex-col items-center p-1.5 transition-all focus:outline-none ${selectedClasses}`}
+      className={`group relative flex flex-col items-center p-1 transition-all focus:outline-none ${selectedClasses}`}
     >
       <ToothTooltip tooth={tooth} activeFindings={activeFindings} zoneMarkers={zoneMarkers} isUpper={isUpper} />
 
       {isUpper && (
         <>
-          <div className="relative flex h-16 w-7 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-20 sm:w-9">
+          <div className="relative flex h-[72px] w-8 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-[78px] sm:w-9">
             {getIndicator()}
-            <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} />
-            <div className="absolute top-2 -z-10 h-4 w-[120%] rounded-full bg-pink-100/70"></div>
+            <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} isUpper />
+            <div className="absolute left-1/2 top-[46%] -z-10 h-3 w-[118%] -translate-x-1/2 rounded-full bg-rose-100/80"></div>
             <div className={`h-full w-full transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
               <AnatomicalTooth
                 toothNumber={tooth.toothNumber}
                 fillColor={colors.fill}
                 strokeColor={isSelected ? '#2563EB' : colors.stroke}
                 isSelected={isSelected}
+                condition={visualCondition}
               />
             </div>
           </div>
-          <div className="mb-1 mt-1 h-5 w-5 opacity-90 sm:h-6 sm:w-6">
-            <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} filledColor={colors.stroke} />
+          <div className="my-0.5 h-6 w-7 opacity-95">
+            <SurfaceRing
+              toothNumber={tooth.toothNumber}
+              surfaces={surfaces}
+              strokeColor={isSelected ? '#2563EB' : colors.stroke}
+              filledColor={colors.accent}
+            />
           </div>
-          <div className={`text-xs font-bold sm:text-sm ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
+          <div className={`text-xs font-bold ${isSelected ? 'text-sky-700' : 'text-slate-600'}`}>
             {tooth.toothNumber}
           </div>
         </>
@@ -310,22 +325,28 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
 
       {!isUpper && (
         <>
-          <div className={`text-xs font-bold sm:text-sm ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
+          <div className={`text-xs font-bold ${isSelected ? 'text-sky-700' : 'text-slate-600'}`}>
             {tooth.toothNumber}
           </div>
-          <div className="mb-1 mt-1 h-5 w-5 opacity-90 sm:h-6 sm:w-6">
-            <SurfaceRing surfaces={surfaces} strokeColor={colors.stroke} filledColor={colors.stroke} />
+          <div className="my-0.5 h-6 w-7 opacity-95">
+            <SurfaceRing
+              toothNumber={tooth.toothNumber}
+              surfaces={surfaces}
+              strokeColor={isSelected ? '#2563EB' : colors.stroke}
+              filledColor={colors.accent}
+            />
           </div>
-          <div className="relative flex h-16 w-7 rotate-180 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-20 sm:w-9">
+          <div className="relative flex h-[72px] w-8 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-[78px] sm:w-9">
             {getIndicator()}
-            <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} />
-            <div className="absolute top-2 -z-10 h-4 w-[120%] rounded-full bg-pink-100/70"></div>
-            <div className={`h-full w-full transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
+            <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} isUpper={false} />
+            <div className="absolute left-1/2 top-[46%] -z-10 h-3 w-[118%] -translate-x-1/2 rounded-full bg-rose-100/80"></div>
+            <div className={`h-full w-full rotate-180 transition-all ${isMissing ? 'grayscale opacity-40' : ''}`}>
               <AnatomicalTooth
                 toothNumber={tooth.toothNumber}
                 fillColor={colors.fill}
                 strokeColor={isSelected ? '#2563EB' : colors.stroke}
                 isSelected={isSelected}
+                condition={visualCondition}
               />
             </div>
           </div>
@@ -336,18 +357,18 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
 };
 
 const JawLabel = ({ title, subtitle }: { title: string, subtitle: string }) => (
-  <div className="mb-3 flex items-center justify-center gap-3 text-center">
-    <div className="h-px w-20 bg-gradient-to-r from-transparent to-slate-200" />
+  <div className="mb-1.5 flex items-center justify-center gap-3 text-center">
+    <div className="h-px w-16 bg-gradient-to-r from-transparent to-slate-200" />
     <div>
-      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{title}</div>
-      <div className="text-[11px] text-slate-400">{subtitle}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">{title}</div>
+      <div className="text-[10px] text-slate-400">{subtitle}</div>
     </div>
-    <div className="h-px w-20 bg-gradient-to-l from-transparent to-slate-200" />
+    <div className="h-px w-16 bg-gradient-to-l from-transparent to-slate-200" />
   </div>
 );
 
 const DentitionModeSwitch = ({ mode, onChange }: { mode: DentitionMode, onChange?: (mode: DentitionMode) => void }) => (
-  <div className="flex rounded-full border border-slate-200 bg-white p-1 shadow-sm" aria-label="Режим зубной формулы">
+  <div className="flex rounded-full border border-slate-200 bg-white p-0.5 shadow-sm" aria-label="Режим зубной формулы">
     {(['adult', 'child'] as const).map(option => {
       const isActive = mode === option;
       return (
@@ -356,7 +377,7 @@ const DentitionModeSwitch = ({ mode, onChange }: { mode: DentitionMode, onChange
           type="button"
           aria-pressed={isActive}
           onClick={() => onChange?.(option)}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
+          className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
         >
           {option === 'adult' ? 'Постоянные' : 'Молочные'}
         </button>
@@ -366,39 +387,39 @@ const DentitionModeSwitch = ({ mode, onChange }: { mode: DentitionMode, onChange
 );
 
 const ToothLegend = () => (
-  <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-    <div className="mb-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">Легенда зубной карты</div>
-    <div className="flex flex-wrap gap-1.5">
+  <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/80 p-2.5">
+    <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Легенда зубной карты</div>
+    <div className="flex flex-wrap gap-1">
       {LEGEND_CONDITIONS.map(condition => {
         const colors = getToothColors(condition);
         return (
-          <div key={condition} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+          <div key={condition} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">
             <span
               className="h-2.5 w-2.5 rounded-full border"
-              style={{ backgroundColor: colors.fill, borderColor: colors.stroke }}
+              style={{ backgroundColor: colors.accent, borderColor: colors.stroke }}
               aria-hidden="true"
             />
             {TOOTH_CONDITION_LABELS[condition]}
           </div>
         );
       })}
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">
         <span className="h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500 shadow-sm" aria-hidden="true" />
         Активная находка
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">
         <span className="h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500 shadow-sm" aria-hidden="true" />
         Срочно
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">
         <span className="h-2.5 w-2.5 rounded-full border border-sky-500 bg-sky-300/60 shadow-sm" aria-hidden="true" />
         Зона активна
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">
         <span className="h-2.5 w-2.5 rounded-full border border-emerald-500 bg-emerald-300/60 shadow-sm" aria-hidden="true" />
         Зона в плане
       </div>
-      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-slate-600 shadow-sm">
+      <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm">
         <span className="h-2.5 w-2.5 rounded-full border border-red-500 bg-red-300/70 shadow-sm" aria-hidden="true" />
         Зона риска
       </div>
@@ -432,9 +453,9 @@ export function ToothGrid({
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl overflow-x-auto rounded-3xl border border-slate-100 bg-white p-3 sm:p-5 shadow-sm shadow-slate-900/5">
-      <div className="min-w-fit rounded-2xl bg-gradient-to-b from-white via-white to-slate-50 p-3 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 shadow-sm">
+    <div className="mx-auto w-full max-w-5xl overflow-x-auto rounded-3xl border border-slate-100 bg-white p-2.5 shadow-sm shadow-slate-900/5 lg:overflow-visible">
+      <div className="w-full min-w-[700px] rounded-2xl bg-gradient-to-b from-white via-white to-slate-50 p-3 lg:min-w-0">
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-white/80 px-3 py-1.5 shadow-sm">
           <div>
             <div className="text-sm font-semibold text-slate-800">{config.label}</div>
             <div className="text-xs text-slate-500">{config.helper}</div>
@@ -443,25 +464,25 @@ export function ToothGrid({
         </div>
 
         <JawLabel title="Верхняя челюсть" subtitle={config.upperSubtitle} />
-        <div className="relative flex items-center justify-center gap-2 sm:gap-4">
-          <div className="flex gap-0.5 sm:gap-1">
+        <div className="relative flex items-center justify-center gap-2">
+          <div className="flex gap-0.5">
             {config.upper.slice(0, Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
-          <div className="h-28 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
-          <div className="flex gap-0.5 sm:gap-1">
+          <div className="h-24 w-px shrink-0 rounded-full bg-slate-200"></div>
+          <div className="flex gap-0.5">
             {config.upper.slice(Math.ceil(config.upper.length / 2)).map(num => renderTooth(num, true))}
           </div>
         </div>
 
-        <div className="my-4 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+        <div className="my-2.5 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
         <JawLabel title="Нижняя челюсть" subtitle={config.lowerSubtitle} />
-        <div className="relative flex items-center justify-center gap-2 sm:gap-4">
-          <div className="flex gap-0.5 sm:gap-1">
+        <div className="relative flex items-center justify-center gap-2">
+          <div className="flex gap-0.5">
             {config.lower.slice(0, Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>
-          <div className="h-28 w-[2px] shrink-0 rounded-full bg-slate-200"></div>
-          <div className="flex gap-0.5 sm:gap-1">
+          <div className="h-24 w-px shrink-0 rounded-full bg-slate-200"></div>
+          <div className="flex gap-0.5">
             {config.lower.slice(Math.ceil(config.lower.length / 2)).map(num => renderTooth(num, false))}
           </div>
         </div>
