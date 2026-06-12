@@ -218,11 +218,11 @@ const getZoneSummary = (markers: ZoneMarker[]) => (
 const ToothTooltip = ({ tooth, activeFindings, zoneMarkers, isUpper }: { tooth: ToothRecord, activeFindings: DentalFinding[], zoneMarkers: ZoneMarker[], isUpper: boolean }) => {
   const diagnosesCount = tooth.diagnoses?.length ?? 0;
   const plannedWorksCount = tooth.plannedWorkRecords?.length ?? tooth.plannedWorks?.length ?? 0;
-  const tooltipPosition = isUpper ? 'top-full mt-3' : 'bottom-full mb-3';
+  const tooltipPosition = isUpper ? 'bottom-full mb-2' : 'bottom-full mb-3';
 
   return (
     <div
-      className={`pointer-events-none absolute left-1/2 ${tooltipPosition} z-30 w-60 -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-left text-xs text-slate-700 opacity-0 shadow-xl shadow-slate-900/10 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100`}
+      className={`pointer-events-none absolute left-1/2 ${tooltipPosition} z-50 w-60 -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-left text-xs text-slate-700 opacity-0 shadow-xl shadow-slate-900/10 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100`}
       role="tooltip"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -257,6 +257,15 @@ const ZoneMarkerOverlay = ({ markers, toothNumber, isUpper }: { markers: ZoneMar
   </>
 );
 
+const getToothWidthClasses = (toothNumber: number) => {
+  const position = toothNumber % 10;
+  const isPrimaryMolar = toothNumber >= 50 && position >= 4;
+
+  if (position >= 6 || isPrimaryMolar) return 'w-10 sm:w-11';
+  if (position >= 4) return 'w-9 sm:w-10';
+  return 'w-8 sm:w-9';
+};
+
 const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, isUpper: boolean, onClick: () => void }) => {
   const activeFindings = getActiveFindings(findings);
   const zoneMarkers = getZoneMarkers(tooth, activeFindings);
@@ -280,6 +289,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
   const colors = getToothColors(visualCondition);
   const isMissing = visualCondition === 'missing';
   const surfaces = (tooth.surfaces as unknown as SurfaceType[]) || [];
+  const toothWidthClasses = getToothWidthClasses(tooth.toothNumber);
   const selectedClasses = isSelected
     ? 'z-20 scale-[1.03] rounded-xl bg-blue-50 shadow-md ring-2 ring-blue-400 ring-offset-1 ring-offset-white'
     : 'rounded-xl hover:bg-slate-50 hover:shadow-sm hover:scale-[1.03] focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-sky-300';
@@ -289,13 +299,13 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
       type="button"
       onClick={onClick}
       aria-label={`Редактировать зуб ${tooth.toothNumber}: ${getConditionLabel(visualCondition)}`}
-      className={`group relative flex flex-col items-center p-1 transition-all focus:outline-none ${selectedClasses}`}
+      className={`group relative flex flex-col items-center p-1 transition-all hover:z-40 focus-visible:z-40 focus:outline-none ${selectedClasses}`}
     >
       <ToothTooltip tooth={tooth} activeFindings={activeFindings} zoneMarkers={zoneMarkers} isUpper={isUpper} />
 
       {isUpper && (
         <>
-          <div className="relative flex h-[72px] w-8 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-[78px] sm:w-9">
+          <div className={`relative flex h-[72px] justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-[78px] ${toothWidthClasses}`}>
             {getIndicator()}
             <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} isUpper />
             <div className="absolute left-1/2 top-[46%] -z-10 h-3 w-[118%] -translate-x-1/2 rounded-full bg-rose-100/80"></div>
@@ -336,7 +346,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
               filledColor={colors.accent}
             />
           </div>
-          <div className="relative flex h-[72px] w-8 justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-[78px] sm:w-9">
+          <div className={`relative flex h-[72px] justify-center drop-shadow-sm transition-all group-hover:drop-shadow-md sm:h-[78px] ${toothWidthClasses}`}>
             {getIndicator()}
             <ZoneMarkerOverlay markers={zoneMarkers} toothNumber={tooth.toothNumber} isUpper={false} />
             <div className="absolute left-1/2 top-[46%] -z-10 h-3 w-[118%] -translate-x-1/2 rounded-full bg-rose-100/80"></div>
