@@ -6,7 +6,7 @@ interface ToothSvgProps {
   isSelected?: boolean;
 }
 
-type ToothType = 'incisor' | 'canine' | 'premolar' | 'molar';
+type ToothType = 'incisor' | 'canine' | 'premolar' | 'molar_upper' | 'molar_lower';
 
 interface ToothShape {
   root: string;
@@ -19,10 +19,12 @@ interface ToothShape {
 
 const getToothType = (number: number): ToothType => {
   const n = number % 10;
+  const isUpper = (number >= 11 && number <= 28) || (number >= 51 && number <= 65);
+  
   if (n >= 1 && n <= 2) return 'incisor';
   if (n === 3) return 'canine';
   if (n >= 4 && n <= 5) return 'premolar';
-  if (n >= 6 && n <= 8) return 'molar';
+  if (n >= 6 && n <= 8) return isUpper ? 'molar_upper' : 'molar_lower';
   return 'incisor';
 };
 
@@ -74,7 +76,27 @@ const TOOTH_SHAPES: Record<ToothType, ToothShape> = {
       'M 10 32 Q 10 40 11 45'
     ],
   },
-  molar: {
+  molar_upper: {
+    root: 'M 8 2 C 5 8 5 18 5 28 Q 18 25 31 28 C 31 18 31 8 28 2 C 26 6 24 14 23 16 C 22 14 20 6 18 2 C 16 6 14 14 13 16 C 12 14 10 6 8 2 Z',
+    crown: 'M 5 28 Q 18 25 31 28 C 33 42 31 60 18 60 C 5 60 3 42 5 28 Z',
+    neckLine: 'M 5 28 Q 18 25 31 28',
+    rootLines: [
+      'M 8 5 L 8 24',
+      'M 18 5 L 18 20',
+      'M 28 5 L 28 24'
+    ],
+    fissures: [
+      'M 8 44 A 10 5 0 1 0 28 44 A 10 5 0 1 0 8 44',
+      'M 12 44 L 24 44',
+      'M 18 40 L 18 48',
+      'M 15 42 L 15 46',
+      'M 21 42 L 21 46'
+    ],
+    highlights: [
+      'M 7 32 Q 7 40 8 45'
+    ],
+  },
+  molar_lower: {
     root: 'M 9 2 C 6 6 5 18 5 28 Q 18 25 31 28 C 31 18 30 6 27 2 C 23 8 20 18 18 18 C 16 18 13 8 9 2 Z',
     crown: 'M 5 28 Q 18 25 31 28 C 33 42 31 60 18 60 C 5 60 3 42 5 28 Z',
     neckLine: 'M 5 28 Q 18 25 31 28',
