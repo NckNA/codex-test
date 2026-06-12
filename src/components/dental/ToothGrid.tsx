@@ -103,9 +103,9 @@ const ZONE_OVERLAY_CLASSES: Record<ClinicalZone, string> = {
 };
 
 const ZONE_STATE_CLASSES: Record<ZoneMarkerState, string> = {
-  planned: 'border-emerald-500 bg-emerald-300/45 shadow-emerald-300/40',
-  active: 'border-sky-500 bg-sky-300/45 shadow-sky-300/40',
-  risk: 'border-red-500 bg-red-300/55 shadow-red-300/50',
+  planned: 'border-emerald-500 bg-emerald-400/50 mix-blend-multiply shadow-emerald-300/40',
+  active: 'border-sky-500 bg-sky-400/50 mix-blend-multiply shadow-sky-300/40',
+  risk: 'border-red-500 bg-red-400/50 mix-blend-multiply shadow-red-300/50',
 };
 
 type ZoneMarkerState = 'planned' | 'active' | 'risk';
@@ -295,6 +295,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
                 toothNumber={tooth.toothNumber}
                 fillColor={colors.fill}
                 strokeColor={isSelected ? '#2563EB' : colors.stroke}
+                isSelected={isSelected}
               />
             </div>
           </div>
@@ -324,6 +325,7 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { t
                 toothNumber={tooth.toothNumber}
                 fillColor={colors.fill}
                 strokeColor={isSelected ? '#2563EB' : colors.stroke}
+                isSelected={isSelected}
               />
             </div>
           </div>
