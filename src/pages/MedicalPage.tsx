@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useDictionaries } from '../data/hooks/useDictionaries';
 import type { ClinicalDiagnosis, ClinicalWork } from '../config/clinicalDictionaries';
 import { STATUS_TO_ZONES_MAP } from '../config/clinicalDictionaries';
@@ -347,7 +347,18 @@ function WorkEditorRow({
 
   const handleSave = () => {
     if (!name.trim() || statuses.length === 0 || zones.length === 0) return;
-    onSave({ ...work, name, price, allowedDiagnosisIds, workAccessType, allowedPresenceStatuses: statuses, allowedZones: zones });
+    
+    let finalDiagnosisIds = allowedDiagnosisIds;
+    if (workAccessType === 'base_available') {
+      finalDiagnosisIds = [];
+    } else {
+      finalDiagnosisIds = allowedDiagnosisIds.filter(id => {
+        const d = diagnoses.find(d => d.id === id);
+        return d ? isDiagnosisCompatibleWithWork(d, statuses, zones) : false;
+      });
+    }
+
+    onSave({ ...work, name, price, allowedDiagnosisIds: finalDiagnosisIds, workAccessType, allowedPresenceStatuses: statuses, allowedZones: zones });
     if (!isNew) setEditing();
   };
 
@@ -355,14 +366,28 @@ function WorkEditorRow({
     return diagnoses.filter(d => isDiagnosisCompatibleWithWork(d, statuses, zones));
   }, [diagnoses, statuses, zones]);
 
-  useEffect(() => {
-    if (workAccessType === 'base_available') {
+  const handleWorkAccessTypeChange = (type: ClinicalWork['workAccessType']) => {
+    setWorkAccessType(type);
+    if (type === 'base_available') {
       setAllowedDiagnosisIds([]);
-      return;
     }
-    const compatibleIds = new Set(compatibleDiagnoses.map(d => d.id));
-    setAllowedDiagnosisIds(prev => prev.filter(id => compatibleIds.has(id)));
-  }, [compatibleDiagnoses, workAccessType]);
+  };
+
+  const handleStatusesChange = (newStatuses: ToothPresenceStatus[]) => {
+    setStatuses(newStatuses);
+    setAllowedDiagnosisIds(prev => prev.filter(id => {
+      const d = diagnoses.find(d => d.id === id);
+      return d ? isDiagnosisCompatibleWithWork(d, newStatuses, zones) : false;
+    }));
+  };
+
+  const handleZonesChange = (newZones: ClinicalZone[]) => {
+    setZones(newZones);
+    setAllowedDiagnosisIds(prev => prev.filter(id => {
+      const d = diagnoses.find(d => d.id === id);
+      return d ? isDiagnosisCompatibleWithWork(d, statuses, newZones) : false;
+    }));
+  };
 
   const toggleDiagnosis = (id: string) => {
     setAllowedDiagnosisIds(prev => 
@@ -421,7 +446,7 @@ function WorkEditorRow({
         <label className="block text-sm font-medium text-slate-700 mb-1">Тип доступа работы</label>
         <select
           value={workAccessType}
-          onChange={(e) => setWorkAccessType(e.target.value as ClinicalWork['workAccessType'])}
+          onChange={(e) => handleWorkAccessTypeChange(e.target.value as ClinicalWork['workAccessType'])}
           className="w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border bg-white"
         >
           <option value="base_available">Базовая (доступна всегда)</option>
@@ -443,8 +468,8 @@ function WorkEditorRow({
         <StatusZoneSelector 
           selectedStatuses={statuses} 
           selectedZones={zones} 
-          onChangeStatuses={setStatuses} 
-          onChangeZones={setZones} 
+          onChangeStatuses={handleStatusesChange} 
+          onChangeZones={handleZonesChange} 
         />
       </div>
 
