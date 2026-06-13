@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDictionaries } from '../data/hooks/useDictionaries';
 import type { ClinicalDiagnosis, ClinicalWork } from '../config/clinicalDictionaries';
 import { STATUS_TO_ZONES_MAP } from '../config/clinicalDictionaries';
@@ -22,6 +22,16 @@ const CLINICAL_ZONE_LABELS: Record<ClinicalZone, string> = {
   orthopedics: 'Ортопедия',
   planning: 'Планирование',
 };
+
+function hasIntersection<T>(a: T[] = [], b: T[] = []) {
+  return a.some((item) => b.includes(item));
+}
+
+function isDiagnosisCompatibleWithWork(diagnosis: ClinicalDiagnosis, workStatuses: ToothPresenceStatus[], workZones: ClinicalZone[]) {
+  return diagnosis.isActive !== false
+    && hasIntersection(diagnosis.allowedPresenceStatuses, workStatuses)
+    && hasIntersection(diagnosis.allowedZones, workZones);
+}
 
 function StatusZoneSelector({
   selectedStatuses,
@@ -337,8 +347,46 @@ function WorkEditorRow({
 
   const handleSave = () => {
     if (!name.trim() || statuses.length === 0 || zones.length === 0) return;
-    onSave({ ...work, name, price, allowedDiagnosisIds, workAccessType, allowedPresenceStatuses: statuses, allowedZones: zones });
+    
+    let finalDiagnosisIds: string[];
+    if (workAccessType === 'base_available') {
+      finalDiagnosisIds = [];
+    } else {
+      finalDiagnosisIds = allowedDiagnosisIds.filter(id => {
+        const d = diagnoses.find(d => d.id === id);
+        return d ? isDiagnosisCompatibleWithWork(d, statuses, zones) : false;
+      });
+    }
+
+    onSave({ ...work, name, price, allowedDiagnosisIds: finalDiagnosisIds, workAccessType, allowedPresenceStatuses: statuses, allowedZones: zones });
     if (!isNew) setEditing();
+  };
+
+  const compatibleDiagnoses = useMemo(() => {
+    return diagnoses.filter(d => isDiagnosisCompatibleWithWork(d, statuses, zones));
+  }, [diagnoses, statuses, zones]);
+
+  const handleWorkAccessTypeChange = (type: ClinicalWork['workAccessType']) => {
+    setWorkAccessType(type);
+    if (type === 'base_available') {
+      setAllowedDiagnosisIds([]);
+    }
+  };
+
+  const handleStatusesChange = (newStatuses: ToothPresenceStatus[]) => {
+    setStatuses(newStatuses);
+    setAllowedDiagnosisIds(prev => prev.filter(id => {
+      const d = diagnoses.find(d => d.id === id);
+      return d ? isDiagnosisCompatibleWithWork(d, newStatuses, zones) : false;
+    }));
+  };
+
+  const handleZonesChange = (newZones: ClinicalZone[]) => {
+    setZones(newZones);
+    setAllowedDiagnosisIds(prev => prev.filter(id => {
+      const d = diagnoses.find(d => d.id === id);
+      return d ? isDiagnosisCompatibleWithWork(d, statuses, newZones) : false;
+    }));
   };
 
   const toggleDiagnosis = (id: string) => {
@@ -398,7 +446,7 @@ function WorkEditorRow({
         <label className="block text-sm font-medium text-slate-700 mb-1">Тип доступа работы</label>
         <select
           value={workAccessType}
-          onChange={(e) => setWorkAccessType(e.target.value as ClinicalWork['workAccessType'])}
+          onChange={(e) => handleWorkAccessTypeChange(e.target.value as ClinicalWork['workAccessType'])}
           className="w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border bg-white"
         >
           <option value="base_available">Базовая (доступна всегда)</option>
@@ -420,27 +468,31 @@ function WorkEditorRow({
         <StatusZoneSelector 
           selectedStatuses={statuses} 
           selectedZones={zones} 
-          onChangeStatuses={setStatuses} 
-          onChangeZones={setZones} 
+          onChangeStatuses={handleStatusesChange} 
+          onChangeZones={handleZonesChange} 
         />
       </div>
 
       {workAccessType === 'requires_diagnosis' && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">Связанные диагнозы</label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-white">
-            {diagnoses.filter(d => d.isActive !== false).map(diagnosis => (
-              <label key={diagnosis.id} className="flex items-center space-x-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowedDiagnosisIds.includes(diagnosis.id)}
-                  onChange={() => toggleDiagnosis(diagnosis.id)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-slate-700">{diagnosis.name}</span>
-              </label>
-            ))}
-          </div>
+          {compatibleDiagnoses.length === 0 ? (
+            <p className="text-sm text-slate-500 italic">Нет совместимых диагнозов для выбранных статусов и зон.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-white">
+              {compatibleDiagnoses.map(diagnosis => (
+                <label key={diagnosis.id} className="flex items-center space-x-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowedDiagnosisIds.includes(diagnosis.id)}
+                    onChange={() => toggleDiagnosis(diagnosis.id)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-slate-700">{diagnosis.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
