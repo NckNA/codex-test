@@ -106,8 +106,8 @@ export function MedicalPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Врачебная часть</h1>
-        <p className="mt-1 text-slate-500">Редактор клинических справочников</p>
+        <h1 className="text-2xl font-bold text-slate-900">Клинические справочники</h1>
+        <p className="mt-1 text-slate-500">Настройка диагнозов, работ, цен и связей для зубной карты</p>
       </div>
 
       <div className="flex space-x-2 border-b border-slate-200">

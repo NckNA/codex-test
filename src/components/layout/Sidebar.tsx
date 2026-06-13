@@ -25,7 +25,7 @@ const navItems = [
   { to: '/documents', icon: FileText, label: 'Документы' },
   { to: '/patients', icon: UserSquare2, label: 'Пациенты' },
   { to: '/doctors', icon: Stethoscope, label: 'Врачи' },
-  { to: '/medical', icon: HeartPulse, label: 'Врачебная часть' },
+  { to: '/medical', icon: HeartPulse, label: 'Клинические справочники' },
   { to: '/finance', icon: Banknote, label: 'Финансы' },
   { to: '/warehouse', icon: Package, label: 'Склад' },
   { to: '/statistics', icon: BarChart3, label: 'Статистика' },
