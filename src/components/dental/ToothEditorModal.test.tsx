@@ -37,20 +37,24 @@ describe('ToothEditorModal', () => {
     updatedAt: new Date().toISOString(),
   };
 
-  function renderModal(onSave = vi.fn()) {
+  function renderModal(
+    onSave = vi.fn(),
+    customTooth?: ToothRecord,
+    defaultZone?: string
+  ) {
     act(() => {
       root.render(
         <ToothEditorModal
           isOpen={true}
-          tooth={mockTooth}
+          tooth={customTooth || mockTooth}
           patientId="p1"
           existingFindings={[]}
+          defaultZone={defaultZone as any}
           onClose={() => {}}
           onSave={onSave}
         />
       );
     });
-
     return onSave;
   }
 
@@ -171,6 +175,7 @@ describe('ToothEditorModal', () => {
       workId: 'work_filling_1_surface',
       zone: 'crown',
       status: 'planned',
+      priceSnapshot: undefined,
     });
     expect(savedTooth.visualState).toBe('caries');
     expect(savedTooth.condition).toBe('caries');
@@ -218,5 +223,80 @@ describe('ToothEditorModal', () => {
     const html = container.innerHTML;
     expect(html).toContain('Расчётное состояние');
     expect(html).not.toContain('Вернуть автоматический расчёт');
+  });
+
+  it('filters zones correctly for natural tooth', () => {
+    renderModal();
+    const html = container.innerHTML;
+    expect(html).toContain('Коронка');
+    expect(html).toContain('Каналы');
+    expect(html).toContain('Корень');
+    expect(html).toContain('Десна');
+    expect(html).toContain('Ортопедия');
+    expect(html).not.toContain('Кость');
+    expect(html).not.toContain('Планирование');
+  });
+
+  it('filters zones correctly for implant', () => {
+    renderModal();
+    const presenceSelect = getSelectByValue('natural');
+    act(() => {
+      presenceSelect.value = 'implant';
+      presenceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const html = container.innerHTML;
+    expect(html).toContain('Десна');
+    expect(html).toContain('Ортопедия');
+    expect(html).toContain('Кость');
+    expect(html).not.toContain('Коронка');
+    expect(html).not.toContain('Каналы');
+    expect(html).not.toContain('Корень');
+    expect(html).not.toContain('Планирование');
+  });
+
+  it('filters zones correctly for missing tooth', () => {
+    renderModal();
+    const presenceSelect = getSelectByValue('natural');
+    act(() => {
+      presenceSelect.value = 'missing';
+      presenceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const html = container.innerHTML;
+    expect(html).toContain('Десна');
+    expect(html).toContain('Кость');
+    expect(html).toContain('Ортопедия');
+    expect(html).not.toContain('Коронка');
+    expect(html).not.toContain('Каналы');
+    expect(html).not.toContain('Корень');
+    expect(html).not.toContain('Планирование');
+  });
+
+  it('handles legacy planning zone and invalid activeZone fallback without white screen', () => {
+    renderModal(vi.fn(), mockTooth, 'planning');
+    
+    const html = container.innerHTML;
+    expect(html).toContain('Кариес эмали');
+    expect(html).not.toContain('Отсутствие зуба');
+    expect(html).not.toContain('Планирование');
+  });
+
+  it('valid work still copies priceSnapshot', () => {
+    const work = defaultClinicalWorks.find(w => w.id === 'work_filling_1_surface');
+    const originalPrice = work?.price;
+    if (work) work.price = 15000;
+    
+    const onSave = renderModal();
+    clickByText('Кариес эмали');
+    clickByText('Пломба 1 поверхность');
+    clickByText('Сохранить изменения');
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const [savedTooth] = onSave.mock.calls[0] as [ToothRecord];
+    expect(savedTooth.plannedWorkRecords?.[0]).toMatchObject({
+      workId: 'work_filling_1_surface',
+      priceSnapshot: 15000,
+    });
+
+    if (work) work.price = originalPrice;
   });
 });
