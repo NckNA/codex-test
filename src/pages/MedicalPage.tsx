@@ -1,6 +1,91 @@
 import { useState } from 'react';
 import { useDictionaries } from '../data/hooks/useDictionaries';
 import type { ClinicalDiagnosis, ClinicalWork } from '../config/clinicalDictionaries';
+import { STATUS_TO_ZONES_MAP } from '../config/clinicalDictionaries';
+import type { ToothPresenceStatus, ClinicalZone } from '../types';
+
+const PRESENCE_STATUS_LABELS: Record<ToothPresenceStatus, string> = {
+  natural: 'Естественный зуб',
+  deciduous: 'Молочный зуб',
+  root_remnant: 'Остаток корня',
+  implant: 'Имплант',
+  missing: 'Отсутствует',
+  impacted: 'Ретинированный',
+};
+
+const CLINICAL_ZONE_LABELS: Record<ClinicalZone, string> = {
+  crown: 'Коронка',
+  endodontics: 'Каналы',
+  root: 'Корень',
+  periodontium: 'Десна',
+  bone: 'Кость',
+  orthopedics: 'Ортопедия',
+  planning: 'Планирование',
+};
+
+function StatusZoneSelector({
+  selectedStatuses,
+  selectedZones,
+  onChangeStatuses,
+  onChangeZones,
+}: {
+  selectedStatuses: ToothPresenceStatus[];
+  selectedZones: ClinicalZone[];
+  onChangeStatuses: (statuses: ToothPresenceStatus[]) => void;
+  onChangeZones: (zones: ClinicalZone[]) => void;
+}) {
+  const availableZones = Array.from(
+    new Set(selectedStatuses.flatMap((status) => STATUS_TO_ZONES_MAP[status] || []))
+  );
+
+  const toggleStatus = (status: ToothPresenceStatus) => {
+    const next = selectedStatuses.includes(status)
+      ? selectedStatuses.filter((s) => s !== status)
+      : [...selectedStatuses, status];
+    onChangeStatuses(next);
+    // Auto-remove invalid zones
+    const nextAvailable = new Set(next.flatMap((s) => STATUS_TO_ZONES_MAP[s] || []));
+    onChangeZones(selectedZones.filter((z) => nextAvailable.has(z)));
+  };
+
+  const toggleZone = (zone: ClinicalZone) => {
+    const next = selectedZones.includes(zone)
+      ? selectedZones.filter((z) => z !== zone)
+      : [...selectedZones, zone];
+    onChangeZones(next);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Статусы зуба</label>
+        <div className="flex flex-wrap gap-2">
+          {(Object.entries(PRESENCE_STATUS_LABELS) as [ToothPresenceStatus, string][]).map(([val, label]) => (
+            <label key={val} className="flex items-center gap-1 text-sm bg-white border border-slate-200 px-2 py-1 rounded cursor-pointer hover:bg-slate-50">
+              <input type="checkbox" checked={selectedStatuses.includes(val)} onChange={() => toggleStatus(val)} />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Клинические зоны (доступно по статусам)</label>
+        {availableZones.length === 0 ? (
+          <p className="text-sm text-slate-500">Сначала выберите статусы</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {availableZones.map((val) => (
+              <label key={val} className="flex items-center gap-1 text-sm bg-white border border-slate-200 px-2 py-1 rounded cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" checked={selectedZones.includes(val)} onChange={() => toggleZone(val)} />
+                {CLINICAL_ZONE_LABELS[val]}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function MedicalPage() {
   const { diagnoses, works, loading, saveDiagnosis, saveWork, refresh } = useDictionaries();
@@ -51,15 +136,17 @@ export function MedicalPage() {
 function DiagnosesEditor({ diagnoses, onSave }: { diagnoses: ClinicalDiagnosis[], onSave: (d: ClinicalDiagnosis) => void }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newStatuses, setNewStatuses] = useState<ToothPresenceStatus[]>(['natural', 'deciduous']);
+  const [newZones, setNewZones] = useState<ClinicalZone[]>(['crown']);
 
   const handleAdd = () => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || newStatuses.length === 0 || newZones.length === 0) return;
     const newDiagnosis: ClinicalDiagnosis = {
       id: `dx_${Date.now()}`,
       type: 'diagnosis',
       name: newName.trim(),
-      allowedPresenceStatuses: ['natural', 'deciduous'],
-      allowedZones: ['crown', 'endodontics', 'root', 'periodontium', 'bone', 'orthopedics', 'planning'],
+      allowedPresenceStatuses: newStatuses,
+      allowedZones: newZones,
       isActive: true,
     };
     onSave(newDiagnosis);
@@ -78,8 +165,14 @@ function DiagnosesEditor({ diagnoses, onSave }: { diagnoses: ClinicalDiagnosis[]
               type="text" 
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+              className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border mb-4"
               placeholder="Например: Поверхностный кариес"
+            />
+            <StatusZoneSelector 
+              selectedStatuses={newStatuses} 
+              selectedZones={newZones} 
+              onChangeStatuses={setNewStatuses} 
+              onChangeZones={setNewZones} 
             />
           </div>
           <div className="flex justify-end gap-2 mt-4">
@@ -109,10 +202,12 @@ function DiagnosesEditor({ diagnoses, onSave }: { diagnoses: ClinicalDiagnosis[]
 function DiagnosisEditorRow({ diagnosis, onSave }: { diagnosis: ClinicalDiagnosis, onSave: (d: ClinicalDiagnosis) => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(diagnosis.name);
+  const [statuses, setStatuses] = useState<ToothPresenceStatus[]>(diagnosis.allowedPresenceStatuses);
+  const [zones, setZones] = useState<ClinicalZone[]>(diagnosis.allowedZones);
 
   const handleSave = () => {
-    if (!name.trim()) return;
-    onSave({ ...diagnosis, name: name.trim() });
+    if (!name.trim() || statuses.length === 0 || zones.length === 0) return;
+    onSave({ ...diagnosis, name: name.trim(), allowedPresenceStatuses: statuses, allowedZones: zones });
     setIsEditing(false);
   };
 
@@ -129,7 +224,13 @@ function DiagnosisEditorRow({ diagnosis, onSave }: { diagnosis: ClinicalDiagnosi
             type="text" 
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+            className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border mb-4"
+          />
+          <StatusZoneSelector 
+            selectedStatuses={statuses} 
+            selectedZones={zones} 
+            onChangeStatuses={setStatuses} 
+            onChangeZones={setZones} 
           />
         </div>
         <div className="flex justify-end gap-2 mt-4">
@@ -179,7 +280,7 @@ function WorksEditor({ works, diagnoses, onSave }: { works: ClinicalWork[], diag
             name: '',
             price: 0,
             allowedPresenceStatuses: ['natural', 'deciduous'],
-            allowedZones: ['crown', 'endodontics', 'root', 'periodontium', 'bone', 'orthopedics', 'planning'],
+            allowedZones: ['crown'],
             allowedDiagnosisIds: [],
             workAccessType: 'requires_diagnosis',
             isActive: true,
@@ -231,10 +332,12 @@ function WorkEditorRow({
   const [price, setPrice] = useState(work.price || 0);
   const [allowedDiagnosisIds, setAllowedDiagnosisIds] = useState<string[]>(work.allowedDiagnosisIds || []);
   const [workAccessType, setWorkAccessType] = useState<ClinicalWork['workAccessType']>(work.workAccessType);
+  const [statuses, setStatuses] = useState<ToothPresenceStatus[]>(work.allowedPresenceStatuses);
+  const [zones, setZones] = useState<ClinicalZone[]>(work.allowedZones);
 
   const handleSave = () => {
-    if (!name.trim()) return;
-    onSave({ ...work, name, price, allowedDiagnosisIds, workAccessType });
+    if (!name.trim() || statuses.length === 0 || zones.length === 0) return;
+    onSave({ ...work, name, price, allowedDiagnosisIds, workAccessType, allowedPresenceStatuses: statuses, allowedZones: zones });
     if (!isNew) setEditing();
   };
 
@@ -310,6 +413,15 @@ function WorkEditorRow({
           value={price}
           onChange={(e) => setPrice(Number(e.target.value))}
           className="w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+        />
+      </div>
+
+      <div className="mb-4">
+        <StatusZoneSelector 
+          selectedStatuses={statuses} 
+          selectedZones={zones} 
+          onChangeStatuses={setStatuses} 
+          onChangeZones={setZones} 
         />
       </div>
 
