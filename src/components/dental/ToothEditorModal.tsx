@@ -58,7 +58,7 @@ const VISUAL_STATES: { value: ToothVisualState; label: string }[] = [
 ];
 
 const ZONE_LABELS: Record<ClinicalZone, string> = {
-  crown: 'Коронка',
+  crown: 'Коронковая часть',
   endodontics: 'Каналы',
   root: 'Корень',
   periodontium: 'Десна',
@@ -381,7 +381,7 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       category: deriveFindingCategory(currentPresence, currentZone, diagnosisIds),
       severity: deriveFindingSeverity(diagnosisIds),
       description: [
-        `Анатомический статус: ${presenceLabel}`,
+        `Статус зубной позиции: ${presenceLabel}`,
         `Зона: ${ZONE_LABELS[currentZone]}`,
         selectedDiagnosisNames.length > 0 ? `Диагнозы: ${selectedDiagnosisNames.join(', ')}` : '',
         selectedWorkNames.length > 0 ? `Работы: ${selectedWorkNames.join(', ')}` : '',
@@ -428,10 +428,11 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
           <aside className="space-y-5">
             <section className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Анатомический статус</label>
+                <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1.5">Статус зубной позиции</label>
                 <select value={currentPresence} onChange={(event) => setPresenceStatus(event.target.value as ToothPresenceStatus)} className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   {PRESENCE_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                 </select>
+                <p className="mt-1.5 text-[11px] text-blue-600/80 leading-tight">Что находится в позиции зуба: естественный зуб, отсутствует, имплант, остаток корня и т.д.</p>
                 <p className="mt-1 text-xs text-blue-700/80">{PRESENCE_STATUSES.find((status) => status.value === currentPresence)?.hint}</p>
               </div>
 

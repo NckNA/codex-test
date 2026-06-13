@@ -87,13 +87,13 @@ describe('ToothEditorModal', () => {
     renderModal();
 
     const html = container.innerHTML;
-    expect(html).toContain('Анатомический статус');
+    expect(html).toContain('Статус зубной позиции');
     expect(html).toContain('Отображение на формуле');
     expect(html).toContain('Выбранное');
     expect(html).toContain('Пока ничего не выбрано');
     expect(html).toContain('Общие заметки');
     expect(html).toContain('Создать клиническую проблему');
-    expect(html).toContain('Коронка');
+    expect(html).toContain('Коронковая часть');
     expect(html).toContain('Каналы');
     expect(html).toContain('Десна');
     expect(html).toContain('Диагнозы / состояния');
@@ -195,7 +195,7 @@ describe('ToothEditorModal', () => {
     const [, findingPayload] = onSave.mock.calls[0] as [ToothRecord, Partial<DentalFinding>];
 
     expect(findingPayload.title).toContain('зуб 11');
-    expect(findingPayload.title).toContain('Коронка');
+    expect(findingPayload.title).toContain('Коронковая часть');
     expect(findingPayload.category).toBe('caries');
     expect(findingPayload.severity).toBe('medium');
     expect(findingPayload.description).toContain('Кариес эмали');
@@ -229,7 +229,7 @@ describe('ToothEditorModal', () => {
   it('filters zones correctly for natural tooth', () => {
     renderModal();
     const html = container.innerHTML;
-    expect(html).toContain('Коронка');
+    expect(html).toContain('Коронковая часть');
     expect(html).toContain('Каналы');
     expect(html).toContain('Корень');
     expect(html).toContain('Десна');
@@ -249,7 +249,7 @@ describe('ToothEditorModal', () => {
     expect(html).toContain('Десна');
     expect(html).toContain('Ортопедия');
     expect(html).toContain('Кость');
-    expect(html).not.toContain('Коронка');
+    expect(html).not.toContain('Коронковая часть');
     expect(html).not.toContain('Каналы');
     expect(html).not.toContain('Корень');
     expect(html).not.toContain('Планирование');
@@ -266,7 +266,7 @@ describe('ToothEditorModal', () => {
     expect(html).toContain('Десна');
     expect(html).toContain('Кость');
     expect(html).toContain('Ортопедия');
-    expect(html).not.toContain('Коронка');
+    expect(html).not.toContain('Коронковая часть');
     expect(html).not.toContain('Каналы');
     expect(html).not.toContain('Корень');
     expect(html).not.toContain('Планирование');
