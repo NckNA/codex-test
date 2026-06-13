@@ -96,21 +96,71 @@ function DiagnosesEditor({ diagnoses, onSave }: { diagnoses: ClinicalDiagnosis[]
       )}
 
       {diagnoses.map(diagnosis => (
-        <div key={diagnosis.id} className={`flex items-center justify-between rounded-lg border p-3 ${diagnosis.isActive === false ? 'bg-slate-50 opacity-60' : 'bg-white'}`}>
-          <div>
-            <h3 className="font-medium text-slate-900">{diagnosis.name}</h3>
-            <p className="text-xs text-slate-500">ID: {diagnosis.id}</p>
-          </div>
-          <div>
-            <button
-              onClick={() => onSave({ ...diagnosis, isActive: diagnosis.isActive === false ? true : false })}
-              className={`rounded px-3 py-1 text-xs font-medium ${diagnosis.isActive === false ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
-            >
-              {diagnosis.isActive === false ? 'Восстановить' : 'Отключить'}
-            </button>
-          </div>
-        </div>
+        <DiagnosisEditorRow 
+          key={diagnosis.id}
+          diagnosis={diagnosis}
+          onSave={onSave}
+        />
       ))}
+    </div>
+  );
+}
+
+function DiagnosisEditorRow({ diagnosis, onSave }: { diagnosis: ClinicalDiagnosis, onSave: (d: ClinicalDiagnosis) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(diagnosis.name);
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    onSave({ ...diagnosis, name: name.trim() });
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="font-medium text-slate-900">Редактирование диагноза</h3>
+          <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-700 mb-1">Название</label>
+          <input 
+            type="text" 
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+          />
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={handleSave} disabled={!name.trim()} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">
+            Сохранить
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center justify-between rounded-lg border p-3 ${diagnosis.isActive === false ? 'bg-slate-50 opacity-60' : 'bg-white'}`}>
+      <div>
+        <h3 className="font-medium text-slate-900">{diagnosis.name}</h3>
+        <p className="text-xs text-slate-500">ID: {diagnosis.id}</p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => { setName(diagnosis.name); setIsEditing(true); }}
+          className="rounded bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
+        >
+          Редактировать
+        </button>
+        <button
+          onClick={() => onSave({ ...diagnosis, isActive: diagnosis.isActive === false ? true : false })}
+          className={`rounded px-3 py-1 text-xs font-medium ${diagnosis.isActive === false ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
+        >
+          {diagnosis.isActive === false ? 'Восстановить' : 'Отключить'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -248,7 +298,7 @@ function WorkEditorRow({
           onChange={(e) => setWorkAccessType(e.target.value as ClinicalWork['workAccessType'])}
           className="w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border bg-white"
         >
-          <option value="base">Базовая (доступна всегда)</option>
+          <option value="base_available">Базовая (доступна всегда)</option>
           <option value="requires_diagnosis">Лечебная (по диагнозу)</option>
         </select>
       </div>

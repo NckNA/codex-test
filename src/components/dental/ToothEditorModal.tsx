@@ -396,10 +396,11 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       plannedWorkRecordIds: plannedWorkRecords.map((record) => record.id),
     };
   };
-
   const handleSave = () => {
+    if (!formData) return;
     const nextToothBase: ToothRecord = {
       ...clearVisualOverride(formData),
+      plannedWorks: getWorkIds(formData.plannedWorkRecords || []),
       condition: computedVisualState,
       visualState: computedVisualState,
       updatedAt: new Date().toISOString(),
