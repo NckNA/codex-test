@@ -14,8 +14,6 @@ import type {
 import { normalizeToothRecord } from '../../utils/dentalChartNormalization';
 import type { ToothZone } from './ToothZoneSelectorModal';
 import {
-  defaultClinicalWorks,
-  defaultDiagnoses,
   getAvailableZonesForPresence,
   getBaseWorksByPresenceAndZone,
   getDiagnosesByPresenceAndZone,
@@ -23,6 +21,9 @@ import {
   getWorksByPresenceAndZone,
   type ClinicalWork,
 } from '../../config/clinicalDictionaries';
+import { useDictionaries } from '../../data/hooks/useDictionaries';
+
+const EMPTY_STRING_ARRAY: string[] = [];
 
 interface ToothEditorModalProps {
   isOpen: boolean;
@@ -76,9 +77,6 @@ const ZONE_HINTS: Record<ClinicalZone, string> = {
   planning: 'Планирование восстановления отсутствующего зуба',
 };
 
-const DIAGNOSIS_BY_ID = new Map(defaultDiagnoses.map((diagnosis) => [diagnosis.id, diagnosis]));
-const WORK_BY_ID = new Map(defaultClinicalWorks.map((work) => [work.id, work]));
-
 type CheckboxItem = {
   id: string;
   name: string;
@@ -109,19 +107,6 @@ function clearVisualOverride(tooth: ToothRecord): ToothRecord {
 function createRecordId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `planned_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-function createPlannedWorkRecord(work: ClinicalWork, zone: ClinicalZone): PlannedWorkRecord {
-  const now = new Date().toISOString();
-
-  return {
-    id: createRecordId(),
-    workId: work.id,
-    zone,
-    status: 'planned',
-    createdAt: now,
-    updatedAt: now,
-  };
 }
 
 function getFirstAvailableZone(presenceStatus: ToothPresenceStatus, preferredZone?: ClinicalZone): ClinicalZone {
@@ -181,7 +166,7 @@ function deriveFindingSeverity(diagnosisIds: string[]): FindingSeverity {
 
 function formatPrice(price?: number): string | null {
   if (typeof price !== 'number') return null;
-  return `${price.toLocaleString('ru-RU')} ₸`;
+  return `${price.toLocaleString('ru-RU')} тг`;
 }
 
 function getWorkIds(records: PlannedWorkRecord[]): string[] {
@@ -242,10 +227,14 @@ function SelectedChip({ label, meta, tone, onRemove }: SelectedChipProps) {
 }
 
 export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }: ToothEditorModalProps) {
+  const { diagnoses, works } = useDictionaries();
   const [formData, setFormData] = useState<ToothRecord | null>(null);
   const [activeZone, setActiveZone] = useState<ClinicalZone>('crown');
   const [manualVisualState, setManualVisualState] = useState(false);
   const [createFinding, setCreateFinding] = useState(false);
+
+  const DIAGNOSIS_BY_ID = useMemo(() => new Map(diagnoses.map((d) => [d.id, d])), [diagnoses]);
+  const WORK_BY_ID = useMemo(() => new Map(works.map((w) => [w.id, w])), [works]);
 
   useEffect(() => {
     if (isOpen && tooth) {
@@ -255,11 +244,8 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
 
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData(normalizedTooth);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveZone(nextZone);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setManualVisualState(Boolean(normalizedTooth.visualStateOverride));
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCreateFinding(false);
     }
   }, [isOpen, tooth, defaultZone]);
@@ -267,15 +253,15 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
   const currentPresence = formData?.presenceStatus || 'natural';
   const availableZones = useMemo(() => getAvailableZonesForPresence(currentPresence), [currentPresence]);
   const currentZone = availableZones.includes(activeZone) ? activeZone : getFirstAvailableZone(currentPresence);
-  const diagnosisIds = formData?.diagnoses || [];
+  const diagnosisIds = formData?.diagnoses || EMPTY_STRING_ARRAY;
   const plannedWorkRecords = formData?.plannedWorkRecords || [];
   const plannedWorkIds = getWorkIds(plannedWorkRecords);
   const currentZoneWorkIds = getZoneWorkIds(plannedWorkRecords, currentZone);
 
-  const availableDiagnoses = useMemo(() => getDiagnosesByPresenceAndZone(currentPresence, currentZone), [currentPresence, currentZone]);
-  const allZoneWorks = useMemo(() => getWorksByPresenceAndZone(currentPresence, currentZone), [currentPresence, currentZone]);
-  const baseWorks = useMemo(() => getBaseWorksByPresenceAndZone(currentPresence, currentZone), [currentPresence, currentZone]);
-  const treatmentWorks = useMemo(() => getWorksByDiagnoses(currentPresence, currentZone, diagnosisIds).filter((work) => work.workAccessType === 'requires_diagnosis'), [currentPresence, currentZone, diagnosisIds]);
+  const availableDiagnoses = useMemo(() => getDiagnosesByPresenceAndZone(currentPresence, currentZone, diagnoses), [currentPresence, currentZone, diagnoses]);
+  const allZoneWorks = useMemo(() => getWorksByPresenceAndZone(currentPresence, currentZone, works), [currentPresence, currentZone, works]);
+  const baseWorks = useMemo(() => getBaseWorksByPresenceAndZone(currentPresence, currentZone, works), [currentPresence, currentZone, works]);
+  const treatmentWorks = useMemo(() => getWorksByDiagnoses(currentPresence, currentZone, diagnosisIds, works).filter((work) => work.workAccessType === 'requires_diagnosis'), [currentPresence, currentZone, diagnosisIds, works]);
 
   if (!isOpen || !tooth || !formData) return null;
 
@@ -303,7 +289,6 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       ...clearVisualOverride(prev),
       presenceStatus,
       diagnoses: [],
-      plannedWorks: [],
       plannedWorkRecords: [],
     } : prev);
     setManualVisualState(false);
@@ -314,10 +299,10 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
     setFormData((prev) => {
       if (!prev) return prev;
       const nextDiagnosisIds = prev.diagnoses?.includes(diagnosisId) ? prev.diagnoses.filter((id) => id !== diagnosisId) : [...(prev.diagnoses || []), diagnosisId];
-      const allowedWorkIds = new Set(getWorksByDiagnoses(prev.presenceStatus || 'natural', currentZone, nextDiagnosisIds).map((work) => work.id));
+      const allowedWorkIds = new Set(getWorksByDiagnoses(prev.presenceStatus || 'natural', currentZone, nextDiagnosisIds, works).map((work) => work.id));
       const nextRecords = (prev.plannedWorkRecords || []).filter((record) => record.zone !== currentZone || allowedWorkIds.has(record.workId));
 
-      return { ...prev, diagnoses: nextDiagnosisIds, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
+      return { ...prev, diagnoses: nextDiagnosisIds, plannedWorkRecords: nextRecords };
     });
   };
 
@@ -326,11 +311,23 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       if (!prev) return prev;
       const currentRecords = prev.plannedWorkRecords || [];
       const hasWork = currentRecords.some((record) => record.zone === currentZone && record.workId === work.id);
-      const nextRecords: PlannedWorkRecord[] = hasWork
-        ? currentRecords.filter((record) => !(record.zone === currentZone && record.workId === work.id))
-        : [...currentRecords, createPlannedWorkRecord(work, currentZone)];
+      
+      let nextRecords: PlannedWorkRecord[];
+      if (hasWork) {
+        nextRecords = currentRecords.filter((record) => !(record.zone === currentZone && record.workId === work.id));
+      } else {
+        nextRecords = [...currentRecords, {
+          id: createRecordId(),
+          workId: work.id,
+          zone: currentZone,
+          status: 'planned',
+          priceSnapshot: work.price,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }];
+      }
 
-      return { ...prev, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
+      return { ...prev, plannedWorkRecords: nextRecords, plannedWorks: [...new Set(nextRecords.map(r => r.workId))] };
     });
   };
 
@@ -338,7 +335,7 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
     setFormData((prev) => {
       if (!prev) return prev;
       const nextRecords = (prev.plannedWorkRecords || []).filter((record) => record.id !== recordId);
-      return { ...prev, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
+      return { ...prev, plannedWorkRecords: nextRecords };
     });
   };
 
@@ -347,12 +344,12 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       if (!prev) return prev;
       const nextDiagnosisIds = (prev.diagnoses || []).filter((id) => !availableDiagnosisIds.has(id));
       const nextRecords = (prev.plannedWorkRecords || []).filter((record) => record.zone !== currentZone);
-      return { ...prev, diagnoses: nextDiagnosisIds, plannedWorkRecords: nextRecords, plannedWorks: getWorkIds(nextRecords) };
+      return { ...prev, diagnoses: nextDiagnosisIds, plannedWorkRecords: nextRecords };
     });
   };
 
   const clearAllClinicalSelections = () => {
-    setFormData((prev) => prev ? { ...prev, diagnoses: [], plannedWorks: [], plannedWorkRecords: [] } : prev);
+    setFormData((prev) => prev ? { ...prev, diagnoses: [], plannedWorkRecords: [] } : prev);
   };
 
   const setVisualStateOverride = (visualState: ToothVisualState) => {
@@ -363,24 +360,10 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
     setFormData({
       ...clearVisualOverride(formData),
       condition: 'healthy',
-      surfaces: [],
-      crown: '',
-      workCrown: '',
-      root: '',
-      workRoot: '',
-      gum: '',
-      workGum: '',
-      bone: '',
-      workBone: '',
-      canal: '',
-      workCanal: '',
-      notes: '',
       presenceStatus: 'natural',
       visualState: 'healthy',
       diagnoses: [],
-      plannedWorks: [],
       plannedWorkRecords: [],
-      completedWorks: [],
       updatedAt: new Date().toISOString(),
     });
     setManualVisualState(false);
@@ -390,8 +373,8 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
 
   const buildFindingPayload = (): Partial<DentalFinding> | null => {
     if (!createFinding) return null;
-    const selectedDiagnosisNames = diagnosisIds.map((id) => defaultDiagnoses.find((diagnosis) => diagnosis.id === id)?.name || id);
-    const selectedWorkNames = plannedWorkIds.map((id) => defaultClinicalWorks.find((work) => work.id === id)?.name || id);
+    const selectedDiagnosisNames = diagnosisIds.map((id) => DIAGNOSIS_BY_ID.get(id)?.name || id);
+    const selectedWorkNames = plannedWorkIds.map((id) => WORK_BY_ID.get(id)?.name || id);
 
     return {
       title: `Клиническая запись: зуб ${tooth.toothNumber} · ${ZONE_LABELS[currentZone]}`,
@@ -413,13 +396,13 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       plannedWorkRecordIds: plannedWorkRecords.map((record) => record.id),
     };
   };
-
   const handleSave = () => {
+    if (!formData) return;
     const nextToothBase: ToothRecord = {
       ...clearVisualOverride(formData),
+      plannedWorks: getWorkIds(formData.plannedWorkRecords || []),
       condition: computedVisualState,
       visualState: computedVisualState,
-      plannedWorks: getWorkIds(formData.plannedWorkRecords || []),
       updatedAt: new Date().toISOString(),
     };
     const nextTooth = manualVisualState ? { ...nextToothBase, visualStateOverride: formData.visualStateOverride || computedVisualState } : nextToothBase;

@@ -9,6 +9,7 @@ export interface ClinicalDictionaryBaseItem {
   allowedPresenceStatuses: ToothPresenceStatus[];
   allowedZones: ClinicalZone[];
   description?: string;
+  isActive?: boolean;
 }
 
 export interface ClinicalDiagnosis extends ClinicalDictionaryBaseItem {
@@ -396,6 +397,7 @@ function isAllowedForPresenceAndZone(
   presenceStatus: ToothPresenceStatus,
   zone: ClinicalZone,
 ): boolean {
+  if (item.isActive === false) return false;
   return item.allowedPresenceStatuses.includes(presenceStatus) && item.allowedZones.includes(zone);
 }
 

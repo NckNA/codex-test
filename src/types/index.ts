@@ -121,6 +121,7 @@ export interface PlannedWorkRecord {
   workId: string;
   zone: ClinicalZone;
   status: PlannedWorkRecordStatus;
+  priceSnapshot?: number;
   createdAt: string;
   updatedAt: string;
 }
