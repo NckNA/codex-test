@@ -78,8 +78,9 @@ describe('clinical dictionaries', () => {
     ]));
 
     expect(getAvailableZonesForPresence('missing')).toEqual(expect.arrayContaining([
-      'planning',
+      'periodontium',
       'bone',
+      'orthopedics',
     ]));
 
     expect(getAvailableZonesForPresence('implant')).toEqual(expect.arrayContaining([

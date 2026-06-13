@@ -449,8 +449,8 @@ export const STATUS_TO_ZONES_MAP: Record<ToothPresenceStatus, ClinicalZone[]> = 
   deciduous: ['crown', 'endodontics', 'root', 'periodontium'],
   root_remnant: ['root', 'periodontium', 'bone', 'orthopedics'],
   implant: ['periodontium', 'orthopedics', 'bone'],
-  missing: ['planning', 'periodontium', 'bone', 'orthopedics'],
-  impacted: ['planning', 'crown', 'root', 'periodontium', 'bone'],
+  missing: ['periodontium', 'bone', 'orthopedics'],
+  impacted: ['crown', 'root', 'periodontium', 'bone'],
 };
 
 export function getAvailableZonesForPresence(
