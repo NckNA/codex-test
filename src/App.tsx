@@ -19,8 +19,9 @@ import { MailingPage } from './pages/MailingPage';
 import { SmsPage } from './pages/SmsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { PatientCardPage } from './pages/PatientCardPage';
+import { ClinicalDictionariesProvider } from './data/hooks/useDictionaries';
 
-export function App() {
+function AppContent() {
   const { authMode, isLoading: authLoading, user, signOut } = useAuth();
   const { activeTenant, availableTenants, isLoading: tenantLoading, error: tenantError } = useTenant();
 
@@ -113,5 +114,13 @@ export function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+  );
+}
+
+export function App() {
+  return (
+    <ClinicalDictionariesProvider>
+      <AppContent />
+    </ClinicalDictionariesProvider>
   );
 }

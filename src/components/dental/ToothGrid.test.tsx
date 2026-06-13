@@ -3,6 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { ToothGrid } from './ToothGrid';
 import type { ToothRecord, DentalFinding, ToothNumber } from '../../types';
+import { defaultDiagnoses, defaultClinicalWorks } from '../../config/clinicalDictionaries';
+
+vi.mock('../../data/hooks/useDictionaries', () => ({
+  useDictionaries: () => ({
+    diagnoses: defaultDiagnoses,
+    works: defaultClinicalWorks,
+  })
+}));
 
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

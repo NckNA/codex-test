@@ -4,6 +4,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { ToothEditorModal } from './ToothEditorModal';
 import type { DentalFinding, ToothRecord } from '../../types';
+import { defaultDiagnoses, defaultClinicalWorks } from '../../config/clinicalDictionaries';
+
+vi.mock('../../data/hooks/useDictionaries', () => ({
+  useDictionaries: () => ({
+    diagnoses: defaultDiagnoses,
+    works: defaultClinicalWorks,
+  })
+}));
 
 describe('ToothEditorModal', () => {
   let container: HTMLDivElement;

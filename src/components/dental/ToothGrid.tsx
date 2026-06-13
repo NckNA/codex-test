@@ -2,7 +2,9 @@ import type { ToothNumber, ToothRecord, DentalFinding, ToothCondition, ClinicalZ
 import { AnatomicalTooth } from './icons/AnatomicalTeeth';
 import { SurfaceRing } from './icons/SurfaceRing';
 import type { SurfaceType } from './icons/SurfaceRing';
-import { defaultDiagnoses } from '../../config/clinicalDictionaries';
+import type { ClinicalDiagnosis } from '../../config/clinicalDictionaries';
+import { useDictionaries } from '../../data/hooks/useDictionaries';
+import React from 'react';
 
 export type DentitionMode = 'adult' | 'child';
 
@@ -127,8 +129,6 @@ interface ZoneMarker {
 
 type ZoneAccentMap = Partial<Record<ClinicalZone, string>>;
 
-const DIAGNOSIS_BY_ID = new Map(defaultDiagnoses.map(diagnosis => [diagnosis.id, diagnosis]));
-
 const getDiagnosisAccentColor = (diagnosisId: string) => {
   if (diagnosisId.includes('caries')) return '#F97316';
   if (diagnosisId.includes('pulp') || diagnosisId.includes('necrosis')) return '#EF4444';
@@ -197,11 +197,11 @@ const createDisplayTooth = (toothNumber: ToothNumber, dentitionMode: DentitionMo
   completedWorks: [],
 });
 
-const getZoneMarkers = (tooth: ToothRecord, activeFindings: DentalFinding[]): ZoneMarker[] => {
+const getZoneMarkers = (tooth: ToothRecord, activeFindings: DentalFinding[], diagnosesMap: Map<string, ClinicalDiagnosis>): ZoneMarker[] => {
   const markers = new Map<ClinicalZone, ZoneMarkerState>();
 
   tooth.diagnoses?.forEach(diagnosisId => {
-    DIAGNOSIS_BY_ID.get(diagnosisId)?.allowedZones.forEach(zone => {
+    diagnosesMap.get(diagnosisId)?.allowedZones.forEach(zone => {
       mergeZoneMarker(markers, zone, 'active');
     });
   });
@@ -235,6 +235,7 @@ const getZoneAccents = (
   tooth: ToothRecord,
   activeFindings: DentalFinding[],
   zoneMarkers: ZoneMarker[],
+  diagnosesMap: Map<string, ClinicalDiagnosis>
 ): ZoneAccentMap => {
   const accents: ZoneAccentMap = {};
 
@@ -247,7 +248,7 @@ const getZoneAccents = (
   });
 
   tooth.diagnoses?.forEach(diagnosisId => {
-    const diagnosis = DIAGNOSIS_BY_ID.get(diagnosisId);
+    const diagnosis = diagnosesMap.get(diagnosisId);
     diagnosis?.allowedZones.forEach(zone => {
       accents[zone] = getDiagnosisAccentColor(diagnosisId);
     });
@@ -320,10 +321,10 @@ const getToothWidthClasses = (toothNumber: number) => {
   return 'w-8 sm:w-9';
 };
 
-const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, isUpper: boolean, onClick: () => void }) => {
+const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick, diagnosesMap }: { tooth: ToothRecord, findings: DentalFinding[], isSelected?: boolean, isUpper: boolean, onClick: () => void, diagnosesMap: Map<string, ClinicalDiagnosis> }) => {
   const activeFindings = getActiveFindings(findings);
-  const zoneMarkers = getZoneMarkers(tooth, activeFindings);
-  const zoneAccents = getZoneAccents(tooth, activeFindings, zoneMarkers);
+  const zoneMarkers = getZoneMarkers(tooth, activeFindings, diagnosesMap);
+  const zoneAccents = getZoneAccents(tooth, activeFindings, zoneMarkers, diagnosesMap);
 
   const getIndicator = () => {
     if (activeFindings.length === 0) return null;
@@ -502,6 +503,9 @@ export function ToothGrid({
   dentitionMode = 'adult',
   onDentitionModeChange,
 }: ToothGridProps) {
+  const { diagnoses } = useDictionaries();
+  const diagnosesMap = React.useMemo(() => new Map(diagnoses.map(d => [d.id, d])), [diagnoses]);
+
   const config = DENTITION_CONFIG[dentitionMode];
   const getTooth = (num: ToothNumber) => teeth.find(t => t.toothNumber === num) ?? createDisplayTooth(num, dentitionMode);
   const getFindingsForTooth = (num: number) => findings.filter(f => f.toothNumber === num);
@@ -515,6 +519,7 @@ export function ToothGrid({
         isSelected={selectedToothNumber === num}
         isUpper={isUpper}
         onClick={() => onToothClick(tooth)}
+        diagnosesMap={diagnosesMap}
       />
     );
   };
