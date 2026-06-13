@@ -33,10 +33,10 @@ This report confirms that the new Unified Clinical Registry layout is functional
 Screenshots were captured during browser QA but are not committed to the repository.
 
 ## Command Results
-- `npm run lint`: 0 errors
-- `npm run test`: 208 / 208 tests passed
-- `npm run build`: successfully built
-- `git status --short`: clean (only this report file added)
+* npm run lint — 0 errors
+* npm run test — 208 / 208 tests passed
+* npm run build — successfully built
+* git status --short — clean (only this report file added)
 
 ## Technical Status
 - Browser console is clean.
