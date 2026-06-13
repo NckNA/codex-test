@@ -23,6 +23,22 @@ const CLINICAL_ZONE_LABELS: Record<ClinicalZone, string> = {
   planning: 'Планирование',
 };
 
+function isRegistryTypeFilter(value: string): value is 'all' | 'diagnosis' | 'work' {
+  return ['all', 'diagnosis', 'work'].includes(value);
+}
+
+function isActivityFilter(value: string): value is 'all' | 'active' | 'disabled' {
+  return ['all', 'active', 'disabled'].includes(value);
+}
+
+function isClinicalZoneFilter(value: string): value is 'all' | ClinicalZone {
+  return value === 'all' || value in CLINICAL_ZONE_LABELS;
+}
+
+function isPresenceStatusFilter(value: string): value is 'all' | ToothPresenceStatus {
+  return value === 'all' || value in PRESENCE_STATUS_LABELS;
+}
+
 function hasIntersection<T>(a: T[] = [], b: T[] = []) {
   return a.some((item) => b.includes(item));
 }
@@ -194,7 +210,11 @@ export function MedicalPage() {
             <label className="block text-xs font-medium text-slate-700 mb-1">Тип</label>
             <select
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value as any)}
+              onChange={(e) => {
+                if (isRegistryTypeFilter(e.target.value)) {
+                  setFilterType(e.target.value);
+                }
+              }}
               className="w-full rounded-md border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 border bg-white"
             >
               <option value="all">Все типы</option>
@@ -206,7 +226,11 @@ export function MedicalPage() {
             <label className="block text-xs font-medium text-slate-700 mb-1">Активность</label>
             <select
               value={filterActivity}
-              onChange={(e) => setFilterActivity(e.target.value as any)}
+              onChange={(e) => {
+                if (isActivityFilter(e.target.value)) {
+                  setFilterActivity(e.target.value);
+                }
+              }}
               className="w-full rounded-md border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 border bg-white"
             >
               <option value="all">Все</option>
@@ -218,7 +242,11 @@ export function MedicalPage() {
             <label className="block text-xs font-medium text-slate-700 mb-1">Клиническая зона</label>
             <select
               value={filterZone}
-              onChange={(e) => setFilterZone(e.target.value as any)}
+              onChange={(e) => {
+                if (isClinicalZoneFilter(e.target.value)) {
+                  setFilterZone(e.target.value);
+                }
+              }}
               className="w-full rounded-md border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 border bg-white"
             >
               <option value="all">Все зоны</option>
@@ -231,7 +259,11 @@ export function MedicalPage() {
             <label className="block text-xs font-medium text-slate-700 mb-1">Статус зуба</label>
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
+              onChange={(e) => {
+                if (isPresenceStatusFilter(e.target.value)) {
+                  setFilterStatus(e.target.value);
+                }
+              }}
               className="w-full rounded-md border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 border bg-white"
             >
               <option value="all">Все статусы</option>
