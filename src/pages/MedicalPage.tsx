@@ -348,7 +348,7 @@ function WorkEditorRow({
   const handleSave = () => {
     if (!name.trim() || statuses.length === 0 || zones.length === 0) return;
     
-    let finalDiagnosisIds = allowedDiagnosisIds;
+    let finalDiagnosisIds: string[];
     if (workAccessType === 'base_available') {
       finalDiagnosisIds = [];
     } else {
