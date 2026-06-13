@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { ToothEditorModal } from './ToothEditorModal';
+import type { ToothZone } from './ToothZoneSelectorModal';
 import type { DentalFinding, ToothRecord } from '../../types';
 import { defaultDiagnoses, defaultClinicalWorks } from '../../config/clinicalDictionaries';
 
@@ -40,7 +41,7 @@ describe('ToothEditorModal', () => {
   function renderModal(
     onSave = vi.fn(),
     customTooth?: ToothRecord,
-    defaultZone?: string
+    defaultZone?: ToothZone
   ) {
     act(() => {
       root.render(
@@ -49,7 +50,7 @@ describe('ToothEditorModal', () => {
           tooth={customTooth || mockTooth}
           patientId="p1"
           existingFindings={[]}
-          defaultZone={defaultZone as any}
+          defaultZone={defaultZone}
           onClose={() => {}}
           onSave={onSave}
         />
@@ -272,8 +273,9 @@ describe('ToothEditorModal', () => {
   });
 
   it('handles legacy planning zone and invalid activeZone fallback without white screen', () => {
-    renderModal(vi.fn(), mockTooth, 'planning');
-    
+    const legacyPlanningZone = 'planning' as unknown as ToothZone;
+    renderModal(vi.fn(), mockTooth, legacyPlanningZone);
+
     const html = container.innerHTML;
     expect(html).toContain('Кариес эмали');
     expect(html).not.toContain('Отсутствие зуба');
@@ -284,7 +286,7 @@ describe('ToothEditorModal', () => {
     const work = defaultClinicalWorks.find(w => w.id === 'work_filling_1_surface');
     const originalPrice = work?.price;
     if (work) work.price = 15000;
-    
+
     const onSave = renderModal();
     clickByText('Кариес эмали');
     clickByText('Пломба 1 поверхность');
