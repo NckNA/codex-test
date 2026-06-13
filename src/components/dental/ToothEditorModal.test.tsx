@@ -105,9 +105,11 @@ describe('ToothEditorModal', () => {
     });
 
     const html = container.innerHTML;
-    expect(html).toContain('Планирование');
+    expect(html).toContain('Десна');
     expect(html).toContain('Кость');
-    expect(html).toContain('Отсутствие зуба');
+    expect(html).toContain('Ортопедия');
+    expect(html).not.toContain('Планирование');
+    expect(html).not.toContain('Отсутствие зуба'); // hidden because planning tab is gone
     expect(html).not.toContain('Каналы');
   });
 
