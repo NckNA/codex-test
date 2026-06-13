@@ -74,7 +74,7 @@ const LEGEND_CONDITIONS: ToothCondition[] = [
 ];
 
 const ZONE_LABELS: Record<ClinicalZone, string> = {
-  crown: 'Коронка',
+  crown: 'Коронковая часть',
   endodontics: 'Каналы',
   root: 'Корень',
   periodontium: 'Десна',
