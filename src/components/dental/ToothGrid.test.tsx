@@ -215,7 +215,7 @@ describe('ToothGrid', () => {
     });
 
     expect(container.querySelector('[data-testid="zone-marker-18-crown-planned"]')).not.toBeNull();
-    expect(container.textContent).toContain('Зоны: Коронка (в плане)');
+    expect(container.textContent).toContain('Зоны: Коронковая часть (в плане)');
 
     await act(async () => {
       root.unmount();
