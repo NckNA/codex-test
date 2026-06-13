@@ -21,13 +21,13 @@ describe('clinical dictionaries', () => {
 
   it('filters diagnoses by tooth presence status and clinical zone', () => {
     const crownDiagnoses = getDiagnosesByPresenceAndZone('natural', 'crown');
-    const missingPlanningDiagnoses = getDiagnosesByPresenceAndZone('missing', 'planning');
+    const missingOrthoDiagnoses = getDiagnosesByPresenceAndZone('missing', 'orthopedics');
 
     expect(crownDiagnoses.map((diagnosis) => diagnosis.id)).toContain('dx_caries_enamel');
     expect(crownDiagnoses.every((diagnosis) => diagnosis.allowedPresenceStatuses.includes('natural'))).toBe(true);
     expect(crownDiagnoses.every((diagnosis) => diagnosis.allowedZones.includes('crown'))).toBe(true);
-    expect(missingPlanningDiagnoses.map((diagnosis) => diagnosis.id)).toContain('dx_missing_tooth');
-    expect(missingPlanningDiagnoses.map((diagnosis) => diagnosis.id)).not.toContain('dx_caries_enamel');
+    expect(missingOrthoDiagnoses.map((diagnosis) => diagnosis.id)).toContain('dx_missing_tooth');
+    expect(missingOrthoDiagnoses.map((diagnosis) => diagnosis.id)).not.toContain('dx_caries_enamel');
   });
 
   it('filters works by tooth presence status and clinical zone', () => {
