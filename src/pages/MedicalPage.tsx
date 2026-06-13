@@ -123,6 +123,7 @@ export function MedicalPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | ToothPresenceStatus>('all');
   
   const [newItemType, setNewItemType] = useState<'diagnosis' | 'work' | null>(null);
+  const [newWorkId, setNewWorkId] = useState<string | null>(null);
 
   // Works currently require `setEditingId` to ensure only one is edited at a time in the old design,
   // but DiagnosisEditorRow used local state. To avoid rewriting their internal logic unnecessarily,
@@ -180,7 +181,7 @@ export function MedicalPage() {
             + Диагноз
           </button>
           <button
-            onClick={() => setNewItemType('work')}
+            onClick={() => { setNewItemType('work'); setNewWorkId(`work_${Date.now()}`); }}
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
           >
             + Работа
@@ -282,10 +283,10 @@ export function MedicalPage() {
             />
           )}
 
-          {newItemType === 'work' && (
+          {newItemType === 'work' && newWorkId && (
             <WorkEditorRow 
               work={{
-                id: `work_${Date.now()}`,
+                id: newWorkId,
                 type: 'work',
                 name: '',
                 price: 0,
