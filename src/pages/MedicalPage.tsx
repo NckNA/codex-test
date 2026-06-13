@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDictionaries } from '../data/hooks/useDictionaries';
 import type { ClinicalDiagnosis, ClinicalWork } from '../config/clinicalDictionaries';
 import { STATUS_TO_ZONES_MAP } from '../config/clinicalDictionaries';
@@ -22,6 +22,16 @@ const CLINICAL_ZONE_LABELS: Record<ClinicalZone, string> = {
   orthopedics: 'Ортопедия',
   planning: 'Планирование',
 };
+
+function hasIntersection<T>(a: T[] = [], b: T[] = []) {
+  return a.some((item) => b.includes(item));
+}
+
+function isDiagnosisCompatibleWithWork(diagnosis: ClinicalDiagnosis, workStatuses: ToothPresenceStatus[], workZones: ClinicalZone[]) {
+  return diagnosis.isActive !== false
+    && hasIntersection(diagnosis.allowedPresenceStatuses, workStatuses)
+    && hasIntersection(diagnosis.allowedZones, workZones);
+}
 
 function StatusZoneSelector({
   selectedStatuses,
@@ -341,6 +351,19 @@ function WorkEditorRow({
     if (!isNew) setEditing();
   };
 
+  const compatibleDiagnoses = useMemo(() => {
+    return diagnoses.filter(d => isDiagnosisCompatibleWithWork(d, statuses, zones));
+  }, [diagnoses, statuses, zones]);
+
+  useEffect(() => {
+    if (workAccessType === 'base_available') {
+      setAllowedDiagnosisIds([]);
+      return;
+    }
+    const compatibleIds = new Set(compatibleDiagnoses.map(d => d.id));
+    setAllowedDiagnosisIds(prev => prev.filter(id => compatibleIds.has(id)));
+  }, [compatibleDiagnoses, workAccessType]);
+
   const toggleDiagnosis = (id: string) => {
     setAllowedDiagnosisIds(prev => 
       prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
@@ -428,19 +451,23 @@ function WorkEditorRow({
       {workAccessType === 'requires_diagnosis' && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">Связанные диагнозы</label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-white">
-            {diagnoses.filter(d => d.isActive !== false).map(diagnosis => (
-              <label key={diagnosis.id} className="flex items-center space-x-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowedDiagnosisIds.includes(diagnosis.id)}
-                  onChange={() => toggleDiagnosis(diagnosis.id)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-slate-700">{diagnosis.name}</span>
-              </label>
-            ))}
-          </div>
+          {compatibleDiagnoses.length === 0 ? (
+            <p className="text-sm text-slate-500 italic">Нет совместимых диагнозов для выбранных статусов и зон.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-white">
+              {compatibleDiagnoses.map(diagnosis => (
+                <label key={diagnosis.id} className="flex items-center space-x-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowedDiagnosisIds.includes(diagnosis.id)}
+                    onChange={() => toggleDiagnosis(diagnosis.id)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-slate-700">{diagnosis.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
