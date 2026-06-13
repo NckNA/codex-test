@@ -444,24 +444,17 @@ export function getWorksByDiagnoses(
   });
 }
 
+export const STATUS_TO_ZONES_MAP: Record<ToothPresenceStatus, ClinicalZone[]> = {
+  natural: ['crown', 'endodontics', 'root', 'periodontium', 'orthopedics'],
+  deciduous: ['crown', 'endodontics', 'root', 'periodontium'],
+  root_remnant: ['root', 'periodontium', 'bone', 'orthopedics'],
+  implant: ['periodontium', 'orthopedics', 'bone'],
+  missing: ['planning', 'periodontium', 'bone', 'orthopedics'],
+  impacted: ['planning', 'crown', 'root', 'periodontium', 'bone'],
+};
+
 export function getAvailableZonesForPresence(
   presenceStatus: ToothPresenceStatus,
-  diagnoses: ClinicalDiagnosis[] = defaultDiagnoses,
-  works: ClinicalWork[] = defaultClinicalWorks,
 ): ClinicalZone[] {
-  const zones = new Set<ClinicalZone>();
-
-  for (const diagnosis of diagnoses) {
-    if (diagnosis.allowedPresenceStatuses.includes(presenceStatus)) {
-      diagnosis.allowedZones.forEach((zone) => zones.add(zone));
-    }
-  }
-
-  for (const work of works) {
-    if (work.allowedPresenceStatuses.includes(presenceStatus)) {
-      work.allowedZones.forEach((zone) => zones.add(zone));
-    }
-  }
-
-  return Array.from(zones);
+  return STATUS_TO_ZONES_MAP[presenceStatus] || [];
 }
