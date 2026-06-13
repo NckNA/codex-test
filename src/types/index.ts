@@ -163,21 +163,6 @@ export interface DentalChart {
   updatedAt: string;
 }
 
-export type DentalPhotoScope = 'chart' | 'tooth';
-
-export interface DentalPhoto {
-  id: string;
-  patientId: string;
-  scope: DentalPhotoScope;
-  toothNumber?: ToothNumber;
-  fileName: string;
-  fileSize: number;
-  fileType: string;
-  url: string;
-  storagePath?: string;
-  createdAt: string;
-}
-
 export type FindingCategory =
   | 'caries'
   | 'missing_tooth'

@@ -166,7 +166,7 @@ function deriveFindingSeverity(diagnosisIds: string[]): FindingSeverity {
 
 function formatPrice(price?: number): string | null {
   if (typeof price !== 'number') return null;
-  return `${price.toLocaleString('ru-RU')} ₸`;
+  return `${price.toLocaleString('ru-RU')} тг`;
 }
 
 function getWorkIds(records: PlannedWorkRecord[]): string[] {
@@ -242,6 +242,7 @@ export function ToothEditorModal({ isOpen, tooth, defaultZone, onClose, onSave }
       const preferredZone = mapToClinicalZone(defaultZone);
       const nextZone = getFirstAvailableZone(normalizedTooth.presenceStatus || 'natural', preferredZone);
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData(normalizedTooth);
       setActiveZone(nextZone);
       setManualVisualState(Boolean(normalizedTooth.visualStateOverride));

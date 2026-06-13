@@ -3,17 +3,16 @@ import { ToothGrid, type DentitionMode } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
 import type { ToothRecord, DentalFinding } from '../../types';
 import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
-import { Save, AlertTriangle, Camera, Images, Upload } from 'lucide-react';
+import { Save, AlertTriangle, Camera } from 'lucide-react';
 import { useDentalChart } from '../../data/hooks/useDentalChart';
 import { usePatientFindings } from '../../data/hooks/usePatientFindings';
 import { useClinicalWorkflow } from '../../data/hooks/useClinicalWorkflow';
-import { useDentalPhotos } from '../../data/hooks/useDentalPhotos';
 
 interface DentalChartTabProps {
   patientId: string;
 }
 
-const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+const SNAPSHOT_PADDING = 16;
 
 function normalizeFindingPayload(
   findingPayload: Partial<DentalFinding> | null
@@ -39,14 +38,98 @@ function normalizeFindingPayload(
   };
 }
 
-function formatPhotoDate(value: string) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+function getSafeTimestamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+function inlineComputedStyles(source: Element, target: Element) {
+  const computedStyle = window.getComputedStyle(source);
+  const inlineStyle = Array.from(computedStyle)
+    .map(property => `${property}:${computedStyle.getPropertyValue(property)};`)
+    .join('');
+
+  target.setAttribute('style', `${target.getAttribute('style') ?? ''};${inlineStyle}`);
+
+  if (target instanceof HTMLElement) {
+    target.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  }
+
+  Array.from(source.children).forEach((sourceChild, index) => {
+    const targetChild = target.children.item(index);
+    if (targetChild) inlineComputedStyles(sourceChild, targetChild);
+  });
+}
+
+function serializeElementForSnapshot(element: HTMLElement | SVGSVGElement) {
+  const clonedElement = element.cloneNode(true) as HTMLElement | SVGSVGElement;
+  inlineComputedStyles(element, clonedElement);
+  return new XMLSerializer().serializeToString(clonedElement);
+}
+
+function loadSnapshotImage(svgMarkup: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Не удалось подготовить PNG-снимок зубной карты.'));
+    };
+
+    image.src = url;
+  });
+}
+
+async function downloadElementAsPng(
+  element: HTMLElement | SVGSVGElement,
+  fileName: string,
+  padding = SNAPSHOT_PADDING
+) {
+  const rect = element.getBoundingClientRect();
+  const width = Math.ceil(Math.max(rect.width, 'scrollWidth' in element ? element.scrollWidth : rect.width));
+  const height = Math.ceil(Math.max(rect.height, 'scrollHeight' in element ? element.scrollHeight : rect.height));
+
+  if (width <= 0 || height <= 0) {
+    throw new Error('Не удалось определить размер области для снимка.');
+  }
+
+  const snapshotWidth = width + padding * 2;
+  const snapshotHeight = height + padding * 2;
+  const serializedElement = serializeElementForSnapshot(element);
+  const svgMarkup = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${snapshotWidth}" height="${snapshotHeight}" viewBox="0 0 ${snapshotWidth} ${snapshotHeight}">
+      <foreignObject x="${padding}" y="${padding}" width="${width}" height="${height}">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;min-height:${height}px;background:#ffffff;">
+          ${serializedElement}
+        </div>
+      </foreignObject>
+    </svg>
+  `;
+
+  const image = await loadSnapshotImage(svgMarkup);
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = snapshotWidth * scale;
+  canvas.height = snapshotHeight * scale;
+
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Браузер не смог создать canvas для PNG-снимка.');
+
+  context.scale(scale, scale);
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, snapshotWidth, snapshotHeight);
+  context.drawImage(image, 0, 0, snapshotWidth, snapshotHeight);
+
+  const downloadLink = document.createElement('a');
+  downloadLink.href = canvas.toDataURL('image/png');
+  downloadLink.download = fileName;
+  downloadLink.click();
 }
 
 export function DentalChartTab({ patientId }: DentalChartTabProps) {
@@ -63,21 +146,13 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   } = usePatientFindings(patientId);
 
   const { applyToothStatusChange } = useClinicalWorkflow();
-  const {
-    photos,
-    isLoading: isPhotosLoading,
-    isUploading: isPhotoUploading,
-    error: photosError,
-    uploadPhoto,
-  } = useDentalPhotos(patientId);
 
-  const chartPhotoInputRef = useRef<HTMLInputElement | null>(null);
-  const toothPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const chartSnapshotRef = useRef<HTMLDivElement | null>(null);
   const [selectedTooth, setSelectedTooth] = useState<ToothRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dentitionMode, setDentitionMode] = useState<DentitionMode>('adult');
-  const [photoFeedback, setPhotoFeedback] = useState<string | null>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isSnapshotting, setIsSnapshotting] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
 
   const [complaints, setComplaints] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -106,38 +181,49 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
     setIsModalOpen(false);
   };
 
-  const handlePhotoSelection = async (
-    file: File | undefined,
-    scope: 'chart' | 'tooth',
-  ) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Можно загрузить только фотографию или изображение.');
-      return;
+  const handleDownloadChartSnapshot = async () => {
+    if (!chartSnapshotRef.current) return;
+
+    try {
+      setSnapshotError(null);
+      setIsSnapshotting(true);
+      await downloadElementAsPng(
+        chartSnapshotRef.current,
+        `dental-chart-${patientId}-${dentitionMode}-${getSafeTimestamp()}.png`
+      );
+    } catch (error) {
+      console.error('Failed to export dental chart snapshot', error);
+      setSnapshotError(error instanceof Error ? error.message : 'Не удалось скачать снимок зубной карты.');
+    } finally {
+      setIsSnapshotting(false);
     }
-    if (file.size > MAX_PHOTO_SIZE_BYTES) {
-      setPhotoError('Размер фотографии не должен превышать 10 МБ.');
-      return;
-    }
-    if (scope === 'tooth' && !selectedTooth) {
-      setPhotoError('Сначала выберите зуб на формуле.');
+  };
+
+  const handleDownloadSelectedToothSnapshot = async () => {
+    if (!selectedTooth || !chartSnapshotRef.current) return;
+
+    const toothSvg = chartSnapshotRef.current.querySelector<SVGSVGElement>(
+      `svg[data-tooth-number="${selectedTooth.toothNumber}"]`
+    );
+
+    if (!toothSvg) {
+      setSnapshotError(`Не удалось найти SVG зуба ${selectedTooth.toothNumber} для снимка.`);
       return;
     }
 
     try {
-      setPhotoError(null);
-      setPhotoFeedback(null);
-      await uploadPhoto(
-        file,
-        scope,
-        scope === 'tooth' ? selectedTooth?.toothNumber : undefined,
+      setSnapshotError(null);
+      setIsSnapshotting(true);
+      await downloadElementAsPng(
+        toothSvg,
+        `tooth-${selectedTooth.toothNumber}-${patientId}-${getSafeTimestamp()}.png`,
+        20
       );
-      setPhotoFeedback(scope === 'tooth'
-        ? `Фотография зуба ${selectedTooth?.toothNumber} добавлена в карту пациента.`
-        : 'Фотография всей зубной карты добавлена в карту пациента.');
     } catch (error) {
-      console.error('Failed to upload dental photo', error);
-      setPhotoError(error instanceof Error ? error.message : 'Не удалось загрузить фотографию.');
+      console.error('Failed to export selected tooth snapshot', error);
+      setSnapshotError(error instanceof Error ? error.message : 'Не удалось скачать снимок выбранного зуба.');
+    } finally {
+      setIsSnapshotting(false);
     }
   };
 
@@ -201,72 +287,46 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
         </h3>
 
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={chartPhotoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={event => {
-              void handlePhotoSelection(event.target.files?.[0], 'chart');
-              event.target.value = '';
-            }}
-          />
-          <input
-            ref={toothPhotoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={event => {
-              void handlePhotoSelection(event.target.files?.[0], 'tooth');
-              event.target.value = '';
-            }}
-          />
           <button
             type="button"
-            onClick={() => chartPhotoInputRef.current?.click()}
-            disabled={isPhotoUploading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Фото карты
-          </button>
-          <button
-            type="button"
-            onClick={() => toothPhotoInputRef.current?.click()}
-            disabled={!selectedTooth || isPhotoUploading}
-            title={selectedTooth ? `Добавить фотографию зуба ${selectedTooth.toothNumber}` : 'Сначала выберите зуб'}
+            onClick={handleDownloadChartSnapshot}
+            disabled={isSnapshotting}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Camera className="h-3.5 w-3.5" />
-            {selectedTooth ? `Фото зуба ${selectedTooth.toothNumber}` : 'Фото зуба'}
+            Снимок карты
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadSelectedToothSnapshot}
+            disabled={!selectedTooth || isSnapshotting}
+            title={selectedTooth ? `Скачать снимок зуба ${selectedTooth.toothNumber}` : 'Сначала выберите зуб'}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Снимок зуба
           </button>
         </div>
       </div>
 
-      {(photoError || photosError) && (
-        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-          {photoError || photosError?.message}
-        </div>
-      )}
-
-      {photoFeedback && (
-        <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
-          {photoFeedback}
+      {snapshotError && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          {snapshotError}
         </div>
       )}
 
       <div className="flex flex-col lg:flex-row">
         <div className="min-w-0 flex-1 bg-slate-50 p-4 border-b lg:border-b-0 lg:border-r border-slate-200">
-          <ToothGrid
-            teeth={dentalChart.teeth}
-            findings={findings}
-            onToothClick={handleToothClick}
-            selectedToothNumber={selectedTooth?.toothNumber}
-            dentitionMode={dentitionMode}
-            onDentitionModeChange={handleDentitionModeChange}
-          />
+          <div ref={chartSnapshotRef} data-testid="dental-chart-snapshot-area">
+            <ToothGrid
+              teeth={dentalChart.teeth}
+              findings={findings}
+              onToothClick={handleToothClick}
+              selectedToothNumber={selectedTooth?.toothNumber}
+              dentitionMode={dentitionMode}
+              onDentitionModeChange={handleDentitionModeChange}
+            />
+          </div>
         </div>
 
         <div className="w-full lg:w-56 bg-white p-4 shrink-0 flex flex-col">
@@ -293,72 +353,6 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
           </div>
         </div>
       </div>
-
-      <section className="border-t border-slate-200 bg-white p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <Images className="h-4 w-4 text-blue-600" />
-              Клинические фотографии
-            </h4>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Фото реального состояния всей полости рта или выбранного зуба.
-            </p>
-          </div>
-          {photos.length > 0 && (
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-              {photos.length}
-            </span>
-          )}
-        </div>
-
-        {isPhotosLoading ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-            Загружаем фотографии...
-          </div>
-        ) : photos.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
-            <Camera className="mx-auto mb-2 h-6 w-6 text-slate-400" />
-            <p className="text-sm font-medium text-slate-600">Фотографий пока нет</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Используйте кнопки «Фото карты» или «Фото зуба».
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {photos.map(photo => (
-              <a
-                key={photo.id}
-                href={photo.url}
-                target="_blank"
-                rel="noreferrer"
-                className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow-md"
-              >
-                <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                  <img
-                    src={photo.url}
-                    alt={photo.scope === 'tooth'
-                      ? `Клиническая фотография зуба ${photo.toothNumber}`
-                      : 'Клиническая фотография зубной карты'}
-                    className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                  />
-                </div>
-                <div className="p-2">
-                  <div className="text-xs font-semibold text-slate-700">
-                    {photo.scope === 'tooth' ? `Зуб ${photo.toothNumber}` : 'Вся карта'}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-slate-500" title={photo.fileName}>
-                    {photo.fileName}
-                  </div>
-                  <div className="mt-1 text-[10px] text-slate-400">
-                    {formatPhotoDate(photo.createdAt)}
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
-      </section>
 
       <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white border-t border-slate-200">
         <div>

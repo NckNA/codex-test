@@ -49,8 +49,52 @@ export function MedicalPage() {
 }
 
 function DiagnosesEditor({ diagnoses, onSave }: { diagnoses: ClinicalDiagnosis[], onSave: (d: ClinicalDiagnosis) => void }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const handleAdd = () => {
+    if (!newName.trim()) return;
+    const newDiagnosis: ClinicalDiagnosis = {
+      id: `dx_${Date.now()}`,
+      type: 'diagnosis',
+      name: newName.trim(),
+      allowedPresenceStatuses: ['natural', 'deciduous'],
+      allowedZones: ['crown', 'endodontics', 'root', 'periodontium', 'bone', 'orthopedics', 'planning'],
+      isActive: true,
+    };
+    onSave(newDiagnosis);
+    setNewName('');
+    setIsAdding(false);
+  };
+
   return (
     <div className="space-y-4">
+      {isAdding ? (
+        <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4">
+          <h3 className="font-medium text-slate-900 mb-4">Новый диагноз / состояние</h3>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Название</label>
+            <input 
+              type="text" 
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+              placeholder="Например: Поверхностный кариес"
+            />
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Отмена</button>
+            <button onClick={handleAdd} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">Добавить</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button onClick={() => setIsAdding(true)} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+            + Добавить диагноз
+          </button>
+        </div>
+      )}
+
       {diagnoses.map(diagnosis => (
         <div key={diagnosis.id} className={`flex items-center justify-between rounded-lg border p-3 ${diagnosis.isActive === false ? 'bg-slate-50 opacity-60' : 'bg-white'}`}>
           <div>
@@ -67,18 +111,43 @@ function DiagnosesEditor({ diagnoses, onSave }: { diagnoses: ClinicalDiagnosis[]
           </div>
         </div>
       ))}
-      <div className="text-sm text-slate-500 italic mt-4">
-        Добавление новых диагнозов в MVP ограничено.
-      </div>
     </div>
   );
 }
 
 function WorksEditor({ works, diagnoses, onSave }: { works: ClinicalWork[], diagnoses: ClinicalDiagnosis[], onSave: (w: ClinicalWork) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [newWorkId, setNewWorkId] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
+      {newWorkId ? (
+        <WorkEditorRow 
+          work={{
+            id: newWorkId,
+            type: 'work',
+            name: '',
+            price: 0,
+            allowedPresenceStatuses: ['natural', 'deciduous'],
+            allowedZones: ['crown', 'endodontics', 'root', 'periodontium', 'bone', 'orthopedics', 'planning'],
+            allowedDiagnosisIds: [],
+            workAccessType: 'requires_diagnosis',
+            isActive: true,
+          }}
+          diagnoses={diagnoses}
+          onSave={(newWork) => { onSave(newWork); setNewWorkId(null); }}
+          isEditing={true}
+          setEditing={() => setNewWorkId(null)}
+          isNew={true}
+        />
+      ) : (
+        <div className="flex justify-end">
+          <button onClick={() => setNewWorkId(`work_${Date.now()}`)} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+            + Добавить работу
+          </button>
+        </div>
+      )}
+
       {works.map(work => (
         <WorkEditorRow 
           key={work.id} 
@@ -89,9 +158,6 @@ function WorksEditor({ works, diagnoses, onSave }: { works: ClinicalWork[], diag
           setEditing={() => setEditingId(editingId === work.id ? null : work.id)}
         />
       ))}
-      <div className="text-sm text-slate-500 italic mt-4">
-        Добавление новых работ в MVP ограничено.
-      </div>
     </div>
   );
 }
@@ -101,20 +167,25 @@ function WorkEditorRow({
   diagnoses, 
   onSave, 
   isEditing, 
-  setEditing 
+  setEditing,
+  isNew = false
 }: { 
   work: ClinicalWork, 
   diagnoses: ClinicalDiagnosis[], 
   onSave: (w: ClinicalWork) => void,
   isEditing: boolean,
-  setEditing: () => void
+  setEditing: () => void,
+  isNew?: boolean
 }) {
+  const [name, setName] = useState(work.name);
   const [price, setPrice] = useState(work.price || 0);
-  const [allowedDiagnosisIds, setAllowedDiagnosisIds] = useState<string[]>(work.allowedDiagnosisIds);
+  const [allowedDiagnosisIds, setAllowedDiagnosisIds] = useState<string[]>(work.allowedDiagnosisIds || []);
+  const [workAccessType, setWorkAccessType] = useState<ClinicalWork['workAccessType']>(work.workAccessType);
 
   const handleSave = () => {
-    onSave({ ...work, price, allowedDiagnosisIds });
-    setEditing();
+    if (!name.trim()) return;
+    onSave({ ...work, name, price, allowedDiagnosisIds, workAccessType });
+    if (!isNew) setEditing();
   };
 
   const toggleDiagnosis = (id: string) => {
@@ -130,7 +201,7 @@ function WorkEditorRow({
           <div>
             <h3 className="font-medium text-slate-900">{work.name}</h3>
             <p className="text-xs text-slate-500">
-              Цена: {work.price ? `${work.price} ₽` : 'не указана'} • Связанных диагнозов: {work.allowedDiagnosisIds.length}
+              Цена: {work.price ? `${work.price} тг` : 'не указана'} • Связанных диагнозов: {work.allowedDiagnosisIds?.length || 0}
             </p>
           </div>
           <div className="flex gap-2">
@@ -155,12 +226,35 @@ function WorkEditorRow({
   return (
     <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4">
       <div className="flex justify-between items-start mb-4">
-        <h3 className="font-medium text-slate-900">{work.name}</h3>
+        <h3 className="font-medium text-slate-900">{isNew ? 'Новая работа' : 'Редактирование работы'}</h3>
         <button onClick={setEditing} className="text-slate-400 hover:text-slate-600">✕</button>
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-slate-700 mb-1">Цена (₽)</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Название работы</label>
+        <input 
+          type="text" 
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full max-w-md rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+          placeholder="Название работы"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Тип доступа работы</label>
+        <select
+          value={workAccessType}
+          onChange={(e) => setWorkAccessType(e.target.value as ClinicalWork['workAccessType'])}
+          className="w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border bg-white"
+        >
+          <option value="base">Базовая (доступна всегда)</option>
+          <option value="requires_diagnosis">Лечебная (по диагнозу)</option>
+        </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-slate-700 mb-1">Цена (тг)</label>
         <input 
           type="number" 
           value={price}
@@ -169,7 +263,7 @@ function WorkEditorRow({
         />
       </div>
 
-      {work.workAccessType === 'requires_diagnosis' && (
+      {workAccessType === 'requires_diagnosis' && (
         <div className="mb-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">Связанные диагнозы</label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-white">
@@ -191,9 +285,10 @@ function WorkEditorRow({
       <div className="flex justify-end mt-4">
         <button
           onClick={handleSave}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+          disabled={!name.trim()}
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Сохранить изменения
+          {isNew ? 'Добавить' : 'Сохранить изменения'}
         </button>
       </div>
     </div>
