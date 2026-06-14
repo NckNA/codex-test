@@ -7,10 +7,17 @@ This task resolves the blocker discovered during `DICT-SUPABASE-001C-QA` where `
 `fix/dict-supabase-001c-type-mapping`
 
 ## 3. Commit Hash
-[Pending PR creation]
+1aad006b10bd737e9ba2a039c62c23c9b57a1d3c
 
 ## 4. PR URL
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/271
+
+## 4.1 PR head reviewed before final report update
+1aad006b10bd737e9ba2a039c62c23c9b57a1d3c
+
+## 4.2 Report update commit
+N/A because the final report update commit cannot reference itself before creation
+
 
 ## 5. Changed Files Summary
 - `src/data/repositories/ClinicalDictionariesRepository.ts`: Added `type: 'diagnosis'` and `type: 'work'` to Supabase domain mappers.
@@ -45,9 +52,17 @@ In `src/data/repositories/ClinicalDictionariesRepository.ts`:
 ## 12. Remaining Risks
 The domain models define `type` on `ClinicalDiagnosis` and `ClinicalWork` implicitly in some areas of the codebase but it is strictly enforced in components. Relying heavily on `item.type === 'diagnosis'` is safe now that the repository guarantees the literal string.
 
-## 13. Final Verdict
+## 13. Checks Results
+- `git status --short`: (Clean working tree after this commit)
+- `npm run lint`: Passed (0 errors, 0 warnings)
+- `npm run test -- --run`: Passed (258 tests passed in 34 files)
+- `npm run build`: Passed
+- `targeted repository tests`: Passed (`ClinicalDictionariesRepository.test.ts`)
+- `GitHub Actions CI`: Passing for this scope
+
+## 14. Final Verdict
 **READY FOR REVIEW**
 
-## 14. Recommended Next Task
+## 15. Recommended Next Task
 **DICT-SUPABASE-001C-QA-CONTINUE**:
 Re-run MedicalPage and ToothEditor runtime validation after type mapping fix to confirm overall readiness of the feature.
