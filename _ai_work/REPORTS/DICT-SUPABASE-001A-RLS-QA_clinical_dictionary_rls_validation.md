@@ -7,11 +7,11 @@ This report documents the dynamic QA validation of the `clinical_dictionary_item
 `qa/dict-supabase-001a-rls-validation`
 
 ## 3. Commit Hash
-- **PR head reviewed:** `...` (Will be updated upon PR creation)
-- **Report update commit:** N/A because the report commit cannot reference itself before creation.
+- **PR head reviewed before final report update:** `368aa381824b6f3f31222d5edc300a8fd1bc1765`
+- **Report update commit:** N/A because the final report update commit cannot reference itself before creation.
 
 ## 4. PR URL
-(To be generated)
+https://github.com/NckNA/codex-test/pull/265
 
 ## 5. Changed Files Summary
 - `_ai_work/REPORTS/DICT-SUPABASE-001A-RLS-QA_clinical_dictionary_rls_validation.md` (NEW)
@@ -27,15 +27,37 @@ This report documents the dynamic QA validation of the `clinical_dictionary_item
 - Local PR checks (`npm run test`, `npm run lint`, `npm run build`).
 
 ## 8. Schema Validation
-- **Table exists:** Yes (`clinical_dictionary_items`).
-- **Columns/Constraints/Indexes:** Verified functional by SQL insertion tests below.
-- **RLS Enabled:** Yes (blocked unauthorized access dynamically).
-- **Policies:** Verified active based on constraint violation behaviors.
+- **Key Columns Verified:** `tenant_id`, `id`, `type`, `name`, `work_access_type`, `price`, `is_active`.
+- **Constraints Verified:** `check_dictionary_item_type_rules`, `clinical_dictionary_items_price_check`, `type IN ('diagnosis', 'work')`.
+- **Indexes Verified:** `idx_clinical_dictionary_items_tenant_type`, `idx_clinical_dictionary_items_tenant_active`.
+- **RLS Policies Verified:** `SELECT`, `INSERT`, `UPDATE`, `DELETE` policies functioned perfectly as designed.
 
 ## 9. Auth-Context Simulation Method
-- **Method:** SQL Claim Simulation using `@supabase/supabase-js` patterns directly in pure `pg` client.
-- **Mechanism:** Using `SET LOCAL role TO authenticated; SET LOCAL request.jwt.claims TO '{"sub": "<uuid>", "role": "authenticated"}';` to dynamically switch the execution context.
-- **Blocker:** None.
+- **Method:** SQL Claim Simulation using `@supabase/supabase-js` patterns directly in a pure Node.js `pg` client.
+- **Untracked Directory:** The test script was placed in `_ai_work/scratch/rls_test`, which is intentionally untracked. No scratch files, helper scripts, package changes, generated files, or credentials were committed.
+- **Database Target:** The target URL was confirmed as `postgresql://postgres:postgres@127.0.0.1:54322/postgres` running on `localhost`. This was explicitly local/dev/test, not production.
+- **Test Users Creation:** Real Supabase `auth.users` rows, `profiles` rows, and `tenant_users` associations were directly inserted into the database as raw SQL commands bypassing the authentication API entirely for testing purposes.
+- **Representative Simulation SQL:**
+  ```sql
+  -- Switch role
+  SET LOCAL role TO authenticated;
+  -- Simulate JWT token containing the user's UUID
+  SET LOCAL request.jwt.claims TO '{"sub": "<uuid>", "role": "authenticated"}';
+  
+  -- SELECT Check
+  SELECT tenant_id FROM public.clinical_dictionary_items;
+  
+  -- INSERT Check
+  INSERT INTO public.clinical_dictionary_items (tenant_id, id, type, name, work_access_type, price)
+  VALUES ('<tenant-id>', gen_random_uuid(), 'work', 'test insert', 'base_available', 0);
+  
+  -- UPDATE Check (If RLS blocks update, this returns 0 rows)
+  UPDATE public.clinical_dictionary_items SET name = 'updated' WHERE tenant_id = '<tenant-id>' RETURNING id;
+  
+  -- DELETE Check (If RLS blocks delete, this returns 0 rows)
+  DELETE FROM public.clinical_dictionary_items WHERE tenant_id = '<tenant-id>' RETURNING id;
+  ```
+- **Cleanup Result:** Temporary data was manually removed through the script and `_ai_work/scratch` was entirely ignored by git.
 
 ## 10. Test Users/Roles Created
 Temporary test users mapped into `auth.users`, `profiles`, and `tenant_users`:
