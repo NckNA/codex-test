@@ -7,7 +7,7 @@ The Patient Overview medical summary has been made backend-aware, removing hard-
 `feature/clinical-summary-backend-001a`
 
 ## Commit Hash
-**PR head reviewed**: `b00d5586cb4746a93bf9d8328038c7c6bdde08f0`
+**PR head reviewed**: `59c8a07693fa04b634e27e99e3ab4bf41ea16178`
 **Report update commit**: `N/A because the report commit cannot reference itself before creation`
 
 ## PR URL
@@ -15,9 +15,9 @@ https://github.com/NckNA/codex-test/pull/262
 
 ## Changed Files Summary
 - `src/data/aggregators/ClinicalSummaryAggregator.ts`: Refactored to accept a `ClinicalSummaryRepositoryConfig` and use factory methods (`createDentalChartRepository`, etc.) instead of hard-coded `LocalStorage*` classes.
-- `src/data/aggregators/ClinicalSummaryAggregator.test.ts`: Updated tests to pass `{ backend: 'local' }` where appropriate and added tests for `supabase` backend behavior, including early return when no `tenantId` is present.
+- `src/data/aggregators/ClinicalSummaryAggregator.test.ts`: Updated tests to pass `{ backend: 'local' }` where appropriate and added tests for `supabase` backend behavior, including early return when no `tenantId` is present and explicit error propagation from Supabase repositories.
 - `src/data/hooks/usePatientMedicalSummary.ts`: Connected to `useAuth()` and `useTenant()` to compute the correct `backend` (supabase or local) and injected this into the aggregator.
-- `src/data/hooks/usePatientMedicalSummary.test.tsx`: Created new hook tests verifying proper backend resolution matrix (dev, supabase-active, missing tenant).
+- `src/data/hooks/usePatientMedicalSummary.test.tsx`: Created new hook tests verifying proper backend resolution matrix (dev, supabase-active with/without tenant, and unconfigured Supabase routing).
 
 ## Backend Selection Design
 - `usePatientMedicalSummary` dynamically derives the backend configuration based on the same pattern used by other hooks:
@@ -48,7 +48,7 @@ The code establishes two distinct boundaries to handle missing tenants safely:
 
 ## Tests Run and Results
 - `npm run test -- --run`
-- **Results**: 32 passed, 223 total assertions passed. Tests confirm all local, Supabase, and no-tenant routing conditions.
+- **Results**: 32 passed, 225 total assertions passed. Tests confirm all local, Supabase, unconfigured hook routing, and no-tenant routing conditions, as well as explicit Supabase error propagation.
 
 ## Browser Smoke Steps and Results
 - Started the application using `npm run dev`.
