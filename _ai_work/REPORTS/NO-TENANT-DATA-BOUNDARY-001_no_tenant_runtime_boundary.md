@@ -10,7 +10,7 @@ This task implements a secure runtime boundary for authenticated Supabase users 
 https://github.com/NckNA/codex-test/pull/277
 
 ## 4. PR head reviewed before final report update
-6cdcfeff55cce62736687a0a5d90d92966552326
+fbd55a062bfc4b8777fb2e599ee457123fe3a8ca
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -22,6 +22,7 @@ N/A because the final report update commit cannot reference itself before creati
 - `src/data/hooks/useDictionaries.tsx`
 - `src/data/hooks/usePatientFindings.test.tsx`
 - `src/data/hooks/usePatientFindings.ts`
+- `_ai_work/REPORTS/NO-TENANT-DATA-BOUNDARY-001_no_tenant_runtime_boundary.md`
 
 ## 7. Root cause
 Previously, when the application was in `supabase-active` mode but the active tenant context was undefined (or still loading), the repository initializers in the three affected hooks interpreted the falsy `tenantId` as a signal to fall back to the `local` backend. This resulted in no-tenant users seeing demo `localStorage` data for patient findings, dental charts, and dictionaries.
@@ -72,7 +73,7 @@ Previously, when the application was in `supabase-active` mode but the active te
 - `npm run lint`: PASS.
 - `npm run test -- --run`: PASS (258 tests).
 - `npm run build`: PASS.
-- GitHub Actions CI result: PASS, workflow `CI`, run 27515248730, head `6cdcfeff55cce62736687a0a5d90d92966552326`
+- GitHub Actions CI result: PASS, workflow `CI`, run 27515590976, head `fbd55a062bfc4b8777fb2e599ee457123fe3a8ca`
 
 ## 16. Final verdict
 PARTIAL with missing robust browser fixture smoke (MCP timeout).
