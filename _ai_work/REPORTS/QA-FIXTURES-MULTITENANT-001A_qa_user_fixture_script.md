@@ -10,7 +10,7 @@ Implemented a local/dev-only QA user fixture script using the Supabase Admin API
 https://github.com/NckNA/codex-test/pull/274
 
 ## 4. PR head reviewed before final report update
-796a9dd76929f4e78cc83358ecc13385aeab9739
+da430700e510352562e9eee3acd815b93851e351
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -69,7 +69,7 @@ npm run qa:seed-users # Second time to prove idempotency
 - `npm run lint`: PASS
 - `npm run test -- --run`: PASS (258 tests)
 - `npm run build`: PASS
-- GitHub Actions CI result: PASS, workflow `CI`, run #342, head `a7f4fd8`
+- GitHub Actions CI result: PASS, workflow `CI`, run #343, head `da430700e510352562e9eee3acd815b93851e351`
 
 ## 15. Remaining risks
 - Tenant B dictionaries remain empty by design in the seed; the UI handles this transparently, but it requires awareness during QA.
