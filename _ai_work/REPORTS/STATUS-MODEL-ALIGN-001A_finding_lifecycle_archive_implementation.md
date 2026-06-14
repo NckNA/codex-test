@@ -7,7 +7,7 @@ The goal of this task was to align the `DentalFinding` lifecycle statuses across
 `feature/status-model-align-001a-finding-lifecycle-archive`
 
 ## Commit Hash
-`{FINAL_COMMIT_HASH}`
+`b767409236fae96fd20f95dd06aeb010e1eeda0b`
 
 ## PR URL
 https://github.com/NckNA/codex-test/pull/261
