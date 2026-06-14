@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getPatientMedicalSummary } from './ClinicalSummaryAggregator';
+import * as FindingsRepositoryModule from '../repositories/FindingsRepository';
+import * as DentalChartRepositoryModule from '../repositories/DentalChartRepository';
+import * as TreatmentPlansRepositoryModule from '../repositories/TreatmentPlansRepository';
+import * as ChiefComplaintRepositoryModule from '../repositories/ChiefComplaintRepository';
+import * as AppointmentRepositoryModule from '../repositories/AppointmentRepository';
 import type { DentalChart, TreatmentPlan, DentalFinding, Appointment, ChiefComplaint, ToothRecord } from '../../types';
 
 describe('ClinicalSummaryAggregator', () => {
@@ -110,6 +115,30 @@ describe('ClinicalSummaryAggregator', () => {
       expect(summary.dentalSummary.needsTreatment).toBe(0);
       expect(summary.dentalSummary.missing).toBe(0);
       // It should not have queried local storage or anything
+    });
+
+    it('propagates Supabase errors instead of falling back to local storage', async () => {
+      vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository').mockReturnValue({
+        listFindingsByPatient: vi.fn().mockRejectedValue(new Error('Supabase network error')),
+      } as unknown as ReturnType<typeof FindingsRepositoryModule.createFindingsRepository>);
+      
+      vi.spyOn(DentalChartRepositoryModule, 'createDentalChartRepository').mockReturnValue({
+        getDentalChart: vi.fn().mockResolvedValue({ teeth: [] }),
+      } as unknown as ReturnType<typeof DentalChartRepositoryModule.createDentalChartRepository>);
+      
+      vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository').mockReturnValue({
+        listTreatmentPlansByPatient: vi.fn().mockResolvedValue([]),
+      } as unknown as ReturnType<typeof TreatmentPlansRepositoryModule.createTreatmentPlansRepository>);
+      
+      vi.spyOn(ChiefComplaintRepositoryModule, 'createChiefComplaintRepository').mockReturnValue({
+        getChiefComplaint: vi.fn().mockResolvedValue(null),
+      } as unknown as ReturnType<typeof ChiefComplaintRepositoryModule.createChiefComplaintRepository>);
+      
+      vi.spyOn(AppointmentRepositoryModule, 'createAppointmentRepository').mockReturnValue({
+        listAppointments: vi.fn().mockResolvedValue([]),
+      } as unknown as ReturnType<typeof AppointmentRepositoryModule.createAppointmentRepository>);
+
+      await expect(getPatientMedicalSummary('patient_1', { backend: 'supabase', tenantId: 't1' })).rejects.toThrow('Supabase network error');
     });
   });
 });

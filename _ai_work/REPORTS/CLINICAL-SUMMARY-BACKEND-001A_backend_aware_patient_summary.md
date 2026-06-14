@@ -7,11 +7,11 @@ The Patient Overview medical summary has been made backend-aware, removing hard-
 `feature/clinical-summary-backend-001a`
 
 ## Commit Hash
-**PR head reviewed**: `19eb19a6d48dcff80cf0eb8204618e47228a4cc3` *(will be the final commit pushed)*
+**PR head reviewed**: `b00d5586cb4746a93bf9d8328038c7c6bdde08f0`
 **Report update commit**: `N/A because the report commit cannot reference itself before creation`
 
 ## PR URL
-*(To be created)*
+https://github.com/NckNA/codex-test/pull/262
 
 ## Changed Files Summary
 - `src/data/aggregators/ClinicalSummaryAggregator.ts`: Refactored to accept a `ClinicalSummaryRepositoryConfig` and use factory methods (`createDentalChartRepository`, etc.) instead of hard-coded `LocalStorage*` classes.
@@ -33,9 +33,10 @@ The Patient Overview medical summary has been made backend-aware, removing hard-
 - Dev environments and logged-out states continue to route to `'local'` backend correctly.
 - Hardcoded class usage has been completely removed from the production path in favor of the factory pattern, which seamlessly supports both local and remote scenarios.
 
-## Supabase Behavior
-- In `supabase-active` mode with a valid tenant, the aggregator fetches all required records via Supabase-backed repository instances.
-- If no tenant is available in `supabase` mode, the aggregator returns an empty summary without issuing queries, avoiding both false local fallback data and Supabase 400 errors.
+## No-Tenant Behavior
+The code establishes two distinct boundaries to handle missing tenants safely:
+1. **Hook Boundary**: `usePatientMedicalSummary` gracefully falls back to routing queries to the local storage backend (`backend = 'local'`) if `activeTenant` is missing while in `supabase-active` mode. This ensures local dev mode / uninitialized environments don't break.
+2. **Aggregator Boundary**: As a direct misuse guard, `getPatientMedicalSummary` enforces that if `backend` is explicitly set to `supabase` but no `tenantId` is provided, it returns an empty summary immediately. This guarantees that we never accidentally query Supabase without a tenant, thereby avoiding 400 errors or leaked records.
 
 ## Error Propagation Behavior
 - Since Supabase repositories are now correctly instantiated, any network or database-level errors thrown by `Promise.all` inside `getPatientMedicalSummary` are properly surfaced to the `useAsyncQuery` wrapper.

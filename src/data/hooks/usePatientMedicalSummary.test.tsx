@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { usePatientMedicalSummary } from './usePatientMedicalSummary';
 import * as ClinicalSummaryAggregatorModule from '../aggregators/ClinicalSummaryAggregator';
+import * as SupabaseClientModule from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 
@@ -99,5 +100,34 @@ describe('usePatientMedicalSummary', () => {
     await act(async () => {
       root.unmount();
     });
+  });
+
+  it('routes to local backend when authMode is supabase-active but isSupabaseConfigured is false', async () => {
+    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: false, configurable: true });
+    const aggregatorSpy = vi.spyOn(ClinicalSummaryAggregatorModule, 'getPatientMedicalSummary').mockResolvedValue(ClinicalSummaryAggregatorModule.EMPTY_PATIENT_MEDICAL_SUMMARY);
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+
+    const TestComponent = () => {
+      usePatientMedicalSummary('patient_1');
+      return null;
+    };
+
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<TestComponent />);
+    });
+
+    expect(aggregatorSpy).toHaveBeenCalledWith('patient_1', expect.objectContaining({ backend: 'local', tenantId: 'real-tenant-id' }));
+
+    await act(async () => {
+      root.unmount();
+    });
+    
+    // Restore
+    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: true, configurable: true });
   });
 });
