@@ -138,3 +138,14 @@ Repository integration (001B) MUST wait until the Demo Clinic seed is implemente
 
 **Recommended Next Task Prompt:**
 "Execute DICT-SUPABASE-SEED-001A: Seed Demo Clinic A clinical dictionaries into supabase/seed.sql using the exact definitions from src/config/clinicalDictionaries.ts."
+
+## 21. Checks and PR metadata
+- PR URL: https://github.com/NckNA/codex-test/pull/266
+- Branch: recon/dict-default-seed-001
+- PR head reviewed before final report update: ec42df2d7a7fadd1b4f6a75cd873ef940ca79164
+- Report update commit: N/A because the final report update commit cannot reference itself before creation
+- git status --short: clean
+- npm run lint: Passed
+- npm run test -- --run: Passed (32 files, 225 assertions)
+- npm run build: Passed
+- GitHub Actions CI: pass (Green)
