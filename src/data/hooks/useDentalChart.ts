@@ -64,7 +64,7 @@ export function useDentalChart(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [repository, patientId, refetch]);
+  }, [repository, patientId, refetch, isNoTenantSupabase]);
 
   return {
     dentalChart,

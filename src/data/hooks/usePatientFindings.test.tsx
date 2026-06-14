@@ -92,12 +92,12 @@ describe('usePatientFindings', () => {
       listFindingsByPatient: vi.fn(),
       createFinding: vi.fn(),
     };
-    factorySpy.mockReturnValue(mockRepo as any);
+    factorySpy.mockReturnValue(mockRepo as unknown as ReturnType<typeof FindingsRepositoryModule.createFindingsRepository>);
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
-    let hookResult: any;
+    let hookResult: ReturnType<typeof usePatientFindings>;
 
     const TestComponent = () => {
       hookResult = usePatientFindings('patient_1');
@@ -115,7 +115,7 @@ describe('usePatientFindings', () => {
     expect(factorySpy).toHaveBeenCalledWith(expect.objectContaining({ backend: 'local', tenantId: undefined }));
 
     // But fails safely on write
-    await expect(hookResult.createFinding({} as any)).rejects.toThrow("Active clinic is required for Supabase data access.");
+    await expect(hookResult!.createFinding({} as never)).rejects.toThrow("Active clinic is required for Supabase data access.");
     expect(mockRepo.createFinding).not.toHaveBeenCalled();
 
     await act(async () => {

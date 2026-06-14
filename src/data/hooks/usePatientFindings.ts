@@ -59,7 +59,7 @@ export function usePatientFindings(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [repository, patientId, refetch]);
+  }, [repository, patientId, refetch, isNoTenantSupabase]);
 
   const updateFinding = useCallback(async (finding: DentalFinding): Promise<void> => {
     if (isNoTenantSupabase) {
@@ -79,7 +79,7 @@ export function usePatientFindings(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [repository, patientId, refetch]);
+  }, [repository, patientId, refetch, isNoTenantSupabase]);
 
   const deleteFinding = useCallback(async (findingId: string): Promise<void> => {
     if (isNoTenantSupabase) {
@@ -99,7 +99,7 @@ export function usePatientFindings(patientId: string) {
     } finally {
       setIsSaving(false);
     }
-  }, [repository, patientId, refetch]);
+  }, [repository, patientId, refetch, isNoTenantSupabase]);
 
   return {
     findings: findings || [],

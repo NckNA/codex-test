@@ -136,7 +136,7 @@ describe('useDictionaries', () => {
       expect(result.current.loading).toBe(false);
 
       // Should fail safely on write
-      await expect(result.current.saveDiagnosis({ id: 'd1' } as any)).rejects.toThrow("Active clinic is required for Supabase data access.");
+      await expect(result.current.saveDiagnosis({ id: 'd1' } as never)).rejects.toThrow("Active clinic is required for Supabase data access.");
       expect(mockRepo.saveDiagnosis).not.toHaveBeenCalled();
 
       await result.unmount();
