@@ -112,7 +112,11 @@ async function run() {
       reusedCount++;
       // Admin API doesn't have an easy "ensure confirmed" update without re-sending invite if it was already confirmed,
       // but listUsers includes confirmation status. We will just ensure password works by updating it.
-      await supabase.auth.admin.updateUserById(userId, { password, email_confirm: true });
+      const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, { password, email_confirm: true });
+      if (updateErr) {
+        console.error('  Failed to update user:', updateErr.message);
+        process.exit(1);
+      }
     } else {
       console.log('  Creating new auth user...');
       const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
@@ -122,7 +126,7 @@ async function run() {
       });
       if (createErr) {
         console.error('  Failed to create user:', createErr.message);
-        continue;
+        process.exit(1);
       }
       userId = newUser.user.id;
       createdCount++;
@@ -140,13 +144,17 @@ async function run() {
     
     if (profileErr) {
       console.error('  Failed to upsert profile:', profileErr.message);
-      continue;
+      process.exit(1);
     }
     profilesUpserted++;
 
     // Tenant Memberships
     console.log('  Resetting tenant memberships...');
-    await supabase.from('tenant_users').delete().eq('user_id', userId);
+    const { error: deleteErr } = await supabase.from('tenant_users').delete().eq('user_id', userId);
+    if (deleteErr) {
+      console.error('  Failed to reset tenant memberships:', deleteErr.message);
+      process.exit(1);
+    }
 
     if (persona.memberships.length > 0) {
       console.log(`  Inserting ${persona.memberships.length} memberships...`);
@@ -158,6 +166,7 @@ async function run() {
       const { error: tenantErr } = await supabase.from('tenant_users').insert(inserts);
       if (tenantErr) {
         console.error('  Failed to insert tenant_users:', tenantErr.message);
+        process.exit(1);
       } else {
         tenantUsersInserted += inserts.length;
       }
