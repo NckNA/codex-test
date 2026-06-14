@@ -7,16 +7,16 @@ This report analyzes the current authentication and tenant architectures to dete
 `recon/qa-fixtures-multitenant-001`
 
 ## 3. PR URL
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/273
 
 ## 4. PR head reviewed before final report update
-[Pending PR creation]
+eb28db56653d3d50a59b456d0c8f9a4172830c2b
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
 
 ## 6. Changed files summary
-[Pending PR creation]
+- `[NEW] _ai_work/REPORTS/RECON-QA-FIXTURES-MULTITENANT-001_plan.md`
 
 ## 7. Current Auth/Tenant Model
 - **AuthContext:** Uses `isSupabaseConfigured` (checks environment variables). If true, it binds to `supabase.auth.getSession()` and `onAuthStateChange`. If false, it falls back to a mocked dev user.
@@ -126,11 +126,11 @@ A dedicated script (`scripts/seed-qa-users.cjs`) utilizes the official `@supabas
 - This PR remains strictly report-only.
 
 ## 18. Checks Run
-- `git status --short`: [To be generated]
-- `npm run lint`: [To be generated]
-- `npm run test -- --run`: [To be generated]
-- `npm run build`: [To be generated]
-- GitHub Actions CI result: [To be generated]
+- `git status --short`: Clean (all committed)
+- `npm run lint`: PASS
+- `npm run test -- --run`: PASS (258 tests)
+- `npm run build`: PASS
+- GitHub Actions CI result: PASS, workflow `CI`, run #334, head `eb28db5`
 
 ## 19. Final Verdict
 **READY FOR QA-FIXTURES-MULTITENANT-001A**
