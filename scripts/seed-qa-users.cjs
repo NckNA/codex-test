@@ -1,6 +1,4 @@
 const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
 
 async function run() {
   const isDryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1';
@@ -28,10 +26,26 @@ async function run() {
   }
 
   // 2. URL safety validation
-  const lowerUrl = url.toLowerCase();
-  const isLocalhost = lowerUrl.startsWith('http://127.0.0.1') || lowerUrl.startsWith('http://localhost');
-  if (!isLocalhost || lowerUrl.includes('.supabase.co')) {
-    console.error(`ERROR: SUPABASE_URL (${url}) appears to be non-local or production. Only loopback http URLs are allowed.`);
+  try {
+    const parsedUrl = new URL(url);
+    const validHostnames = ['localhost', '127.0.0.1', '::1'];
+    
+    if (parsedUrl.protocol !== 'http:') {
+      console.error('ERROR: SUPABASE_URL must use http: protocol for local dev.');
+      process.exit(1);
+    }
+    
+    if (!validHostnames.includes(parsedUrl.hostname)) {
+      console.error('ERROR: SUPABASE_URL hostname must be localhost or 127.0.0.1.');
+      process.exit(1);
+    }
+    
+    if (parsedUrl.hostname.endsWith('.supabase.co')) {
+      console.error('ERROR: SUPABASE_URL appears to be a production Supabase URL.');
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error('ERROR: Invalid SUPABASE_URL provided.');
     process.exit(1);
   }
 
