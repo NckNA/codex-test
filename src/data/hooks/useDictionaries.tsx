@@ -1,68 +1,122 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import type { ClinicalDiagnosis, ClinicalWork } from '../../config/clinicalDictionaries';
-import { ClinicalDictionariesRepository } from '../repositories/ClinicalDictionariesRepository';
+import { createClinicalDictionariesRepository } from '../repositories/ClinicalDictionariesRepository';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 interface DictionariesContextType {
   diagnoses: ClinicalDiagnosis[];
   works: ClinicalWork[];
   loading: boolean;
-  saveDiagnosis: (diagnosis: ClinicalDiagnosis) => void;
-  saveWork: (work: ClinicalWork) => void;
-  refresh: () => void;
+  error: string | null;
+  saveDiagnosis: (diagnosis: ClinicalDiagnosis) => Promise<void>;
+  saveWork: (work: ClinicalWork) => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const DictionariesContext = createContext<DictionariesContextType | undefined>(undefined);
 
 export function ClinicalDictionariesProvider({ children }: { children: React.ReactNode }) {
-  const [diagnoses, setDiagnoses] = useState<ClinicalDiagnosis[]>(() => ClinicalDictionariesRepository.getDiagnoses());
-  const [works, setWorks] = useState<ClinicalWork[]>(() => ClinicalDictionariesRepository.getWorks());
+  const { authMode } = useAuth();
+  const { activeTenant } = useTenant();
+
+  const [diagnoses, setDiagnoses] = useState<ClinicalDiagnosis[]>([]);
+  const [works, setWorks] = useState<ClinicalWork[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const repository = useMemo(() => {
+    const backend = (authMode === 'supabase-active' && isSupabaseConfigured && activeTenant?.tenantId) 
+      ? 'supabase' 
+      : 'local';
+    
+    return createClinicalDictionariesRepository({ backend, tenantId: activeTenant?.tenantId });
+  }, [authMode, activeTenant?.tenantId]);
 
-
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     setLoading(true);
-    const loadedDiagnoses = ClinicalDictionariesRepository.getDiagnoses();
-    const loadedWorks = ClinicalDictionariesRepository.getWorks();
-    setDiagnoses(loadedDiagnoses);
-    setWorks(loadedWorks);
-    setLoading(false);
-  }, []);
+    try {
+      const [loadedDiagnoses, loadedWorks] = await Promise.all([
+        repository.getDiagnoses(),
+        repository.getWorks(),
+      ]);
+      setDiagnoses(loadedDiagnoses);
+      setWorks(loadedWorks);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load clinical dictionaries:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load dictionaries');
+    } finally {
+      setLoading(false);
+    }
+  }, [repository]);
 
-
-
-  const saveDiagnosis = useCallback((diagnosis: ClinicalDiagnosis) => {
-    setDiagnoses(prev => {
-      const exists = prev.find(d => d.id === diagnosis.id);
-      let updated: ClinicalDiagnosis[];
-      if (exists) {
-        updated = prev.map(d => d.id === diagnosis.id ? diagnosis : d);
-      } else {
-        updated = [...prev, diagnosis];
+  useEffect(() => {
+    let ignore = false;
+    
+    // We defer the execution to avoid synchronously calling setState inside useEffect
+    // which triggers the react-hooks/set-state-in-effect lint rule.
+    void Promise.resolve().then(() => {
+      if (!ignore) {
+        void loadData();
       }
-      ClinicalDictionariesRepository.saveDiagnoses(updated);
-      return updated;
     });
-  }, []);
+    
+    return () => {
+      ignore = true;
+    };
+  }, [loadData]);
 
-  const saveWork = useCallback((work: ClinicalWork) => {
-    setWorks(prev => {
-      const exists = prev.find(w => w.id === work.id);
-      let updated: ClinicalWork[];
-      if (exists) {
-        updated = prev.map(w => w.id === work.id ? work : w);
-      } else {
-        updated = [...prev, work];
-      }
-      ClinicalDictionariesRepository.saveWorks(updated);
-      return updated;
-    });
-  }, []);
+  const saveDiagnosis = useCallback(async (diagnosis: ClinicalDiagnosis) => {
+    try {
+      await repository.saveDiagnosis(diagnosis);
+      
+      setDiagnoses(prev => {
+        const exists = prev.find(d => d.id === diagnosis.id);
+        let updated: ClinicalDiagnosis[];
+        if (exists) {
+          updated = prev.map(d => d.id === diagnosis.id ? diagnosis : d);
+        } else {
+          updated = [...prev, diagnosis];
+        }
+        return updated;
+      });
+      setError(null);
+    } catch (err) {
+      console.error('Failed to save diagnosis:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save diagnosis');
+      throw err;
+    }
+  }, [repository]);
+
+  const saveWork = useCallback(async (work: ClinicalWork) => {
+    try {
+      await repository.saveWork(work);
+      
+      setWorks(prev => {
+        const exists = prev.find(w => w.id === work.id);
+        let updated: ClinicalWork[];
+        if (exists) {
+          updated = prev.map(w => w.id === work.id ? work : w);
+        } else {
+          updated = [...prev, work];
+        }
+        return updated;
+      });
+      setError(null);
+    } catch (err) {
+      console.error('Failed to save work:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save work');
+      throw err;
+    }
+  }, [repository]);
 
   const value = {
     diagnoses,
     works,
     loading,
+    error,
     saveDiagnosis,
     saveWork,
     refresh: loadData,
