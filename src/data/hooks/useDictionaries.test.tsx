@@ -168,12 +168,9 @@ describe('useDictionaries', () => {
       mockRepo.getDiagnoses.mockResolvedValue([{ id: 'd1', name: 'Dx 1' }]);
       mockRepo.getWorks.mockResolvedValue([{ id: 'w1', name: 'Wk 1' }]);
 
-      let currentContext: any;
-      let forceUpdate: () => void;
+      let currentContext: ReturnType<typeof useDictionaries> | undefined;
       
       const TestComponent = () => {
-        const [, setTick] = React.useState(0);
-        forceUpdate = () => setTick(t => t + 1);
         currentContext = useDictionaries();
         return null;
       };
@@ -190,7 +187,7 @@ describe('useDictionaries', () => {
       });
 
       // Verify loaded
-      expect(currentContext.diagnoses).toHaveLength(1);
+      expect(currentContext!.diagnoses).toHaveLength(1);
 
       // Now transition
       vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
@@ -204,9 +201,9 @@ describe('useDictionaries', () => {
       });
 
       // Verify empty arrays
-      expect(currentContext.diagnoses).toEqual([]);
-      expect(currentContext.works).toEqual([]);
-      expect(currentContext.loading).toBe(false);
+      expect(currentContext!.diagnoses).toEqual([]);
+      expect(currentContext!.works).toEqual([]);
+      expect(currentContext!.loading).toBe(false);
 
       await act(async () => {
         root.unmount();
