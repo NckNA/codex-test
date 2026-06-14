@@ -7,7 +7,8 @@ The goal of this task was to align the `DentalFinding` lifecycle statuses across
 `feature/status-model-align-001a-finding-lifecycle-archive`
 
 ## Commit Hash
-`c421578f1873b9172740906a4ec822a398c50289`
+- PR head reviewed: `c421578f1873b9172740906a4ec822a398c50289`
+- Report update commit: N/A because the report commit cannot reference itself before creation
 
 ## PR URL
 https://github.com/NckNA/codex-test/pull/261
@@ -85,11 +86,20 @@ Hard deleting a finding destroys referential data (e.g., historical treatments a
 - Build check run: `npm run build` (successful compilation).
 
 ## Real Browser Smoke Steps and Results
-**SMOKE SKIPPED**
-A real manual browser session was skipped in this iteration because the fixes pertained strictly to non-visual repository normalization, ToothGrid marker state logic, test adjustments, and `FindingsRisksTab` active/inactive grouping. These behaviors were fully covered by updated unit tests (`src/components/dental/ToothGrid.test.tsx`, `src/data/repositories/FindingsRepository.test.ts`, and `src/components/dental/FindingsRisksTab.test.tsx`).
+- Started `npm run dev` and opened `http://localhost:5173/patients/p1` using `chrome-devtools-mcp`.
+- Navigated to "Проблемы и риски" (Findings-Risks tab).
+- Verified that finding `47` (initially in active statuses) was visible.
+- Clicked "Отказ пациента" on `47` (a chief-complaint related problem).
+- Verified that `47` moved out of "Проблемы, связанные с жалобой" into "Архив / Отказ / Завершено". The "Проблемы, связанные с жалобой" section correctly hid itself since it had no other active items.
+- Clicked the delete (trash) icon on finding `24` ("Выявленные проблемы") to trigger the archive behavior.
+- Accepted the confirmation dialog via MCP.
+- Verified that `24` successfully moved into "Архив / Отказ / Завершено".
+- Verified that both `47` (declined) and `24` (archived) displayed their canonical badges ("Отказ" and "Архив").
+- Verified that **none** of the normal workflow buttons ("В наблюдение", "Отказ пациента", "Завершить") were rendered for items inside the "Архив / Отказ / Завершено" block.
+- Console and network were completely clean with no React warnings or API errors.
 
 ## Console/Network Issues
-None observed during the automated checks.
+None observed during the real browser session.
 
 ## Remaining Risks
 Since `LocalStorageFindingsRepository` normalizes on read, if the user interacts with normalized items and re-saves them, it will persist as canonical. If they never resave, the data stays legacy in local storage. This is acceptable for a local-fallback but could cause slight synchronization inconsistencies if mixed backend environments are used (unlikely in production since it's fully Supabase).
