@@ -7,7 +7,7 @@ The goal of this task was to align the `DentalFinding` lifecycle statuses across
 `feature/status-model-align-001a-finding-lifecycle-archive`
 
 ## Commit Hash
-`748fcbc8b74dc86fa8ee1fb21b42b61c6b85d5d7`
+`{FINAL_COMMIT_HASH}`
 
 ## PR URL
 https://github.com/NckNA/codex-test/pull/261
@@ -25,10 +25,13 @@ https://github.com/NckNA/codex-test/pull/261
   - `src/components/dental/DentalChartTab.tsx`
   - `src/components/dental/FindingModal.tsx`
   - `src/components/dental/FindingsRisksTab.tsx`
+  - `src/components/dental/FindingsRisksTab.test.tsx` (Added UI testing for archived items)
   - `src/components/dental/ToothGrid.tsx` and tests
   - `src/components/patients/patient-card/PatientOverviewTab.tsx`
   - `src/components/treatment/CreatePlanFromFindingsModal.tsx`
   - `src/components/treatment/TreatmentPlanPatientPreview.tsx`
+- **ESLint Scope Exceptions**:
+  - `src/data/hooks/useDictionaries.tsx` (Small ESLint scope exception to disable `react-refresh/only-export-components`)
 
 ## Canonical Status Model
 - `discovered`
@@ -60,6 +63,7 @@ The Supabase migration now explicitly drops the constraint `findings_status_chec
 - Status drop-downs and badges across the application only show canonical statuses.
 - The UI filters out archived findings from standard active findings views (like Dental Chart Tab).
 - ToothGrid active markers now correctly map statuses: high/urgent -> risk, planned -> planned, monitoring -> monitoring, other active -> active. Archived and completed are not shown as active.
+- `FindingsRisksTab` excludes archived findings from active/chief-complaint groups and does not display normal workflow action buttons for inactive items (archived, completed, declined).
 
 ## Treatment Workflow Changes
 - Automatically updating finding status to `planned` when a finding is included in a treatment plan.
@@ -75,13 +79,14 @@ Hard deleting a finding destroys referential data (e.g., historical treatments a
 - Modifying authentication, tenant, or amoCRM integration files.
 
 ## Tests Run and Results
-- Unit tests run: 217 passed, 0 failed (`npm run test -- --run`). Includes tests for LocalStorage normalization, Supabase normalization, ToothGrid marker state, and archiving vs hard delete.
-- Lint tests run: `npm run lint` (0 errors, 3 non-blocking warnings).
+- Local unit tests verify updates (`FindingsRepository.test.ts`, `ToothGrid.test.tsx`, `FindingsRisksTab.test.tsx`).
+- `npm run lint`: **Passed** (0 errors, 0 warnings. Warnings resolved and CI green).
+- `npm run test -- --run`: **Passed** (219 tests passing).
 - Build check run: `npm run build` (successful compilation).
 
 ## Real Browser Smoke Steps and Results
 **SMOKE SKIPPED**
-A real manual browser session was skipped in this iteration because the fixes pertained strictly to non-visual repository normalization, ToothGrid marker state logic, and test adjustments. These behaviors were fully covered by updated unit tests (`src/components/dental/ToothGrid.test.tsx` and `src/data/repositories/FindingsRepository.test.ts`).
+A real manual browser session was skipped in this iteration because the fixes pertained strictly to non-visual repository normalization, ToothGrid marker state logic, test adjustments, and `FindingsRisksTab` active/inactive grouping. These behaviors were fully covered by updated unit tests (`src/components/dental/ToothGrid.test.tsx`, `src/data/repositories/FindingsRepository.test.ts`, and `src/components/dental/FindingsRisksTab.test.tsx`).
 
 ## Console/Network Issues
 None observed during the automated checks.

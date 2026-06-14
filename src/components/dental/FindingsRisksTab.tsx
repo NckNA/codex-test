@@ -5,6 +5,7 @@ import type { CreateFindingInput } from '../../data/repositories/FindingsReposit
 import { FindingModal } from './FindingModal';
 import { useChiefComplaint } from '../../data/hooks/useChiefComplaint';
 import { usePatientFindings } from '../../data/hooks/usePatientFindings';
+import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 
 interface FindingsRisksTabProps {
   patientId: string;
@@ -160,11 +161,11 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
   };
 
   const categorizedFindings = {
-    chiefComplaintRelated: findings.filter(f => f.isChiefComplaintRelated),
+    chiefComplaintRelated: findings.filter(f => f.isChiefComplaintRelated && ACTIVE_FINDING_STATUSES.includes(f.status)),
     discovered: findings.filter(f => !f.isChiefComplaintRelated && f.status === 'discovered' && f.category !== 'risk_zone'),
-    riskZones: findings.filter(f => !f.isChiefComplaintRelated && (f.category === 'risk_zone' || f.status === 'monitoring')),
+    riskZones: findings.filter(f => !f.isChiefComplaintRelated && (f.category === 'risk_zone' || f.status === 'monitoring') && ACTIVE_FINDING_STATUSES.includes(f.status)),
     inPlan: findings.filter(f => f.status === 'planned'),
-    other: findings.filter(f => f.status === 'completed' || f.status === 'declined_by_patient'),
+    other: findings.filter(f => f.status === 'completed' || f.status === 'declined_by_patient' || f.status === 'archived'),
   };
 
   const FindingCard = ({ finding }: { finding: DentalFinding }) => (
@@ -232,7 +233,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
         )}
       </div>
 
-      {finding.status !== 'planned' && finding.status !== 'completed' && (
+      {ACTIVE_FINDING_STATUSES.includes(finding.status) && finding.status !== 'planned' && (
         <div className="flex gap-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
           {finding.status !== 'monitoring' && (
              <button 
