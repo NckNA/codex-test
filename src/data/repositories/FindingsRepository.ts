@@ -16,7 +16,11 @@ export interface FindingsRepository {
 
 export const LocalStorageFindingsRepository: FindingsRepository = {
   async listFindingsByPatient(patientId: string): Promise<DentalFinding[]> {
-    return storage.getFindings(patientId);
+    const findings = storage.getFindings(patientId);
+    return findings.map(f => ({
+      ...f,
+      status: normalizeFindingStatus(f.status)
+    }));
   },
 
   async createFinding(patientId: string, finding: CreateFindingInput): Promise<void> {
@@ -102,7 +106,7 @@ function buildFindingPayload(
     recommendation: finding.recommendation ?? null,
     is_chief_complaint_related: finding.isChiefComplaintRelated ?? false,
     include_in_treatment_plan: finding.includeInTreatmentPlan ?? false,
-    status: finding.status,
+    status: normalizeFindingStatus(finding.status),
   };
 
   if (id) payload.id = id;

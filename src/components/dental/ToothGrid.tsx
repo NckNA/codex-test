@@ -178,7 +178,8 @@ const mergeZoneMarker = (markers: Map<ClinicalZone, ZoneMarkerState>, zone: Clin
 const getFindingZoneState = (finding: DentalFinding): ZoneMarkerState => {
   if (finding.severity === 'high' || finding.severity === 'urgent') return 'risk';
   if (finding.status === 'planned') return 'planned';
-  return 'monitoring';
+  if (finding.status === 'monitoring') return 'monitoring';
+  return 'active';
 };
 
 const getWorkRecordZoneState = (status: string): ZoneMarkerState | null => {
@@ -268,6 +269,8 @@ const getZoneAccents = (
       accents[finding.clinicalZone] = '#10B981';
     } else if (finding.status === 'monitoring') {
       accents[finding.clinicalZone] = '#F59E0B';
+    } else {
+      accents[finding.clinicalZone] = '#0EA5E9';
     }
   });
 

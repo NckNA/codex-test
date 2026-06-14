@@ -1,17 +1,5 @@
--- 1. Dynamically drop the existing check constraint on findings.status
-DO $$
-DECLARE
-    const_name text;
-BEGIN
-    SELECT conname INTO const_name
-    FROM pg_constraint
-    WHERE conrelid = 'findings'::regclass 
-      AND pg_get_constraintdef(oid) LIKE '%status IN%';
-    
-    IF const_name IS NOT NULL THEN
-        EXECUTE 'ALTER TABLE findings DROP CONSTRAINT ' || const_name;
-    END IF;
-END $$;
+-- 1. Explicitly drop the existing check constraint on findings.status
+ALTER TABLE findings DROP CONSTRAINT IF EXISTS findings_status_check;
 
 -- 2. Backfill legacy statuses to canonical statuses
 UPDATE findings SET status = 'discovered' WHERE status = 'recommended';

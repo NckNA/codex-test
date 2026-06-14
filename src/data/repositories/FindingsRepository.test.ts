@@ -26,6 +26,15 @@ describe('FindingsRepository', () => {
       expect(patient1Findings[0].id).toBe('1');
     });
 
+    it('normalizes legacy statuses on read', async () => {
+      const finding = { id: '1', patientId: 'patient_1', status: 'recommended' } as unknown as DentalFinding;
+      localStorage.setItem('df_dental_findings', JSON.stringify([finding]));
+
+      const patient1Findings = await LocalStorageFindingsRepository.listFindingsByPatient('patient_1');
+      expect(patient1Findings).toHaveLength(1);
+      expect(patient1Findings[0].status).toBe('discovered');
+    });
+
     it('createFinding persists finding with generated id, patientId, createdAt, updatedAt', async () => {
       const findingDraft: CreateFindingInput = {
         toothNumber: 11,
@@ -268,6 +277,23 @@ describe('FindingsRepository', () => {
         diagnosis_ids: ['dx_gingivitis'],
         planned_work_ids: ['work_hygiene_instruction'],
         planned_work_record_ids: ['record_1'],
+      }));
+    });
+
+    it('normalizes legacy statuses before writing to Supabase', async () => {
+      const repo = new SupabaseFindingsRepository('tenant1', mockClient);
+      await repo.createFinding('patient1', {
+        title: 'Legacy',
+        category: 'caries',
+        severity: 'low',
+        description: '',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        status: 'included_in_plan' as any,
+      });
+
+      expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'planned',
       }));
     });
 
