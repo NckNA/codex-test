@@ -93,6 +93,7 @@ describe('ClinicalDictionariesRepository', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 'dx_1',
+        type: 'diagnosis',
         name: 'Test Dx',
         description: 'Test Desc',
         allowedPresenceStatuses: ['natural'],
@@ -169,6 +170,7 @@ describe('ClinicalDictionariesRepository', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 'work_1',
+        type: 'work',
         name: 'Test Work',
         description: 'Test Desc',
         allowedPresenceStatuses: ['natural'],
@@ -413,6 +415,44 @@ describe('ClinicalDictionariesRepository', () => {
     it('throws if unrecognized backend', () => {
       // @ts-expect-error Intentionally invalid backend
       expect(() => createClinicalDictionariesRepository({ backend: 'invalid' })).toThrow();
+    });
+  });
+  describe('F. MedicalPage compatibility regression', () => {
+    it('filters correctly by type', async () => {
+      const repo = new SupabaseClinicalDictionariesRepository(tenantId);
+      
+      const mockDiagnosisRow = { id: 'dx_1', name: 'Dx' }; // maps to type: 'diagnosis'
+      const mockWorkRow = { id: 'work_1', name: 'Wk' }; // maps to type: 'work'
+
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      
+      mockSupabase.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockDiagnosisRow], error: null }),
+      } as unknown);
+
+      mockSupabase.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockWorkRow], error: null }),
+      } as unknown);
+
+      const diagnoses = await repo.getDiagnoses();
+      const works = await repo.getWorks();
+      
+      const combined = [...diagnoses, ...works];
+      
+      const filteredDiagnoses = combined.filter(item => item.type === 'diagnosis');
+      const filteredWorks = combined.filter(item => item.type === 'work');
+      
+      expect(filteredDiagnoses).toHaveLength(1);
+      expect(filteredDiagnoses[0].id).toBe('dx_1');
+      
+      expect(filteredWorks).toHaveLength(1);
+      expect(filteredWorks[0].id).toBe('work_1');
     });
   });
 });
