@@ -1,8 +1,8 @@
-import { LocalStorageDentalChartRepository } from '../repositories/DentalChartRepository';
-import { LocalStorageTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
-import { LocalStorageChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
-import { LocalStorageFindingsRepository } from '../repositories/FindingsRepository';
-import { LocalStorageAppointmentRepository } from '../repositories/AppointmentRepository';
+import { createDentalChartRepository } from '../repositories/DentalChartRepository';
+import { createTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
+import { createChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
+import { createFindingsRepository } from '../repositories/FindingsRepository';
+import { createAppointmentRepository } from '../repositories/AppointmentRepository';
 import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 
 export interface PatientDentalSummary {
@@ -22,6 +22,11 @@ export interface PatientMedicalSummaryData {
   nextVisit?: Date;
 }
 
+export interface ClinicalSummaryRepositoryConfig {
+  backend: 'local' | 'supabase';
+  tenantId?: string;
+}
+
 export const EMPTY_PATIENT_DENTAL_SUMMARY: PatientDentalSummary = {
   needsTreatment: 0,
   missing: 0,
@@ -37,17 +42,28 @@ export const EMPTY_PATIENT_MEDICAL_SUMMARY: PatientMedicalSummaryData = {
   dentalSummary: EMPTY_PATIENT_DENTAL_SUMMARY,
 };
 
-export async function getPatientMedicalSummary(patientId: string): Promise<PatientMedicalSummaryData> {
+export async function getPatientMedicalSummary(patientId: string, config: ClinicalSummaryRepositoryConfig): Promise<PatientMedicalSummaryData> {
   if (!patientId) {
     return EMPTY_PATIENT_MEDICAL_SUMMARY;
   }
 
+  if (config.backend === 'supabase' && !config.tenantId) {
+    // Cannot query supabase without tenantId
+    return EMPTY_PATIENT_MEDICAL_SUMMARY;
+  }
+
+  const chartRepo = createDentalChartRepository(config);
+  const plansRepo = createTreatmentPlansRepository(config);
+  const complaintRepo = createChiefComplaintRepository(config);
+  const findingsRepo = createFindingsRepository(config);
+  const appointmentRepo = createAppointmentRepository(config);
+
   const [chart, plans, complaint, findings, allAppointments] = await Promise.all([
-    LocalStorageDentalChartRepository.getDentalChart(patientId),
-    LocalStorageTreatmentPlansRepository.listTreatmentPlansByPatient(patientId),
-    LocalStorageChiefComplaintRepository.getChiefComplaint(patientId),
-    LocalStorageFindingsRepository.listFindingsByPatient(patientId),
-    LocalStorageAppointmentRepository.listAppointments(),
+    chartRepo.getDentalChart(patientId),
+    plansRepo.listTreatmentPlansByPatient(patientId),
+    complaintRepo.getChiefComplaint(patientId),
+    findingsRepo.listFindingsByPatient(patientId),
+    appointmentRepo.listAppointments(),
   ]);
 
   const patientAppointments = allAppointments
