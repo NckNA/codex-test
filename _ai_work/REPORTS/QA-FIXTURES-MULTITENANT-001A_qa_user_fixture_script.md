@@ -7,10 +7,10 @@ Implemented a local/dev-only QA user fixture script using the Supabase Admin API
 `feature/qa-fixtures-multitenant-001a`
 
 ## 3. PR URL
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/274
 
 ## 4. PR head reviewed before final report update
-[Pending PR creation]
+a90c143c12b8d9eca0e948268171ed6338d406dc
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -63,13 +63,13 @@ npm run qa:seed-users # Second time to prove idempotency
 - No business logic or existing package dependencies changed.
 
 ## 14. Checks
-- `git status --short`: [To be generated]
+- `git status --short`: Clean (all committed)
 - `node --check scripts/seed-qa-users.cjs`: PASS
 - `dry-run command`: PASS
-- `npm run lint`: [To be generated]
-- `npm run test -- --run`: [To be generated]
-- `npm run build`: [To be generated]
-- GitHub Actions CI result: [To be generated]
+- `npm run lint`: PASS
+- `npm run test -- --run`: PASS (258 tests)
+- `npm run build`: PASS
+- GitHub Actions CI result: PASS, workflow `CI`, run #335, head `a90c143`
 
 ## 15. Remaining risks
 - Tenant B dictionaries remain empty by design in the seed; the UI handles this transparently, but it requires awareness during QA.
