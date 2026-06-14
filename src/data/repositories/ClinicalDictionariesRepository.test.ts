@@ -93,7 +93,6 @@ describe('ClinicalDictionariesRepository', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 'dx_1',
-        type: 'diagnosis',
         name: 'Test Dx',
         description: 'Test Desc',
         allowedPresenceStatuses: ['natural'],
@@ -170,7 +169,6 @@ describe('ClinicalDictionariesRepository', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         id: 'work_1',
-        type: 'work',
         name: 'Test Work',
         description: 'Test Desc',
         allowedPresenceStatuses: ['natural'],

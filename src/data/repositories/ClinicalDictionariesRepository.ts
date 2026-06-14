@@ -110,7 +110,6 @@ export class SupabaseClinicalDictionariesRepository implements IClinicalDictiona
 
     return data.map(row => ({
       id: row.id,
-      type: 'diagnosis',
       name: row.name,
       description: row.description || undefined,
       allowedPresenceStatuses: row.allowed_presence_statuses || [],
@@ -134,7 +133,6 @@ export class SupabaseClinicalDictionariesRepository implements IClinicalDictiona
 
     return data.map(row => ({
       id: row.id,
-      type: 'work',
       name: row.name,
       description: row.description || undefined,
       allowedPresenceStatuses: row.allowed_presence_statuses || [],
