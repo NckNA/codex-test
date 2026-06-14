@@ -79,7 +79,7 @@ describe('FindingsRepository', () => {
       expect(p2[0].status).toBe('discovered');
     });
 
-    it('deleteFinding removes only matching finding', async () => {
+    it('deleteFinding archives matching finding instead of removing', async () => {
       const finding1: DentalFinding = { id: '1', patientId: 'patient_1', toothNumber: 11, category: 'caries', title: 'A', severity: 'medium', description: 'a', isChiefComplaintRelated: false, includeInTreatmentPlan: false, status: 'discovered', createdAt: 'old', updatedAt: 'old' };
       const finding2: DentalFinding = { id: '2', patientId: 'patient_1', toothNumber: 12, category: 'caries', title: 'B', severity: 'medium', description: 'b', isChiefComplaintRelated: false, includeInTreatmentPlan: false, status: 'discovered', createdAt: 'old', updatedAt: 'old' };
       
@@ -88,8 +88,10 @@ describe('FindingsRepository', () => {
       await LocalStorageFindingsRepository.deleteFinding('patient_1', '1');
 
       const p1 = await LocalStorageFindingsRepository.listFindingsByPatient('patient_1');
-      expect(p1).toHaveLength(1);
-      expect(p1[0].id).toBe('2');
+      expect(p1).toHaveLength(2);
+      const archived = p1.find(f => f.id === '1');
+      expect(archived?.status).toBe('archived');
+      expect(archived?.updatedAt).not.toBe('old');
     });
   });
 
@@ -335,7 +337,7 @@ describe('FindingsRepository', () => {
       expect(mockEq).toHaveBeenCalledWith('id', 'uuid-1');
     });
 
-    it('deleteFinding filters by tenant_id and finding id', async () => {
+    it('deleteFinding updates status to archived and filters by tenant_id and finding id', async () => {
       mockEq.mockReturnValueOnce({ eq: mockEq });
       mockEq.mockReturnValueOnce({ eq: mockEq });
       mockEq.mockResolvedValueOnce({ error: null });
@@ -343,7 +345,7 @@ describe('FindingsRepository', () => {
       const repo = new SupabaseFindingsRepository('tenant1', mockClient);
       await repo.deleteFinding('patient1', 'uuid-1');
 
-      expect(mockDelete).toHaveBeenCalled();
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'archived' }));
       expect(mockEq).toHaveBeenCalledWith('tenant_id', 'tenant1');
       expect(mockEq).toHaveBeenCalledWith('patient_id', 'patient1');
       expect(mockEq).toHaveBeenCalledWith('id', 'uuid-1');

@@ -24,7 +24,7 @@ export const demoDentalFindings: DentalFinding[] = [
     recommendation: 'Рекомендовано лечение кариеса 47 зуба.',
     isChiefComplaintRelated: true,
     includeInTreatmentPlan: true,
-    status: 'recommended',
+    status: 'discovered',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -56,7 +56,7 @@ export const demoDentalFindings: DentalFinding[] = [
     recommendation: 'Контрольный осмотр.',
     isChiefComplaintRelated: false,
     includeInTreatmentPlan: false,
-    status: 'observing',
+    status: 'monitoring',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }

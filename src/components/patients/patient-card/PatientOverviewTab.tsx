@@ -11,7 +11,7 @@ interface PatientOverviewTabProps {
     chiefComplaintText: string;
     highUrgentFindings: number;
     notIncludedFindings: number;
-    observingFindings: number;
+    monitoringFindings: number;
   };
   lastVisit?: Date;
   nextVisit?: Date;
@@ -247,7 +247,7 @@ export function PatientOverviewTab({
              <div className="flex justify-between items-center text-sm">
                <span className="text-slate-500">Наблюдение</span>
                <span className="font-semibold text-blue-600">
-                 {dentalSummary.observingFindings}
+                 {dentalSummary.monitoringFindings}
                </span>
              </div>
              <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-100">

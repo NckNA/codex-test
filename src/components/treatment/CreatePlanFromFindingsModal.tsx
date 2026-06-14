@@ -42,14 +42,13 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   discovered: 'Выявлено',
-  recommended: 'Рекомендовано',
-  included_in_plan: 'Включено в план',
-  observing: 'Наблюдение',
+  planned: 'В плане',
+  monitoring: 'Наблюдение',
   declined_by_patient: 'Отказ',
   completed: 'Завершено',
 };
 
-const ELIGIBLE_STATUSES = new Set<FindingStatus>(['discovered', 'recommended', 'observing']);
+const ELIGIBLE_STATUSES = new Set<FindingStatus>(['discovered', 'monitoring']);
 const ACTIVE_PLAN_STATUSES = new Set<TreatmentPlanStatus>(['draft', 'approved', 'in_progress']);
 
 export function CreatePlanFromFindingsModal({

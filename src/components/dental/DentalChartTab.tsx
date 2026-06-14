@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ToothGrid, type DentitionMode } from './ToothGrid';
 import { ToothEditorModal } from './ToothEditorModal';
+import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 import type { ToothRecord, DentalFinding } from '../../types';
 import type { ToothStatusFindingInput } from '../../data/orchestrators/ClinicalWorkflowOrchestrator';
 import { Save, AlertTriangle, Camera } from 'lucide-react';
@@ -254,10 +255,10 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
   };
 
   const summary = {
-    active: findings.filter(f => ['discovered', 'recommended', 'included_in_plan', 'observing'].includes(f.status)).length,
-    highUrgent: findings.filter(f => ['high', 'urgent'].includes(f.severity) && ['discovered', 'recommended', 'included_in_plan'].includes(f.status)).length,
-    inPlan: findings.filter(f => f.status === 'included_in_plan').length,
-    observing: findings.filter(f => f.status === 'observing').length,
+    active: findings.filter(f => ACTIVE_FINDING_STATUSES.includes(f.status)).length,
+    highUrgent: findings.filter(f => ['high', 'urgent'].includes(f.severity) && ACTIVE_FINDING_STATUSES.includes(f.status)).length,
+    inPlan: findings.filter(f => f.status === 'planned').length,
+    monitoring: findings.filter(f => f.status === 'monitoring').length,
   };
 
   const handleSaveTextData = async () => {
@@ -348,7 +349,7 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-slate-600">В наблюдении:</span>
-              <span className="font-semibold text-blue-600">{summary.observing}</span>
+              <span className="font-semibold text-blue-600">{summary.monitoring}</span>
             </div>
           </div>
         </div>

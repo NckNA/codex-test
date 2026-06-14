@@ -2,7 +2,8 @@ import { storage } from '../../utils/storage';
 import type { ClinicalZone, DentalFinding } from '../../types';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { FindingCategory, FindingSeverity, FindingStatus } from '../../types';
+import type { FindingCategory, FindingSeverity } from '../../types';
+import { normalizeFindingStatus } from '../../domain/findingStatus';
 
 export type CreateFindingInput = Omit<DentalFinding, 'id' | 'patientId' | 'createdAt' | 'updatedAt'>;
 
@@ -27,7 +28,11 @@ export const LocalStorageFindingsRepository: FindingsRepository = {
   },
 
   async deleteFinding(patientId: string, findingId: string): Promise<void> {
-    storage.deleteFinding(patientId, findingId);
+    const findings = storage.getFindings(patientId);
+    const finding = findings.find(f => f.id === findingId);
+    if (finding) {
+      storage.updateFinding(patientId, { ...finding, status: 'archived', updatedAt: new Date().toISOString() });
+    }
   },
 };
 
@@ -68,7 +73,7 @@ function mapFindingRow(row: Record<string, unknown>): DentalFinding {
     recommendation: row.recommendation ? String(row.recommendation) : undefined,
     isChiefComplaintRelated: Boolean(row.is_chief_complaint_related),
     includeInTreatmentPlan: Boolean(row.include_in_treatment_plan),
-    status: row.status as FindingStatus,
+    status: normalizeFindingStatus(row.status as string),
     clinicalZone: row.clinical_zone ? row.clinical_zone as ClinicalZone : undefined,
     diagnosisIds: Array.isArray(row.diagnosis_ids) ? row.diagnosis_ids.map(String) : [],
     plannedWorkIds: Array.isArray(row.planned_work_ids) ? row.planned_work_ids.map(String) : [],
@@ -178,7 +183,7 @@ export class SupabaseFindingsRepository implements FindingsRepository {
   async deleteFinding(patientId: string, findingId: string): Promise<void> {
     const { error } = await this.client
       .from('findings')
-      .delete()
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
       .eq('tenant_id', this.tenantId)
       .eq('patient_id', patientId)
       .eq('id', findingId);

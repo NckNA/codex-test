@@ -181,11 +181,12 @@ export type FindingSeverity = 'low' | 'medium' | 'high' | 'urgent';
 
 export type FindingStatus =
   | 'discovered'
-  | 'recommended'
-  | 'included_in_plan'
-  | 'observing'
+  | 'planned'
+  | 'in_treatment'
+  | 'completed'
   | 'declined_by_patient'
-  | 'completed';
+  | 'monitoring'
+  | 'archived';
 
 export interface DentalFinding {
   id: string;
