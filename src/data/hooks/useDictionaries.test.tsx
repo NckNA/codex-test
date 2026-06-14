@@ -9,9 +9,13 @@ import * as ClinicalDictionariesRepositoryModule from '../repositories/ClinicalD
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 
+const { mockSupabaseConfigured } = vi.hoisted(() => ({ mockSupabaseConfigured: { value: true } }));
+
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {},
-  isSupabaseConfigured: true,
+  get isSupabaseConfigured() {
+    return mockSupabaseConfigured.value;
+  }
 }));
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -32,23 +36,27 @@ vi.mock('../repositories/ClinicalDictionariesRepository', () => {
   };
 });
 
+import type { IClinicalDictionariesRepository } from '../repositories/ClinicalDictionariesRepository';
+import type { Mock } from 'vitest';
+
 describe('useDictionaries', () => {
   let mockRepo: {
-    getDiagnoses: ReturnType<typeof vi.fn>;
-    getWorks: ReturnType<typeof vi.fn>;
-    saveDiagnosis: ReturnType<typeof vi.fn>;
-    saveWork: ReturnType<typeof vi.fn>;
+    getDiagnoses: Mock;
+    getWorks: Mock;
+    saveDiagnosis: Mock;
+    saveWork: Mock;
   };
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockSupabaseConfigured.value = true;
     mockRepo = {
       getDiagnoses: vi.fn().mockResolvedValue([]),
       getWorks: vi.fn().mockResolvedValue([]),
       saveDiagnosis: vi.fn().mockResolvedValue(undefined),
       saveWork: vi.fn().mockResolvedValue(undefined),
     };
-    vi.mocked(ClinicalDictionariesRepositoryModule.createClinicalDictionariesRepository).mockReturnValue(mockRepo as any);
+    vi.mocked(ClinicalDictionariesRepositoryModule.createClinicalDictionariesRepository).mockReturnValue(mockRepo as unknown as IClinicalDictionariesRepository);
   });
 
   const setup = async () => {
@@ -98,6 +106,17 @@ describe('useDictionaries', () => {
       const { unmount } = await setup();
       
       expect(ClinicalDictionariesRepositoryModule.createClinicalDictionariesRepository).toHaveBeenCalledWith({ backend: 'supabase', tenantId: 'real-tenant-id' });
+      await unmount();
+    });
+
+    it('uses local backend when authMode is supabase-active, activeTenant exists, but isSupabaseConfigured is false', async () => {
+      mockSupabaseConfigured.value = false;
+      vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+
+      const { unmount } = await setup();
+      
+      expect(ClinicalDictionariesRepositoryModule.createClinicalDictionariesRepository).toHaveBeenCalledWith({ backend: 'local', tenantId: 'real-tenant-id' });
       await unmount();
     });
 
