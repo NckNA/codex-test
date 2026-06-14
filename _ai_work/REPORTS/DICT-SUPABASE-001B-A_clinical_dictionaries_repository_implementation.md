@@ -3,15 +3,16 @@
 ## 1. Summary
 This task implemented the foundational repository layer for clinical dictionaries (`SupabaseClinicalDictionariesRepository`), keeping the runtime UI facade synchronously local. A new factory pattern supports dynamic resolution between `LocalStorageClinicalDictionariesRepository` and `SupabaseClinicalDictionariesRepository`. The mappings for diagnoses and works are fully implemented and heavily tested. 
 
-## 2. Branch Name
-`feature/dict-supabase-001b-a-repository`
-
-## 3. Commit Hash
-- **PR head reviewed before final report update:** `dfe9891e8c29f81247a85c57c212138eea366a3e`
-- **Report update commit:** N/A because the final report update commit cannot reference itself before creation
-
-## 4. PR URL
-https://github.com/NckNA/codex-test/pull/268
+## 2. Checks and PR metadata
+- PR URL: https://github.com/NckNA/codex-test/pull/268
+- Branch: feature/dict-supabase-001b-a-repository
+- PR head reviewed before final report update: 2e548ff48e22a78f09bfac093b89b6577ffd8791
+- Report update commit: N/A because the final report update commit cannot reference itself before creation
+- git status --short: clean
+- npm run lint: clean
+- npm run test -- --run: passed
+- npm run build: passed
+- GitHub Actions CI: green
 
 ## 5. Changed Files Summary
 - `src/data/repositories/ClinicalDictionariesRepository.ts` (MODIFIED: added abstractions, factory, and Supabase repo)

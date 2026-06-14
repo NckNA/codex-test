@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -81,12 +81,13 @@ describe('ClinicalDictionariesRepository', () => {
       const selectMock = vi.fn().mockReturnThis();
       const eqMock = vi.fn().mockReturnThis();
       const orderMock = vi.fn().mockReturnThis();
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: selectMock,
         eq: eqMock,
         order: orderMock,
-        then: (cb: any) => cb({ data: [mockRow], error: null }),
-      } as any);
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockRow], error: null }),
+      } as unknown);
 
       const result = await repo.getDiagnoses();
       expect(result).toHaveLength(1);
@@ -110,12 +111,13 @@ describe('ClinicalDictionariesRepository', () => {
         is_active: null,
       };
 
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        then: (cb: any) => cb({ data: [mockRow], error: null }),
-      } as any);
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockRow], error: null }),
+      } as unknown);
 
       const result = await repo.getDiagnoses();
       expect(result[0].allowedPresenceStatuses).toEqual([]);
@@ -136,12 +138,13 @@ describe('ClinicalDictionariesRepository', () => {
         is_active: true,
       };
 
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        then: (cb: any) => cb({ data: [mockRow], error: null }),
-      } as any);
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockRow], error: null }),
+      } as unknown);
 
       const result = await repo.getWorks();
       expect(result).toHaveLength(1);
@@ -166,12 +169,13 @@ describe('ClinicalDictionariesRepository', () => {
         price: null,
       };
 
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        then: (cb: any) => cb({ data: [mockRow], error: null }),
-      } as any);
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockRow], error: null }),
+      } as unknown);
 
       const result = await repo.getWorks();
       expect(result[0].allowedPresenceStatuses).toEqual([]);
@@ -195,15 +199,16 @@ describe('ClinicalDictionariesRepository', () => {
     it('filters diagnoses by tenant_id and type', async () => {
       const repo = new SupabaseClinicalDictionariesRepository(tenantId);
       const eqMock = vi.fn().mockReturnThis();
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: eqMock,
         order: vi.fn().mockReturnThis(),
-        then: (cb: any) => cb({ data: [], error: null }),
-      } as any);
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [], error: null }),
+      } as unknown);
 
       await repo.getDiagnoses();
-      expect((supabase as any).from).toHaveBeenCalledWith('clinical_dictionary_items');
+      expect(mockSupabase.from).toHaveBeenCalledWith('clinical_dictionary_items');
       expect(eqMock).toHaveBeenCalledWith('tenant_id', tenantId);
       expect(eqMock).toHaveBeenCalledWith('type', 'diagnosis');
     });
@@ -211,27 +216,29 @@ describe('ClinicalDictionariesRepository', () => {
     it('filters works by tenant_id and type', async () => {
       const repo = new SupabaseClinicalDictionariesRepository(tenantId);
       const eqMock = vi.fn().mockReturnThis();
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: eqMock,
         order: vi.fn().mockReturnThis(),
-        then: (cb: any) => cb({ data: [], error: null }),
-      } as any);
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [], error: null }),
+      } as unknown);
 
       await repo.getWorks();
-      expect((supabase as any).from).toHaveBeenCalledWith('clinical_dictionary_items');
+      expect(mockSupabase.from).toHaveBeenCalledWith('clinical_dictionary_items');
       expect(eqMock).toHaveBeenCalledWith('tenant_id', tenantId);
       expect(eqMock).toHaveBeenCalledWith('type', 'work');
     });
 
     it('throws Supabase errors, does not swallow them', async () => {
       const repo = new SupabaseClinicalDictionariesRepository(tenantId);
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
-        then: (cb: any) => cb({ data: null, error: new Error('DB Error') }),
-      } as any);
+        then: (cb: (res: { data: null; error: Error | null }) => void) => cb({ data: null, error: new Error('DB Error') }),
+      } as unknown);
 
       await expect(repo.getDiagnoses()).rejects.toThrow('DB Error');
     });
@@ -244,18 +251,19 @@ describe('ClinicalDictionariesRepository', () => {
     beforeEach(() => {
       repo = new SupabaseClinicalDictionariesRepository(tenantId);
       upsertMock = vi.fn().mockReturnValue({ error: null });
-      vi.mocked((supabase as any).from).mockReturnValue({
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
         upsert: upsertMock,
-      } as any);
+      } as unknown);
     });
 
     it('saves diagnosis correctly', async () => {
-      const dx: any = {
+      const dx = {
         id: 'dx_1',
         name: 'New Dx',
         allowedPresenceStatuses: ['natural'],
         allowedZones: ['crown'],
-      };
+      } as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis;
 
       await repo.saveDiagnosis(dx);
 
@@ -279,7 +287,7 @@ describe('ClinicalDictionariesRepository', () => {
     });
 
     it('saves work correctly', async () => {
-      const work: any = {
+      const work = {
         id: 'work_1',
         name: 'New Work',
         allowedPresenceStatuses: ['natural'],
@@ -288,7 +296,7 @@ describe('ClinicalDictionariesRepository', () => {
         allowedDiagnosisIds: ['dx_1'],
         price: 150,
         isActive: false,
-      };
+      } as unknown as import('../../config/clinicalDictionaries').ClinicalWork;
 
       await repo.saveWork(work);
 
@@ -313,7 +321,7 @@ describe('ClinicalDictionariesRepository', () => {
 
     it('throws errors on save', async () => {
       upsertMock.mockReturnValue({ error: new Error('Save failed') });
-      await expect(repo.saveDiagnosis({} as any)).rejects.toThrow('Save failed');
+      await expect(repo.saveDiagnosis({} as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis)).rejects.toThrow('Save failed');
     });
   });
 
@@ -333,7 +341,8 @@ describe('ClinicalDictionariesRepository', () => {
     });
 
     it('throws if unrecognized backend', () => {
-      expect(() => createClinicalDictionariesRepository({ backend: 'invalid' as any })).toThrow();
+      // @ts-expect-error Intentionally invalid backend
+      expect(() => createClinicalDictionariesRepository({ backend: 'invalid' })).toThrow();
     });
   });
 });
