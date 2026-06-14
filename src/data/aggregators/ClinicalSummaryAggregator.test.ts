@@ -9,7 +9,7 @@ describe('ClinicalSummaryAggregator', () => {
   });
 
   it('returns empty/default summary for empty patientId', async () => {
-    const summary = await getPatientMedicalSummary('');
+    const summary = await getPatientMedicalSummary('', { backend: 'local' });
     expect(summary.dentalSummary.needsTreatment).toBe(0);
     expect(summary.dentalSummary.missing).toBe(0);
     expect(summary.lastVisit).toBeUndefined();
@@ -51,7 +51,7 @@ describe('ClinicalSummaryAggregator', () => {
     ];
     localStorage.setItem('df_dental_findings', JSON.stringify(findings));
 
-    const summary = await getPatientMedicalSummary('patient_1');
+    const summary = await getPatientMedicalSummary('patient_1', { backend: 'local' });
 
     expect(summary.dentalSummary.needsTreatment).toBe(2); // caries + pulpitis
     expect(summary.dentalSummary.missing).toBe(1);
@@ -82,7 +82,7 @@ describe('ClinicalSummaryAggregator', () => {
     ];
     localStorage.setItem('df_appointments', JSON.stringify(appts));
 
-    const summary = await getPatientMedicalSummary('patient_1');
+    const summary = await getPatientMedicalSummary('patient_1', { backend: 'local' });
 
     expect(summary.lastVisit?.toISOString()).toBe(pastDate);
     expect(summary.nextVisit?.toISOString()).toBe(futureDate);
@@ -98,9 +98,18 @@ describe('ClinicalSummaryAggregator', () => {
     localStorage.setItem('df_dental_findings', findingsData);
     localStorage.setItem('df_treatment_plans', plansData);
 
-    await getPatientMedicalSummary('patient_1');
+    await getPatientMedicalSummary('patient_1', { backend: 'local' });
 
     expect(localStorage.getItem('df_dental_findings')).toBe(findingsData);
     expect(localStorage.getItem('df_treatment_plans')).toBe(plansData);
+  });
+
+  describe('Supabase backend behavior', () => {
+    it('returns empty summary if backend is supabase but no tenantId is provided', async () => {
+      const summary = await getPatientMedicalSummary('patient_1', { backend: 'supabase' });
+      expect(summary.dentalSummary.needsTreatment).toBe(0);
+      expect(summary.dentalSummary.missing).toBe(0);
+      // It should not have queried local storage or anything
+    });
   });
 });
