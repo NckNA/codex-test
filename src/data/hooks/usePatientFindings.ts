@@ -102,8 +102,8 @@ export function usePatientFindings(patientId: string) {
   }, [repository, patientId, refetch, isNoTenantSupabase]);
 
   return {
-    findings: findings || [],
-    isLoading,
+    findings: isNoTenantSupabase ? [] : findings || [],
+    isLoading: isNoTenantSupabase ? false : isLoading,
     isError: isError || saveError !== null,
     error: error || saveError,
     isSaving,

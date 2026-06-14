@@ -67,8 +67,8 @@ export function useDentalChart(patientId: string) {
   }, [repository, patientId, refetch, isNoTenantSupabase]);
 
   return {
-    dentalChart,
-    isLoading,
+    dentalChart: isNoTenantSupabase ? null : dentalChart,
+    isLoading: isNoTenantSupabase ? false : isLoading,
     isError: isError || saveError !== null,
     error: error || saveError,
     isSaving,

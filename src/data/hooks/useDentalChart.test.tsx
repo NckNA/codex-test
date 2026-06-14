@@ -7,6 +7,7 @@ import { useDentalChart } from './useDentalChart';
 import * as DentalChartRepositoryModule from '../repositories/DentalChartRepository';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
+import { useAsyncQuery } from './useAsyncQuery';
 
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {},
@@ -117,6 +118,40 @@ describe('useDentalChart', () => {
     // But fails safely on write
     await expect(hookResult!.saveDentalChart({} as never)).rejects.toThrow("Active clinic is required for Supabase data access.");
     expect(mockRepo.saveDentalChart).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('immediately exposes null chart even if query had previous data when transitioning to no-tenant', async () => {
+    vi.mocked(useAsyncQuery).mockReturnValueOnce({
+      data: { id: 'old-chart', patientId: 'patient_1', toothStates: [] },
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
+
+    let hookResult: ReturnType<typeof useDentalChart>;
+
+    const TestComponent = () => {
+      hookResult = useDentalChart('patient_1');
+      return null;
+    };
+
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<TestComponent />);
+    });
+
+    expect(hookResult!.dentalChart).toBeNull();
+    expect(hookResult!.isLoading).toBe(false);
 
     await act(async () => {
       root.unmount();

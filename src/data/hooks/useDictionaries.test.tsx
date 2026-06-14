@@ -2,7 +2,7 @@
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react';
+import React, { act } from 'react';
 import type { ClinicalDiagnosis, ClinicalWork } from '../../config/clinicalDictionaries';
 import { ClinicalDictionariesProvider, useDictionaries } from './useDictionaries';
 import * as ClinicalDictionariesRepositoryModule from '../repositories/ClinicalDictionariesRepository';
@@ -162,6 +162,55 @@ describe('useDictionaries', () => {
       expect(result.current.works).toHaveLength(1);
       
       await result.unmount();
+    });
+
+    it('immediately exposes empty arrays and loading false even if previous data existed when transitioning to no-tenant', async () => {
+      mockRepo.getDiagnoses.mockResolvedValue([{ id: 'd1', name: 'Dx 1' }]);
+      mockRepo.getWorks.mockResolvedValue([{ id: 'w1', name: 'Wk 1' }]);
+
+      let currentContext: any;
+      let forceUpdate: () => void;
+      
+      const TestComponent = () => {
+        const [, setTick] = React.useState(0);
+        forceUpdate = () => setTick(t => t + 1);
+        currentContext = useDictionaries();
+        return null;
+      };
+
+      const container = document.createElement('div');
+      const root = createRoot(container);
+
+      await act(async () => {
+        root.render(
+          <ClinicalDictionariesProvider>
+            <TestComponent />
+          </ClinicalDictionariesProvider>
+        );
+      });
+
+      // Verify loaded
+      expect(currentContext.diagnoses).toHaveLength(1);
+
+      // Now transition
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
+      
+      await act(async () => {
+        root.render(
+          <ClinicalDictionariesProvider>
+            <TestComponent />
+          </ClinicalDictionariesProvider>
+        );
+      });
+
+      // Verify empty arrays
+      expect(currentContext.diagnoses).toEqual([]);
+      expect(currentContext.works).toEqual([]);
+      expect(currentContext.loading).toBe(false);
+
+      await act(async () => {
+        root.unmount();
+      });
     });
 
     it('keeps empty arrays if repository returns empty (no auto-seeding)', async () => {

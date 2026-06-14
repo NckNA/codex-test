@@ -132,9 +132,9 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
   }, [repository, isNoTenantSupabase]);
 
   const value = {
-    diagnoses,
-    works,
-    loading,
+    diagnoses: isNoTenantSupabase ? [] : diagnoses,
+    works: isNoTenantSupabase ? [] : works,
+    loading: isNoTenantSupabase ? false : loading,
     error,
     saveDiagnosis,
     saveWork,
