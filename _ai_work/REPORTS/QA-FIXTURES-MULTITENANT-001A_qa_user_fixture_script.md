@@ -69,7 +69,7 @@ npm run qa:seed-users # Second time to prove idempotency
 - `npm run lint`: PASS
 - `npm run test -- --run`: PASS (258 tests)
 - `npm run build`: PASS
-- GitHub Actions CI result: PASS, workflow `CI`, run #341, head `796a9dd`
+- GitHub Actions CI result: PASS, workflow `CI`, run #342, head `a7f4fd8`
 
 ## 15. Remaining risks
 - Tenant B dictionaries remain empty by design in the seed; the UI handles this transparently, but it requires awareness during QA.
