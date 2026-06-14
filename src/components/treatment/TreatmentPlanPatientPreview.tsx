@@ -48,9 +48,8 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 const FINDING_STATUS_LABELS: Record<string, string> = {
   discovered: 'Выявлено',
-  recommended: 'Рекомендовано',
-  included_in_plan: 'Включено в план',
-  observing: 'Наблюдение',
+  planned: 'В плане',
+  monitoring: 'Наблюдение',
   declined_by_patient: 'Отказ',
   completed: 'Завершено',
 };
@@ -125,7 +124,7 @@ export function TreatmentPlanPatientPreview({
   const additionalFindings = findings.filter(finding => (
     !linkedFindingIds.has(finding.id)
     && finding.status !== 'completed'
-    && (Boolean(finding.recommendation) || finding.status === 'observing' || !finding.includeInTreatmentPlan)
+    && (Boolean(finding.recommendation) || finding.status === 'monitoring' || !finding.includeInTreatmentPlan)
   ));
 
   return (

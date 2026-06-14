@@ -3,6 +3,7 @@ import { LocalStorageTreatmentPlansRepository } from '../repositories/TreatmentP
 import { LocalStorageChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
 import { LocalStorageFindingsRepository } from '../repositories/FindingsRepository';
 import { LocalStorageAppointmentRepository } from '../repositories/AppointmentRepository';
+import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 
 export interface PatientDentalSummary {
   needsTreatment: number;
@@ -12,7 +13,7 @@ export interface PatientDentalSummary {
   chiefComplaintText: string;
   highUrgentFindings: number;
   notIncludedFindings: number;
-  observingFindings: number;
+  monitoringFindings: number;
 }
 
 export interface PatientMedicalSummaryData {
@@ -29,7 +30,7 @@ export const EMPTY_PATIENT_DENTAL_SUMMARY: PatientDentalSummary = {
   chiefComplaintText: '',
   highUrgentFindings: 0,
   notIncludedFindings: 0,
-  observingFindings: 0,
+  monitoringFindings: 0,
 };
 
 export const EMPTY_PATIENT_MEDICAL_SUMMARY: PatientMedicalSummaryData = {
@@ -59,9 +60,9 @@ export async function getPatientMedicalSummary(patientId: string): Promise<Patie
   const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
 
   const chiefComplaintText = complaint?.text || '';
-  const highUrgentFindings = findings.filter(f => (f.severity === 'high' || f.severity === 'urgent') && f.status !== 'completed' && f.status !== 'declined_by_patient').length;
-  const notIncludedFindings = findings.filter(f => f.status === 'discovered' || f.status === 'recommended').length;
-  const observingFindings = findings.filter(f => f.status === 'observing').length;
+  const highUrgentFindings = findings.filter(f => (f.severity === 'high' || f.severity === 'urgent') && ACTIVE_FINDING_STATUSES.includes(f.status)).length;
+  const notIncludedFindings = findings.filter(f => f.status === 'discovered').length;
+  const monitoringFindings = findings.filter(f => f.status === 'monitoring').length;
 
   let lastVisit: Date | undefined;
   let nextVisit: Date | undefined;
@@ -88,7 +89,7 @@ export async function getPatientMedicalSummary(patientId: string): Promise<Patie
       chiefComplaintText,
       highUrgentFindings,
       notIncludedFindings,
-      observingFindings,
+      monitoringFindings,
     },
     lastVisit,
     nextVisit,

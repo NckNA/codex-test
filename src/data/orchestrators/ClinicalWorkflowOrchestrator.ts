@@ -5,6 +5,7 @@ import type { TreatmentPlansRepository } from '../repositories/TreatmentPlansRep
 import { LocalStorageDentalChartRepository } from '../repositories/DentalChartRepository';
 import { LocalStorageFindingsRepository } from '../repositories/FindingsRepository';
 import { LocalStorageTreatmentPlansRepository } from '../repositories/TreatmentPlansRepository';
+import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 
 export type ToothStatusFindingInput =
   Pick<DentalFinding, 'title' | 'category' | 'severity'> &
@@ -135,7 +136,7 @@ export function createClinicalWorkflowOrchestrator(
       }
 
       const findings = await findingsRepository.listFindingsByPatient(patientId);
-      const activeStatuses = ['discovered', 'recommended', 'included_in_plan', 'observing'];
+      const activeStatuses = [...ACTIVE_FINDING_STATUSES];
 
       const existingActiveFinding = findings.find(f => activeFindingMatches(f, updatedTooth, findingPayload, activeStatuses));
 
@@ -221,7 +222,7 @@ export function createClinicalWorkflowOrchestrator(
         try {
           await findingsRepository.updateFinding(patientId, {
             ...finding,
-            status: 'included_in_plan',
+            status: 'planned',
             includeInTreatmentPlan: true,
             updatedAt: nowIso,
           });

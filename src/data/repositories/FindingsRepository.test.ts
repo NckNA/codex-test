@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { LocalStorageFindingsRepository, SupabaseFindingsRepository, createFindingsRepository, type CreateFindingInput } from './FindingsRepository';
-import type { DentalFinding } from '../../types';
+import type { DentalFinding, FindingStatus } from '../../types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('../../lib/supabaseClient', () => ({
@@ -24,6 +24,15 @@ describe('FindingsRepository', () => {
       const patient1Findings = await LocalStorageFindingsRepository.listFindingsByPatient('patient_1');
       expect(patient1Findings).toHaveLength(1);
       expect(patient1Findings[0].id).toBe('1');
+    });
+
+    it('normalizes legacy statuses on read', async () => {
+      const finding = { id: '1', patientId: 'patient_1', status: 'recommended' } as unknown as DentalFinding;
+      localStorage.setItem('df_dental_findings', JSON.stringify([finding]));
+
+      const patient1Findings = await LocalStorageFindingsRepository.listFindingsByPatient('patient_1');
+      expect(patient1Findings).toHaveLength(1);
+      expect(patient1Findings[0].status).toBe('discovered');
     });
 
     it('createFinding persists finding with generated id, patientId, createdAt, updatedAt', async () => {
@@ -79,7 +88,7 @@ describe('FindingsRepository', () => {
       expect(p2[0].status).toBe('discovered');
     });
 
-    it('deleteFinding removes only matching finding', async () => {
+    it('deleteFinding archives matching finding instead of removing', async () => {
       const finding1: DentalFinding = { id: '1', patientId: 'patient_1', toothNumber: 11, category: 'caries', title: 'A', severity: 'medium', description: 'a', isChiefComplaintRelated: false, includeInTreatmentPlan: false, status: 'discovered', createdAt: 'old', updatedAt: 'old' };
       const finding2: DentalFinding = { id: '2', patientId: 'patient_1', toothNumber: 12, category: 'caries', title: 'B', severity: 'medium', description: 'b', isChiefComplaintRelated: false, includeInTreatmentPlan: false, status: 'discovered', createdAt: 'old', updatedAt: 'old' };
       
@@ -88,8 +97,10 @@ describe('FindingsRepository', () => {
       await LocalStorageFindingsRepository.deleteFinding('patient_1', '1');
 
       const p1 = await LocalStorageFindingsRepository.listFindingsByPatient('patient_1');
-      expect(p1).toHaveLength(1);
-      expect(p1[0].id).toBe('2');
+      expect(p1).toHaveLength(2);
+      const archived = p1.find(f => f.id === '1');
+      expect(archived?.status).toBe('archived');
+      expect(archived?.updatedAt).not.toBe('old');
     });
   });
 
@@ -269,6 +280,23 @@ describe('FindingsRepository', () => {
       }));
     });
 
+    it('normalizes legacy statuses before writing to Supabase', async () => {
+      const repo = new SupabaseFindingsRepository('tenant1', mockClient);
+      await repo.createFinding('patient1', {
+        title: 'Legacy',
+        category: 'caries',
+        severity: 'low',
+        description: '',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        status: 'included_in_plan' as unknown as FindingStatus,
+      });
+
+      expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'planned',
+      }));
+    });
+
     it('createFinding falls back to legacy payload if link columns are missing', async () => {
       mockInsert
         .mockReturnValueOnce({ error: { message: "Could not find the 'clinical_zone' column of 'findings' in the schema cache" } })
@@ -335,7 +363,7 @@ describe('FindingsRepository', () => {
       expect(mockEq).toHaveBeenCalledWith('id', 'uuid-1');
     });
 
-    it('deleteFinding filters by tenant_id and finding id', async () => {
+    it('deleteFinding updates status to archived and filters by tenant_id and finding id', async () => {
       mockEq.mockReturnValueOnce({ eq: mockEq });
       mockEq.mockReturnValueOnce({ eq: mockEq });
       mockEq.mockResolvedValueOnce({ error: null });
@@ -343,7 +371,7 @@ describe('FindingsRepository', () => {
       const repo = new SupabaseFindingsRepository('tenant1', mockClient);
       await repo.deleteFinding('patient1', 'uuid-1');
 
-      expect(mockDelete).toHaveBeenCalled();
+      expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: 'archived' }));
       expect(mockEq).toHaveBeenCalledWith('tenant_id', 'tenant1');
       expect(mockEq).toHaveBeenCalledWith('patient_id', 'patient1');
       expect(mockEq).toHaveBeenCalledWith('id', 'uuid-1');

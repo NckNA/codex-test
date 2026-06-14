@@ -180,11 +180,12 @@ export function FindingModal({ isOpen, finding, onClose, onSave }: FindingModalP
                 className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="discovered">Выявлено</option>
-                <option value="recommended">Рекомендовано</option>
-                <option value="included_in_plan">Включено в план</option>
-                <option value="observing">Наблюдение</option>
-                <option value="declined_by_patient">Пациент отказался</option>
+                <option value="planned">В плане</option>
+                <option value="in_treatment">В лечении</option>
+                <option value="monitoring">Наблюдение</option>
                 <option value="completed">Завершено</option>
+                <option value="declined_by_patient">Пациент отказался</option>
+                <option value="archived">Архив</option>
               </select>
             </div>
 

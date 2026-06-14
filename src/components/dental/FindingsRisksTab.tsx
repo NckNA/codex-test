@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, AlertTriangle, Activity, CheckCircle, Clock } from 'lucide-react';
-import type { DentalFinding } from '../../types';
+import type { DentalFinding, FindingStatus } from '../../types';
 import type { CreateFindingInput } from '../../data/repositories/FindingsRepository';
 import { FindingModal } from './FindingModal';
 import { useChiefComplaint } from '../../data/hooks/useChiefComplaint';
 import { usePatientFindings } from '../../data/hooks/usePatientFindings';
+import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 
 interface FindingsRisksTabProps {
   patientId: string;
@@ -39,13 +40,15 @@ const SEVERITY_COLORS: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 };
 
-const STATUS_LABELS: Record<string, string> = {
+// eslint-disable-next-line react-refresh/only-export-components
+export const STATUS_LABELS: Record<FindingStatus, string> = {
   discovered: 'Выявлено',
-  recommended: 'Рекомендовано',
-  included_in_plan: 'Включено в план',
-  observing: 'Наблюдение',
-  declined_by_patient: 'Отказ',
+  planned: 'В плане',
+  in_treatment: 'В лечении',
   completed: 'Завершено',
+  declined_by_patient: 'Отказ',
+  monitoring: 'Наблюдение',
+  archived: 'Архив',
 };
 
 const VALID_TEETH = new Set([
@@ -158,15 +161,15 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
   };
 
   const categorizedFindings = {
-    chiefComplaintRelated: findings.filter(f => f.isChiefComplaintRelated),
-    discovered: findings.filter(f => !f.isChiefComplaintRelated && (f.status === 'discovered' || f.status === 'recommended') && f.category !== 'risk_zone'),
-    riskZones: findings.filter(f => !f.isChiefComplaintRelated && (f.category === 'risk_zone' || f.status === 'observing')),
-    inPlan: findings.filter(f => f.status === 'included_in_plan'),
-    other: findings.filter(f => f.status === 'declined_by_patient' || f.status === 'completed'),
+    chiefComplaintRelated: findings.filter(f => f.isChiefComplaintRelated && ACTIVE_FINDING_STATUSES.includes(f.status)),
+    discovered: findings.filter(f => !f.isChiefComplaintRelated && f.status === 'discovered' && f.category !== 'risk_zone'),
+    riskZones: findings.filter(f => !f.isChiefComplaintRelated && (f.category === 'risk_zone' || f.status === 'monitoring') && ACTIVE_FINDING_STATUSES.includes(f.status)),
+    inPlan: findings.filter(f => f.status === 'planned'),
+    other: findings.filter(f => f.status === 'completed' || f.status === 'declined_by_patient' || f.status === 'archived'),
   };
 
   const FindingCard = ({ finding }: { finding: DentalFinding }) => (
-    <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="group bg-white border border-slate-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
           {finding.toothNumber && (
@@ -209,8 +212,8 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
             <AlertTriangle className="w-3 h-3" /> По жалобе
           </span>
         )}
-        {finding.includeInTreatmentPlan && finding.status !== 'included_in_plan' && (
-          <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
+        {finding.includeInTreatmentPlan && finding.status !== 'planned' && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-emerald-100">
             <CheckCircle className="w-3 h-3" /> В план
           </span>
         )}
@@ -230,11 +233,11 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
         )}
       </div>
 
-      {finding.status !== 'included_in_plan' && finding.status !== 'completed' && (
-        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-          {finding.status !== 'observing' && (
+      {ACTIVE_FINDING_STATUSES.includes(finding.status) && finding.status !== 'planned' && (
+        <div className="flex gap-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+          {finding.status !== 'monitoring' && (
              <button 
-               onClick={() => handleStatusChange(finding, 'observing')} 
+               onClick={() => handleStatusChange(finding, 'monitoring')} 
                disabled={isFindingsLoading}
                className="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors disabled:opacity-50"
              >

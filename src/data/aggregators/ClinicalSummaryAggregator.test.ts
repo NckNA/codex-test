@@ -46,8 +46,8 @@ describe('ClinicalSummaryAggregator', () => {
     const findings: DentalFinding[] = [
       { id: '1', patientId: 'patient_1', toothNumber: 11, category: 'caries', title: 'Urgent', severity: 'urgent', status: 'discovered', description: 'a', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
       { id: '2', patientId: 'patient_1', toothNumber: 12, category: 'caries', title: 'High Completed', severity: 'high', status: 'completed', description: 'b', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
-      { id: '3', patientId: 'patient_1', toothNumber: 13, category: 'caries', title: 'Med Rec', severity: 'medium', status: 'recommended', description: 'c', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
-      { id: '4', patientId: 'patient_1', toothNumber: 14, category: 'caries', title: 'Low Obs', severity: 'low', status: 'observing', description: 'd', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+      { id: '3', patientId: 'patient_1', toothNumber: 13, category: 'caries', title: 'Med Rec', severity: 'medium', status: 'discovered', description: 'c', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
+      { id: '4', patientId: 'patient_1', toothNumber: 14, category: 'caries', title: 'Low Obs', severity: 'low', status: 'monitoring', description: 'd', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
     ];
     localStorage.setItem('df_dental_findings', JSON.stringify(findings));
 
@@ -59,8 +59,8 @@ describe('ClinicalSummaryAggregator', () => {
     expect(summary.dentalSummary.totalAmount).toBe(3000); // 1000 + 2000
     expect(summary.dentalSummary.chiefComplaintText).toBe('Toothache');
     expect(summary.dentalSummary.highUrgentFindings).toBe(1); // urgent discovered (high completed is ignored)
-    expect(summary.dentalSummary.notIncludedFindings).toBe(2); // discovered + recommended
-    expect(summary.dentalSummary.observingFindings).toBe(1); // observing
+    expect(summary.dentalSummary.notIncludedFindings).toBe(2); // discovered
+    expect(summary.dentalSummary.monitoringFindings).toBe(1); // monitoring
   });
 
   it('calculates lastVisit and nextVisit while ignoring cancelled/blocked', async () => {

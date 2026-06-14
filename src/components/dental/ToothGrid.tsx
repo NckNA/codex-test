@@ -1,4 +1,5 @@
 import type { ToothNumber, ToothRecord, DentalFinding, ToothCondition, ClinicalZone } from '../../types';
+import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
 import { AnatomicalTooth } from './icons/AnatomicalTeeth';
 import { SurfaceRing } from './icons/SurfaceRing';
 import type { SurfaceType } from './icons/SurfaceRing';
@@ -87,12 +88,14 @@ const ZONE_STATE_LABELS: Record<ZoneMarkerState, string> = {
   planned: 'в плане',
   active: 'активно',
   risk: 'риск',
+  monitoring: 'наблюдение',
 };
 
 const ZONE_PRIORITY: Record<ZoneMarkerState, number> = {
   planned: 1,
   active: 2,
   risk: 3,
+  monitoring: 0,
 };
 
 const getZoneOverlayClasses = (zone: ClinicalZone, isUpper: boolean) => {
@@ -118,9 +121,10 @@ const ZONE_STATE_CLASSES: Record<ZoneMarkerState, string> = {
   planned: 'border-emerald-500/80 bg-emerald-400/10 shadow-emerald-300/20',
   active: 'border-sky-500/80 bg-sky-400/10 shadow-sky-300/20',
   risk: 'border-red-500/90 bg-red-400/10 shadow-red-300/30',
+  monitoring: 'border-amber-500/80 bg-amber-400/10 shadow-amber-300/20',
 };
 
-type ZoneMarkerState = 'planned' | 'active' | 'risk';
+type ZoneMarkerState = 'planned' | 'active' | 'risk' | 'monitoring';
 
 interface ZoneMarker {
   zone: ClinicalZone;
@@ -159,7 +163,7 @@ const getConditionLabel = (condition: string) => (
 );
 
 const getActiveFindings = (findings: DentalFinding[]) => (
-  findings.filter(f => ['discovered', 'recommended', 'included_in_plan', 'observing'].includes(f.status))
+  findings.filter(f => ACTIVE_FINDING_STATUSES.includes(f.status))
 );
 
 const hasText = (value?: string) => Boolean(value?.trim());
@@ -173,7 +177,8 @@ const mergeZoneMarker = (markers: Map<ClinicalZone, ZoneMarkerState>, zone: Clin
 
 const getFindingZoneState = (finding: DentalFinding): ZoneMarkerState => {
   if (finding.severity === 'high' || finding.severity === 'urgent') return 'risk';
-  if (finding.status === 'included_in_plan') return 'planned';
+  if (finding.status === 'planned') return 'planned';
+  if (finding.status === 'monitoring') return 'monitoring';
   return 'active';
 };
 
@@ -244,7 +249,9 @@ const getZoneAccents = (
       ? '#EF4444'
       : marker.state === 'planned'
         ? '#10B981'
-        : '#0EA5E9';
+        : marker.state === 'monitoring'
+          ? '#F59E0B'
+          : '#0EA5E9';
   });
 
   tooth.diagnoses?.forEach(diagnosisId => {
@@ -258,8 +265,12 @@ const getZoneAccents = (
     if (!finding.clinicalZone) return;
     if (finding.severity === 'high' || finding.severity === 'urgent') {
       accents[finding.clinicalZone] = '#EF4444';
-    } else if (finding.status === 'included_in_plan') {
+    } else if (finding.status === 'planned') {
       accents[finding.clinicalZone] = '#10B981';
+    } else if (finding.status === 'monitoring') {
+      accents[finding.clinicalZone] = '#F59E0B';
+    } else {
+      accents[finding.clinicalZone] = '#0EA5E9';
     }
   });
 
@@ -330,13 +341,13 @@ const ToothColumn = ({ tooth, findings = [], isSelected, isUpper, onClick, diagn
     if (activeFindings.length === 0) return null;
 
     const hasHighOrUrgent = activeFindings.some(f => f.severity === 'high' || f.severity === 'urgent');
-    const isObservingOnly = activeFindings.every(f => f.status === 'observing');
+    const isMonitoringOnly = activeFindings.every(f => f.status === 'monitoring');
 
     if (hasHighOrUrgent) {
       return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500 shadow-sm shadow-red-300/60" title="Есть срочная/важная находка"></div>;
     }
-    if (isObservingOnly) {
-      return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-slate-400 opacity-90 shadow-sm" title="На наблюдении"></div>;
+    if (isMonitoringOnly) {
+      return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-amber-400 opacity-90 shadow-sm" title="На наблюдении"></div>;
     }
     return <div className="absolute -right-0.5 -top-0.5 z-20 h-3.5 w-3.5 rounded-full border-2 border-white bg-sky-500 shadow-sm shadow-sky-300/60" title="Есть активная находка"></div>;
   };

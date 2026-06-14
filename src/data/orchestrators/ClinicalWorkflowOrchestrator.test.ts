@@ -163,7 +163,7 @@ describe('ClinicalWorkflowOrchestrator', () => {
       });
 
       findings = [
-        { id: 'f1', patientId: 'p1', toothNumber: 11, category: 'caries', title: 'Old title', severity: 'medium', status: 'recommended', description: '', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+        { id: 'f1', patientId: 'p1', toothNumber: 11, category: 'caries', title: 'Old title', severity: 'medium', status: 'discovered', description: '', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
       ];
 
       await orchestrator.applyToothStatusChange({
@@ -184,7 +184,7 @@ describe('ClinicalWorkflowOrchestrator', () => {
         id: 'f1',
         title: 'New title',
         severity: 'high',
-        status: 'recommended' // preserved
+        status: 'discovered' // preserved
       });
     });
 
@@ -299,10 +299,10 @@ describe('ClinicalWorkflowOrchestrator', () => {
 
       // Verify Findings Updated
       expect(fakeFindingsRepository.updateFinding).toHaveBeenCalledTimes(2);
-      expect(updatedFindings[0].status).toBe('included_in_plan');
+      expect(updatedFindings[0].status).toBe('planned');
       expect(updatedFindings[0].includeInTreatmentPlan).toBe(true);
       expect(updatedFindings[0].updatedAt).toBe(now.toISOString());
-      expect(updatedFindings[1].status).toBe('included_in_plan');
+      expect(updatedFindings[1].status).toBe('planned');
       expect(updatedFindings[1].includeInTreatmentPlan).toBe(true);
       
       // Verify isolation
@@ -442,8 +442,8 @@ describe('ClinicalWorkflowOrchestrator', () => {
       });
 
       findings = [
-        { id: 'f1', patientId: 'p1', category: 'caries', title: 'F1', severity: 'medium', status: 'included_in_plan', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
-        { id: 'f2', patientId: 'p1', category: 'caries', title: 'F2', severity: 'medium', status: 'included_in_plan', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
+        { id: 'f1', patientId: 'p1', category: 'caries', title: 'F1', severity: 'medium', status: 'planned', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
+        { id: 'f2', patientId: 'p1', category: 'caries', title: 'F2', severity: 'medium', status: 'planned', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
         { id: 'f3', patientId: 'p1', category: 'pain', title: 'F3', severity: 'low', status: 'discovered', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '', description: '' }, // Not in plan
       ];
 
@@ -512,7 +512,7 @@ describe('ClinicalWorkflowOrchestrator', () => {
       });
 
       findings = [
-        { id: 'f1', patientId: 'p1', category: 'caries', title: 'F1', severity: 'medium', status: 'included_in_plan', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
+        { id: 'f1', patientId: 'p1', category: 'caries', title: 'F1', severity: 'medium', status: 'planned', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '', description: '' },
       ];
 
       fakeFindingsRepository.updateFinding = vi.fn().mockRejectedValue(new Error('Update failed'));

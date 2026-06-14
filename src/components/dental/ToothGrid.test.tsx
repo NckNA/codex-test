@@ -272,6 +272,80 @@ describe('ToothGrid', () => {
     });
   });
 
+  it('renders a monitoring zone marker and ignores archived/completed findings', async () => {
+    const handleToothClick = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    
+    const findings: DentalFinding[] = [
+      {
+        id: 'finding-16-crown-monitoring',
+        patientId: 'p1',
+        toothNumber: 16,
+        title: 'Наблюдение кариес',
+        category: 'caries',
+        severity: 'low',
+        status: 'monitoring',
+        clinicalZone: 'crown',
+        createdAt: '2023-01-01T00:00:00.000Z',
+        updatedAt: '2023-01-01T00:00:00.000Z',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        description: ''
+      },
+      {
+        id: 'finding-16-root-archived',
+        patientId: 'p1',
+        toothNumber: 16,
+        title: 'Архивный корень',
+        category: 'gum_problem',
+        severity: 'low',
+        status: 'archived',
+        clinicalZone: 'root',
+        createdAt: '2023-01-01T00:00:00.000Z',
+        updatedAt: '2023-01-01T00:00:00.000Z',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        description: ''
+      },
+      {
+        id: 'finding-16-periodontium-completed',
+        patientId: 'p1',
+        toothNumber: 16,
+        title: 'Завершено десна',
+        category: 'gum_problem',
+        severity: 'low',
+        status: 'completed',
+        clinicalZone: 'periodontium',
+        createdAt: '2023-01-01T00:00:00.000Z',
+        updatedAt: '2023-01-01T00:00:00.000Z',
+        isChiefComplaintRelated: false,
+        includeInTreatmentPlan: false,
+        description: ''
+      }
+    ];
+
+    await act(async () => {
+      root.render(
+        <ToothGrid 
+          teeth={fullMockTeeth} 
+          findings={findings}
+          dentitionMode="adult" 
+          onToothClick={handleToothClick} 
+          selectedToothNumber={16}
+        />
+      );
+    });
+
+    expect(container.querySelector('[data-testid="zone-marker-16-crown-monitoring"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="zone-marker-16-root-archived"]')).toBeNull();
+    expect(container.querySelector('[data-testid="zone-marker-16-periodontium-completed"]')).toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
   it('renders active zone markers from legacy tooth fields', async () => {
     const handleToothClick = vi.fn();
     const container = document.createElement('div');
