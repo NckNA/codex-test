@@ -7,8 +7,8 @@ This report documents the addition of the `clinical_dictionary_items` schema and
 `feature/dict-supabase-001a-schema-rls`
 
 ## 3. Commit Hash
-- **PR head reviewed:** `2547c3b55f7d7f5c53c31380c72dde2aed3948d5`
-- **Report update commit:** N/A because the report commit cannot reference itself before creation
+- **PR head reviewed before final report update:** `4f0349da4910c472230128903e442ed1275b333e`
+- **Report update commit:** N/A because the final report update commit cannot reference itself before creation
 
 ## 4. PR URL
 https://github.com/NckNA/codex-test/pull/264
