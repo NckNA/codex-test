@@ -120,14 +120,26 @@ describe('useDictionaries', () => {
       await unmount();
     });
 
-    it('uses local backend when authMode is supabase-active but no tenant exists', async () => {
+    it('creates local backend but short-circuits data loading when authMode is supabase-active but no tenant exists', async () => {
       vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
       vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
-      const { unmount } = await setup();
+      const result = await setup();
       
       expect(ClinicalDictionariesRepositoryModule.createClinicalDictionariesRepository).toHaveBeenCalledWith({ backend: 'local', tenantId: undefined });
-      await unmount();
+      
+      // Should not call getDiagnoses/getWorks
+      expect(mockRepo.getDiagnoses).not.toHaveBeenCalled();
+      expect(mockRepo.getWorks).not.toHaveBeenCalled();
+      expect(result.current.diagnoses).toEqual([]);
+      expect(result.current.works).toEqual([]);
+      expect(result.current.loading).toBe(false);
+
+      // Should fail safely on write
+      await expect(result.current.saveDiagnosis({ id: 'd1' } as never)).rejects.toThrow("Active clinic is required for Supabase data access.");
+      expect(mockRepo.saveDiagnosis).not.toHaveBeenCalled();
+
+      await result.unmount();
     });
   });
 
@@ -150,6 +162,52 @@ describe('useDictionaries', () => {
       expect(result.current.works).toHaveLength(1);
       
       await result.unmount();
+    });
+
+    it('immediately exposes empty arrays and loading false even if previous data existed when transitioning to no-tenant', async () => {
+      mockRepo.getDiagnoses.mockResolvedValue([{ id: 'd1', name: 'Dx 1' }]);
+      mockRepo.getWorks.mockResolvedValue([{ id: 'w1', name: 'Wk 1' }]);
+
+      let currentContext: ReturnType<typeof useDictionaries> | undefined;
+      
+      const TestComponent = () => {
+        currentContext = useDictionaries();
+        return null;
+      };
+
+      const container = document.createElement('div');
+      const root = createRoot(container);
+
+      await act(async () => {
+        root.render(
+          <ClinicalDictionariesProvider>
+            <TestComponent />
+          </ClinicalDictionariesProvider>
+        );
+      });
+
+      // Verify loaded
+      expect(currentContext!.diagnoses).toHaveLength(1);
+
+      // Now transition
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
+      
+      await act(async () => {
+        root.render(
+          <ClinicalDictionariesProvider>
+            <TestComponent />
+          </ClinicalDictionariesProvider>
+        );
+      });
+
+      // Verify empty arrays
+      expect(currentContext!.diagnoses).toEqual([]);
+      expect(currentContext!.works).toEqual([]);
+      expect(currentContext!.loading).toBe(false);
+
+      await act(async () => {
+        root.unmount();
+      });
     });
 
     it('keeps empty arrays if repository returns empty (no auto-seeding)', async () => {

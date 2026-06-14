@@ -34,7 +34,16 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
     return createClinicalDictionariesRepository({ backend, tenantId: activeTenant?.tenantId });
   }, [authMode, activeTenant?.tenantId]);
 
+  const isNoTenantSupabase = authMode === 'supabase-active' && isSupabaseConfigured && !activeTenant?.tenantId;
+
   const loadData = useCallback(async () => {
+    if (isNoTenantSupabase) {
+      setDiagnoses([]);
+      setWorks([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [loadedDiagnoses, loadedWorks] = await Promise.all([
@@ -50,7 +59,7 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
     } finally {
       setLoading(false);
     }
-  }, [repository]);
+  }, [repository, isNoTenantSupabase]);
 
   useEffect(() => {
     let ignore = false;
@@ -69,6 +78,11 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
   }, [loadData]);
 
   const saveDiagnosis = useCallback(async (diagnosis: ClinicalDiagnosis) => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setError(err.message);
+      throw err;
+    }
     try {
       await repository.saveDiagnosis(diagnosis);
       
@@ -88,9 +102,14 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
       setError(err instanceof Error ? err.message : 'Failed to save diagnosis');
       throw err;
     }
-  }, [repository]);
+  }, [repository, isNoTenantSupabase]);
 
   const saveWork = useCallback(async (work: ClinicalWork) => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setError(err.message);
+      throw err;
+    }
     try {
       await repository.saveWork(work);
       
@@ -110,12 +129,12 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
       setError(err instanceof Error ? err.message : 'Failed to save work');
       throw err;
     }
-  }, [repository]);
+  }, [repository, isNoTenantSupabase]);
 
   const value = {
-    diagnoses,
-    works,
-    loading,
+    diagnoses: isNoTenantSupabase ? [] : diagnoses,
+    works: isNoTenantSupabase ? [] : works,
+    loading: isNoTenantSupabase ? false : loading,
     error,
     saveDiagnosis,
     saveWork,

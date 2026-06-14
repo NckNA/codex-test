@@ -7,6 +7,7 @@ import { usePatientFindings } from './usePatientFindings';
 import * as FindingsRepositoryModule from '../repositories/FindingsRepository';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
+import { useAsyncQuery } from './useAsyncQuery';
 
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {},
@@ -86,14 +87,21 @@ describe('usePatientFindings', () => {
     });
   });
 
-  it('routes to local backend when no active tenant', async () => {
+  it('creates local repository but blocks operations when no active tenant in supabase-active mode', async () => {
     const factorySpy = vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository');
+    const mockRepo = {
+      listFindingsByPatient: vi.fn(),
+      createFinding: vi.fn(),
+    };
+    factorySpy.mockReturnValue(mockRepo as unknown as ReturnType<typeof FindingsRepositoryModule.createFindingsRepository>);
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
+    let hookResult: ReturnType<typeof usePatientFindings>;
+
     const TestComponent = () => {
-      usePatientFindings('patient_1');
+      hookResult = usePatientFindings('patient_1');
       return null;
     };
 
@@ -104,7 +112,46 @@ describe('usePatientFindings', () => {
       root.render(<TestComponent />);
     });
 
+    // It instantiates local repo
     expect(factorySpy).toHaveBeenCalledWith(expect.objectContaining({ backend: 'local', tenantId: undefined }));
+
+    // But fails safely on write
+    await expect(hookResult!.createFinding({} as never)).rejects.toThrow("Active clinic is required for Supabase data access.");
+    expect(mockRepo.createFinding).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('immediately exposes empty findings even if query had previous data when transitioning to no-tenant', async () => {
+    vi.mocked(useAsyncQuery).mockReturnValueOnce({
+      data: [{ id: 'old-finding' }],
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
+
+    let hookResult: ReturnType<typeof usePatientFindings>;
+
+    const TestComponent = () => {
+      hookResult = usePatientFindings('patient_1');
+      return null;
+    };
+
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<TestComponent />);
+    });
+
+    expect(hookResult!.findings).toEqual([]);
+    expect(hookResult!.isLoading).toBe(false);
 
     await act(async () => {
       root.unmount();

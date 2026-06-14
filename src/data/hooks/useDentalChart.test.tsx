@@ -7,6 +7,7 @@ import { useDentalChart } from './useDentalChart';
 import * as DentalChartRepositoryModule from '../repositories/DentalChartRepository';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
+import { useAsyncQuery } from './useAsyncQuery';
 
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {},
@@ -86,14 +87,21 @@ describe('useDentalChart', () => {
     });
   });
 
-  it('routes to local backend when no active tenant', async () => {
+  it('creates local repository but blocks operations when no active tenant in supabase-active mode', async () => {
     const factorySpy = vi.spyOn(DentalChartRepositoryModule, 'createDentalChartRepository');
+    const mockRepo = {
+      getDentalChart: vi.fn(),
+      saveDentalChart: vi.fn(),
+    };
+    factorySpy.mockReturnValue(mockRepo as unknown as ReturnType<typeof DentalChartRepositoryModule.createDentalChartRepository>);
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
+    let hookResult: ReturnType<typeof useDentalChart>;
+
     const TestComponent = () => {
-      useDentalChart('patient_1');
+      hookResult = useDentalChart('patient_1');
       return null;
     };
 
@@ -104,7 +112,46 @@ describe('useDentalChart', () => {
       root.render(<TestComponent />);
     });
 
+    // It instantiates local repo
     expect(factorySpy).toHaveBeenCalledWith(expect.objectContaining({ backend: 'local', tenantId: undefined }));
+
+    // But fails safely on write
+    await expect(hookResult!.saveDentalChart({} as never)).rejects.toThrow("Active clinic is required for Supabase data access.");
+    expect(mockRepo.saveDentalChart).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it('immediately exposes null chart even if query had previous data when transitioning to no-tenant', async () => {
+    vi.mocked(useAsyncQuery).mockReturnValueOnce({
+      data: { id: 'old-chart', patientId: 'patient_1', toothStates: [] },
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
+
+    let hookResult: ReturnType<typeof useDentalChart>;
+
+    const TestComponent = () => {
+      hookResult = useDentalChart('patient_1');
+      return null;
+    };
+
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<TestComponent />);
+    });
+
+    expect(hookResult!.dentalChart).toBeNull();
+    expect(hookResult!.isLoading).toBe(false);
 
     await act(async () => {
       root.unmount();
