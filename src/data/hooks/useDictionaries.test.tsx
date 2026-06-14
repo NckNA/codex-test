@@ -2,7 +2,7 @@
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRoot } from 'react-dom/client';
-import React, { act } from 'react';
+import { act } from 'react';
 import type { ClinicalDiagnosis, ClinicalWork } from '../../config/clinicalDictionaries';
 import { ClinicalDictionariesProvider, useDictionaries } from './useDictionaries';
 import * as ClinicalDictionariesRepositoryModule from '../repositories/ClinicalDictionariesRepository';
