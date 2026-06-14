@@ -10,7 +10,7 @@ This task implements a secure runtime boundary for authenticated Supabase users 
 https://github.com/NckNA/codex-test/pull/277
 
 ## 4. PR head reviewed before final report update
-fbd55a062bfc4b8777fb2e599ee457123fe3a8ca
+2a96f65e28a1bf010ed2cd1f5acd85c95e3603ad
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -73,7 +73,7 @@ Previously, when the application was in `supabase-active` mode but the active te
 - `npm run lint`: PASS.
 - `npm run test -- --run`: PASS (258 tests).
 - `npm run build`: PASS.
-- GitHub Actions CI result: PASS, workflow `CI`, run 27515590976, head `fbd55a062bfc4b8777fb2e599ee457123fe3a8ca`
+- GitHub Actions CI result: PASS, workflow `CI`, run #360, run id 27515622154, head `2a96f65e28a1bf010ed2cd1f5acd85c95e3603ad`
 
 ## 16. Final verdict
 PARTIAL with missing robust browser fixture smoke (MCP timeout).
