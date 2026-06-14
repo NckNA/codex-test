@@ -17,9 +17,14 @@ export function usePatientFindings(patientId: string) {
     });
   }, [authMode, activeTenant?.tenantId]);
 
+  const isNoTenantSupabase = authMode === 'supabase-active' && isSupabaseConfigured && !activeTenant?.tenantId;
+
   const queryFn = useCallback(async () => {
+    if (isNoTenantSupabase) {
+      return [];
+    }
     return await repository.listFindingsByPatient(patientId);
-  }, [repository, patientId]);
+  }, [repository, patientId, isNoTenantSupabase]);
 
   const {
     data: findings,
@@ -37,6 +42,11 @@ export function usePatientFindings(patientId: string) {
   const [saveError, setSaveError] = useState<Error | null>(null);
 
   const createFinding = useCallback(async (finding: CreateFindingInput): Promise<void> => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setSaveError(err);
+      throw err;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -52,6 +62,11 @@ export function usePatientFindings(patientId: string) {
   }, [repository, patientId, refetch]);
 
   const updateFinding = useCallback(async (finding: DentalFinding): Promise<void> => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setSaveError(err);
+      throw err;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -67,6 +82,11 @@ export function usePatientFindings(patientId: string) {
   }, [repository, patientId, refetch]);
 
   const deleteFinding = useCallback(async (findingId: string): Promise<void> => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setSaveError(err);
+      throw err;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {

@@ -22,9 +22,14 @@ export function useDentalChart(patientId: string) {
     });
   }, [authMode, activeTenant?.tenantId]);
 
+  const isNoTenantSupabase = authMode === 'supabase-active' && isSupabaseConfigured && !activeTenant?.tenantId;
+
   const queryFn = useCallback(async () => {
+    if (isNoTenantSupabase) {
+      return null;
+    }
     return await repository.getDentalChart(patientId);
-  }, [repository, patientId]);
+  }, [repository, patientId, isNoTenantSupabase]);
 
   const {
     data: dentalChart,
@@ -42,6 +47,11 @@ export function useDentalChart(patientId: string) {
   const [saveError, setSaveError] = useState<Error | null>(null);
 
   const saveDentalChart = useCallback(async (chart: DentalChart): Promise<void> => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setSaveError(err);
+      throw err;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {

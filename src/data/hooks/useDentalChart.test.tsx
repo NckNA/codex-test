@@ -86,14 +86,21 @@ describe('useDentalChart', () => {
     });
   });
 
-  it('routes to local backend when no active tenant', async () => {
+  it('creates local repository but blocks operations when no active tenant in supabase-active mode', async () => {
     const factorySpy = vi.spyOn(DentalChartRepositoryModule, 'createDentalChartRepository');
+    const mockRepo = {
+      getDentalChart: vi.fn(),
+      saveDentalChart: vi.fn(),
+    };
+    factorySpy.mockReturnValue(mockRepo as any);
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
+    let hookResult: any;
+
     const TestComponent = () => {
-      useDentalChart('patient_1');
+      hookResult = useDentalChart('patient_1');
       return null;
     };
 
@@ -104,7 +111,12 @@ describe('useDentalChart', () => {
       root.render(<TestComponent />);
     });
 
+    // It instantiates local repo
     expect(factorySpy).toHaveBeenCalledWith(expect.objectContaining({ backend: 'local', tenantId: undefined }));
+
+    // But fails safely on write
+    await expect(hookResult.saveDentalChart({} as any)).rejects.toThrow("Active clinic is required for Supabase data access.");
+    expect(mockRepo.saveDentalChart).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();

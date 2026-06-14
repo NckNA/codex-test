@@ -120,14 +120,26 @@ describe('useDictionaries', () => {
       await unmount();
     });
 
-    it('uses local backend when authMode is supabase-active but no tenant exists', async () => {
+    it('creates local backend but short-circuits data loading when authMode is supabase-active but no tenant exists', async () => {
       vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
       vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
-      const { unmount } = await setup();
+      const result = await setup();
       
       expect(ClinicalDictionariesRepositoryModule.createClinicalDictionariesRepository).toHaveBeenCalledWith({ backend: 'local', tenantId: undefined });
-      await unmount();
+      
+      // Should not call getDiagnoses/getWorks
+      expect(mockRepo.getDiagnoses).not.toHaveBeenCalled();
+      expect(mockRepo.getWorks).not.toHaveBeenCalled();
+      expect(result.current.diagnoses).toEqual([]);
+      expect(result.current.works).toEqual([]);
+      expect(result.current.loading).toBe(false);
+
+      // Should fail safely on write
+      await expect(result.current.saveDiagnosis({ id: 'd1' } as any)).rejects.toThrow("Active clinic is required for Supabase data access.");
+      expect(mockRepo.saveDiagnosis).not.toHaveBeenCalled();
+
+      await result.unmount();
     });
   });
 
