@@ -58,7 +58,7 @@ export class LocalStorageClinicalDictionariesRepository implements IClinicalDict
   }
 
   async saveDiagnosis(diagnosis: ClinicalDiagnosis): Promise<void> {
-    const all = ClinicalDictionariesRepository.getDiagnoses();
+    const all = [...ClinicalDictionariesRepository.getDiagnoses()];
     const idx = all.findIndex(d => d.id === diagnosis.id);
     if (idx >= 0) {
       all[idx] = diagnosis;
@@ -69,7 +69,7 @@ export class LocalStorageClinicalDictionariesRepository implements IClinicalDict
   }
 
   async saveWork(work: ClinicalWork): Promise<void> {
-    const all = ClinicalDictionariesRepository.getWorks();
+    const all = [...ClinicalDictionariesRepository.getWorks()];
     const idx = all.findIndex(w => w.id === work.id);
     if (idx >= 0) {
       all[idx] = work;
@@ -114,7 +114,7 @@ export class SupabaseClinicalDictionariesRepository implements IClinicalDictiona
       description: row.description || undefined,
       allowedPresenceStatuses: row.allowed_presence_statuses || [],
       allowedZones: row.allowed_zones || [],
-      visualPriority: row.visual_priority || undefined,
+      visualPriority: row.visual_priority ?? undefined,
       isActive: row.is_active ?? true,
     } as ClinicalDiagnosis));
   }
@@ -156,7 +156,7 @@ export class SupabaseClinicalDictionariesRepository implements IClinicalDictiona
       work_access_type: null,
       allowed_diagnosis_ids: [],
       price: null,
-      visual_priority: diagnosis.visualPriority || null,
+      visual_priority: diagnosis.visualPriority ?? null,
       is_active: diagnosis.isActive !== false,
     };
 

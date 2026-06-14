@@ -125,6 +125,25 @@ describe('ClinicalDictionariesRepository', () => {
       expect(result[0].isActive).toBe(true); // default true
     });
 
+    it('maps visual_priority 0 to visualPriority 0', async () => {
+      const mockRow = {
+        id: 'dx_3',
+        name: 'Test Dx 3',
+        visual_priority: 0,
+      };
+
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      mockSupabase.from.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockRow], error: null }),
+      } as unknown);
+
+      const result = await repo.getDiagnoses();
+      expect(result[0].visualPriority).toBe(0);
+    });
+
     it('maps work row to domain correctly', async () => {
       const mockRow = {
         id: 'work_1',
@@ -286,6 +305,24 @@ describe('ClinicalDictionariesRepository', () => {
       );
     });
 
+    it('preserves visualPriority 0 on save', async () => {
+      const dx = {
+        id: 'dx_zero',
+        name: 'Zero Dx',
+        visualPriority: 0,
+      } as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis;
+
+      await repo.saveDiagnosis(dx);
+
+      expect(upsertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'dx_zero',
+          visual_priority: 0,
+        }),
+        { onConflict: 'tenant_id,id' }
+      );
+    });
+
     it('saves work correctly', async () => {
       const work = {
         id: 'work_1',
@@ -322,6 +359,39 @@ describe('ClinicalDictionariesRepository', () => {
     it('throws errors on save', async () => {
       upsertMock.mockReturnValue({ error: new Error('Save failed') });
       await expect(repo.saveDiagnosis({} as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis)).rejects.toThrow('Save failed');
+    });
+  });
+
+  describe('F. LocalStorage async wrapper', () => {
+    let repo: LocalStorageClinicalDictionariesRepository;
+
+    beforeEach(() => {
+      repo = new LocalStorageClinicalDictionariesRepository();
+    });
+
+    it('does not mutate imported default arrays when modifying', async () => {
+      // By default the array comes from legacy facade
+      // Let's modify the 0th element using the async save method
+      const initialDiagnoses = await repo.getDiagnoses();
+      
+      const toUpdate = { ...initialDiagnoses[0], name: 'Mutated Name' };
+      await repo.saveDiagnosis(toUpdate);
+
+      const updatedDiagnoses = await repo.getDiagnoses();
+      expect(updatedDiagnoses[0].name).toBe('Mutated Name');
+      
+      // Ensure the original source defaults are NOT mutated
+      expect(defaultDiagnoses[0].name).not.toBe('Mutated Name');
+
+      const initialWorks = await repo.getWorks();
+
+      const toUpdateWork = { ...initialWorks[0], name: 'Mutated Work Name' };
+      await repo.saveWork(toUpdateWork);
+
+      const updatedWorks = await repo.getWorks();
+      expect(updatedWorks[0].name).toBe('Mutated Work Name');
+
+      expect(defaultClinicalWorks[0].name).not.toBe('Mutated Work Name');
     });
   });
 

@@ -6,7 +6,7 @@ This task implemented the foundational repository layer for clinical dictionarie
 ## 2. Checks and PR metadata
 - PR URL: https://github.com/NckNA/codex-test/pull/268
 - Branch: feature/dict-supabase-001b-a-repository
-- PR head reviewed before final report update: a530243d2ef60022a1ee0e7213df1002abce2338
+- PR head reviewed before final report update: 89975dc239a875bab8ceeb0b08454793ce4849b2
 - Report update commit: N/A because the final report update commit cannot reference itself before creation
 - git status --short: clean
 - npm run lint: clean
@@ -22,7 +22,7 @@ This task implemented the foundational repository layer for clinical dictionarie
 ## 6. Repository Design
 - **Local facade:** The original `ClinicalDictionariesRepository` const export was preserved identically to avoid breaking any synchronous UI code or legacy `useDictionaries` dependencies.
 - **Async abstraction:** Created `IClinicalDictionariesRepository` defining standard async contract for reading and writing domain models.
-- **Local repo:** Created `LocalStorageClinicalDictionariesRepository` that implements the async abstraction but leverages the local facade internally.
+- **Local repo:** Created `LocalStorageClinicalDictionariesRepository` that implements the async abstraction but leverages the local facade internally. Mutating `save` methods clone arrays via spread syntax `[...all]` to prevent polluting in-memory legacy defaults.
 - **Supabase repo:** Created `SupabaseClinicalDictionariesRepository` which implements the async abstraction using the Supabase client.
 - **Factory:** Added `createClinicalDictionariesRepository({ backend, tenantId })` to dynamically initialize the chosen backend repository.
 
@@ -31,6 +31,7 @@ This task implemented the foundational repository layer for clinical dictionarie
 - **Work row -> domain:** Maps to `ClinicalWork`, safely normalizing numeric prices and `work_access_type`.
 - **Domain -> Payload (Upsert):** Both models use `onConflict: 'tenant_id,id'`. The `tenant_id` is strictly enforced.
 - **Arrays & Price:** Explicitly coalesced to avoid inserting invalid payloads, preserving compatibility with UI expectations.
+- **visualPriority:** Mapped precisely using nullish coalescing `??` to preserve valid `0` values rather than defaulting them away via `||`.
 - **isActive:** Mapped flawlessly; inactive rows are still surfaced by the repository, letting the UI decide filtering logic (matching existing local behavior).
 
 ## 8. Tenant Safety
@@ -54,12 +55,13 @@ This task implemented the foundational repository layer for clinical dictionarie
 
 ## 12. Tests Run and Results
 Run using Vitest: `npm run test -- --run src/data/repositories/ClinicalDictionariesRepository.test.ts`
-18 tests passed successfully, covering:
+21 tests passed successfully, covering:
 - A. Local behavior (legacy facade parse errors, save capabilities)
-- B. Supabase read mapping (null fallbacks, safe array casts)
+- B. Supabase read mapping (null fallbacks, safe array casts, visualPriority 0 mapping)
 - C. Supabase query safety (tenant filtering, error throwing)
-- D. Supabase save mapping (upsert payloads)
+- D. Supabase save mapping (upsert payloads, preserving visualPriority 0)
 - E. Factory logic
+- F. LocalStorage async wrapper (mutation-safety checks proving source arrays aren't mutated)
 
 ## 13. Remaining Risks
 - Repository is not yet connected to `useDictionaries`. The `MedicalPage` remains effectively `local-only` during execution.
