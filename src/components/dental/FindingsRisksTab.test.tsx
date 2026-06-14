@@ -63,10 +63,10 @@ describe('FindingsRisksTab', () => {
       error: null,
       isSaving: false,
       saveError: null,
-      createFinding: vi.fn() as unknown as ReturnType<typeof vi.fn>,
-      updateFinding: vi.fn() as unknown as ReturnType<typeof vi.fn>,
-      deleteFinding: vi.fn() as unknown as ReturnType<typeof vi.fn>,
-      refetch: vi.fn() as unknown as ReturnType<typeof vi.fn>,
+      createFinding: vi.fn(),
+      updateFinding: vi.fn(),
+      deleteFinding: vi.fn(),
+      refetch: vi.fn(),
     });
 
     const container = document.createElement('div');
@@ -116,10 +116,10 @@ describe('FindingsRisksTab', () => {
       error: null,
       isSaving: false,
       saveError: null,
-      createFinding: vi.fn() as unknown as ReturnType<typeof vi.fn>,
-      updateFinding: vi.fn() as unknown as ReturnType<typeof vi.fn>,
-      deleteFinding: vi.fn() as unknown as ReturnType<typeof vi.fn>,
-      refetch: vi.fn() as unknown as ReturnType<typeof vi.fn>,
+      createFinding: vi.fn(),
+      updateFinding: vi.fn(),
+      deleteFinding: vi.fn(),
+      refetch: vi.fn(),
     });
 
     const container = document.createElement('div');
