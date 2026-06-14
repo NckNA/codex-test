@@ -163,7 +163,6 @@ export function DentalChartTab({ patientId }: DentalChartTabProps) {
     if (dentalChart) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setComplaints(dentalChart.complaints || '');
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDiagnosis(dentalChart.diagnosis || '');
     }
   }, [dentalChart]);

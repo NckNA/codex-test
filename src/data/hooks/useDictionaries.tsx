@@ -75,6 +75,7 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDictionaries() {
   const context = useContext(DictionariesContext);
   if (context === undefined) {

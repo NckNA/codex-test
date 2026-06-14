@@ -39,6 +39,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const STATUS_LABELS: Record<FindingStatus, string> = {
   discovered: 'Выявлено',
   planned: 'В плане',

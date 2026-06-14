@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { LocalStorageFindingsRepository, SupabaseFindingsRepository, createFindingsRepository, type CreateFindingInput } from './FindingsRepository';
-import type { DentalFinding } from '../../types';
+import type { DentalFinding, FindingStatus } from '../../types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('../../lib/supabaseClient', () => ({
@@ -289,7 +289,7 @@ describe('FindingsRepository', () => {
         description: '',
         isChiefComplaintRelated: false,
         includeInTreatmentPlan: false,
-        status: 'included_in_plan' as any,
+        status: 'included_in_plan' as unknown as FindingStatus,
       });
 
       expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
