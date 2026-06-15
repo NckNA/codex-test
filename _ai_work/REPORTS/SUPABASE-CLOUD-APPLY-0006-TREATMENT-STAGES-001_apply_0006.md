@@ -14,11 +14,11 @@ However, post-apply grant validation is **PARTIAL**, not fully verified: the fun
 
 ## 3. PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/281
 
 ## 4. PR head reviewed before final report update
 
-[Pending PR creation]
+`aa6a3c50a3b2dc72de83a0160b48b4712d78225d`
 
 ## 5. Report update commit
 
@@ -27,6 +27,10 @@ N/A because the final report update commit cannot reference itself before creati
 ## 6. Changed files summary
 
 - `[NEW] _ai_work/REPORTS/SUPABASE-CLOUD-APPLY-0006-TREATMENT-STAGES-001_apply_0006.md`
+
+PR changed-files check before final report update confirmed exactly one changed file:
+
+- `_ai_work/REPORTS/SUPABASE-CLOUD-APPLY-0006-TREATMENT-STAGES-001_apply_0006.md`
 
 ## 7. Cloud project identity
 
@@ -224,11 +228,11 @@ Important caveat: advisor output did not flag the `anon EXECUTE` ACL on `public.
 
 ## 16. Checks
 
-- `git status --short`: pending final report update.
-- `npm run lint`: pending final report update.
-- `npm run test -- --run`: pending final report update.
-- `npm run build`: pending final report update.
-- `GitHub Actions CI result`: pending final report update.
+- `git status --short`: not run in a local working tree because the report-only branch was created through the GitHub Contents API. PR changed-files validation confirmed exactly one changed file: `_ai_work/REPORTS/SUPABASE-CLOUD-APPLY-0006-TREATMENT-STAGES-001_apply_0006.md`.
+- `npm run lint`: **PASS** via GitHub Actions CI workflow `CI`, job `validate`, step `Run ESLint`, run #378, head `aa6a3c50a3b2dc72de83a0160b48b4712d78225d`.
+- `npm run test -- --run`: **NOT RUN EXACTLY**. The repository CI workflow runs `npm run test`; that CI step passed in run #378. This is not claimed as the exact requested local command.
+- `npm run build`: **PASS** via GitHub Actions CI workflow `CI`, job `validate`, step `Build project`, run #378, head `aa6a3c50a3b2dc72de83a0160b48b4712d78225d`.
+- `GitHub Actions CI result`: **PASS**, workflow `CI`, run #378, run id `27541090096`, head `aa6a3c50a3b2dc72de83a0160b48b4712d78225d`.
 
 ## 17. Final verdict
 
