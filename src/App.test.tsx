@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { App } from './App';
@@ -45,80 +45,75 @@ const mockUseTenant = (overrides: Partial<ReturnType<typeof TenantContextModule.
   });
 };
 
+const renderApp = async () => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(<App />);
+  });
+
+  return { container, root };
+};
+
+const unmount = async (root: ReturnType<typeof createRoot>) => {
+  await act(async () => {
+    root.unmount();
+  });
+};
+
+const currentRoleLabel = (container: HTMLElement) => container.querySelector('[data-testid="current-role-label"]')?.textContent ?? null;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('App Auth & Tenant Gate', () => {
   it('1. dev mode renders app routes, not LoginPage, not no-tenant screen', async () => {
     mockUseAuth({ authMode: 'dev', isLoading: false });
-    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Dev' }, availableTenants: [{ tenantId: '123', tenantName: 'Dev' }], isLoading: false });
+    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Dev', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Dev', role: 'clinic_admin' }], isLoading: false });
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
+    const { container, root } = await renderApp();
 
     expect(container.textContent).not.toContain('Вход в систему');
     expect(container.textContent).not.toContain('Клиника не назначена');
     // It should render Layout containing Header, which contains user name or date
     expect(container.textContent).toBeDefined();
 
-    await act(async () => {
-      root.unmount();
-    });
+    await unmount(root);
   });
 
   it('2. supabase-active + auth loading renders auth loading screen', async () => {
     mockUseAuth({ authMode: 'supabase-active', isLoading: true });
     mockUseTenant();
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
+    const { container, root } = await renderApp();
 
     expect(container.querySelector('.animate-spin')).toBeDefined();
 
-    await act(async () => {
-      root.unmount();
-    });
+    await unmount(root);
   });
 
   it('3. supabase-active + no user renders LoginPage', async () => {
     mockUseAuth({ authMode: 'supabase-active', user: null, isLoading: false });
     mockUseTenant();
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
+    const { container, root } = await renderApp();
 
     expect(container.textContent).toContain('Вход в систему');
 
-    await act(async () => {
-      root.unmount();
-    });
+    await unmount(root);
   });
 
   it('4. supabase-active + user + tenant loading renders "Загрузка клиники..."', async () => {
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
     mockUseTenant({ isLoading: true });
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
+    const { container, root } = await renderApp();
 
     expect(container.textContent).toContain('Загрузка клиники...');
 
-    await act(async () => {
-      root.unmount();
-    });
+    await unmount(root);
   });
 
   it('5. supabase-active + user + tenant error renders "Не удалось загрузить клинику" and logout button calls signOut', async () => {
@@ -126,12 +121,7 @@ describe('App Auth & Tenant Gate', () => {
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false, signOut: signOutMock });
     mockUseTenant({ error: new Error('Network fail'), isLoading: false });
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
+    const { container, root } = await renderApp();
 
     expect(container.textContent).toContain('Не удалось загрузить клинику');
     expect(container.textContent).toContain('Network fail');
@@ -145,24 +135,20 @@ describe('App Auth & Tenant Gate', () => {
 
     expect(signOutMock).toHaveBeenCalled();
 
-    await act(async () => {
-      root.unmount();
-    });
+    await unmount(root);
   });
 
-  it('6. supabase-active + user + no tenants renders "Клиника не назначена" and logout button calls signOut', async () => {
+  it('6. supabase-active + user + no tenants renders "Клиника не назначена" and no fake admin role', async () => {
     const signOutMock = vi.fn();
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false, signOut: signOutMock });
     mockUseTenant({ activeTenant: null, availableTenants: [], isLoading: false });
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
+    const { container, root } = await renderApp();
 
     expect(container.textContent).toContain('Клиника не назначена');
+    expect(currentRoleLabel(container)).toBeNull();
+    expect(container.textContent).not.toContain('Администратор клиники');
+    expect(container.textContent).not.toContain('Администратор платформы');
 
     const button = container.querySelector('button');
     expect(button?.textContent).toContain('Выйти');
@@ -173,14 +159,60 @@ describe('App Auth & Tenant Gate', () => {
 
     expect(signOutMock).toHaveBeenCalled();
 
-    await act(async () => {
-      root.unmount();
-    });
+    await unmount(root);
   });
 
   it('7. supabase-active + user + activeTenant renders normal app routes', async () => {
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
-    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Real' }, availableTenants: [{ tenantId: '123', tenantName: 'Real' }], isLoading: false });
+    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Real', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Real', role: 'clinic_admin' }], isLoading: false });
+
+    const { container, root } = await renderApp();
+
+    expect(container.textContent).not.toContain('Загрузка клиники...');
+    expect(container.textContent).not.toContain('Клиника не назначена');
+    expect(container.textContent).not.toContain('Вход в систему');
+
+    await unmount(root);
+  });
+
+  it.each([
+    ['clinic_admin', 'Администратор клиники'],
+    ['clinic_owner', 'Владелец клиники'],
+    ['doctor', 'Врач'],
+    ['receptionist', 'Регистратор'],
+    ['registrar', 'Регистратор'],
+    ['cashier', 'Кассир'],
+  ])('renders active clinic role label for %s', async (role, expectedLabel) => {
+    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
+    mockUseTenant({
+      activeTenant: { tenantId: '123', tenantName: 'Real', role },
+      availableTenants: [{ tenantId: '123', tenantName: 'Real', role }],
+      isLoading: false,
+    });
+
+    const { container, root } = await renderApp();
+
+    expect(currentRoleLabel(container)).toBe(expectedLabel);
+    expect(currentRoleLabel(container)).not.toBe('Администратор');
+    expect(currentRoleLabel(container)).not.toBe('Администратор платформы');
+
+    await unmount(root);
+  });
+
+  it('updates visible role label when active tenant role changes', async () => {
+    const tenantSpy = vi.spyOn(TenantContextModule, 'useTenant');
+    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
+
+    tenantSpy.mockReturnValue({
+      activeTenant: { tenantId: 'clinic-a', tenantName: 'Clinic A', role: 'clinic_admin' },
+      availableTenants: [
+        { tenantId: 'clinic-a', tenantName: 'Clinic A', role: 'clinic_admin' },
+        { tenantId: 'clinic-b', tenantName: 'Clinic B', role: 'doctor' },
+      ],
+      setActiveTenant: vi.fn(),
+      isLoading: false,
+      error: null,
+    });
 
     const container = document.createElement('div');
     const root = createRoot(container);
@@ -189,12 +221,26 @@ describe('App Auth & Tenant Gate', () => {
       root.render(<App />);
     });
 
-    expect(container.textContent).not.toContain('Загрузка клиники...');
-    expect(container.textContent).not.toContain('Клиника не назначена');
-    expect(container.textContent).not.toContain('Вход в систему');
+    expect(currentRoleLabel(container)).toBe('Администратор клиники');
+
+    tenantSpy.mockReturnValue({
+      activeTenant: { tenantId: 'clinic-b', tenantName: 'Clinic B', role: 'doctor' },
+      availableTenants: [
+        { tenantId: 'clinic-a', tenantName: 'Clinic A', role: 'clinic_admin' },
+        { tenantId: 'clinic-b', tenantName: 'Clinic B', role: 'doctor' },
+      ],
+      setActiveTenant: vi.fn(),
+      isLoading: false,
+      error: null,
+    });
 
     await act(async () => {
-      root.unmount();
+      root.render(<App />);
     });
+
+    expect(currentRoleLabel(container)).toBe('Врач');
+    expect(currentRoleLabel(container)).not.toBe('Администратор клиники');
+
+    await unmount(root);
   });
 });
