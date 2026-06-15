@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import type { ClinicalDiagnosis, ClinicalWork } from '../../config/clinicalDictionaries';
 import { createClinicalDictionariesRepository } from '../repositories/ClinicalDictionariesRepository';
+import type { ClinicalDictionaryBootstrapResult } from '../repositories/ClinicalDictionariesRepository';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
@@ -10,8 +11,10 @@ interface DictionariesContextType {
   works: ClinicalWork[];
   loading: boolean;
   error: string | null;
+  isBootstrappingDefaults: boolean;
   saveDiagnosis: (diagnosis: ClinicalDiagnosis) => Promise<void>;
   saveWork: (work: ClinicalWork) => Promise<void>;
+  bootstrapDefaults: (templateKey?: string) => Promise<ClinicalDictionaryBootstrapResult>;
   refresh: () => Promise<void>;
 }
 
@@ -24,13 +27,14 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
   const [diagnoses, setDiagnoses] = useState<ClinicalDiagnosis[]>([]);
   const [works, setWorks] = useState<ClinicalWork[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isBootstrappingDefaults, setIsBootstrappingDefaults] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const repository = useMemo(() => {
-    const backend = (authMode === 'supabase-active' && isSupabaseConfigured && activeTenant?.tenantId) 
-      ? 'supabase' 
+    const backend = (authMode === 'supabase-active' && isSupabaseConfigured && activeTenant?.tenantId)
+      ? 'supabase'
       : 'local';
-    
+
     return createClinicalDictionariesRepository({ backend, tenantId: activeTenant?.tenantId });
   }, [authMode, activeTenant?.tenantId]);
 
@@ -63,7 +67,7 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
 
   useEffect(() => {
     let ignore = false;
-    
+
     // We defer the execution to avoid synchronously calling setState inside useEffect
     // which triggers the react-hooks/set-state-in-effect lint rule.
     void Promise.resolve().then(() => {
@@ -71,7 +75,7 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
         void loadData();
       }
     });
-    
+
     return () => {
       ignore = true;
     };
@@ -85,7 +89,7 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
     }
     try {
       await repository.saveDiagnosis(diagnosis);
-      
+
       setDiagnoses(prev => {
         const exists = prev.find(d => d.id === diagnosis.id);
         let updated: ClinicalDiagnosis[];
@@ -112,7 +116,7 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
     }
     try {
       await repository.saveWork(work);
-      
+
       setWorks(prev => {
         const exists = prev.find(w => w.id === work.id);
         let updated: ClinicalWork[];
@@ -131,13 +135,37 @@ export function ClinicalDictionariesProvider({ children }: { children: React.Rea
     }
   }, [repository, isNoTenantSupabase]);
 
+  const bootstrapDefaults = useCallback(async (templateKey?: string) => {
+    if (isNoTenantSupabase) {
+      const err = new Error("Active clinic is required for Supabase data access.");
+      setError(err.message);
+      throw err;
+    }
+
+    setIsBootstrappingDefaults(true);
+    try {
+      const result = await repository.bootstrapFromTemplate(templateKey);
+      await loadData();
+      setError(null);
+      return result;
+    } catch (err) {
+      console.error('Failed to bootstrap clinical dictionaries:', err);
+      setError(err instanceof Error ? err.message : 'Failed to bootstrap dictionaries');
+      throw err;
+    } finally {
+      setIsBootstrappingDefaults(false);
+    }
+  }, [repository, isNoTenantSupabase, loadData]);
+
   const value = {
     diagnoses: isNoTenantSupabase ? [] : diagnoses,
     works: isNoTenantSupabase ? [] : works,
     loading: isNoTenantSupabase ? false : loading,
     error,
+    isBootstrappingDefaults,
     saveDiagnosis,
     saveWork,
+    bootstrapDefaults,
     refresh: loadData,
   };
 
