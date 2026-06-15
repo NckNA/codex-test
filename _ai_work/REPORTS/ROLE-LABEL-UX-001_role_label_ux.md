@@ -6,7 +6,7 @@ Implemented centralized role display mapping and replaced the layout header's ha
 
 - Branch name: `feature/role-label-ux-001`
 - PR URL: https://github.com/NckNA/codex-test/pull/290
-- PR head reviewed before final report update: `cfa730142c5a4fc9b7ec9af52d6a0c048097e660`
+- PR head reviewed before final report update: `909dbf309e59fcc991a96be17349a7c4a716cccf`
 - Report update commit: N/A because the final report update commit cannot reference itself before creation.
 
 ---
@@ -211,16 +211,58 @@ Dictionary permission logic was intentionally not changed. Existing dictionary p
 
 ## Browser Smoke
 
-Blocked in this environment: Chrome DevTools MCP is not available, so I could not perform real browser login/navigation smoke.
+Partially attempted with real in-app browser tooling against local Vite on `http://127.0.0.1:5177`.
 
-Not faked.
+Tooling status:
 
-Required manual smoke if browser tooling is available:
+- Browser tooling is available.
+- A stale crashed browser tab from a previous native confirm flow was bypassed by opening a fresh in-app browser tab.
+- Local Supabase was running.
+- The app opened the Supabase login screen successfully.
 
-1. Admin Clinic A: visible role label should be `Администратор клиники`, not generic `Администратор`.
-2. Doctor Clinic A: visible role label should be `Врач`; dictionary page should remain read-only.
-3. No-tenant user: no fake admin role; no-tenant gate remains.
-4. Multi-tenant fixture: switching active tenant should update visible role label.
+Local QA fixture inventory:
+
+- `qa.admin.a@example.local`: exists, `clinic_admin` in Demo Clinic A.
+- `qa.doctor.a@example.local`: exists, `doctor` in Demo Clinic A.
+- `qa.notenant@example.local`: exists, no tenant membership.
+- `qa.multitenant@example.local`: exists, `clinic_admin` in Demo Clinic A and `doctor` in Demo Clinic B.
+- receptionist/registrar fixture: not present in local `tenant_users`.
+- cashier fixture: not present in local `tenant_users`.
+
+Attempted scenarios:
+
+1. Admin Clinic A
+   - Login attempted with the local QA admin fixture.
+   - Result: BLOCKED by local auth credentials. The planned fixture password `password123` returned `Invalid login credentials`.
+   - Role label could not be observed after login.
+
+2. Doctor Clinic A
+   - Login attempted with the local QA doctor fixture.
+   - Result: BLOCKED by local auth credentials. The planned fixture password `password123` returned `Invalid login credentials`.
+   - Role label and dictionary read-only UI could not be observed after login.
+
+3. Receptionist / registrar
+   - Result: BLOCKED because no receptionist/registrar auth fixture exists in the current local database.
+
+4. Cashier
+   - Result: BLOCKED because no cashier auth fixture exists in the current local database.
+
+5. No-tenant
+   - Login attempted with the local no-tenant fixture.
+   - Result: BLOCKED by local auth credentials. The planned fixture password `password123` returned `Invalid login credentials`.
+   - No-tenant gate could not be observed after login.
+
+6. Multi-tenant
+   - Login attempted with the local multi-tenant fixture.
+   - Result: BLOCKED by local auth credentials. The planned fixture password `password123` returned `Invalid login credentials`.
+   - Additional blocker: no active-tenant switcher UI exists in the current app (`setActiveTenant` is not called from rendered UI), so switching Clinic A -> Clinic B cannot be completed in browser even when login works.
+
+Console errors:
+
+- The only observed browser console errors were the expected failed-login `AuthApiError: Invalid login credentials` entries from the blocked fixture login attempts.
+- No post-login role-label console state could be verified because authentication did not complete.
+
+Not faked. No production role-label bug was found in this smoke attempt, and no code was changed.
 
 ---
 
@@ -241,11 +283,13 @@ Required manual smoke if browser tooling is available:
 
 ## Checks
 
-- `git status --short`: not run locally; GitHub PR file list must be used as source of truth.
-- `npm run lint`: PASS via GitHub Actions CI #429.
-- `npm run test -- --run`: PASS via GitHub Actions CI #429.
-- `npm run build`: PASS via GitHub Actions CI #429.
-- `GitHub Actions CI result`: PASS, run id `27573586816`, run number `429`, tested commit `cfa730142c5a4fc9b7ec9af52d6a0c048097e660`.
+- `git status --short` before report edit: only pre-existing untracked `_ai_work/scratch/`, `outputs/`, `pr.txt`, `seed_output.sql`, and `temp.md`.
+- `npm run lint`: PASS.
+- `npm run test -- --run` with local `.env.local`: FAIL in unrelated `AuthContext (Dev Fallback)` because local Supabase configuration selects `supabase-active` instead of `dev`.
+- `npm run test -- --run` in CI-equivalent env-neutral mode: PASS, 37 test files and 300 tests.
+- `npm run build`: PASS. Vite emitted the existing large-chunk warning.
+- `GitHub Actions CI result before this report update`: PASS, run id `27573732129`, tested commit `909dbf309e59fcc991a96be17349a7c4a716cccf`.
+- `GitHub Actions CI result after this report update`: PENDING until this report-only commit is pushed.
 
 ---
 
@@ -267,7 +311,7 @@ Required manual smoke if browser tooling is available:
 
 **PARTIAL**
 
-Reason: implementation is complete and CI is green, but browser smoke is blocked because Chrome DevTools MCP is not available in this environment.
+Reason: implementation is complete and current PR CI is green, but browser smoke remains blocked by local QA fixture credentials and missing local role fixtures for receptionist/registrar and cashier. Multi-tenant role-switch smoke is additionally blocked by the absence of an active-tenant switcher UI.
 
 ---
 
