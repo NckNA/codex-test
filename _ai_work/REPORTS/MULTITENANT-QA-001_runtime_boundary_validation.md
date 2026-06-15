@@ -1,4 +1,4 @@
-﻿# MULTITENANT-QA-001: Cross-Tenant and No-Tenant Runtime Boundary Validation
+# MULTITENANT-QA-001: Cross-Tenant and No-Tenant Runtime Boundary Validation
 
 ## 1. Summary
 Real browser QA validating cross-tenant data isolation and no-tenant runtime boundary using local Supabase with seeded QA fixture users. All five personas tested. Core isolation requirements PASS. Two low-severity UX observations noted.
@@ -7,10 +7,10 @@ Real browser QA validating cross-tenant data isolation and no-tenant runtime bou
 `qa/multitenant-runtime-boundary-001`
 
 ## 3. PR URL
-N/A (report-only PR)
+https://github.com/NckNA/codex-test/pull/278
 
 ## 4. PR head reviewed before final report update
-N/A
+3425596e505eacfeae0e62a0b08344c6950d76ba
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -158,6 +158,8 @@ The isNoTenantSupabase guard in usePatientFindings, useDentalChart, and useDicti
 - Browser QA - No-Tenant: PASS (boundary gate working)
 - Browser QA - Multi-Tenant: PASS (defaults to Clinic A)
 - Console errors across all sessions: pre-existing accessibility warnings only
+- GitHub Actions CI result: PASS, workflow CI, run #363, head 3425596e505eacfeae0e62a0b08344c6950d76ba
+
 
 ## 14. Final verdict
 PASS - All core runtime isolation requirements are met.
