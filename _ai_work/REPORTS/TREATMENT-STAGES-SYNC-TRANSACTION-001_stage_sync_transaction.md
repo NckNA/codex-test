@@ -6,7 +6,7 @@ This report documents the implementation and validation of atomic treatment plan
 
 - **Branch name**: `fix/treatment-stages-sync-transaction-001`
 - **PR URL**: https://github.com/NckNA/codex-test/pull/280
-- **PR head reviewed before final report update**: `7c35e6adb3174a0ffd59fb041cf8893e370ba556`
+- **PR head reviewed before final report update**: `d5b76fc2eadcc67bed3497931dbb8085e996d0c9`
 - **Report update commit**: N/A because the final report update commit cannot reference itself before creation.
 
 ---
@@ -129,14 +129,12 @@ The repository test suite in [TreatmentPlansRepository.test.ts](file:///d:/Users
 
 - `git status --short`:
   ```
-  M src/data/repositories/TreatmentPlansRepository.test.ts
-  M src/data/repositories/TreatmentPlansRepository.ts
-  ?? supabase/migrations/0006_treatment_plan_stage_sync_rpc.sql
+  M _ai_work/REPORTS/TREATMENT-STAGES-SYNC-TRANSACTION-001_stage_sync_transaction.md
   ```
 - `npm run lint`: **PASS** (Zero warnings or errors).
-- `npm run test -- --run`: **PASS** (All 268 tests pass).
+- `npm run test -- --run`: **PASS** (All 268 tests pass with `.env.local` temporarily moved during tests).
 - `npm run build`: **PASS** (Project builds cleanly).
-- `GitHub Actions CI result`: **PASS** (Workflow CI, run #373, run id 27535676421, head 7c35e6adb3174a0ffd59fb041cf8893e370ba556).
+- `GitHub Actions CI result`: **PASS** (Workflow CI, run #375, run id 27535774702, head d5b76fc2eadcc67bed3497931dbb8085e996d0c9).
 
 ---
 
