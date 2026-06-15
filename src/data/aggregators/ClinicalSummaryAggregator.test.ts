@@ -10,6 +10,7 @@ import type { DentalChart, TreatmentPlan, DentalFinding, Appointment, ChiefCompl
 
 describe('ClinicalSummaryAggregator', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     localStorage.clear();
   });
 
@@ -21,7 +22,7 @@ describe('ClinicalSummaryAggregator', () => {
     expect(summary.nextVisit).toBeUndefined();
   });
 
-  it('calculates dental summary from seeded chart/findings/plans/complaint', async () => {
+  it('calculates dental summary from seeded chart/findings/plans/complaint while excluding archived findings from active counters', async () => {
     // Seed chart
     const chart: DentalChart = {
       id: 'c1',
@@ -31,15 +32,15 @@ describe('ClinicalSummaryAggregator', () => {
       teeth: Array.from({ length: 32 }, (_, i) => ({
         toothNumber: i + 1,
         condition: i === 0 ? 'caries' : i === 1 ? 'pulpitis' : i === 2 ? 'missing' : 'healthy',
-        updatedAt: 'now'
-      } as ToothRecord))
+        updatedAt: 'now',
+      } as ToothRecord)),
     };
     localStorage.setItem('df_dental_charts', JSON.stringify({ 'patient_1': chart }));
 
     // Seed plans
     const plans: TreatmentPlan[] = [
       { id: '1', patientId: 'patient_1', title: 'Draft Plan', status: 'draft', stages: [], totalPrice: 1000, createdAt: '', updatedAt: '' },
-      { id: '2', patientId: 'patient_1', title: 'Completed Plan', status: 'completed', stages: [], totalPrice: 2000, createdAt: '', updatedAt: '' }
+      { id: '2', patientId: 'patient_1', title: 'Completed Plan', status: 'completed', stages: [], totalPrice: 2000, createdAt: '', updatedAt: '' },
     ];
     localStorage.setItem('df_treatment_plans', JSON.stringify(plans));
 
@@ -52,7 +53,8 @@ describe('ClinicalSummaryAggregator', () => {
       { id: '1', patientId: 'patient_1', toothNumber: 11, category: 'caries', title: 'Urgent', severity: 'urgent', status: 'discovered', description: 'a', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
       { id: '2', patientId: 'patient_1', toothNumber: 12, category: 'caries', title: 'High Completed', severity: 'high', status: 'completed', description: 'b', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
       { id: '3', patientId: 'patient_1', toothNumber: 13, category: 'caries', title: 'Med Rec', severity: 'medium', status: 'discovered', description: 'c', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
-      { id: '4', patientId: 'patient_1', toothNumber: 14, category: 'caries', title: 'Low Obs', severity: 'low', status: 'monitoring', description: 'd', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' }
+      { id: '4', patientId: 'patient_1', toothNumber: 14, category: 'caries', title: 'Low Obs', severity: 'low', status: 'monitoring', description: 'd', isChiefComplaintRelated: false, includeInTreatmentPlan: false, createdAt: '', updatedAt: '' },
+      { id: '5', patientId: 'patient_1', toothNumber: 15, category: 'caries', title: 'Archived urgent', severity: 'urgent', status: 'archived', description: 'e', isChiefComplaintRelated: false, includeInTreatmentPlan: true, createdAt: '', updatedAt: '' },
     ];
     localStorage.setItem('df_dental_findings', JSON.stringify(findings));
 
@@ -63,15 +65,15 @@ describe('ClinicalSummaryAggregator', () => {
     expect(summary.dentalSummary.activePlans).toBe(1); // draft
     expect(summary.dentalSummary.totalAmount).toBe(3000); // 1000 + 2000
     expect(summary.dentalSummary.chiefComplaintText).toBe('Toothache');
-    expect(summary.dentalSummary.highUrgentFindings).toBe(1); // urgent discovered (high completed is ignored)
-    expect(summary.dentalSummary.notIncludedFindings).toBe(2); // discovered
+    expect(summary.dentalSummary.highUrgentFindings).toBe(1); // urgent discovered only; completed/archived ignored
+    expect(summary.dentalSummary.notIncludedFindings).toBe(2); // discovered only
     expect(summary.dentalSummary.monitoringFindings).toBe(1); // monitoring
   });
 
   it('calculates lastVisit and nextVisit while ignoring cancelled/blocked', async () => {
     // Avoid default chart creation in this test
     localStorage.setItem('df_dental_charts', JSON.stringify({
-      'patient_1': { patientId: 'patient_1', teeth: [] }
+      'patient_1': { patientId: 'patient_1', teeth: [] },
     }));
 
     const pastDate = new Date(Date.now() - 86400000).toISOString(); // Yesterday
@@ -96,10 +98,10 @@ describe('ClinicalSummaryAggregator', () => {
   it('does not mutate unrelated storage', async () => {
     // Prevent default chart creation to keep storage exact
     localStorage.setItem('df_dental_charts', JSON.stringify({ 'patient_1': { patientId: 'patient_1', teeth: [] } }));
-    
+
     const findingsData = JSON.stringify([{ id: 'f1', mock: true }]);
     const plansData = JSON.stringify([{ id: 'p1', mock: true }]);
-    
+
     localStorage.setItem('df_dental_findings', findingsData);
     localStorage.setItem('df_treatment_plans', plansData);
 
@@ -121,19 +123,19 @@ describe('ClinicalSummaryAggregator', () => {
       vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository').mockReturnValue({
         listFindingsByPatient: vi.fn().mockRejectedValue(new Error('Supabase network error')),
       } as unknown as ReturnType<typeof FindingsRepositoryModule.createFindingsRepository>);
-      
+
       vi.spyOn(DentalChartRepositoryModule, 'createDentalChartRepository').mockReturnValue({
         getDentalChart: vi.fn().mockResolvedValue({ teeth: [] }),
       } as unknown as ReturnType<typeof DentalChartRepositoryModule.createDentalChartRepository>);
-      
+
       vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository').mockReturnValue({
         listTreatmentPlansByPatient: vi.fn().mockResolvedValue([]),
       } as unknown as ReturnType<typeof TreatmentPlansRepositoryModule.createTreatmentPlansRepository>);
-      
+
       vi.spyOn(ChiefComplaintRepositoryModule, 'createChiefComplaintRepository').mockReturnValue({
         getChiefComplaint: vi.fn().mockResolvedValue(null),
       } as unknown as ReturnType<typeof ChiefComplaintRepositoryModule.createChiefComplaintRepository>);
-      
+
       vi.spyOn(AppointmentRepositoryModule, 'createAppointmentRepository').mockReturnValue({
         listAppointments: vi.fn().mockResolvedValue([]),
       } as unknown as ReturnType<typeof AppointmentRepositoryModule.createAppointmentRepository>);
