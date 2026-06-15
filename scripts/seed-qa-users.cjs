@@ -1,5 +1,121 @@
 const { createClient } = require('@supabase/supabase-js');
 
+const LOCAL_ONLY_CONFIRMATION = 'YES_I_UNDERSTAND_LOCAL_ONLY';
+
+const TENANT_A = '11111111-1111-1111-1111-111111111111';
+const TENANT_B = '22222222-2222-2222-2222-222222222222';
+
+// Keep this list aligned with the current app_role enum in supabase/migrations/0001_initial_schema.sql.
+// Do not add roles here without a matching DB enum value.
+const SUPPORTED_APP_ROLES = new Set([
+  'platform_owner',
+  'platform_admin',
+  'clinic_owner',
+  'clinic_admin',
+  'doctor',
+  'registrar',
+  'cashier',
+  'marketer',
+  'support',
+]);
+
+function requireSupportedRole(role, fixtureEmail) {
+  if (!SUPPORTED_APP_ROLES.has(role)) {
+    throw new Error(`Fixture ${fixtureEmail} requested unsupported role: ${role}`);
+  }
+}
+
+function buildPersonas() {
+  const personas = [
+    {
+      email: 'qa.admin.a@example.local',
+      firstName: 'QA Admin',
+      lastName: 'A',
+      memberships: [{ tenantId: TENANT_A, role: 'clinic_admin' }],
+    },
+    {
+      email: 'qa.doctor.a@example.local',
+      firstName: 'QA Doctor',
+      lastName: 'A',
+      memberships: [{ tenantId: TENANT_A, role: 'doctor' }],
+    },
+    {
+      email: 'qa.admin.b@example.local',
+      firstName: 'QA Admin',
+      lastName: 'B',
+      memberships: [{ tenantId: TENANT_B, role: 'clinic_admin' }],
+    },
+    {
+      email: 'qa.notenant@example.local',
+      firstName: 'QA NoTenant',
+      lastName: 'User',
+      memberships: [],
+    },
+    {
+      email: 'qa.multitenant@example.local',
+      firstName: 'QA Multi',
+      lastName: 'Tenant',
+      memberships: [
+        { tenantId: TENANT_A, role: 'clinic_admin' },
+        { tenantId: TENANT_B, role: 'doctor' },
+      ],
+    },
+  ];
+
+  // The current DB enum uses registrar, not receptionist. Keep the requested QA email
+  // so browser smoke can still validate the visible “Регистратор” role label.
+  const receptionistRole = SUPPORTED_APP_ROLES.has('receptionist') ? 'receptionist' : 'registrar';
+  if (SUPPORTED_APP_ROLES.has(receptionistRole)) {
+    personas.push({
+      email: 'qa.receptionist.a@example.local',
+      firstName: 'QA Receptionist',
+      lastName: 'A',
+      memberships: [{ tenantId: TENANT_A, role: receptionistRole }],
+    });
+  }
+
+  if (SUPPORTED_APP_ROLES.has('cashier')) {
+    personas.push({
+      email: 'qa.cashier.a@example.local',
+      firstName: 'QA Cashier',
+      lastName: 'A',
+      memberships: [{ tenantId: TENANT_A, role: 'cashier' }],
+    });
+  }
+
+  for (const persona of personas) {
+    for (const membership of persona.memberships) {
+      requireSupportedRole(membership.role, persona.email);
+    }
+  }
+
+  return personas;
+}
+
+async function findAuthUserByEmail(supabase, email) {
+  const perPage = 1000;
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      throw error;
+    }
+
+    const users = data?.users ?? [];
+    const existing = users.find(user => user.email === email);
+    if (existing) {
+      return existing;
+    }
+
+    if (users.length < perPage) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
 async function run() {
   const isDryRun = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1';
 
@@ -15,8 +131,8 @@ async function run() {
     process.exit(1);
   }
 
-  if (allowSeed !== 'YES_I_UNDERSTAND_LOCAL_ONLY') {
-    console.error('ERROR: ALLOW_LOCAL_QA_USER_SEED must be exactly "YES_I_UNDERSTAND_LOCAL_ONLY"');
+  if (allowSeed !== LOCAL_ONLY_CONFIRMATION) {
+    console.error(`ERROR: ALLOW_LOCAL_QA_USER_SEED must be exactly "${LOCAL_ONLY_CONFIRMATION}"`);
     process.exit(1);
   }
 
@@ -29,17 +145,17 @@ async function run() {
   try {
     const parsedUrl = new URL(url);
     const validHostnames = ['localhost', '127.0.0.1', '::1'];
-    
+
     if (parsedUrl.protocol !== 'http:') {
       console.error('ERROR: SUPABASE_URL must use http: protocol for local dev.');
       process.exit(1);
     }
-    
+
     if (!validHostnames.includes(parsedUrl.hostname)) {
       console.error('ERROR: SUPABASE_URL hostname must be localhost or 127.0.0.1.');
       process.exit(1);
     }
-    
+
     if (parsedUrl.hostname.endsWith('.supabase.co')) {
       console.error('ERROR: SUPABASE_URL appears to be a production Supabase URL.');
       process.exit(1);
@@ -50,45 +166,7 @@ async function run() {
   }
 
   const supabase = createClient(url, key);
-
-  const tenantA = '11111111-1111-1111-1111-111111111111';
-  const tenantB = '22222222-2222-2222-2222-222222222222';
-
-  const personas = [
-    {
-      email: 'qa.admin.a@example.local',
-      firstName: 'QA Admin',
-      lastName: 'A',
-      memberships: [{ tenantId: tenantA, role: 'clinic_admin' }]
-    },
-    {
-      email: 'qa.doctor.a@example.local',
-      firstName: 'QA Doctor',
-      lastName: 'A',
-      memberships: [{ tenantId: tenantA, role: 'doctor' }]
-    },
-    {
-      email: 'qa.admin.b@example.local',
-      firstName: 'QA Admin',
-      lastName: 'B',
-      memberships: [{ tenantId: tenantB, role: 'clinic_admin' }]
-    },
-    {
-      email: 'qa.notenant@example.local',
-      firstName: 'QA NoTenant',
-      lastName: 'User',
-      memberships: []
-    },
-    {
-      email: 'qa.multitenant@example.local',
-      firstName: 'QA Multi',
-      lastName: 'Tenant',
-      memberships: [
-        { tenantId: tenantA, role: 'clinic_admin' },
-        { tenantId: tenantB, role: 'doctor' }
-      ]
-    }
-  ];
+  const personas = buildPersonas();
 
   if (isDryRun) {
     console.log('--- DRY RUN MODE ---');
@@ -105,38 +183,37 @@ async function run() {
 
   let createdCount = 0;
   let reusedCount = 0;
+  let passwordUpdatedCount = 0;
   let profilesUpserted = 0;
   let tenantUsersInserted = 0;
 
   for (const persona of personas) {
     console.log(`Processing ${persona.email}...`);
-    
-    // Auth user creation or reuse
+
+    // Auth user creation or reuse. Existing users are intentionally password-reset
+    // to QA_USER_PASSWORD so local browser smoke has reliable credentials.
     let userId;
-    const { data: existingUserResp, error: listErr } = await supabase.auth.admin.listUsers();
-    if (listErr) {
-      console.error('  Failed to list users:', listErr.message);
-      process.exit(1);
-    }
-    const existing = existingUserResp.users.find(u => u.email === persona.email);
+    const existing = await findAuthUserByEmail(supabase, persona.email);
 
     if (existing) {
-      console.log('  Reusing existing auth user...');
+      console.log('  Reusing existing auth user and resetting local QA password...');
       userId = existing.id;
       reusedCount++;
-      // Admin API doesn't have an easy "ensure confirmed" update without re-sending invite if it was already confirmed,
-      // but listUsers includes confirmation status. We will just ensure password works by updating it.
-      const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, { password, email_confirm: true });
+      const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, {
+        password,
+        email_confirm: true,
+      });
       if (updateErr) {
         console.error('  Failed to update user:', updateErr.message);
         process.exit(1);
       }
+      passwordUpdatedCount++;
     } else {
       console.log('  Creating new auth user...');
       const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
         email: persona.email,
-        password: password,
-        email_confirm: true
+        password,
+        email_confirm: true,
       });
       if (createErr) {
         console.error('  Failed to create user:', createErr.message);
@@ -153,9 +230,9 @@ async function run() {
       .upsert({
         id: userId,
         first_name: persona.firstName,
-        last_name: persona.lastName
+        last_name: persona.lastName,
       });
-    
+
     if (profileErr) {
       console.error('  Failed to upsert profile:', profileErr.message);
       process.exit(1);
@@ -175,7 +252,7 @@ async function run() {
       const inserts = persona.memberships.map(m => ({
         user_id: userId,
         tenant_id: m.tenantId,
-        role: m.role
+        role: m.role,
       }));
       const { error: tenantErr } = await supabase.from('tenant_users').insert(inserts);
       if (tenantErr) {
@@ -192,14 +269,17 @@ async function run() {
   console.log('\n--- QA USER FIXTURE SUMMARY ---');
   console.log(`Users created:          ${createdCount}`);
   console.log(`Users reused:           ${reusedCount}`);
+  console.log(`Passwords reset:        ${passwordUpdatedCount}`);
   console.log(`Profiles upserted:      ${profilesUpserted}`);
-  console.log(`Tenant uses inserted:   ${tenantUsersInserted}`);
+  console.log(`Tenant users inserted:  ${tenantUsersInserted}`);
   console.log('\nMemberships:');
-  console.log('qa.admin.a@example.local       => Demo Clinic A / clinic_admin');
-  console.log('qa.doctor.a@example.local      => Demo Clinic A / doctor');
-  console.log('qa.admin.b@example.local       => Demo Clinic B / clinic_admin');
-  console.log('qa.notenant@example.local      => no tenant');
-  console.log('qa.multitenant@example.local   => Demo Clinic A / clinic_admin + Demo Clinic B / doctor');
+  console.log('qa.admin.a@example.local          => Demo Clinic A / clinic_admin');
+  console.log('qa.doctor.a@example.local         => Demo Clinic A / doctor');
+  console.log('qa.admin.b@example.local          => Demo Clinic B / clinic_admin');
+  console.log('qa.notenant@example.local         => no tenant');
+  console.log('qa.multitenant@example.local      => Demo Clinic A / clinic_admin + Demo Clinic B / doctor');
+  console.log('qa.receptionist.a@example.local   => Demo Clinic A / registrar');
+  console.log('qa.cashier.a@example.local        => Demo Clinic A / cashier');
   console.log('------------------------------');
 }
 
