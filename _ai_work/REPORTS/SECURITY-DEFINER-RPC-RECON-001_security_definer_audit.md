@@ -24,11 +24,11 @@ Important limitation:
 
 ## 3. PR URL
 
-https://github.com/NckNA/codex-test/pull/TBD
+https://github.com/NckNA/codex-test/pull/283
 
 ## 4. PR head reviewed before final report update
 
-`TBD`
+`183e15175ba96d04ceb18cd7c673140bd2d37e4b`
 
 ## 5. Report update commit
 
@@ -36,7 +36,7 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## 6. Changed files summary
 
-Expected report-only PR changed files:
+PR changed-files validation before final report update confirmed exactly one changed file:
 
 - `[NEW] _ai_work/REPORTS/SECURITY-DEFINER-RPC-RECON-001_security_definer_audit.md`
 
@@ -460,13 +460,13 @@ Expected acceptance criteria for next task:
 
 ## 16. Checks
 
-- `git status --short`: not run in a local working tree.
+- `git status --short`: not run in a local working tree. PR changed-files validation before final report update confirmed exactly one changed file: `_ai_work/REPORTS/SECURITY-DEFINER-RPC-RECON-001_security_definer_audit.md`.
 - `npx supabase status`: not run.
 - `npx supabase db reset`: not run.
 - `npm run lint`: not run locally.
 - `npm run test -- --run`: not run locally.
 - `npm run build`: not run locally.
-- GitHub Actions CI result: pending until PR is opened and CI completes.
+- GitHub Actions CI result: pending for the report update commit.
 
 No skipped check is claimed as passed.
 
@@ -479,7 +479,7 @@ Exact missing validation:
 - local Supabase validation was not completed;
 - local function definitions/grants/search_path were not compared to cloud;
 - local `npm` command checks were not run in this tool path;
-- GitHub Actions CI is pending until PR is opened and run.
+- GitHub Actions CI is pending for the report update commit.
 
 Verified despite partial verdict:
 
@@ -490,6 +490,7 @@ Verified despite partial verdict:
 - Cloud `search_path` safety was inspected.
 - Cloud RLS policy dependencies were mapped.
 - Supabase security advisors were run.
+- PR is report-only with exactly one changed file.
 - No cloud writes or DDL were performed.
 
 ## 18. Recommended next task
