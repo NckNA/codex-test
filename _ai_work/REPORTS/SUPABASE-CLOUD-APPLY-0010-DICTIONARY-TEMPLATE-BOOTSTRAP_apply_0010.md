@@ -26,11 +26,11 @@ Result:
 
 ## 3. PR URL
 
-Pending PR creation.
+https://github.com/NckNA/codex-test/pull/288
 
 ## 4. PR head reviewed before final report update
 
-Pending PR creation.
+`e4093a6d7b7bb4d65b68498fa6f7844a2f74238d`
 
 ## 5. Report update commit
 
@@ -38,7 +38,7 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## 6. Changed files summary
 
-Expected changed files:
+Changed files in PR #288:
 
 - `_ai_work/REPORTS/SUPABASE-CLOUD-APPLY-0010-DICTIONARY-TEMPLATE-BOOTSTRAP_apply_0010.md`
 
@@ -234,9 +234,9 @@ Repository local checks were not run in this session because there is no executa
 - `npm run lint`: not run locally.
 - `npm run test -- --run`: not run locally.
 - `npm run build`: not run locally.
-- GitHub Actions CI: pending PR creation/update.
+- GitHub Actions CI: pending for the final report update commit.
 
-Because this is a report-only PR and no code/migration file is changed in Git, GitHub Actions CI is the source of truth for repository checks after PR creation.
+Because this is a report-only PR and no code/migration file is changed in Git, GitHub Actions CI is the source of truth for repository checks after PR update.
 
 ## 16. Final verdict
 
