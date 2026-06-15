@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/287
 
 ## PR head reviewed before final report update
 
-`67f3f06b5faddcb39804e37cb4cc59d57ad56c52`
+`21d1a12b7a89e02812b97f113204f0f3af2fe769`
 
 ## Report update commit
 
@@ -110,31 +110,60 @@ Hook:
 
 ## Local validation
 
-Not completed in this pass:
+Completed against local Supabase only:
 
-- `npx supabase status` not run
-- `npx supabase db reset` not run
-- SQL template counts not locally verified
-- Demo Clinic B bootstrap RPC not locally smoke-tested with authenticated context
-- doctor/non-admin RPC block not locally validated
-
-SQL-level expected migration outcomes after reset:
-
-- template key: `default_dental_v1`
+- `npx supabase status`: PASS; local stack was already running
+- `npx supabase db reset`: PASS
+- migration history: `0001` through `0010` present locally
+- `public.clinical_dictionary_templates`: exists
+- `public.clinical_dictionary_template_items`: exists
+- active template: `default_dental_v1`, version `1`
 - template items: 25 diagnoses, 18 works, 43 total
-- Demo Clinic A seed remains 25 diagnoses, 18 works, 43 total
-- Demo Clinic B starts with 0 rows until explicit bootstrap
-- null `tenant_id` dictionary rows remain 0
+- Demo Clinic A seed: 25 diagnoses, 18 works, 43 total
+- Demo Clinic B before bootstrap: 0 rows
+- template tables have no `tenant_id` column and remain reusable global definitions
+- bootstrap RPC remains `SECURITY INVOKER`, uses `search_path=public`, is unavailable to `anon`/`PUBLIC`, and is executable by `authenticated`
+
+Authenticated bootstrap validation:
+
+- local QA fixture users were created with the existing guarded `scripts/seed-qa-users.cjs`
+- Admin B imported the default template through the browser UI
+- Demo Clinic B after first bootstrap: 25 diagnoses, 18 works, 43 total
+- second authenticated RPC call: `inserted_count=0`, `skipped_existing_count=43`
+- Demo Clinic B remained at 43 rows after the second call
+- `clinical_dictionary_items` rows with null `tenant_id`: 0
+- temporary local QA membership adjustment used for Doctor B smoke was restored with the existing fixture script
+- no cloud command, linked reset, cloud migration, or cloud data mutation was performed
 
 ## Browser smoke
 
-Not completed in this pass.
+Completed with the feature branch running locally at `http://127.0.0.1:5176/medical`:
 
-Required browser smoke still needed:
+- Admin B / empty Demo Clinic B:
+  - `Загрузить базовый справочник` was visible
+  - import completed through the UI
+  - 43 edit-capable dictionary rows appeared
+  - reload preserved all 43 rows
+  - import button was no longer shown after bootstrap
+- Doctor / empty Demo Clinic B:
+  - import button was not visible
+  - read-only message instructed the user to contact the clinic administrator
+- No-tenant user:
+  - `Клиника не назначена` gate remained active
+  - import button was not visible
+  - no local/default dictionary rows leaked into the no-tenant state
+- Browser console after Admin B reload: no errors
 
-- admin/owner empty dictionary sees import button and import succeeds
-- doctor/non-admin empty dictionary does not see import button
-- no-tenant gate remains without import button
+Regression sanity:
+
+- diagnosis `Редактировать` opened the actual diagnosis editor
+- diagnosis save persisted through `saveDiagnosis`; the temporary QA name change was restored
+- work `Редактировать` opened the actual work editor
+- work save persisted through `saveWork`; the temporary QA name change was restored
+- disable and restore both worked
+- status-to-zone filtering worked: `Кость` was unavailable for natural/deciduous statuses and appeared after selecting missing-tooth status
+- search by zone label returned matching rows
+- search by status label returned matching rows
 
 ## Cloud safety
 
@@ -170,15 +199,21 @@ Cloud apply must happen later after merge through a separate task.
 
 ## Checks
 
-- `git status --short`: not run locally
-- `npm run lint`: not run locally; GitHub Actions ESLint passed
-- `npm run test -- --run`: not run locally; GitHub Actions tests passed
-- `npm run build`: not run locally; GitHub Actions build passed
-- GitHub Actions CI: run #412 passed for commit `67f3f06b5faddcb39804e37cb4cc59d57ad56c52`
+- `git status --short`: only the report changed for this validation; pre-existing untracked local artifacts were not staged or modified
+- `npm run lint`: PASS
+- `npm run test -- --run`: PASS in CI-equivalent environment, 35 test files and 275 tests
+  - first local run failed only because ignored `.env.local` activates Supabase while `AuthContext.test.tsx` explicitly tests dev fallback
+  - rerun with `.env.local` temporarily moved outside the workspace and restored in `finally`: PASS
+- `npm run build`: PASS
+  - existing Vite chunk-size warning remains non-blocking
+- GitHub Actions CI before validation report update: PASS for PR head `21d1a12b7a89e02812b97f113204f0f3af2fe769`
+- GitHub Actions CI after validation report push: pending at report commit time
 
 ## Final verdict
 
-PARTIAL: implementation is present in Git branch, review blockers for MedicalPage/test regression were addressed, and GitHub Actions CI passed, but local Supabase validation and browser smoke are still missing.
+**READY FOR REVIEW**
+
+Implementation, local migration validation, authenticated idempotent bootstrap, browser role smoke, regression sanity, lint, tests, and build all passed. Migration `0010` remains Git/local-only and was not applied to cloud.
 
 ## Recommended next task
 
