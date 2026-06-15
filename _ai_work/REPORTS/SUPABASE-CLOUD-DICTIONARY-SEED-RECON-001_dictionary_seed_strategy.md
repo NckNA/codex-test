@@ -11,16 +11,16 @@ No cloud data was changed. No migration, source code, seed, RLS, tenant, user, o
 `recon/cloud-dictionary-seed-001`
 
 ## 3. PR URL
-Pending until PR is created.
+https://github.com/NckNA/codex-test/pull/286
 
 ## 4. PR head reviewed before final report update
-Pending until PR is created.
+`3c7ebedecc029f27fdf0d3b3681733ddfc022e35`
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
 
 ## 6. Changed files summary
-Expected report-only change:
+Report-only change:
 - `_ai_work/REPORTS/SUPABASE-CLOUD-DICTIONARY-SEED-RECON-001_dictionary_seed_strategy.md`
 
 ## 7. Root cause
@@ -128,7 +128,12 @@ Because cloud has zero dictionary rows, no count by tenant/type/active was neede
 ### 10.4 Template/global table check
 No public table matching dictionary template/default/global clinical catalog/bootstrap template naming was found.
 
-### 10.5 Mutation safety
+### 10.5 Advisor result
+Security advisor remained unchanged from known post-hardening state:
+- `integration_tokens` has RLS enabled with no policy: out of scope.
+- `authenticated_security_definer_function_executable` warnings for `get_user_tenants()` and `has_tenant_role(...)`: expected/out of scope for intentional RLS helper functions.
+
+### 10.6 Mutation safety
 No cloud inserts, updates, deletes, DDL, tenant creation, user creation, seed, reset, or dictionary rows were performed.
 
 ## 11. Strategy options
@@ -204,7 +209,7 @@ Scope summary:
 - npm run lint: not run locally
 - npm run test -- --run: not run locally
 - npm run build: not run locally
-- GitHub Actions CI result: pending PR creation
+- GitHub Actions CI result: pending for report update commit
 
 ## 17. Final verdict
 PARTIAL: Git/code and cloud read-only recon completed, but local Supabase validation and CI are still missing.
