@@ -18,11 +18,11 @@ Archived findings are now treated as history-only records instead of active clin
 
 ## PR URL
 
-Pending PR creation.
+https://github.com/NckNA/codex-test/pull/289
 
 ## PR head reviewed before final report update
 
-Pending PR creation.
+`34e131b0d94a132f50c9dcb44d4d8da40b8482fd`
 
 ## Report update commit
 
@@ -30,7 +30,7 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## Changed files summary
 
-Expected changed files:
+Changed files expected in this PR:
 
 - `src/domain/findingStatus.ts`
 - `src/components/dental/FindingsRisksTab.tsx`
@@ -148,7 +148,7 @@ Blocker: Chrome DevTools MCP is not available in this tool environment, so I can
 
 ## Checks
 
-Pending GitHub Actions CI after PR creation.
+Pending GitHub Actions CI for report metadata update commit.
 
 Local checks not run in this tool environment:
 
