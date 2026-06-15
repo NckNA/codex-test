@@ -6,7 +6,7 @@ This report documents the implementation and validation of the clinical dictiona
 
 - **Branch name**: `fix/dict-permission-ux-001`
 - **PR URL**: https://github.com/NckNA/codex-test/pull/279
-- **PR head reviewed before final report update**: `9357f083bdb96fcdd0ba49a8f985c7df4cc00eec`
+- **PR head reviewed before final report update**: `b28c898ce1e1ec2e5d4bc99db571b25af48dda0b`
 - **Report update commit**: N/A because the final report update commit cannot reference itself before creation.
 
 ---
@@ -59,13 +59,13 @@ A new test suite was created in [MedicalPage.test.tsx](file:///d:/Users/User/Doc
 
 Validation was conducted against local Supabase fixture users at `http://localhost:5173/`:
 
-### 1. Admin A (`qa.admin.a@example.local` / `QaLocal2024!`)
+### 1. Admin A: qa.admin.a@example.local — local QA password used, not documented.
 - Logged in successfully.
 - Navigated to `/medical`.
 - Verified that `+ Диагноз`, `+ Работа`, and all edit/disable buttons are visible.
 - Verified no read-only banner is displayed.
 
-### 2. Doctor A (`qa.doctor.a@example.local` / `QaLocal2024!`)
+### 2. Doctor A: qa.doctor.a@example.local — local QA password used, not documented.
 - Logged in successfully.
 - Navigated to `/medical`.
 - Verified that dictionary items render successfully.
@@ -73,7 +73,7 @@ Validation was conducted against local Supabase fixture users at `http://localho
 - Verified that the read-only warning banner is correctly rendered: *"Справочники доступны только для просмотра. Редактирование доступно администратору клиники."*
 - Checked DevTools console and network logs: no failed write operations or error messages.
 
-### 3. No-Tenant (`qa.notenant@example.local` / `QaLocal2024!`)
+### 3. No-Tenant: qa.notenant@example.local — local QA password used, not documented.
 - Logged in successfully.
 - Navigated to `/medical`.
 - Verified that the tenant block screen is displayed (*"Клиника не назначена"*).
@@ -109,12 +109,12 @@ Validation was conducted against local Supabase fixture users at `http://localho
 
 - `git status --short`:
   ```
-  ?? _ai_work/REPORTS/DICT-PERMISSION-UX-001_dictionary_edit_permission_ux.md
+  M _ai_work/REPORTS/DICT-PERMISSION-UX-001_dictionary_edit_permission_ux.md
   ```
 - `npm run lint`: **PASS** (Zero lint warnings or errors).
 - `npm run test -- --run`: **PASS** (All 267 tests pass successfully with `.env.local` temporarily moved during tests).
 - `npm run build`: **PASS** (Application built successfully with Vite/tsc compiler).
-- `GitHub Actions CI result`: **PASS** (Workflow run ID 27531718301, head 9357f083bdb96fcdd0ba49a8f985c7df4cc00eec).
+- `GitHub Actions CI result`: **PASS** (Workflow CI, run #369, run id 27532695313, head b28c898ce1e1ec2e5d4bc99db571b25af48dda0b).
 
 ---
 
