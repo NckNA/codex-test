@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/281
 
 ## 4. PR head reviewed before final report update
 
-`aa6a3c50a3b2dc72de83a0160b48b4712d78225d`
+`fd5e8e7da10336737c79564b944ec8ae78d26c01`
 
 ## 5. Report update commit
 
@@ -219,12 +219,12 @@ Important caveat: advisor output did not flag the `anon EXECUTE` ACL on `public.
 
 ## 15. Remaining known issues
 
-- `SECURITY-DEFINER-RPC-HARDENING-001` is still needed for `get_user_tenants()` / `has_tenant_role(...)`.
+- `SUPABASE-RPC-GRANT-CLEANUP-0007` is the immediate blocker: revoke `anon EXECUTE` from `public.save_treatment_plan_with_stages` via a Git migration and apply it to dev/test cloud.
+- `SECURITY-DEFINER-RPC-HARDENING-001` remains in backlog for `get_user_tenants()` / `has_tenant_role(...)`, but the immediate blocker is the new RPC grant issue from migration `0006`.
 - `SUPABASE-CLOUD-DRIFT-BACKFILL-001` is still needed for orphan `add_dental_photo_storage` cloud drift.
 - `FINDINGS-ARCHIVE-UI-CLEANUP-001` remains open.
 - `SUPABASE-CLOUD-DICTIONARY-SEED-RECON-001` remains open.
 - `ROLE-LABEL-UX-001` remains open if still applicable.
-- New grant follow-up is needed because `public.save_treatment_plan_with_stages` currently has explicit `anon EXECUTE` in cloud.
 
 ## 16. Checks
 
@@ -249,4 +249,8 @@ Exact missing validation:
 
 ## 18. Recommended next task
 
-**SECURITY-DEFINER-RPC-HARDENING-001**
+**SUPABASE-RPC-GRANT-CLEANUP-0007**
+
+Revoke `anon EXECUTE` from `public.save_treatment_plan_with_stages` via a Git migration and apply it to dev/test cloud.
+
+`SECURITY-DEFINER-RPC-HARDENING-001` remains in backlog, but the immediate blocker is the new RPC grant issue from migration `0006`.
