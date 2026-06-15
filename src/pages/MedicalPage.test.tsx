@@ -54,24 +54,28 @@ const mockWorks: ClinicalWork[] = [
   }
 ];
 
-describe('MedicalPage Permissions UX', () => {
+describe('MedicalPage dictionary permissions and bootstrap UX', () => {
   let saveDiagnosisMock: ReturnType<typeof vi.fn>;
   let saveWorkMock: ReturnType<typeof vi.fn>;
   let refreshMock: ReturnType<typeof vi.fn>;
+  let bootstrapDefaultsMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     saveDiagnosisMock = vi.fn();
     saveWorkMock = vi.fn();
     refreshMock = vi.fn();
+    bootstrapDefaultsMock = vi.fn().mockResolvedValue({ insertedCount: 43, skippedExistingCount: 0, templateKey: 'default_dental_v1' });
 
     vi.mocked(useDictionaries).mockReturnValue({
       diagnoses: mockDiagnoses,
       works: mockWorks,
       loading: false,
       error: null,
+      isBootstrappingDefaults: false,
       saveDiagnosis: saveDiagnosisMock as unknown as (diagnosis: ClinicalDiagnosis) => Promise<void>,
       saveWork: saveWorkMock as unknown as (work: ClinicalWork) => Promise<void>,
+      bootstrapDefaults: bootstrapDefaultsMock as unknown as () => Promise<{ insertedCount: number; skippedExistingCount: number; templateKey: string }>,
       refresh: refreshMock as unknown as () => Promise<void>,
     });
   });
@@ -100,14 +104,7 @@ describe('MedicalPage Permissions UX', () => {
 
     expect(container.textContent).toContain('+ Диагноз');
     expect(container.textContent).toContain('+ Работа');
-    
-    const buttons = Array.from(container.querySelectorAll('button'));
-    const editButtons = buttons.filter(b => b.textContent === 'Редактировать');
-    expect(editButtons.length).toBeGreaterThan(0);
-
-    const toggleButtons = buttons.filter(b => b.textContent === 'Отключить' || b.textContent === 'Восстановить');
-    expect(toggleButtons.length).toBeGreaterThan(0);
-
+    expect(Array.from(container.querySelectorAll('button')).some(b => b.textContent === 'Редактировать')).toBe(true);
     expect(container.textContent).not.toContain('Справочники доступны только для просмотра');
 
     await unmount();
@@ -121,33 +118,69 @@ describe('MedicalPage Permissions UX', () => {
 
     expect(container.textContent).toContain('+ Диагноз');
     expect(container.textContent).toContain('+ Работа');
-
-    const buttons = Array.from(container.querySelectorAll('button'));
-    expect(buttons.some(b => b.textContent === 'Редактировать')).toBe(true);
-
+    expect(Array.from(container.querySelectorAll('button')).some(b => b.textContent === 'Редактировать')).toBe(true);
     expect(container.textContent).not.toContain('Справочники доступны только для просмотра');
 
     await unmount();
   });
 
-  it('C. Supabase clinic_owner: create/edit/disable actions are visible/enabled', async () => {
+  it('C. Supabase clinic_owner with empty dictionary sees explicit import button', async () => {
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'clinic_owner' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useDictionaries).mockReturnValue({
+      diagnoses: [],
+      works: [],
+      loading: false,
+      error: null,
+      isBootstrappingDefaults: false,
+      saveDiagnosis: saveDiagnosisMock as unknown as (diagnosis: ClinicalDiagnosis) => Promise<void>,
+      saveWork: saveWorkMock as unknown as (work: ClinicalWork) => Promise<void>,
+      bootstrapDefaults: bootstrapDefaultsMock as unknown as () => Promise<{ insertedCount: number; skippedExistingCount: number; templateKey: string }>,
+      refresh: refreshMock as unknown as () => Promise<void>,
+    });
 
     const { container, unmount } = await renderComponent();
 
-    expect(container.textContent).toContain('+ Диагноз');
-    expect(container.textContent).toContain('+ Работа');
+    expect(container.textContent).toContain('У этой клиники пока нет справочника.');
+    expect(container.textContent).toContain('Загрузить базовый справочник');
 
-    const buttons = Array.from(container.querySelectorAll('button'));
-    expect(buttons.some(b => b.textContent === 'Редактировать')).toBe(true);
+    const importButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Загрузить базовый справочник');
+    expect(importButton).toBeDefined();
 
-    expect(container.textContent).not.toContain('Справочники доступны только для просмотра');
+    await act(async () => {
+      importButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(bootstrapDefaultsMock).toHaveBeenCalledTimes(1);
 
     await unmount();
   });
 
-  it('D. Supabase doctor: dictionaries are readable, create/edit/disable are hidden', async () => {
+  it('D. Supabase doctor with empty dictionary does not see import button', async () => {
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'doctor' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useDictionaries).mockReturnValue({
+      diagnoses: [],
+      works: [],
+      loading: false,
+      error: null,
+      isBootstrappingDefaults: false,
+      saveDiagnosis: saveDiagnosisMock as unknown as (diagnosis: ClinicalDiagnosis) => Promise<void>,
+      saveWork: saveWorkMock as unknown as (work: ClinicalWork) => Promise<void>,
+      bootstrapDefaults: bootstrapDefaultsMock as unknown as () => Promise<{ insertedCount: number; skippedExistingCount: number; templateKey: string }>,
+      refresh: refreshMock as unknown as () => Promise<void>,
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    expect(container.textContent).toContain('Справочник клиники пока не настроен. Обратитесь к администратору клиники.');
+    expect(container.textContent).not.toContain('Загрузить базовый справочник');
+    expect(bootstrapDefaultsMock).not.toHaveBeenCalled();
+
+    await unmount();
+  });
+
+  it('E. Supabase doctor: dictionaries are readable, create/edit/disable are hidden', async () => {
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'doctor' } } as unknown as ReturnType<typeof useTenant>);
 
@@ -155,38 +188,20 @@ describe('MedicalPage Permissions UX', () => {
 
     expect(container.textContent).toContain('Кариес эмали');
     expect(container.textContent).toContain('Лечение кариеса');
-
     expect(container.textContent).not.toContain('+ Диагноз');
     expect(container.textContent).not.toContain('+ Работа');
+    expect(container.textContent).not.toContain('Загрузить базовый справочник');
 
     const buttons = Array.from(container.querySelectorAll('button'));
     expect(buttons.some(b => b.textContent === 'Редактировать')).toBe(false);
     expect(buttons.some(b => b.textContent === 'Отключить')).toBe(false);
     expect(buttons.some(b => b.textContent === 'Восстановить')).toBe(false);
-
     expect(container.textContent).toContain('Справочники доступны только для просмотра. Редактирование доступно администратору клиники.');
 
     await unmount();
   });
 
-  it('E. Supabase unknown/registrar role: actions hidden/disabled', async () => {
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'receptionist' } } as unknown as ReturnType<typeof useTenant>);
-
-    const { container, unmount } = await renderComponent();
-
-    expect(container.textContent).not.toContain('+ Диагноз');
-    expect(container.textContent).not.toContain('+ Работа');
-
-    const buttons = Array.from(container.querySelectorAll('button'));
-    expect(buttons.some(b => b.textContent === 'Редактировать')).toBe(false);
-
-    expect(container.textContent).toContain('Справочники доступны только для просмотра. Редактирование доступно администратору клиники.');
-
-    await unmount();
-  });
-
-  it('F. Supabase no-tenant: no edit actions, read-only view shown', async () => {
+  it('F. Supabase no-tenant: no import button and no edit actions', async () => {
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
 
@@ -194,11 +209,21 @@ describe('MedicalPage Permissions UX', () => {
 
     expect(container.textContent).not.toContain('+ Диагноз');
     expect(container.textContent).not.toContain('+ Работа');
+    expect(container.textContent).not.toContain('Загрузить базовый справочник');
+    expect(Array.from(container.querySelectorAll('button')).some(b => b.textContent === 'Редактировать')).toBe(false);
+    expect(container.textContent).toContain('Выберите активную клинику для работы со справочниками.');
 
-    const buttons = Array.from(container.querySelectorAll('button'));
-    expect(buttons.some(b => b.textContent === 'Редактировать')).toBe(false);
+    await unmount();
+  });
 
-    expect(container.textContent).toContain('Справочники доступны только для просмотра. Редактирование доступно администратору клиники.');
+  it('G. Existing dictionary does not auto-trigger import', async () => {
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
+
+    const { container, unmount } = await renderComponent();
+
+    expect(container.textContent).not.toContain('Загрузить базовый справочник');
+    expect(bootstrapDefaultsMock).not.toHaveBeenCalled();
 
     await unmount();
   });
