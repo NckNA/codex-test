@@ -24,7 +24,7 @@ Result in dev/test cloud after apply:
 - No cloud reset was performed.
 - No table/data mutation was performed.
 
-Final verdict: `PARTIAL` because cloud grant hardening is verified, but local Supabase validation and authenticated QA-user RLS smoke were not completed in this run.
+Final verdict: `PARTIAL` because cloud grant hardening and GitHub Actions CI are verified, but local Supabase validation and authenticated QA-user RLS smoke were not completed in this run.
 
 ## 2. Branch name
 
@@ -36,7 +36,7 @@ https://github.com/NckNA/codex-test/pull/284
 
 ## 4. PR head reviewed before final report update
 
-`f7cf4f565aa93e86f62e98afd172ee1f0390dc51`
+`2f1dea92abf0baeed48447647d306b5847780d1a`
 
 ## 5. Report update commit
 
@@ -44,7 +44,7 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## 6. Changed files summary
 
-Expected PR changed files:
+PR changed files before final report update were exactly:
 
 - `[NEW] supabase/migrations/0008_harden_rls_helper_function_grants.sql`
 - `[NEW] _ai_work/REPORTS/SECURITY-DEFINER-RPC-HARDENING-001A_rls_helper_grants.md`
@@ -312,24 +312,23 @@ Interpretation:
 
 | Check | Result |
 | :--- | :--- |
-| `git status --short` | Not run locally in this execution path. Expected PR diff is the migration file plus this report file only. |
-| `npm run lint` | Not run locally in this execution path. Await GitHub Actions result. |
-| `npm run test -- --run` | Not run locally in this execution path. Await GitHub Actions result. |
-| `npm run build` | Not run locally in this execution path. Await GitHub Actions result. |
-| GitHub Actions CI result | Pending at report creation. |
+| `git status --short` | Not run locally in this execution path. PR changed files before final report update were exactly the migration file plus this report file. |
+| `npm run lint` | Not run locally. GitHub Actions CI run `#391` passed `Run ESLint`. |
+| `npm run test -- --run` | Not run locally. GitHub Actions CI run `#391` passed `Run tests`. |
+| `npm run build` | Not run locally. GitHub Actions CI run `#391` passed `Build project`. |
+| GitHub Actions CI result | `CI` run `#391` for head `2f1dea92abf0baeed48447647d306b5847780d1a` completed successfully. |
 
 ## 17. Final verdict
 
 `PARTIAL`
 
-Cloud grant cleanup was applied and verified.
+Cloud grant cleanup was applied and verified. GitHub Actions CI for the pre-final-report head passed.
 
 Exact missing validation:
 
 - Local Supabase validation was not completed.
-- Local `npm run lint`, `npm run test -- --run`, and `npm run build` were not completed.
+- Local `npm run lint`, `npm run test -- --run`, and `npm run build` were not completed directly.
 - Full authenticated tenant QA-user RLS smoke was not completed because cloud has no safe fixture data and this task forbids data mutation.
-- GitHub Actions CI result was pending at report creation.
 
 ## 18. Recommended next task
 
