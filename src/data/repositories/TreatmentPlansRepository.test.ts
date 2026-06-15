@@ -28,7 +28,8 @@ const { mockQueryBuilder, mockSupabase } = vi.hoisted(() => {
   return {
     mockQueryBuilder: qb,
     mockSupabase: {
-      from: vi.fn(() => qb)
+      from: vi.fn(() => qb),
+      rpc: vi.fn().mockImplementation(() => Promise.resolve({ data: [], error: null })),
     }
   };
 });
@@ -44,6 +45,7 @@ describe('TreatmentPlansRepository', () => {
     
     // Default success mock for supabase
     mockQueryBuilder.then.mockImplementation((resolve: (value: unknown) => void) => resolve({ data: [], error: null }));
+    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
   });
 
   describe('LocalStorageTreatmentPlansRepository', () => {
@@ -164,10 +166,10 @@ describe('TreatmentPlansRepository', () => {
     it('createTreatmentPlan throws on invalid patient UUID before Supabase call', async () => {
       const plan: TreatmentPlan = { id: validPlanUuid, patientId: invalidUuid, title: 'A', status: 'draft', stages: [], totalPrice: 0, createdAt: '', updatedAt: '' };
       await expect(repo.createTreatmentPlan(invalidUuid, plan)).rejects.toThrow('Invalid patient UUID');
-      expect(mockQueryBuilder.insert).not.toHaveBeenCalled();
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
     });
 
-    it('createTreatmentPlan inserts plan and stages with tenant_id, order_index, and safely handles local IDs', async () => {
+    it('createTreatmentPlan invokes save_treatment_plan_with_stages RPC once with mapped params', async () => {
       const plan: TreatmentPlan = {
         id: 'local_plan_1', // Invalid UUID
         patientId: validUuid,
@@ -190,30 +192,33 @@ describe('TreatmentPlansRepository', () => {
 
       await repo.createTreatmentPlan(validUuid, plan);
 
-      expect(mockSupabase.from).toHaveBeenCalledWith('treatment_plans');
-      expect(mockQueryBuilder.insert).toHaveBeenCalledTimes(2); // once for plan, once for stages
+      expect(mockSupabase.rpc).toHaveBeenCalledOnce();
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('save_treatment_plan_with_stages', expect.any(Object));
 
-      // Plan insertion check
-      const planInsertArgs = mockQueryBuilder.insert.mock.calls[0][0];
-      expect(planInsertArgs.id).not.toBe('local_plan_1');
-      expect(planInsertArgs.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-      expect(planInsertArgs.tenant_id).toBe('tenant_1');
-      expect(planInsertArgs.patient_id).toBe(validUuid);
+      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as Record<string, any>;
+      expect(rpcArgs.p_tenant_id).toBe('tenant_1');
+      expect(rpcArgs.p_patient_id).toBe(validUuid);
+      expect(rpcArgs.p_plan_id).not.toBe('local_plan_1');
+      expect(rpcArgs.p_plan_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(rpcArgs.p_title).toBe('Plan');
+      expect(rpcArgs.p_status).toBe('draft');
+      expect(rpcArgs.p_total_price).toBe(100);
 
-      // Stages insertion check
-      const stagesInsertArgs = mockQueryBuilder.insert.mock.calls[1][0];
-      expect(stagesInsertArgs).toHaveLength(1);
-      expect(stagesInsertArgs[0].id).not.toBe('local_stage_1');
-      expect(stagesInsertArgs[0].tenant_id).toBe('tenant_1');
-      expect(stagesInsertArgs[0].treatment_plan_id).toBe(planInsertArgs.id);
-      expect(stagesInsertArgs[0].order_index).toBe(0);
-      expect(stagesInsertArgs[0].finding_ids).toEqual([validUuid]); // 'f1' and 'f2' filtered out
+      expect(rpcArgs.p_stages).toHaveLength(1);
+      const stage = rpcArgs.p_stages[0];
+      expect(stage.id).not.toBe('local_stage_1');
+      expect(stage.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(stage.title).toBe('Stage 1');
+      expect(stage.teeth).toEqual([11]);
+      expect(stage.price).toBe(50);
+      expect(stage.status).toBe('planned');
+      expect(stage.findingIds).toEqual([validUuid]);
     });
 
-    it('createTreatmentPlan throws on Supabase error', async () => {
-      mockQueryBuilder.then.mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: { message: 'DB Error' } }));
+    it('createTreatmentPlan throws on Supabase RPC error', async () => {
+      mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: { message: 'RPC DB Error' } });
       const plan: TreatmentPlan = { id: validPlanUuid, patientId: validUuid, title: 'A', status: 'draft', stages: [], totalPrice: 0, createdAt: '', updatedAt: '' };
-      await expect(repo.createTreatmentPlan(validUuid, plan)).rejects.toThrow('Failed to create treatment plan in Supabase: DB Error');
+      await expect(repo.createTreatmentPlan(validUuid, plan)).rejects.toThrow('Failed to create treatment plan in Supabase: RPC DB Error');
     });
 
     it('updateTreatmentPlan throws on invalid plan UUID', async () => {
@@ -221,17 +226,9 @@ describe('TreatmentPlansRepository', () => {
       await expect(repo.updateTreatmentPlan(validUuid, plan)).rejects.toThrow('Invalid plan UUID');
     });
 
-    it('updateTreatmentPlan updates plan and uses select + safe update/insert logic for stages', async () => {
+    it('updateTreatmentPlan invokes save_treatment_plan_with_stages RPC once with submitted stages', async () => {
       const validStageUuid = '111e6543-e21b-12d3-a456-426614174000';
       const externalStageUuid = '222e6543-e21b-12d3-a456-426614174000';
-      
-      // Mock the plan update success first, then the select existing stages to return only validStageUuid
-      mockQueryBuilder.then
-        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: [], error: null }))
-        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({
-          data: [{ id: validStageUuid }],
-          error: null
-        }));
 
       const plan: TreatmentPlan = {
         id: validPlanUuid,
@@ -243,7 +240,7 @@ describe('TreatmentPlansRepository', () => {
         updatedAt: '2023-01-01',
         stages: [
           {
-            id: validStageUuid, // Owned stage
+            id: validStageUuid,
             title: 'Stage 1',
             teeth: [12],
             price: 100,
@@ -252,7 +249,7 @@ describe('TreatmentPlansRepository', () => {
             description: '',
           } as TreatmentStage,
           {
-            id: externalStageUuid, // External/unowned stage
+            id: externalStageUuid,
             title: 'Stage 2',
             teeth: [13],
             price: 50,
@@ -261,7 +258,7 @@ describe('TreatmentPlansRepository', () => {
             description: '',
           } as TreatmentStage,
           {
-            id: 'local_stage_1', // Local unassigned stage
+            id: 'local_stage_1',
             title: 'Stage 3',
             teeth: [14],
             price: 50,
@@ -274,30 +271,46 @@ describe('TreatmentPlansRepository', () => {
 
       await repo.updateTreatmentPlan(validUuid, plan);
 
-      // Verifying plan update filtering
-      expect(mockQueryBuilder.update).toHaveBeenCalled();
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('tenant_id', 'tenant_1');
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('patient_id', validUuid);
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('id', validPlanUuid);
+      expect(mockSupabase.rpc).toHaveBeenCalledOnce();
+      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as Record<string, any>;
+      expect(rpcArgs.p_plan_id).toBe(validPlanUuid);
+      expect(rpcArgs.p_stages).toHaveLength(3);
 
-      // Verifying stage select logic
-      expect(mockSupabase.from).toHaveBeenCalledWith('treatment_stages');
-      expect(mockQueryBuilder.select).toHaveBeenCalledWith('id');
-      expect(mockQueryBuilder.eq).toHaveBeenCalledWith('treatment_plan_id', validPlanUuid);
+      expect(rpcArgs.p_stages[0].id).toBe(validStageUuid);
+      expect(rpcArgs.p_stages[1].id).toBe(externalStageUuid); // Sent to RPC to handle ownership rejection
+      expect(rpcArgs.p_stages[2].id).not.toBe('local_stage_1');
+      expect(rpcArgs.p_stages[2].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
 
-      // Valid stage should be updated
-      expect(mockQueryBuilder.update).toHaveBeenCalledWith(expect.objectContaining({ id: validStageUuid }));
-      
-      // External stage and local stage should be inserted with new generated UUIDs
-      // The insert should be called twice (for the external stage and local stage)
-      expect(mockQueryBuilder.insert).toHaveBeenCalledTimes(2);
-      const firstInsert = mockQueryBuilder.insert.mock.calls[0][0];
-      const secondInsert = mockQueryBuilder.insert.mock.calls[1][0];
+    it('updateTreatmentPlan delegates stage deletion by sending only submitted stages', async () => {
+      const validStageUuid = '111e6543-e21b-12d3-a456-426614174000';
+      const plan: TreatmentPlan = {
+        id: validPlanUuid,
+        patientId: validUuid,
+        title: 'Updated',
+        status: 'approved',
+        totalPrice: 100,
+        createdAt: '2023-01-01',
+        updatedAt: '2023-01-01',
+        stages: [
+          {
+            id: validStageUuid,
+            title: 'Stage 1',
+            teeth: [12],
+            price: 100,
+            status: 'planned',
+            findingIds: [],
+            description: '',
+          } as TreatmentStage
+        ]
+      };
 
-      expect(firstInsert.id).not.toBe(externalStageUuid);
-      expect(secondInsert.id).not.toBe('local_stage_1');
-      expect(firstInsert.treatment_plan_id).toBe(validPlanUuid);
-      expect(secondInsert.treatment_plan_id).toBe(validPlanUuid);
+      await repo.updateTreatmentPlan(validUuid, plan);
+
+      expect(mockSupabase.rpc).toHaveBeenCalledOnce();
+      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as Record<string, any>;
+      expect(rpcArgs.p_stages).toHaveLength(1);
+      expect(rpcArgs.p_stages[0].id).toBe(validStageUuid);
     });
 
     it('deleteTreatmentPlan proves delete Supabase error is thrown for non-admin', async () => {
