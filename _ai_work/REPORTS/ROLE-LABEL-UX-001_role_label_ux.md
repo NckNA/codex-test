@@ -5,8 +5,8 @@
 Implemented centralized role display mapping and replaced the layout header's hardcoded role label with the active clinic tenant membership role.
 
 - Branch name: `feature/role-label-ux-001`
-- PR URL: [Pending PR creation]
-- PR head reviewed before final report update: [Pending PR creation]
+- PR URL: https://github.com/NckNA/codex-test/pull/290
+- PR head reviewed before final report update: `fae3749e3757d1b67264b4c57e49a6c781061f4b`
 - Report update commit: N/A because the final report update commit cannot reference itself before creation.
 
 ---
