@@ -22,7 +22,7 @@ https://github.com/NckNA/codex-test/pull/289
 
 ## PR head reviewed before final report update
 
-`03f26335297941f3c5384fdb541cc1e59d393f9e`
+`5f35ac61d183c1a8cba7b1b9e10ad04468d5796c`
 
 ## Report update commit
 
@@ -184,11 +184,10 @@ Results:
 
 GitHub Actions CI after push: PASS.
 
-- run: `27569863492`;
-- job: `81503251432`;
-- check: `validate`;
-- duration: 47 seconds;
-- tested commit: `03f26335297941f3c5384fdb541cc1e59d393f9e`.
+- run id: `27570027075`;
+- workflow: `CI #424`;
+- conclusion: `success`;
+- tested commit: `5f35ac61d183c1a8cba7b1b9e10ad04468d5796c`.
 
 ## Remaining known issues
 
@@ -202,7 +201,7 @@ GitHub Actions CI after push: PASS.
 
 PARTIAL
 
-Reason: the CI test failure has been fixed, all CI-equivalent local checks pass, and GitHub Actions is green. The post-confirm browser archive flow remains blocked, so the report cannot honestly be promoted to `READY FOR REVIEW` without Nick accepting the missing browser completion.
+Reason: GitHub Actions CI is green on tested commit `5f35ac61d183c1a8cba7b1b9e10ad04468d5796c`, and automated coverage validates the archive boundary. The post-confirm browser archive flow remains blocked by the native `window.confirm` / browser tooling limitation, so the report cannot honestly be promoted to `READY FOR REVIEW` without accepting the missing browser completion.
 
 ## Recommended next task
 
