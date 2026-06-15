@@ -6,7 +6,7 @@ Implemented centralized role display mapping and replaced the layout header's ha
 
 - Branch name: `feature/role-label-ux-001`
 - PR URL: https://github.com/NckNA/codex-test/pull/290
-- PR head reviewed before final report update: `909dbf309e59fcc991a96be17349a7c4a716cccf`
+- PR head reviewed before final report update: `f6cd38fd06c1f0d1ee922bbbd0eab5dcce8e4a6b`
 - Report update commit: N/A because the final report update commit cannot reference itself before creation.
 
 ---
@@ -289,7 +289,7 @@ Not faked. No production role-label bug was found in this smoke attempt, and no 
 - `npm run test -- --run` in CI-equivalent env-neutral mode: PASS, 37 test files and 300 tests.
 - `npm run build`: PASS. Vite emitted the existing large-chunk warning.
 - `GitHub Actions CI result before this report update`: PASS, run id `27573732129`, tested commit `909dbf309e59fcc991a96be17349a7c4a716cccf`.
-- `GitHub Actions CI result after this report update`: PENDING until this report-only commit is pushed.
+- `GitHub Actions CI result after report-only smoke update`: PASS, run id `27576275109`, tested commit `f6cd38fd06c1f0d1ee922bbbd0eab5dcce8e4a6b`.
 
 ---
 
