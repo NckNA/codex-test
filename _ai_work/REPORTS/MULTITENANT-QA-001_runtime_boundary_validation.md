@@ -10,7 +10,7 @@ Real browser QA validating cross-tenant data isolation and no-tenant runtime bou
 https://github.com/NckNA/codex-test/pull/278
 
 ## 4. PR head reviewed before final report update
-3425596e505eacfeae0e62a0b08344c6950d76ba
+2f2c194d8fdbeecb8a8aa02e1a29900549abd25b
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -152,17 +152,21 @@ The isNoTenantSupabase guard in usePatientFindings, useDentalChart, and useDicti
 - npx supabase db reset: PASS (all 5 migrations applied cleanly)
 - npm run qa:seed-users (first run): PASS - 5 users created, 5 profiles upserted
 - npm run qa:seed-users (second run / idempotency): PASS - 5 reused, 0 created
+- git status --short: PASS (only gitignored untracked files present: _ai_work/scratch/, outputs/, pr.txt, seed_output.sql, temp.md)
+- npm run lint: PASS (clean linting, 0 errors or warnings)
+- npm run test -- --run: PASS (261 tests passed)
+- npm run build: PASS (successful build with tsc and Vite)
 - Browser QA - Admin A: PASS
 - Browser QA - Doctor A: PASS (2 low observations noted)
 - Browser QA - Admin B: PASS (cross-tenant isolation confirmed)
 - Browser QA - No-Tenant: PASS (boundary gate working)
 - Browser QA - Multi-Tenant: PASS (defaults to Clinic A)
 - Console errors across all sessions: pre-existing accessibility warnings only
-- GitHub Actions CI result: PASS, workflow CI, run #364, head 23ae42e8c3cd976440a182adf236c29391a165bc
+- GitHub Actions CI result: PASS, workflow CI, run #365, run id 27529739909, head 2f2c194d8fdbeecb8a8aa02e1a29900549abd25b
 
 
 ## 14. Final verdict
-PASS - All core runtime isolation requirements are met.
+MULTITENANT BOUNDARY VERIFIED
 
 | Requirement | Status |
 | :--- | :--- |
@@ -175,10 +179,16 @@ PASS - All core runtime isolation requirements are met.
 | Tenant switching UI | Not yet implemented (future task) |
 
 ## 15. Recommended next tasks
-1. TREATMENT-STAGES-SYNC-TRANSACTION-001
-2. FINDINGS-ARCHIVE-UI-CLEANUP-001
-3. SECURITY-DEFINER-RPC-HARDENING-001
-4. SUPABASE-CLOUD-DRIFT-BACKFILL-001
-5. SUPABASE-CLOUD-DICTIONARY-SEED-RECON-001
-6. (Future) Doctor-role UI gating on /medical (hide Edit/Disable buttons for doctor role)
-7. (Future) Tenant switcher UI for multi-tenant users
+1. DICT-PERMISSION-UX-001: Hide/disable dictionary editing for non-admin clinic roles.
+
+### Remaining known issues / backlog
+- TREATMENT-STAGES-SYNC-TRANSACTION-001
+- FINDINGS-ARCHIVE-UI-CLEANUP-001
+- SECURITY-DEFINER-RPC-HARDENING-001
+- SUPABASE-CLOUD-DRIFT-BACKFILL-001
+- SUPABASE-CLOUD-DICTIONARY-SEED-RECON-001
+- (Future) Tenant switcher UI for multi-tenant users
+
+## 16. Changed files summary
+Changed files summary:
+- _ai_work/REPORTS/MULTITENANT-QA-001_runtime_boundary_validation.md
