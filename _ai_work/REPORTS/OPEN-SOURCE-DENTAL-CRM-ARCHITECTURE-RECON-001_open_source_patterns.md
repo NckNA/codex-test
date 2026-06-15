@@ -1,14 +1,14 @@
-# OPEN-SOURCE-DENTAL-CRM-ARCHITECTURE-RECON-001 — Open-source patterns recon
+# OPEN-SOURCE-DENTAL-CRM-ARCHITECTURE-RECON-001 — Open-source architecture patterns
 
 ## 1. Summary
 
 This report researches open-source medical, dental, clinic CRM, and SaaS architecture patterns before DentalFlow CRM continues into larger product features: documents, payments, stock, subscriptions, file/photo storage, onboarding, reports, and integrations.
 
-Result: **RECON COMPLETE**.
+Final verdict: **RECON COMPLETE**.
 
-Key conclusion: DentalFlow should not copy code from mature healthcare projects because the most relevant systems are GPL/AGPL/MPL/proprietary, and many smaller dental repositories are either desktop/offline, stale, non-SaaS, or incomplete. The useful value is architectural: visit/encounter boundaries, patient timeline, immutable clinical history, document metadata, billing separation, tenant onboarding, audit logs, and role/permission clarity.
+Main conclusion: DentalFlow should not copy code from mature healthcare projects. The most relevant mature healthcare systems are GPL/AGPL/MPL/proprietary, and many smaller dental repositories are desktop/offline, stale, non-SaaS, or incomplete. The useful value is architectural: visit/encounter boundaries, patient timeline, immutable clinical history, document metadata, billing separation, tenant onboarding, audit logs, and role/permission clarity.
 
-DentalFlow's current direction is correct:
+DentalFlow's current direction remains correct:
 
 - multi-tenant SaaS;
 - Supabase/RLS tenant boundary;
@@ -16,7 +16,7 @@ DentalFlow's current direction is correct:
 - clinical model separation: complaint != finding != diagnosis != treatment plan != completed service != appointment != payment;
 - amoCRM limited to sales/leads, not medical records.
 
-Recommended next implementation after current UX cleanup: **DENTAL-PHOTO-STORAGE-INTEGRATION-001**, but with one warning: attach every file/photo to tenant, patient, optional tooth, optional finding, optional treatment plan/stage, optional appointment/visit, and audit metadata. Otherwise file storage becomes a drawer full of unlabeled x-rays. Humanity has already suffered enough drawers.
+Recommended next implementation after `ROLE-LABEL-UX-001`: **DENTAL-PHOTO-STORAGE-INTEGRATION-001**, but with patient file metadata included from the start.
 
 ## 2. Branch name
 
@@ -24,11 +24,11 @@ Recommended next implementation after current UX cleanup: **DENTAL-PHOTO-STORAGE
 
 ## 3. PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/291
 
 ## 4. PR head reviewed before final report update
 
-[Pending PR creation]
+`98d50feec182ba082561ee83499383e81b7ddcd3`
 
 ## 5. Report update commit
 
@@ -69,14 +69,16 @@ No external code copied.
 
 ### Sources checked
 
-Public project pages, GitHub repository landing pages, GitHub topic pages, README/license snippets, and public documentation-style pages were checked. Most useful sources were:
+Public project pages, GitHub repository landing pages, GitHub topic pages, README/license snippets, and public documentation-style pages were checked.
+
+Most useful sources:
 
 - OpenEMR: https://github.com/openemr/openemr
 - GNU Health overview: https://en.wikipedia.org/wiki/GNU_Health
-- OpenMRS overview: https://en.wikipedia.org/wiki/OpenMRS and https://github.com/openmrs/openmrs-core
+- OpenMRS overview and core: https://en.wikipedia.org/wiki/OpenMRS and https://github.com/openmrs/openmrs-core
 - Bahmni apps: https://github.com/Bahmni/openmrs-module-bahmniapps
 - LibreHealth EHR: https://github.com/LibreHealthIO/lh-ehr
-- Open Dental overview: https://en.wikipedia.org/wiki/Open_Dental and https://github.com/OpenDental
+- Open Dental overview and GitHub org: https://en.wikipedia.org/wiki/Open_Dental and https://github.com/OpenDental
 - GitHub dental topic: https://github.com/topics/dental
 - Apexo: https://github.com/alexcorvi/apexo
 - Apexo Flutter: https://github.com/alselawi/apexo-flutter
@@ -84,7 +86,7 @@ Public project pages, GitHub repository landing pages, GitHub topic pages, READM
 - JavaFX Periodontal Chart: https://github.com/ZaTribune/javafx-periodontal-chart
 - Odonto: https://github.com/odonto/odonto
 - Basejump: https://github.com/usebasejump/basejump
-- Next.js Subscription Payments: https://github.com/vercel/nextjs-subscription-payments
+- Vercel Next.js Subscription Payments: https://github.com/vercel/nextjs-subscription-payments
 - Next.js SaaS Starter: https://github.com/nextjs/saas-starter
 - BoxyHQ SaaS Starter Kit: https://github.com/boxyhq/saas-starter-kit
 - GitHub multi-tenant topic: https://github.com/topics/multi-tenant
@@ -95,8 +97,8 @@ Included projects if they had at least one of:
 
 - mature EHR/practice management model;
 - dental-specific workflow;
-- dental chart/periodontal chart implementation;
-- appointment/patient/billing modules;
+- dental chart or periodontal chart implementation;
+- appointment, patient, billing, or document modules;
 - SaaS/team/tenant/account pattern;
 - role/permission/audit/billing pattern useful to DentalFlow.
 
@@ -108,27 +110,27 @@ Excluded as primary inspiration if:
 - AI-only x-ray detection without clinic workflow;
 - abandoned toy project with unclear license;
 - no useful architecture beyond CRUD;
-- impossible to confirm even basic license or scope from public pages.
+- impossible to confirm basic license or scope from public pages.
 
 ## 8. Shortlist table
 
 | # | Project | Repository / source | License | Stack | Maintenance signal | Relevance 1-5 | Reason |
 |---|---|---|---|---|---|---:|---|
-| 1 | OpenEMR | https://github.com/openemr/openemr | GPL-3.0 | PHP, JS, SQL, FHIR/API | Very active, large community, OpenEMR 8.1.0 release shown June 2026 | 5 | Mature EHR + practice management: patients, scheduling, billing, reports, portal. Study architecture, do not copy code. |
-| 2 | GNU Health | https://www.gnuhealth.org / public overview | GPL-3.0-or-later | Python, Tryton, PostgreSQL | Mature GNU package | 4 | Good module separation for hospital/public health, lab, EHR. Less dental-specific. GPL risk. |
-| 3 | OpenMRS | https://github.com/openmrs/openmrs-core | MPL 2.0 with Healthcare Disclaimer | Java, web app, MySQL/Hibernate | Mature platform, active releases | 5 | Concept dictionary, modular distributions, forms/reports. Great for dictionary/config ideas. No code copying without review. |
-| 4 | Bahmni / OpenMRS distribution | https://github.com/Bahmni/openmrs-module-bahmniapps | AGPL-3.0 for checked app repo | AngularJS + React frontend, OpenMRS ecosystem | Active-ish, but legacy AngularJS in places | 4 | Config-driven clinical UI, hospital workflows, SNOMED integration. Strong AGPL risk. Study only. |
-| 5 | LibreHealth EHR | https://github.com/LibreHealthIO/lh-ehr | MPL-2.0 plus inherited GPL | PHP, JS, MariaDB/MySQL | Large repo, but appears less active than OpenEMR | 3 | OpenEMR-derived EHR/practice management. Useful for comparison and license warning. |
-| 6 | Open Dental | https://github.com/OpenDental / public overview | Current proprietary; older versions before 24.4 GPL | C#, Windows desktop | Mature product, commercial | 4 | Best dental feature benchmark, but code/license minefield. Use feature taxonomy only. |
-| 7 | Apexo | https://github.com/alexcorvi/apexo | MIT | TypeScript, Electron/web | Last visible release old, repo still useful | 4 | Dental clinic manager, web/desktop. Useful for screens and workflow ideas; code can be studied carefully due MIT, but no copying without approval. |
-| 8 | Apexo Flutter | https://github.com/alselawi/apexo-flutter | GPL-3.0 | Dart/Flutter | Updated 2025, used by author's clinic | 4 | Dental clinic management with mobile/desktop. GPL: study workflow only. |
-| 9 | QDento | https://github.com/thefinalcutbg/QDento | GPL-3.0 | C++/Qt6, SQLite | Updated/released 2026 | 4 | Dental status, periodontal status, history, schedule, financial docs. Excellent feature checklist, GPL risk. |
-| 10 | JavaFX Periodontal Chart | https://github.com/ZaTribune/javafx-periodontal-chart | MIT | JavaFX | Updated 2026 | 3 | Focused periodontal chart: tooth availability, implant, mobility, furcation, BOP, plaque, gingival margin, probing depth. Useful chart model ideas. |
-| 11 | Odonto | https://github.com/odonto/odonto | License not confidently parsed from public page | Python/Django/Opal | Updated 2026 topic page, no releases | 3 | Dental EHR/chairside application. Useful to inspect chairside roles and test users. License must be reviewed. |
-| 12 | Basejump | https://github.com/usebasejump/basejump | MIT | PLpgSQL + TypeScript, Supabase | Stable, 935 stars, release 2024 | 5 | Supabase accounts/teams/permissions/billing, RLS helpers, tests. Highly relevant for tenant/team/account ideas. Do not blindly replace DentalFlow model. |
-| 13 | Vercel Next.js Subscription Payments | https://github.com/vercel/nextjs-subscription-payments | MIT | Next.js, Supabase, Stripe | Archived Jan 2025, but influential | 3 | Stripe subscription flow, webhook syncing, local/staging warnings. Useful for billing architecture, not current template. |
-| 14 | Next.js SaaS Starter | https://github.com/nextjs/saas-starter | MIT | Next.js, Postgres, Drizzle, Stripe | Active, 15.9k stars | 4 | Team CRUD, RBAC owner/member, activity logs, Stripe portal. Good SaaS product skeleton ideas. Not Supabase-specific. |
-| 15 | BoxyHQ SaaS Starter Kit | https://github.com/boxyhq/saas-starter-kit | Apache-2.0 | Next.js, Postgres, Prisma, SAML Jackson | 4.8k stars, enterprise features | 4 | Enterprise SaaS: SAML, SCIM, team invites, roles, audit logs, webhooks, payments. Useful later, heavier than DentalFlow needs now. |
+| 1 | OpenEMR | https://github.com/openemr/openemr | GPL-3.0 | PHP, JS, SQL, FHIR/API | Active, large community | 5 | Mature EHR + practice management: patients, scheduling, billing, reports, portal. Study architecture only. |
+| 2 | GNU Health | https://www.gnuhealth.org | GPL-3.0-or-later | Python, Tryton, PostgreSQL | Mature GNU package | 4 | Strong modular healthcare/hospital model. GPL risk. |
+| 3 | OpenMRS | https://github.com/openmrs/openmrs-core | MPL 2.0 with Healthcare Disclaimer | Java, web app, MySQL/Hibernate | Mature platform | 5 | Concept dictionary, modular distributions, forms/reports. Very useful for clinical dictionary thinking. |
+| 4 | Bahmni / OpenMRS distribution | https://github.com/Bahmni/openmrs-module-bahmniapps | AGPL-3.0 for checked app repo | AngularJS + React, OpenMRS ecosystem | Active-ish, some legacy | 4 | Config-driven clinical UI, hospital workflows, terminology integration. Study only. |
+| 5 | LibreHealth EHR | https://github.com/LibreHealthIO/lh-ehr | MPL-2.0 plus inherited GPL | PHP, JS, MariaDB/MySQL | Large repo, less active than OpenEMR | 3 | OpenEMR-derived EHR/practice management. Useful comparison. |
+| 6 | Open Dental | https://github.com/OpenDental / public overview | Current proprietary; older versions before 24.4 GPL | C#, Windows desktop | Mature commercial product | 4 | Best dental feature benchmark. Use feature taxonomy only. |
+| 7 | Apexo | https://github.com/alexcorvi/apexo | MIT | TypeScript, Electron/web | Old release but useful | 4 | Dental clinic manager. Useful for screens/workflow ideas. |
+| 8 | Apexo Flutter | https://github.com/alselawi/apexo-flutter | GPL-3.0 | Dart/Flutter | Updated 2025 | 4 | Dental clinic management with mobile/desktop. Study workflow only. |
+| 9 | QDento | https://github.com/thefinalcutbg/QDento | GPL-3.0 | C++/Qt6, SQLite | Updated/released 2026 | 4 | Dental status, periodontal status, history, schedule, financial documents. Excellent checklist. |
+| 10 | JavaFX Periodontal Chart | https://github.com/ZaTribune/javafx-periodontal-chart | MIT | JavaFX | Updated 2026 | 3 | Focused periodontal measurements and visualization. Useful for future chart expansion. |
+| 11 | Odonto | https://github.com/odonto/odonto | License not confidently classified in this pass | Python/Django/Opal | Updated topic page, no releases | 3 | Dental EHR/chairside workflow and test personas. License must be reviewed. |
+| 12 | Basejump | https://github.com/usebasejump/basejump | MIT | PLpgSQL + TypeScript, Supabase | Stable, widely starred | 5 | Supabase accounts/teams/permissions/billing, RLS helpers, tests. Highly relevant. |
+| 13 | Vercel Next.js Subscription Payments | https://github.com/vercel/nextjs-subscription-payments | MIT | Next.js, Supabase, Stripe | Archived Jan 2025 | 3 | Stripe subscription flow, webhook syncing, environment warnings. Useful for billing planning. |
+| 14 | Next.js SaaS Starter | https://github.com/nextjs/saas-starter | MIT | Next.js, Postgres, Drizzle, Stripe | Active/high visibility | 4 | Team CRUD, RBAC owner/member, activity logs, Stripe portal. Useful SaaS skeleton ideas. |
+| 15 | BoxyHQ SaaS Starter Kit | https://github.com/boxyhq/saas-starter-kit | Apache-2.0 | Next.js, Postgres, Prisma, SAML Jackson | Active enterprise SaaS starter | 4 | Enterprise SaaS: invites, roles, audit logs, SSO, SCIM, webhooks, payments. Useful later. |
 
 ## 9. Deep dives
 
@@ -180,7 +182,6 @@ Scope:
 - hospital/public health information system;
 - EHR;
 - laboratory information;
-- social medicine;
 - Python/Tryton/PostgreSQL.
 
 Useful architecture patterns:
@@ -202,14 +203,6 @@ What not to copy:
 - hospital-scale modules not needed now;
 - public-health complexity unless future roadmap needs it.
 
-License risk:
-
-- GPL-3.0-or-later. Study only.
-
-Usefulness now:
-
-- Medium-high for module discipline.
-
 ### 9.3 OpenMRS
 
 Scope:
@@ -223,7 +216,7 @@ Scope:
 
 Key pattern:
 
-OpenMRS is built around a concept dictionary. That is highly relevant because DentalFlow just added clinical dictionary templates. The key idea is not to hardcode every clinical data item into the database schema. Clinical concepts, forms, and reports can evolve through controlled configuration.
+OpenMRS is built around a concept dictionary. That is highly relevant because DentalFlow already has clinical dictionary templates. The key idea is not to hardcode every clinical data item into the database schema. Clinical concepts, forms, and reports can evolve through controlled configuration.
 
 What DentalFlow should borrow:
 
@@ -235,16 +228,8 @@ What DentalFlow should borrow:
 What not to copy:
 
 - Java/OpenMRS internals;
-- generic concept model that becomes too abstract for dental workflows;
-- MPL/Healthcare Disclaimer code without legal review.
-
-License risk:
-
-- MPL 2.0 with Healthcare Disclaimer. Easier than GPL for ideas, but code reuse still requires review.
-
-Usefulness now:
-
-- Very high for dictionary/template/onboarding and future custom clinical forms.
+- a generic concept model so abstract that it slows dental MVP;
+- MPL/Healthcare Disclaimer code without review.
 
 ### 9.4 Bahmni / OpenMRS ecosystem
 
@@ -260,7 +245,7 @@ Useful patterns:
 
 1. Separate platform/core from implementation-specific configuration.
 2. Clinic/hospital workflows can be driven by config rather than compiled UI everywhere.
-3. Clinical UI can have micro-frontends / module separation, but that has a complexity cost.
+3. Clinical UI can have module separation, but that has a complexity cost.
 4. Terminology integration should be a boundary, not mixed into business tables.
 
 What DentalFlow should borrow:
@@ -275,48 +260,7 @@ What not to copy:
 - old AngularJS structure;
 - hospital complexity.
 
-License risk:
-
-- The checked Bahmni apps repo contains AGPL-3.0 license text. AGPL is especially dangerous for SaaS code reuse. Study only.
-
-Usefulness now:
-
-- Medium-high for config-driven clinical UI and terminology boundaries.
-
-### 9.5 LibreHealth EHR
-
-Scope:
-
-- EHR and medical practice management;
-- derived from OpenEMR community;
-- PHP/JS/MariaDB.
-
-Useful patterns:
-
-- alternative OpenEMR lineage;
-- patient portal / forms / modules;
-- legacy migration reality.
-
-What DentalFlow should borrow:
-
-- only comparative ideas;
-- warnings about legacy baggage and backward compatibility.
-
-What not to copy:
-
-- inherited GPL code;
-- old installation assumptions;
-- architecture that depends on legacy PHP module sprawl.
-
-License risk:
-
-- MPL-2.0 plus inherited GPL. Code reuse is not clean.
-
-Usefulness now:
-
-- Medium for comparison, lower than OpenEMR/OpenMRS.
-
-### 9.6 Open Dental
+### 9.5 Open Dental
 
 Scope:
 
@@ -344,333 +288,71 @@ What not to copy:
 - screens/assets/code structure;
 - old GPL code without legal review.
 
-License risk:
+### 9.6 Dental GitHub projects
 
-- Current product is proprietary; public overview says versions before 24.4 were GPL. Treat as feature inspiration only.
+Projects reviewed:
 
-Usefulness now:
-
-- High as dental product benchmark, low for direct code reuse.
-
-### 9.7 Apexo
-
-Scope:
-
-- dental clinic manager;
-- web/desktop app;
-- TypeScript/Electron/web;
-- MIT license.
+- Apexo;
+- Apexo Flutter;
+- QDento;
+- JavaFX Periodontal Chart;
+- Odonto.
 
 Useful patterns:
 
-- desktop/web hybrid approach;
-- dental practice UI organization;
-- clinic data screens;
-- tests with Jest/Cypress noted in README.
+- dental chart/periodontal chart deserves dedicated submodels;
+- patient history should be persistent and searchable;
+- schedule and financial documents are separate modules;
+- photo upload is often unfinished or platform-specific, which is a warning for DentalFlow;
+- test personas like dentist/nurse/admin are useful.
 
 What DentalFlow should borrow:
 
-- UX inspiration for dental modules;
-- test layering idea;
-- simple dental practice screens.
-
-What not to copy:
-
-- code without explicit review;
-- old offline/local assumptions;
-- outdated dependencies/build patterns.
-
-License risk:
-
-- MIT. Lower risk, but still do not copy without approval.
-
-Usefulness now:
-
-- High for screens and lightweight dental workflow ideas.
-
-### 9.8 Apexo Flutter
-
-Scope:
-
-- dental clinic management software;
-- Dart/Flutter;
-- Windows/Android supported, web partial, photo upload todo;
-- GPL-3.0.
-
-Useful patterns:
-
-- mobile/desktop dental workflow;
-- real clinic author context;
-- note that web photo upload was not complete, which is directly relevant to our storage work.
-
-What DentalFlow should borrow:
-
-- workflow understanding;
-- mobile-friendly structure ideas;
-- caution around file upload support across platforms.
-
-What not to copy:
-
-- GPL code;
-- offline/mobile storage model if it conflicts with Supabase/RLS.
-
-License risk:
-
-- GPL-3.0. Study only.
-
-Usefulness now:
-
-- Medium-high, especially for mobile and photo-storage pitfalls.
-
-### 9.9 QDento
-
-Scope:
-
-- free open-source dental management software;
-- Qt6/C++/SQLite;
-- GPL-3.0;
-- features: dental status/procedure input, periodontal status, patient history, appointment schedule, financial documents.
-
-Useful patterns:
-
-- dental status and procedure input belong together visually but not as one data type;
-- periodontal status deserves a separate submodel;
-- financial documents are separate from schedule and treatment intent;
-- patient history is a persistent timeline/history concept.
-
-What DentalFlow should borrow:
-
-- feature checklist;
+- dental UI/workflow ideas;
+- periodontal measurement model ideas;
 - financial document separation;
-- periodontal status as future dedicated domain.
+- QA persona separation.
 
 What not to copy:
 
-- GPL code;
-- SQLite desktop-only architecture;
-- Bulgarian healthcare assumptions from DinoDent lineage.
+- GPL code from Apexo Flutter/QDento;
+- unclear-license code from Odonto;
+- desktop SQLite assumptions;
+- chart assets without provenance review.
 
-License risk:
+### 9.7 Supabase/SaaS starters
 
-- GPL-3.0. Study only.
+Projects reviewed:
 
-Usefulness now:
-
-- High for dental feature backlog.
-
-### 9.10 JavaFX Periodontal Chart
-
-Scope:
-
-- focused dental/periodontal chart;
-- JavaFX;
-- MIT;
-- tooth availability, implant status, mobility, furcation, BOP, plaque, gum width, gingival margin, probing depth.
-
-Useful patterns:
-
-- periodontal chart is not just tooth status;
-- it has repeated measurements per tooth/surface/point;
-- gum margin and probing depth need time-series/history if used clinically;
-- visualization should derive from structured values.
-
-What DentalFlow should borrow:
-
-- future periodontal submodel;
-- measurement-point structure;
-- visual graph overlay concept.
-
-What not to copy:
-
-- JavaFX code;
-- tooth image assets without checking origin/licensing.
-
-License risk:
-
-- MIT for repo, but README acknowledges third-party dental photos/chart mechanisms. Asset provenance requires extra review.
-
-Usefulness now:
-
-- High for future dental chart/periodontal expansion.
-
-### 9.11 Odonto
-
-Scope:
-
-- Open Odonto Application;
-- Python/Django/Opal;
-- chairside/dental EHR topic;
-- creates test users: super, dentist, nurse.
-
-Useful patterns:
-
-- dentist/nurse test persona separation;
-- chairside app mindset;
-- clinical workflow may be built on a generic healthcare framework.
-
-What DentalFlow should borrow:
-
-- QA persona pattern;
-- chairside workflow idea.
-
-What not to copy:
-
-- code until license is confirmed;
-- Opal framework assumptions.
-
-License risk:
-
-- License file exists, but public page did not expose enough text in this pass to confidently classify. Treat as unknown until legal/repo inspection.
-
-Usefulness now:
-
-- Medium.
-
-### 9.12 Basejump
-
-Scope:
-
-- Supabase extension/project for personal accounts, team accounts, permissions, billing;
-- RLS-based account access helpers;
-- PLpgSQL-heavy;
-- MIT.
+- Basejump;
+- Vercel Next.js Subscription Payments;
+- Next.js SaaS Starter;
+- BoxyHQ SaaS Starter Kit.
 
 Useful patterns:
 
 - account/team abstraction;
 - team membership roles;
-- RLS helper functions;
-- billing linked to accounts/teams;
-- pgtap testing for Supabase functions/schema.
+- RLS helper functions and SQL testing;
+- invitations and staff/member lifecycle;
+- Stripe subscription webhook synchronization;
+- activity/audit logs;
+- enterprise SSO/SCIM later, not now.
 
 What DentalFlow should borrow:
 
-- testing discipline for SQL/RPC/RLS;
-- account/team pattern as comparison to tenant/clinic;
-- convenience helpers, but only conceptually because DentalFlow already has tenant_users and custom RLS helpers.
+- SQL/RLS test discipline;
+- team/clinic onboarding UX;
+- audit log/event model;
+- subscription status sync pattern;
+- role display/permission separation.
 
 What not to copy:
 
 - wholesale account model replacement;
-- function names/SQL without review;
-- billing assumptions before subscription model is finalized.
-
-License risk:
-
-- MIT. Lower risk, but still no copy without approval.
-
-Usefulness now:
-
-- Very high for tenant onboarding, invitations, RLS tests, billing.
-
-### 9.13 Vercel Next.js Subscription Payments
-
-Scope:
-
-- archived SaaS subscription starter;
-- Next.js + Supabase + Stripe;
-- MIT;
-- webhook syncing pricing/subscription statuses.
-
-Useful patterns:
-
-- Stripe Checkout and customer portal flow;
-- webhooks as source of truth for subscription status;
-- local/staging/prod environment warnings;
-- separate test/live Stripe mode.
-
-What DentalFlow should borrow:
-
-- subscription status sync via webhooks;
-- environment hygiene warnings;
-- do not pull production data into local seeds.
-
-What not to copy:
-
-- archived implementation as current best practice;
-- broad env/service-role handling into frontend;
-- raw code without review.
-
-License risk:
-
-- MIT, archived. Study architecture, not copy.
-
-Usefulness now:
-
-- Medium for billing/subscription planning.
-
-### 9.14 Next.js SaaS Starter
-
-Scope:
-
-- Next.js + Postgres + Drizzle + Stripe + shadcn/ui;
-- MIT;
-- team CRUD, RBAC Owner/Member, activity logs, Stripe portal.
-
-Useful patterns:
-
-- minimal SaaS skeleton;
-- team owner/member roles;
-- activity log system;
-- Stripe portal and subscription management;
-- middleware-protected routes and server action validation.
-
-What DentalFlow should borrow:
-
-- activity log as a first-class module;
-- team/clinic management UX;
-- Stripe subscription UI concepts;
-- RBAC labels and team settings structure.
-
-What not to copy:
-
-- simplistic owner/member roles as a replacement for clinic roles;
-- non-RLS security if it bypasses our Supabase model.
-
-License risk:
-
-- MIT. Lower risk, still no copy without approval.
-
-Usefulness now:
-
-- High for billing, tenant admin, activity log.
-
-### 9.15 BoxyHQ SaaS Starter Kit
-
-Scope:
-
-- enterprise SaaS starter;
-- Next.js, Postgres, Prisma;
-- Apache-2.0;
-- SAML SSO, SCIM/directory sync, team invites, roles, audit logs, webhooks, payments.
-
-Useful patterns:
-
-- invite/team/member lifecycle;
-- roles and permissions UI;
-- audit logs;
-- webhooks/events;
-- enterprise SSO later.
-
-What DentalFlow should borrow:
-
-- audit log/event model;
-- staff invite/member management;
-- future clinic enterprise features.
-
-What not to copy:
-
-- overbuilt enterprise SSO for early MVP;
-- Prisma/Postgres architecture over our Supabase/RLS architecture;
-- code without review.
-
-License risk:
-
-- Apache-2.0. Lower risk, but still no code copy without approval.
-
-Usefulness now:
-
-- Medium-high for staff/team/admin/account modules.
+- simplistic owner/member roles as a substitute for clinic roles;
+- archived starter implementations as current best practice;
+- billing assumptions before DentalFlow subscription model is finalized.
 
 ## 10. Patterns worth borrowing
 
@@ -688,7 +370,7 @@ DentalFlow needs a chronological patient timeline that can show:
 - payments/invoices;
 - user actions/audit events.
 
-This should not be a giant denormalized blob. It should be derived from normalized records plus an explicit activity/audit log where needed.
+This should be derived from normalized records plus explicit activity/audit events where needed, not from one denormalized blob.
 
 ### 10.2 Encounter / visit model
 
@@ -700,13 +382,13 @@ Existing DentalFlow separates appointment from treatment plan and payments. Good
 - payment = financial transaction;
 - document/photo = evidence/artifact attached to patient/visit/tooth/finding.
 
-Recommendation: add a future RECON before implementing documents/payments deeply:
+Recommended future task:
 
 `ENCOUNTER-VISIT-MODEL-RECON-001`
 
 ### 10.3 Appointment lifecycle
 
-Borrow appointment statuses from practice systems:
+Suggested statuses:
 
 - scheduled;
 - confirmed;
@@ -717,7 +399,7 @@ Borrow appointment statuses from practice systems:
 - no_show;
 - rescheduled.
 
-But keep appointment separate from treatment completion.
+Keep appointment separate from treatment completion.
 
 ### 10.4 Treatment plan stages/versioning
 
@@ -752,8 +434,6 @@ Every file/photo/x-ray should have metadata:
 - visibility/clinical significance;
 - archived/deleted state, not hard delete.
 
-This should be implemented before images/photos become real clinic data.
-
 ### 10.6 Audit/activity log
 
 Borrow from SaaS starters and medical systems:
@@ -765,11 +445,9 @@ Borrow from SaaS starters and medical systems:
 - before/after summaries for sensitive changes;
 - non-medical events: invites, role changes, subscription changes.
 
-Do not expose all audit data to normal clinic staff by default.
-
 ### 10.7 Tenant onboarding/default bootstrap
 
-DentalFlow just implemented dictionary template/bootstrap correctly. Extend the same explicit bootstrap style to:
+Extend the explicit bootstrap style already used for dictionaries to:
 
 - clinic creation;
 - staff invitation;
@@ -778,22 +456,19 @@ DentalFlow just implemented dictionary template/bootstrap correctly. Extend the 
 - default dictionary import;
 - subscription trial state.
 
-No frontend auto-seeding. No magic records appearing because a page loaded. We have suffered enough magic.
+No frontend auto-seeding.
 
 ### 10.8 Role label/permission separation
 
-SaaS starters reinforce the same rule already in DentalFlow:
+Displayed role must come from active membership:
 
-- displayed role must come from active membership;
-- permissions must be centralized;
 - platform role != clinic role;
-- multi-tenant role can change by active tenant.
-
-This supports the current `ROLE-LABEL-UX-001` task.
+- multi-tenant user can have different clinic role per active tenant;
+- permission checks must not depend on hardcoded UI labels.
 
 ### 10.9 Reports modules
 
-Reports should not query random UI state. They need stable facts:
+Reports need stable facts:
 
 - appointments by status/date/doctor;
 - completed services;
@@ -803,48 +478,29 @@ Reports should not query random UI state. They need stable facts:
 - stock movements;
 - doctor performance.
 
-Reports should be late enough to avoid reporting on fake/prototype/localStorage data.
+Do not build reports from prototype/localStorage state.
 
 ## 11. Patterns to avoid
 
-1. **Global clinic data without tenant_id**
-   Fine for desktop apps, unacceptable for DentalFlow SaaS.
-
-2. **Hardcoded roles**
-   Doctor/receptionist/cashier must not display or behave as admin.
-
-3. **LocalStorage as production data store**
-   OK for local/dev fallback only. Not a SaaS boundary.
-
-4. **Frontend auto-seeding**
-   Data bootstrap must be explicit and server/database controlled.
-
-5. **Deleting clinical history**
-   Archive/void/supersede instead. Clinical history must survive.
-
-6. **Mixed appointment/treatment/payment model**
-   Appointment is time. Treatment plan is intent. Completed service is fact. Payment is money. Mixing them creates reporting rot.
-
-7. **Weak license hygiene**
-   GPL/AGPL/proprietary code must not enter DentalFlow without legal approval.
-
-8. **Overabstracted clinical concept model too early**
-   OpenMRS-style concepts are powerful, but DentalFlow should not turn a dental MVP into a generic hospital platform. Build domain-specific first, configurable later.
-
-9. **Desktop-only assumptions**
-   SQLite/local desktop flows can inspire dental UX, but not SaaS security.
-
-10. **Unlabeled files**
-   A photo without patient/tooth/context metadata is future garbage.
+1. Global clinic data without tenant_id.
+2. Hardcoded roles.
+3. LocalStorage as production data store.
+4. Frontend auto-seeding.
+5. Hard-deleting clinical history.
+6. Mixed appointment/treatment/payment models.
+7. Weak license hygiene.
+8. Overabstracted OpenMRS-style concept system too early.
+9. Desktop-only SQLite assumptions.
+10. Unlabeled files/photos without patient/tooth/clinical context.
 
 ## 12. License risk section
 
-### Low/moderate risk: MIT / Apache / permissive
+### Lower risk: MIT / Apache / permissive
 
 Examples:
 
 - Apexo: MIT;
-- JavaFX Periodontal Chart: MIT, but asset provenance needs review;
+- JavaFX Periodontal Chart: MIT, but asset provenance still needs review;
 - Basejump: MIT;
 - Next.js SaaS Starter: MIT;
 - Vercel Next.js Subscription Payments: MIT but archived;
@@ -867,10 +523,10 @@ Not allowed without approval:
 
 Examples:
 
-- OpenEMR: GPL-3.0;
-- GNU Health: GPL-3.0-or-later;
-- Apexo Flutter: GPL-3.0;
-- QDento: GPL-3.0;
+- OpenEMR;
+- GNU Health;
+- Apexo Flutter;
+- QDento;
 - parts of LibreHealth inherited from OpenEMR.
 
 Allowed:
@@ -956,7 +612,7 @@ Rule:
 ### Risky if implemented too early
 
 - Generic OpenMRS-style concept system before DentalFlow domain stabilizes.
-- Stock write-off automation before completed service model is fully stable.
+- Stock write-off automation before completed service model is stable.
 - Reports before completed service/payment/encounter facts exist.
 - Dental photo upload without metadata/audit/tenant path rules.
 - Insurance-like billing before local business model is clear.
@@ -980,7 +636,7 @@ Rule:
 
 Alternative if business pressure demands money sooner:
 
-- move `BILLING-SUBSCRIPTION-ACCESS-CONTROL-001` before encounter model, but do not mix SaaS subscription billing with clinic patient payments.
+- Move `BILLING-SUBSCRIPTION-ACCESS-CONTROL-001` earlier, but do not mix SaaS subscription billing with clinic patient payments.
 
 ## 15. What was intentionally NOT changed
 
@@ -990,19 +646,18 @@ Alternative if business pressure demands money sooner:
 - No dependencies added.
 - No external code copied.
 - No implementation started.
-- No feature branch beyond report-only recon.
 
 ## 16. Checks
 
-- `git status --short`: not run locally; report-only GitHub file creation expected.
+- `git status --short`: not available from connector-only execution; PR diff confirms exactly one report file changed.
 - npm checks: not required for report-only recon because no app code, migrations, package files, or tests changed.
-- GitHub Actions CI: pending until PR creation/update if workflow triggers.
+- GitHub Actions CI: pending after final report update at the time this report was finalized.
 
 ## 17. Final verdict
 
 **RECON COMPLETE**
 
-At least 15 external projects/sources were reviewed. More than 4 deep dives completed. License risks documented. No code copied.
+15 external projects/sources were reviewed. More than 4 deep dives completed. License risks documented. No external code copied.
 
 ## 18. Recommended next task
 
@@ -1010,5 +665,4 @@ Recommended next implementation task after `ROLE-LABEL-UX-001`:
 
 **DENTAL-PHOTO-STORAGE-INTEGRATION-001**
 
-However, this recon strongly recommends adding/including patient file metadata rules in that task, not just raw storage upload. A storage bucket without metadata is not a feature. It is a digital sock drawer.
-
+Important: include patient file metadata rules in that task, not just raw storage upload. A storage bucket without metadata is not a feature. It is a digital sock drawer.
