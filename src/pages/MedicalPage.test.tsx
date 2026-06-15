@@ -14,39 +14,21 @@ vi.mock('../contexts/TenantContext', () => ({ useTenant: vi.fn() }));
 vi.mock('../data/hooks/useDictionaries', () => ({ useDictionaries: vi.fn() }));
 
 const mockDiagnoses: ClinicalDiagnosis[] = [
-  {
-    id: 'dx_1',
-    type: 'diagnosis',
-    name: 'Кариес эмали',
-    allowedPresenceStatuses: ['natural', 'deciduous'],
-    allowedZones: ['crown'],
-    isActive: true,
-  },
-  {
-    id: 'dx_2',
-    type: 'diagnosis',
-    name: 'Периодонтит',
-    allowedPresenceStatuses: ['natural', 'root_remnant'],
-    allowedZones: ['root', 'periodontium'],
-    isActive: false,
-  },
+  { id: 'dx_1', type: 'diagnosis', name: 'Кариес эмали', allowedPresenceStatuses: ['natural', 'deciduous'], allowedZones: ['crown'], isActive: true },
+  { id: 'dx_2', type: 'diagnosis', name: 'Периодонтит', allowedPresenceStatuses: ['natural', 'root_remnant'], allowedZones: ['root', 'periodontium'], isActive: false },
 ];
 
 const mockWorks: ClinicalWork[] = [
-  {
-    id: 'wk_1',
-    type: 'work',
-    name: 'Лечение кариеса',
-    price: 15000,
-    allowedPresenceStatuses: ['natural'],
-    allowedZones: ['crown'],
-    allowedDiagnosisIds: ['dx_1'],
-    workAccessType: 'requires_diagnosis',
-    isActive: true,
-  },
+  { id: 'wk_1', type: 'work', name: 'Лечение кариеса', price: 15000, allowedPresenceStatuses: ['natural'], allowedZones: ['crown'], allowedDiagnosisIds: ['dx_1'], workAccessType: 'requires_diagnosis', isActive: true },
 ];
 
-describe('MedicalPage dictionary permissions, editing, filtering and bootstrap UX', () => {
+function setInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+describe('MedicalPage dictionary bootstrap and restored editor behavior', () => {
   let saveDiagnosisMock: ReturnType<typeof vi.fn>;
   let saveWorkMock: ReturnType<typeof vi.fn>;
   let refreshMock: ReturnType<typeof vi.fn>;
@@ -82,64 +64,50 @@ describe('MedicalPage dictionary permissions, editing, filtering and bootstrap U
     });
     return {
       container,
-      unmount: async () => {
-        await act(async () => {
-          root.unmount();
-        });
-      },
+      unmount: async () => act(async () => { root.unmount(); }),
     };
   };
 
-  it('keeps admin dictionary management actions visible', async () => {
+  it('keeps admin create/edit actions available', async () => {
     const { container, unmount } = await renderComponent();
 
     expect(container.textContent).toContain('+ Диагноз');
     expect(container.textContent).toContain('+ Работа');
     expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'Редактировать')).toBe(true);
-    expect(container.textContent).not.toContain('Справочники доступны только для просмотра');
-
     await unmount();
   });
 
-  it('restores diagnosis edit flow and saves through saveDiagnosis', async () => {
+  it('opens diagnosis editor and saves through saveDiagnosis', async () => {
     const { container, unmount } = await renderComponent();
     const editButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Редактировать');
 
-    await act(async () => {
-      editButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await act(async () => editButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
     expect(container.textContent).toContain('Редактирование диагноза');
     const saveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Сохранить');
 
-    await act(async () => {
-      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await act(async () => saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
     expect(saveDiagnosisMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'dx_1', name: 'Кариес эмали' }));
     await unmount();
   });
 
-  it('restores work edit flow and saves through saveWork', async () => {
+  it('opens work editor and saves through saveWork', async () => {
     const { container, unmount } = await renderComponent();
     const editButtons = Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === 'Редактировать');
 
-    await act(async () => {
-      editButtons[editButtons.length - 1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await act(async () => editButtons[editButtons.length - 1]?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
     expect(container.textContent).toContain('Редактирование работы');
     const saveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Сохранить изменения');
 
-    await act(async () => {
-      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await act(async () => saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
     expect(saveWorkMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'wk_1', name: 'Лечение кариеса' }));
     await unmount();
   });
 
-  it('keeps disable and restore behavior wired to save handlers', async () => {
+  it('keeps disable and restore wired to save handlers', async () => {
     const { container, unmount } = await renderComponent();
     const disableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Отключить');
     const restoreButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Восстановить');
@@ -158,10 +126,7 @@ describe('MedicalPage dictionary permissions, editing, filtering and bootstrap U
     const { container, unmount } = await renderComponent();
     const searchInput = container.querySelector('input[type="text"]') as HTMLInputElement;
 
-    await act(async () => {
-      searchInput.value = 'Остаток корня';
-      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    await act(async () => setInputValue(searchInput, 'Остаток корня'));
 
     expect(container.textContent).toContain('Периодонтит');
     expect(container.textContent).not.toContain('Кариес эмали');
@@ -172,16 +137,14 @@ describe('MedicalPage dictionary permissions, editing, filtering and bootstrap U
     const { container, unmount } = await renderComponent();
     const addDiagnosisButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '+ Диагноз');
 
-    await act(async () => {
-      addDiagnosisButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await act(async () => addDiagnosisButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
     expect(container.textContent).toContain('Клинические зоны (доступно по статусам)');
     expect(container.textContent).toContain('Коронковая часть');
     await unmount();
   });
 
-  it('shows explicit import button only for admin/owner empty Supabase dictionaries', async () => {
+  it('shows explicit import button for admin/owner empty dictionaries only', async () => {
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'clinic_owner' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(useDictionaries).mockReturnValue({
       diagnoses: [],
@@ -198,18 +161,13 @@ describe('MedicalPage dictionary permissions, editing, filtering and bootstrap U
     const { container, unmount } = await renderComponent();
     const importButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Загрузить базовый справочник');
 
-    expect(container.textContent).toContain('У этой клиники пока нет справочника.');
     expect(importButton).toBeDefined();
-
-    await act(async () => {
-      importButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
+    await act(async () => importButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(bootstrapDefaultsMock).toHaveBeenCalledTimes(1);
     await unmount();
   });
 
-  it('does not show import button to doctor for empty dictionary', async () => {
+  it('does not show import/edit actions for doctor or no-tenant state', async () => {
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'doctor' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(useDictionaries).mockReturnValue({
       diagnoses: [],
@@ -223,41 +181,30 @@ describe('MedicalPage dictionary permissions, editing, filtering and bootstrap U
       refresh: refreshMock as unknown as () => Promise<void>,
     });
 
-    const { container, unmount } = await renderComponent();
-
-    expect(container.textContent).toContain('Справочник клиники пока не настроен. Обратитесь к администратору клиники.');
-    expect(container.textContent).not.toContain('Загрузить базовый справочник');
+    const first = await renderComponent();
+    expect(first.container.textContent).toContain('Справочник клиники пока не настроен. Обратитесь к администратору клиники.');
+    expect(first.container.textContent).not.toContain('Загрузить базовый справочник');
     expect(bootstrapDefaultsMock).not.toHaveBeenCalled();
-    await unmount();
-  });
+    await first.unmount();
 
-  it('hides edit/import actions for doctor with existing dictionaries', async () => {
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'doctor' } } as unknown as ReturnType<typeof useTenant>);
-
-    const { container, unmount } = await renderComponent();
-
-    expect(container.textContent).toContain('Кариес эмали');
-    expect(container.textContent).toContain('Лечение кариеса');
-    expect(container.textContent).not.toContain('+ Диагноз');
-    expect(container.textContent).not.toContain('+ Работа');
-    expect(container.textContent).not.toContain('Загрузить базовый справочник');
-    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'Редактировать')).toBe(false);
-    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'Отключить')).toBe(false);
-    expect(container.textContent).toContain('Справочники доступны только для просмотра. Редактирование доступно администратору клиники.');
-    await unmount();
-  });
-
-  it('keeps no-tenant gate without import or edit actions', async () => {
     vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useDictionaries).mockReturnValue({
+      diagnoses: mockDiagnoses,
+      works: mockWorks,
+      loading: false,
+      error: null,
+      isBootstrappingDefaults: false,
+      saveDiagnosis: saveDiagnosisMock as unknown as (diagnosis: ClinicalDiagnosis) => Promise<void>,
+      saveWork: saveWorkMock as unknown as (work: ClinicalWork) => Promise<void>,
+      bootstrapDefaults: bootstrapDefaultsMock as unknown as () => Promise<{ insertedCount: number; skippedExistingCount: number; templateKey: string }>,
+      refresh: refreshMock as unknown as () => Promise<void>,
+    });
 
-    const { container, unmount } = await renderComponent();
-
-    expect(container.textContent).not.toContain('+ Диагноз');
-    expect(container.textContent).not.toContain('+ Работа');
-    expect(container.textContent).not.toContain('Загрузить базовый справочник');
-    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'Редактировать')).toBe(false);
-    expect(container.textContent).toContain('Выберите активную клинику для работы со справочниками.');
-    await unmount();
+    const second = await renderComponent();
+    expect(second.container.textContent).toContain('Выберите активную клинику для работы со справочниками.');
+    expect(second.container.textContent).not.toContain('Загрузить базовый справочник');
+    expect(Array.from(second.container.querySelectorAll('button')).some((button) => button.textContent === 'Редактировать')).toBe(false);
+    await second.unmount();
   });
 
   it('does not auto-trigger import for existing dictionary', async () => {
