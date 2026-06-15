@@ -75,137 +75,49 @@ export class SupabaseTreatmentPlansRepository implements TreatmentPlansRepositor
     }));
   }
 
-  async createTreatmentPlan(patientId: string, plan: TreatmentPlan): Promise<void> {
+  private async savePlanWithStages(patientId: string, plan: TreatmentPlan, isUpdate: boolean): Promise<void> {
     if (!this.validateUuid(patientId)) throw new Error(`Invalid patient UUID: ${patientId}`);
     
-    // We must generate safe UUIDs for Supabase if the frontend generated local string IDs
-    const planId = this.validateUuid(plan.id) ? plan.id : crypto.randomUUID();
+    const planId = plan.id;
+    if (isUpdate && !this.validateUuid(planId)) throw new Error(`Invalid plan UUID: ${planId}`);
+    const finalPlanId = this.validateUuid(planId) ? planId : crypto.randomUUID();
 
-    const planRow = {
-      id: planId,
-      tenant_id: this.tenantId,
-      patient_id: patientId,
-      title: plan.title,
-      status: plan.status,
-      total_price: plan.totalPrice,
-      created_at: plan.createdAt || new Date().toISOString(),
-      updated_at: plan.updatedAt || new Date().toISOString(),
-    };
+    const mappedStages = (plan.stages || []).map((stage) => {
+      const safeFindingIds = (stage.findingIds || []).filter(id => this.validateUuid(id));
+      return {
+        id: this.validateUuid(stage.id) ? stage.id : crypto.randomUUID(),
+        title: stage.title,
+        description: stage.description || null,
+        price: typeof stage.price === 'number' ? stage.price : 0,
+        status: stage.status || 'planned',
+        teeth: stage.teeth || [],
+        findingIds: safeFindingIds,
+        source: stage.source || null,
+      };
+    });
 
-    const { error: planError } = await supabase!
-      .from('treatment_plans')
-      .insert(planRow);
+    const { error } = await supabase!.rpc('save_treatment_plan_with_stages', {
+      p_tenant_id: this.tenantId,
+      p_patient_id: patientId,
+      p_plan_id: finalPlanId,
+      p_title: plan.title,
+      p_status: plan.status,
+      p_total_price: plan.totalPrice,
+      p_stages: mappedStages,
+    });
 
-    if (planError) {
-      throw new Error(`Failed to create treatment plan in Supabase: ${planError.message}`);
-    }
-
-    if (plan.stages.length > 0) {
-      const stageRows = plan.stages.map((stage, index) => {
-        const safeFindingIds = (stage.findingIds || []).filter(id => this.validateUuid(id));
-        return {
-          id: this.validateUuid(stage.id) ? stage.id : crypto.randomUUID(),
-          tenant_id: this.tenantId,
-          treatment_plan_id: planId,
-          title: stage.title,
-          teeth: stage.teeth,
-          description: stage.description || null,
-          price: stage.price,
-          status: stage.status,
-          finding_ids: safeFindingIds.length > 0 ? safeFindingIds : null,
-          source: stage.source || null,
-          order_index: index,
-        };
-      });
-
-      const { error: stagesError } = await supabase!
-        .from('treatment_stages')
-        .insert(stageRows);
-
-      if (stagesError) {
-        throw new Error(`Failed to create treatment stages in Supabase: ${stagesError.message}`);
-      }
+    if (error) {
+      const operationName = isUpdate ? 'update' : 'create';
+      throw new Error(`Failed to ${operationName} treatment plan in Supabase: ${error.message}`);
     }
   }
 
+  async createTreatmentPlan(patientId: string, plan: TreatmentPlan): Promise<void> {
+    await this.savePlanWithStages(patientId, plan, false);
+  }
+
   async updateTreatmentPlan(patientId: string, plan: TreatmentPlan): Promise<void> {
-    if (!this.validateUuid(patientId)) throw new Error(`Invalid patient UUID: ${patientId}`);
-    const planId = plan.id;
-    if (!this.validateUuid(planId)) throw new Error(`Invalid plan UUID: ${planId}`);
-
-    const planRow = {
-      title: plan.title,
-      status: plan.status,
-      total_price: plan.totalPrice,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error: planError } = await supabase!
-      .from('treatment_plans')
-      .update(planRow)
-      .eq('tenant_id', this.tenantId)
-      .eq('patient_id', patientId)
-      .eq('id', planId);
-
-    if (planError) {
-      throw new Error(`Failed to update treatment plan in Supabase: ${planError.message}`);
-    }
-
-    // Fetch existing stage IDs for this exact plan to verify ownership
-    const { data: existingStages, error: existingStagesError } = await supabase!
-      .from('treatment_stages')
-      .select('id')
-      .eq('tenant_id', this.tenantId)
-      .eq('treatment_plan_id', planId);
-
-    if (existingStagesError) {
-      throw new Error(`Failed to fetch existing stages: ${existingStagesError.message}`);
-    }
-
-    const validStageIds = new Set(existingStages?.map(s => s.id) || []);
-
-    // Process each stage securely
-    for (const [index, stage] of plan.stages.entries()) {
-      const isExistingValidStage = this.validateUuid(stage.id) && validStageIds.has(stage.id);
-      const stageIdToUse = isExistingValidStage ? stage.id : crypto.randomUUID();
-
-      const stageRow = {
-        id: stageIdToUse,
-        tenant_id: this.tenantId,
-        treatment_plan_id: planId,
-        title: stage.title,
-        description: stage.description || null,
-        teeth: stage.teeth?.length ? stage.teeth : null,
-        price: typeof stage.price === 'number' ? stage.price : null,
-        status: stage.status || 'planned',
-        finding_ids: (stage.findingIds || []).filter(id => this.validateUuid(id)),
-        order_index: index,
-        source: stage.source || null,
-      };
-
-      if (isExistingValidStage) {
-        // Safe update for stages proven to belong to this plan
-        const { error: updateStageError } = await supabase!
-          .from('treatment_stages')
-          .update(stageRow)
-          .eq('tenant_id', this.tenantId)
-          .eq('treatment_plan_id', planId)
-          .eq('id', stage.id);
-        
-        if (updateStageError) {
-          throw new Error(`Failed to update treatment stage in Supabase: ${updateStageError.message}`);
-        }
-      } else {
-        // Safe insert for new or external/invalid stages
-        const { error: insertStageError } = await supabase!
-          .from('treatment_stages')
-          .insert(stageRow);
-
-        if (insertStageError) {
-          throw new Error(`Failed to insert treatment stage in Supabase: ${insertStageError.message}`);
-        }
-      }
-    }
+    await this.savePlanWithStages(patientId, plan, true);
   }
 
   async deleteTreatmentPlan(patientId: string, planId: string): Promise<void> {
