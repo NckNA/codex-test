@@ -5,7 +5,7 @@ import type { CreateFindingInput } from '../../data/repositories/FindingsReposit
 import { FindingModal } from './FindingModal';
 import { useChiefComplaint } from '../../data/hooks/useChiefComplaint';
 import { usePatientFindings } from '../../data/hooks/usePatientFindings';
-import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
+import { isActiveFindingStatus, isArchivedFindingStatus } from '../../domain/findingStatus';
 
 interface FindingsRisksTabProps {
   patientId: string;
@@ -55,7 +55,7 @@ const VALID_TEETH = new Set([
   18, 17, 16, 15, 14, 13, 12, 11,
   21, 22, 23, 24, 25, 26, 27, 28,
   48, 47, 46, 45, 44, 43, 42, 41,
-  31, 32, 33, 34, 35, 36, 37, 38
+  31, 32, 33, 34, 35, 36, 37, 38,
 ]);
 
 export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
@@ -73,6 +73,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState<DentalFinding | null>(null);
+  const [showArchivedFindings, setShowArchivedFindings] = useState(false);
 
   const [isSaved, setIsSaved] = useState(false);
 
@@ -117,13 +118,13 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
     setTimeout(() => setIsSaved(false), 3000);
   };
 
-  const handleDelete = async (findingId: string) => {
-    if (!window.confirm('Удалить эту запись?')) return;
+  const handleArchive = async (findingId: string) => {
+    if (!window.confirm('Архивировать эту запись? Она исчезнет из активных списков, но останется в истории.')) return;
 
     try {
       await deleteFinding(findingId);
     } catch (e) {
-      console.error('Failed to delete finding', e);
+      console.error('Failed to archive finding', e);
     }
   };
 
@@ -161,109 +162,126 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
   };
 
   const categorizedFindings = {
-    chiefComplaintRelated: findings.filter(f => f.isChiefComplaintRelated && ACTIVE_FINDING_STATUSES.includes(f.status)),
+    chiefComplaintRelated: findings.filter(f => f.isChiefComplaintRelated && isActiveFindingStatus(f.status)),
     discovered: findings.filter(f => !f.isChiefComplaintRelated && f.status === 'discovered' && f.category !== 'risk_zone'),
-    riskZones: findings.filter(f => !f.isChiefComplaintRelated && (f.category === 'risk_zone' || f.status === 'monitoring') && ACTIVE_FINDING_STATUSES.includes(f.status)),
+    riskZones: findings.filter(f => !f.isChiefComplaintRelated && (f.category === 'risk_zone' || f.status === 'monitoring') && isActiveFindingStatus(f.status)),
     inPlan: findings.filter(f => f.status === 'planned'),
-    other: findings.filter(f => f.status === 'completed' || f.status === 'declined_by_patient' || f.status === 'archived'),
+    inactive: findings.filter(f => f.status === 'completed' || f.status === 'declined_by_patient'),
+    archived: findings.filter(f => isArchivedFindingStatus(f.status)),
   };
 
-  const FindingCard = ({ finding }: { finding: DentalFinding }) => (
-    <div className="group bg-white border border-slate-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2">
-          {finding.toothNumber && (
-            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-sm font-bold">
-              {finding.toothNumber}
+  const FindingCard = ({ finding, archivedCard = false }: { finding: DentalFinding; archivedCard?: boolean }) => {
+    const isActive = isActiveFindingStatus(finding.status);
+    const showPlanBadge = finding.includeInTreatmentPlan && isActive && finding.status !== 'planned';
+
+    return (
+      <div className={`group bg-white border border-slate-200 rounded-lg p-4 shadow-sm transition-shadow ${archivedCard ? 'opacity-70' : 'hover:shadow-md'}`}>
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex items-center gap-2">
+            {finding.toothNumber && (
+              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md text-sm font-bold">
+                {finding.toothNumber}
+              </span>
+            )}
+            <h4 className="font-semibold text-slate-800">{finding.title}</h4>
+          </div>
+          {!archivedCard && (
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => openModal(finding)}
+                disabled={isFindingsLoading}
+                aria-label={`Редактировать запись ${finding.title}`}
+                title="Редактировать запись"
+                className="p-1.5 text-slate-400 hover:text-blue-600 rounded bg-slate-50 hover:bg-blue-50 transition-colors disabled:opacity-50"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleArchive(finding.id)}
+                disabled={isFindingsLoading}
+                aria-label={`Архивировать запись ${finding.title}`}
+                title="Архивировать запись"
+                className="p-1.5 text-slate-400 hover:text-red-600 rounded bg-slate-50 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-3 text-xs">
+          <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+            {CATEGORY_LABELS[finding.category] || finding.category}
+          </span>
+          <span className={`px-2 py-1 rounded-full font-medium ${SEVERITY_COLORS[finding.severity]}`}>
+            {SEVERITY_LABELS[finding.severity]}
+          </span>
+          <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+            {STATUS_LABELS[finding.status]}
+          </span>
+          {finding.isChiefComplaintRelated && (
+            <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> По жалобе
             </span>
           )}
-          <h4 className="font-semibold text-slate-800">{finding.title}</h4>
+          {showPlanBadge && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-emerald-100">
+              <CheckCircle className="w-3 h-3" /> В план
+            </span>
+          )}
         </div>
-        <div className="flex gap-1">
-          <button 
-            onClick={() => openModal(finding)} 
-            disabled={isFindingsLoading}
-            className="p-1.5 text-slate-400 hover:text-blue-600 rounded bg-slate-50 hover:bg-blue-50 transition-colors disabled:opacity-50"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button 
-            onClick={() => handleDelete(finding.id)} 
-            disabled={isFindingsLoading}
-            className="p-1.5 text-slate-400 hover:text-red-600 rounded bg-slate-50 hover:bg-red-50 transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+
+        <div className="space-y-2 text-sm text-slate-600">
+          {finding.description && (
+            <div><span className="font-medium text-slate-700">Описание:</span> {finding.description}</div>
+          )}
+          {finding.riskDescription && (
+            <div><span className="font-medium text-amber-700">Риск:</span> {finding.riskDescription}</div>
+          )}
+          {finding.recommendation && !archivedCard && (
+            <div className="p-2 bg-blue-50 rounded-md border border-blue-100 text-blue-800">
+              <span className="font-medium">Рекомендация:</span> {finding.recommendation}
+            </div>
+          )}
         </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-3 text-xs">
-        <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-          {CATEGORY_LABELS[finding.category] || finding.category}
-        </span>
-        <span className={`px-2 py-1 rounded-full font-medium ${SEVERITY_COLORS[finding.severity]}`}>
-          {SEVERITY_LABELS[finding.severity]}
-        </span>
-        <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-          {STATUS_LABELS[finding.status]}
-        </span>
-        {finding.isChiefComplaintRelated && (
-          <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-100 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" /> По жалобе
-          </span>
-        )}
-        {finding.includeInTreatmentPlan && finding.status !== 'planned' && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-emerald-100">
-            <CheckCircle className="w-3 h-3" /> В план
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-2 text-sm text-slate-600">
-        {finding.description && (
-          <div><span className="font-medium text-slate-700">Описание:</span> {finding.description}</div>
-        )}
-        {finding.riskDescription && (
-          <div><span className="font-medium text-amber-700">Риск:</span> {finding.riskDescription}</div>
-        )}
-        {finding.recommendation && (
-          <div className="p-2 bg-blue-50 rounded-md border border-blue-100 text-blue-800">
-            <span className="font-medium">Рекомендация:</span> {finding.recommendation}
+        {isActive && finding.status !== 'planned' && !archivedCard && (
+          <div className="flex gap-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            {finding.status !== 'monitoring' && (
+              <button
+                type="button"
+                onClick={() => handleStatusChange(finding, 'monitoring')}
+                disabled={isFindingsLoading}
+                className="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors disabled:opacity-50"
+              >
+                В наблюдение
+              </button>
+            )}
+            {finding.status !== 'declined_by_patient' && (
+              <button
+                type="button"
+                onClick={() => handleStatusChange(finding, 'declined_by_patient')}
+                disabled={isFindingsLoading}
+                className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded transition-colors disabled:opacity-50"
+              >
+                Отказ пациента
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleStatusChange(finding, 'completed')}
+              disabled={isFindingsLoading}
+              className="text-xs px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded transition-colors ml-auto disabled:opacity-50"
+            >
+              Завершить
+            </button>
           </div>
         )}
       </div>
-
-      {ACTIVE_FINDING_STATUSES.includes(finding.status) && finding.status !== 'planned' && (
-        <div className="flex gap-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
-          {finding.status !== 'monitoring' && (
-             <button 
-               onClick={() => handleStatusChange(finding, 'monitoring')} 
-               disabled={isFindingsLoading}
-               className="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors disabled:opacity-50"
-             >
-               В наблюдение
-             </button>
-          )}
-          {finding.status !== 'declined_by_patient' && (
-             <button 
-               onClick={() => handleStatusChange(finding, 'declined_by_patient')} 
-               disabled={isFindingsLoading}
-               className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded transition-colors disabled:opacity-50"
-             >
-               Отказ пациента
-             </button>
-          )}
-          <button 
-            onClick={() => handleStatusChange(finding, 'completed')} 
-            disabled={isFindingsLoading}
-            className="text-xs px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded transition-colors ml-auto disabled:opacity-50"
-          >
-            Завершить
-          </button>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -275,6 +293,7 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
           </p>
         </div>
         <button
+          type="button"
           onClick={() => openModal()}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shrink-0"
         >
@@ -327,13 +346,14 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
               <CheckCircle className="w-4 h-4" /> Сохранено
             </span>
           )}
-            <button
-              onClick={handleSaveComplaint}
-              disabled={isComplaintLoading || isComplaintSaving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {isComplaintSaving ? 'Сохранение...' : 'Сохранить жалобу'}
-            </button>
+          <button
+            type="button"
+            onClick={handleSaveComplaint}
+            disabled={isComplaintLoading || isComplaintSaving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {isComplaintSaving ? 'Сохранение...' : 'Сохранить жалобу'}
+          </button>
         </div>
 
         {categorizedFindings.chiefComplaintRelated.length > 0 && (
@@ -382,13 +402,36 @@ export function FindingsRisksTab({ patientId }: FindingsRisksTabProps) {
         </section>
       )}
 
-      {/* Не включено / отказ пациента / завершено */}
-      {categorizedFindings.other.length > 0 && (
+      {/* Отказ пациента / завершено */}
+      {categorizedFindings.inactive.length > 0 && (
         <section className="bg-slate-50 rounded-xl border border-slate-200 shadow-sm p-5">
-          <h3 className="font-semibold text-slate-600 mb-4">Архив / Отказ / Завершено</h3>
+          <h3 className="font-semibold text-slate-600 mb-4">Отказ / Завершено</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-75">
-            {categorizedFindings.other.map(f => <FindingCard key={f.id} finding={f} />)}
+            {categorizedFindings.inactive.map(f => <FindingCard key={f.id} finding={f} />)}
           </div>
+        </section>
+      )}
+
+      {categorizedFindings.archived.length > 0 && (
+        <section className="bg-slate-50 rounded-xl border border-dashed border-slate-300 shadow-sm p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-semibold text-slate-600">Архивные записи</h3>
+              <p className="text-xs text-slate-500 mt-1">Архивные записи скрыты из активных списков и доступны только как история.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowArchivedFindings(prev => !prev)}
+              className="text-sm px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              {showArchivedFindings ? 'Скрыть архивные записи' : 'Показать архивные записи'}
+            </button>
+          </div>
+          {showArchivedFindings && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {categorizedFindings.archived.map(f => <FindingCard key={f.id} finding={f} archivedCard />)}
+            </div>
+          )}
         </section>
       )}
 
