@@ -3,7 +3,7 @@ import { createTreatmentPlansRepository } from '../repositories/TreatmentPlansRe
 import { createChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
 import { createFindingsRepository } from '../repositories/FindingsRepository';
 import { createAppointmentRepository } from '../repositories/AppointmentRepository';
-import { ACTIVE_FINDING_STATUSES } from '../../domain/findingStatus';
+import { isActiveFindingStatus } from '../../domain/findingStatus';
 
 export interface PatientDentalSummary {
   needsTreatment: number;
@@ -76,9 +76,10 @@ export async function getPatientMedicalSummary(patientId: string, config: Clinic
   const totalAmount = plans.reduce((sum, p) => sum + p.totalPrice, 0);
 
   const chiefComplaintText = complaint?.text || '';
-  const highUrgentFindings = findings.filter(f => (f.severity === 'high' || f.severity === 'urgent') && ACTIVE_FINDING_STATUSES.includes(f.status)).length;
-  const notIncludedFindings = findings.filter(f => f.status === 'discovered').length;
-  const monitoringFindings = findings.filter(f => f.status === 'monitoring').length;
+  const activeFindings = findings.filter(f => isActiveFindingStatus(f.status));
+  const highUrgentFindings = activeFindings.filter(f => f.severity === 'high' || f.severity === 'urgent').length;
+  const notIncludedFindings = activeFindings.filter(f => f.status === 'discovered').length;
+  const monitoringFindings = activeFindings.filter(f => f.status === 'monitoring').length;
 
   let lastVisit: Date | undefined;
   let nextVisit: Date | undefined;

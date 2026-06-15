@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { CheckCircle, X } from 'lucide-react';
-import type { DentalFinding, FindingStatus, TreatmentPlan, TreatmentPlanStatus } from '../../types';
+import type { DentalFinding, TreatmentPlan, TreatmentPlanStatus } from '../../types';
+import { isActiveFindingStatus, isArchivedFindingStatus, isFindingEligibleForTreatmentPlan, isInactiveFindingStatus } from '../../domain/findingStatus';
 
 interface CreatePlanFromFindingsModalProps {
   isOpen: boolean;
@@ -46,9 +47,9 @@ const STATUS_LABELS: Record<string, string> = {
   monitoring: 'Наблюдение',
   declined_by_patient: 'Отказ',
   completed: 'Завершено',
+  archived: 'Архив',
 };
 
-const ELIGIBLE_STATUSES = new Set<FindingStatus>(['discovered', 'monitoring']);
 const ACTIVE_PLAN_STATUSES = new Set<TreatmentPlanStatus>(['draft', 'approved', 'in_progress']);
 
 export function CreatePlanFromFindingsModal({
@@ -91,11 +92,15 @@ export function CreatePlanFromFindingsModal({
     if (!isOpen) return [];
 
     return findings.filter(finding => {
-      const linkedPlanTitle = linkedPlanByFindingId.get(finding.id);
-      const visibleStatus = ELIGIBLE_STATUSES.has(finding.status) || Boolean(linkedPlanTitle);
-      const archivedStatus = finding.status === 'completed' || finding.status === 'declined_by_patient';
+      if (isArchivedFindingStatus(finding.status) || isInactiveFindingStatus(finding.status)) {
+        return false;
+      }
 
-      return finding.includeInTreatmentPlan && visibleStatus && !archivedStatus;
+      const linkedPlanTitle = linkedPlanByFindingId.get(finding.id);
+      const eligibleForNewPlan = isFindingEligibleForTreatmentPlan(finding);
+      const linkedActiveFinding = Boolean(linkedPlanTitle) && finding.includeInTreatmentPlan && isActiveFindingStatus(finding.status);
+
+      return eligibleForNewPlan || linkedActiveFinding;
     });
   }, [findings, linkedPlanByFindingId, isOpen]);
 
@@ -137,7 +142,7 @@ export function CreatePlanFromFindingsModal({
                 <ul className="list-disc pl-5 space-y-1">
                   <li>У пациента еще нет добавленных проблем.</li>
                   <li>В настройках существующих проблем не стоит галочка «Включить в план лечения».</li>
-                  <li>Проблемы уже переведены в статус «Завершено» или «Отказ».</li>
+                  <li>Проблемы уже завершены, архивированы или пациент отказался от лечения.</li>
                   <li>Все доступные проблемы уже включены в другие активные планы лечения.</li>
                 </ul>
               </div>
