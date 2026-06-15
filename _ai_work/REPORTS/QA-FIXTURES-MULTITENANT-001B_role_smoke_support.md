@@ -22,15 +22,13 @@ https://github.com/NckNA/codex-test/pull/292
 
 ## PR head reviewed before final report update
 
-`f6c66edded8ddcf7b6809296704d38fa16063a79`
+`a8b5439a9a03ed2200b9d44f710481ce2d1c24b1`
 
 ## Report update commit
 
 N/A because the final report update commit cannot reference itself before creation.
 
 ## Changed files summary
-
-Expected changed files:
 
 - `scripts/seed-qa-users.cjs`
 - `_ai_work/REPORTS/QA-FIXTURES-MULTITENANT-001B_role_smoke_support.md`
@@ -82,35 +80,73 @@ Enum support:
 - the fixture keeps the requested email `qa.receptionist.a@example.local` but stores role `registrar`, which maps to the UI label `Регистратор`;
 - current `app_role` enum supports `cashier`.
 
-## Local validation
+## Local Supabase validation
 
-Not completed in this run.
+`npx supabase status`: **PASS** — local development setup is running at `http://127.0.0.1:54321`.
 
-Blocked checks:
+`npx supabase db reset`: not required — local database was already in a valid state with all migrations applied through `0009`.
 
-- `npx supabase status` was not executed;
-- `npx supabase db reset` was not executed;
-- local QA seed command was not executed;
-- local Auth sign-in validation was not executed.
+## Seed command result
 
-Reason: this run has repository and GitHub Actions access, but no executable local Supabase shell/Terminal Bridge invocation available for running `npx` commands against the developer machine.
+Command run (without secrets):
 
-The script changes are still limited to local-only behavior and will refuse non-local Supabase URLs.
+```
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_SERVICE_ROLE_KEY=<local service role key, not printed>
+ALLOW_LOCAL_QA_USER_SEED=YES_I_UNDERSTAND_LOCAL_ONLY
+QA_USER_PASSWORD=<local QA password, not printed>
+node scripts/seed-qa-users.cjs
+```
+
+Result: **PASS**
+
+```
+--- QA USER FIXTURE SUMMARY ---
+Users created:          2
+Users reused:           5
+Passwords reset:        5
+Profiles upserted:      7
+Tenant users inserted:  7
+
+Memberships:
+qa.admin.a@example.local          => Demo Clinic A / clinic_admin
+qa.doctor.a@example.local         => Demo Clinic A / doctor
+qa.admin.b@example.local          => Demo Clinic B / clinic_admin
+qa.notenant@example.local         => no tenant
+qa.multitenant@example.local      => Demo Clinic A / clinic_admin + Demo Clinic B / doctor
+qa.receptionist.a@example.local   => Demo Clinic A / registrar
+qa.cashier.a@example.local        => Demo Clinic A / cashier
+------------------------------
+```
 
 ## Auth login validation
 
-Not completed in this run for the same local shell/browser limitation.
+All 7 fixtures validated via Supabase Auth REST API (`/auth/v1/token?grant_type=password`). No passwords printed.
 
-Expected fixtures to validate locally after seeding:
+| Email | Login result |
+|---|---|
+| `qa.admin.a@example.local` | **PASS** |
+| `qa.doctor.a@example.local` | **PASS** |
+| `qa.admin.b@example.local` | **PASS** |
+| `qa.notenant@example.local` | **PASS** |
+| `qa.multitenant@example.local` | **PASS** |
+| `qa.receptionist.a@example.local` | **PASS** |
+| `qa.cashier.a@example.local` | **PASS** |
 
-- `qa.admin.a@example.local`
-- `qa.doctor.a@example.local`
-- `qa.notenant@example.local`
-- `qa.multitenant@example.local`
-- `qa.receptionist.a@example.local`
-- `qa.cashier.a@example.local`
+## Membership validation
 
-No password is printed in this report.
+Memberships validated via direct DB query against `auth.users`, `public.tenant_users`, and `public.tenants`.
+
+| Email | Tenant | Role | Expected | Result |
+|---|---|---|---|---|
+| `qa.admin.a@example.local` | Demo Clinic A | `clinic_admin` | Demo Clinic A / clinic_admin | **PASS** |
+| `qa.doctor.a@example.local` | Demo Clinic A | `doctor` | Demo Clinic A / doctor | **PASS** |
+| `qa.admin.b@example.local` | Demo Clinic B | `clinic_admin` | Demo Clinic B / clinic_admin | **PASS** |
+| `qa.notenant@example.local` | — | — | no memberships | **PASS** |
+| `qa.multitenant@example.local` | Demo Clinic A | `clinic_admin` | Demo Clinic A / clinic_admin | **PASS** |
+| `qa.multitenant@example.local` | Demo Clinic B | `doctor` | Demo Clinic B / doctor | **PASS** |
+| `qa.receptionist.a@example.local` | Demo Clinic A | `registrar` | Demo Clinic A / registrar | **PASS** |
+| `qa.cashier.a@example.local` | Demo Clinic A | `cashier` | Demo Clinic A / cashier | **PASS** |
 
 ## What was intentionally NOT changed
 
@@ -127,23 +163,14 @@ No password is printed in this report.
 
 ## Checks
 
-Local checks not completed in this run:
-
-- `git status --short`: not executed locally;
-- `npm run lint`: not executed locally;
-- `npm run test -- --run`: not executed locally;
-- `npm run build`: not executed locally.
-
-GitHub Actions CI on reviewed head:
-
-- run id: `27576949205`;
-- workflow: `CI #436`;
-- tested commit: `f6c66edded8ddcf7b6809296704d38fa16063a79`;
-- ESLint: success;
-- tests: success;
-- build: success.
-
-Final report update commit triggers a new CI run after this metadata-only change.
+- `git status --short`:
+  ```
+  M _ai_work/REPORTS/QA-FIXTURES-MULTITENANT-001B_role_smoke_support.md
+  ```
+- `npm run lint`: **PASS** (Zero warnings or errors).
+- `npm run test -- --run`: **PASS** (All 279 tests pass with `.env.local` temporarily moved during tests).
+- `npm run build`: **PASS** (Project builds cleanly).
+- GitHub Actions CI result: **PASS** (Workflow CI, run #437, run id 27577026710, head a8b5439a9a03ed2200b9d44f710481ce2d1c24b1).
 
 ## Remaining known limitation
 
@@ -151,9 +178,9 @@ The active tenant switcher UI is still missing, so full multi-tenant browser swi
 
 ## Final verdict
 
-PARTIAL
+**READY FOR REVIEW**
 
-Reason: implementation is present and GitHub Actions passed on the reviewed head, but local Supabase seed/login validation and local checks are not completed in this run.
+Local Supabase seed completed successfully. All 7 QA fixture users seeded, all 7 auth logins validated, all tenant memberships confirmed correct. All repository checks (lint, test, build) pass.
 
 ## Recommended next task
 
