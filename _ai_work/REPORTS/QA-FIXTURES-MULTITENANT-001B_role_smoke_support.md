@@ -22,7 +22,7 @@ https://github.com/NckNA/codex-test/pull/292
 
 ## PR head reviewed before final report update
 
-`6ea5ed15e9d6a4ddd58229d40d463ed4c4d879b1`
+`f6c66edded8ddcf7b6809296704d38fa16063a79`
 
 ## Report update commit
 
@@ -134,7 +134,16 @@ Local checks not completed in this run:
 - `npm run test -- --run`: not executed locally;
 - `npm run build`: not executed locally.
 
-GitHub Actions CI after final report update: pending.
+GitHub Actions CI on reviewed head:
+
+- run id: `27576949205`;
+- workflow: `CI #436`;
+- tested commit: `f6c66edded8ddcf7b6809296704d38fa16063a79`;
+- ESLint: success;
+- tests: success;
+- build: success.
+
+Final report update commit triggers a new CI run after this metadata-only change.
 
 ## Remaining known limitation
 
@@ -144,7 +153,7 @@ The active tenant switcher UI is still missing, so full multi-tenant browser swi
 
 PARTIAL
 
-Reason: implementation is present, but local Supabase seed/login validation and local checks are not completed in this run.
+Reason: implementation is present and GitHub Actions passed on the reviewed head, but local Supabase seed/login validation and local checks are not completed in this run.
 
 ## Recommended next task
 
