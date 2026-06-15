@@ -12,11 +12,11 @@ Cloud was not modified. Migration 0010 was not applied to cloud.
 
 ## PR URL
 
-Pending PR creation.
+https://github.com/NckNA/codex-test/pull/287
 
 ## PR head reviewed before final report update
 
-Pending final report update.
+`ca7526c9e0947a055f2868e27b190de4dc02c5a1`
 
 ## Report update commit
 
@@ -163,17 +163,17 @@ Cloud apply must happen later after merge through a separate task.
 
 ## Checks
 
-Pending:
+Pending/currently unavailable:
 
 - `git status --short`: not run locally
 - `npm run lint`: not run locally
 - `npm run test -- --run`: not run locally
 - `npm run build`: not run locally
-- GitHub Actions CI: pending PR creation
+- GitHub Actions CI: pending for current report update head
 
 ## Final verdict
 
-PARTIAL: implementation is present in Git branch, but local Supabase validation, browser smoke, and CI are still missing.
+PARTIAL: implementation is present in Git branch, but local Supabase validation, browser smoke, and current-head CI are still missing.
 
 ## Recommended next task
 
