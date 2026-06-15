@@ -16,7 +16,7 @@ https://github.com/NckNA/codex-test/pull/287
 
 ## PR head reviewed before final report update
 
-`ca7526c9e0947a055f2868e27b190de4dc02c5a1`
+`a544790cb862fde1da55206bac1832c320cd6083`
 
 ## Report update commit
 
@@ -163,17 +163,15 @@ Cloud apply must happen later after merge through a separate task.
 
 ## Checks
 
-Pending/currently unavailable:
-
 - `git status --short`: not run locally
-- `npm run lint`: not run locally
-- `npm run test -- --run`: not run locally
-- `npm run build`: not run locally
-- GitHub Actions CI: pending for current report update head
+- `npm run lint`: not run locally; GitHub Actions ESLint passed
+- `npm run test -- --run`: not run locally; GitHub Actions tests passed
+- `npm run build`: not run locally; GitHub Actions build passed
+- GitHub Actions CI: run #406 passed for commit `a544790cb862fde1da55206bac1832c320cd6083`
 
 ## Final verdict
 
-PARTIAL: implementation is present in Git branch, but local Supabase validation, browser smoke, and current-head CI are still missing.
+PARTIAL: implementation is present in Git branch and GitHub Actions CI passed, but local Supabase validation and browser smoke are still missing.
 
 ## Recommended next task
 
