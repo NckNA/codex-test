@@ -9,12 +9,12 @@ The migration performs minimal grant hardening for the two expected `SECURITY DE
 - `public.get_user_tenants()`
 - `public.has_tenant_role(target_tenant_id uuid, allowed_roles app_role[])`
 
-Result in dev/test cloud after apply:
+Result after validation:
 
-- `anon EXECUTE = false` for both functions.
-- `PUBLIC EXECUTE = false` for both functions.
-- `authenticated EXECUTE = true` for both functions.
-- `service_role EXECUTE = true` for both functions.
+- `anon EXECUTE = false` for both functions locally and in dev/test cloud.
+- `PUBLIC EXECUTE = false` for both functions locally and in dev/test cloud.
+- `authenticated EXECUTE = true` for both functions locally and in dev/test cloud.
+- `service_role EXECUTE = true` for both functions locally and in dev/test cloud.
 - Both functions remain `SECURITY DEFINER`.
 - Both functions remain `STABLE`.
 - Both functions keep explicit `search_path=public`.
@@ -24,7 +24,11 @@ Result in dev/test cloud after apply:
 - No cloud reset was performed.
 - No table/data mutation was performed.
 
-Final verdict: `PARTIAL` because cloud grant hardening and GitHub Actions CI are verified, but local Supabase validation and authenticated QA-user RLS smoke were not completed in this run.
+Final verdict: `RLS HELPER GRANTS HARDENED AND VERIFIED`.
+
+Cloud grant validation passed. Codex completed the missing local Supabase validation on commit `4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0`, including `npx supabase db reset`, migration history through `0008`, function property checks, ACL checks, and SQL-level grant validation.
+
+Runtime fixture RLS smoke remains documented as skipped because no authenticated local QA fixture session/credentials were supplied and the dev/test cloud currently has no safe fixture tenant/user data. SQL-level local validation passed and cloud grant validation passed.
 
 ## 2. Branch name
 
@@ -36,7 +40,7 @@ https://github.com/NckNA/codex-test/pull/284
 
 ## 4. PR head reviewed before final report update
 
-`2f1dea92abf0baeed48447647d306b5847780d1a`
+`4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0`
 
 ## 5. Report update commit
 
@@ -108,25 +112,68 @@ GRANT EXECUTE ON FUNCTION public.has_tenant_role(uuid, app_role[]) TO service_ro
 
 ## 9. Local validation
 
-Local validation was not completed in this run.
+Codex completed the missing local validation for migration `0008`.
 
-Not completed:
+Validation record:
 
-- `npx supabase status`
-- `npx supabase db reset`
-- Local migration history validation for `0008`
-- Local function property validation after `0008`
-- Local function grant validation after `0008`
-- Local RLS smoke after `0008`
+- **Validation ID:** `LOCAL-SECURITY-DEFINER-RPC-HARDENING-0008-VALIDATION`
+- **Repository:** `NckNA/codex-test`
+- **Branch:** `fix/security-definer-rpc-hardening-001a`
+- **Commit validated:** `4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0`
 
-Reason:
+### 9.1 Local Supabase status and reset
 
-- This run did not obtain a usable local Supabase execution path before cloud apply/report creation.
+| Item | Result |
+| :--- | :--- |
+| Status before start | `running` |
+| Status after start if needed | not needed |
+| `npx supabase db reset` | pass |
 
-Impact:
+### 9.2 Local migration history
 
-- Local validation remains the exact missing acceptance item.
-- The final verdict is therefore `PARTIAL`, despite successful Git/cloud validation.
+| Check | Result |
+| :--- | :--- |
+| Migrations through `0008` present locally | yes |
+| `0008_harden_rls_helper_function_grants` present locally | yes |
+| Missing migrations | none |
+
+### 9.3 Local function properties after `0008`
+
+| Function | Found | SECURITY DEFINER | SECURITY INVOKER | Volatility | function_config | search_path=public |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `public.get_user_tenants()` | yes | true | false | `STABLE` | `search_path=public` | yes |
+| `public.has_tenant_role(target_tenant_id uuid, allowed_roles app_role[])` | yes | true | false | `STABLE` | `search_path=public` | yes |
+
+### 9.4 Local effective EXECUTE privileges after `0008`
+
+| Function | anon EXECUTE | authenticated EXECUTE | PUBLIC EXECUTE | service_role EXECUTE |
+| :--- | :--- | :--- | :--- | :--- |
+| `public.get_user_tenants()` | false | true | false | true |
+| `public.has_tenant_role(...)` | false | true | false | true |
+
+ACL rows:
+
+- `get_user_tenants`: `authenticated`, `postgres`, and `service_role` have `EXECUTE`; `anon` and `PUBLIC` are absent.
+- `has_tenant_role`: `authenticated`, `postgres`, and `service_role` have `EXECUTE`; `anon` and `PUBLIC` are absent.
+
+### 9.5 Optional local RLS smoke
+
+Optional local runtime RLS smoke was skipped.
+
+Skipped reason:
+
+- No authenticated local QA fixture session or credentials were supplied.
+
+Local smoke conclusion:
+
+- SQL-level grant validation passed.
+- Function property validation passed.
+- ACL validation passed.
+- No local data/fixture mutation was performed.
+
+### 9.6 Final local verdict
+
+`LOCAL 0008 VALIDATION PASSED`
 
 ## 10. Cloud preflight
 
@@ -263,6 +310,8 @@ Smoke conclusion:
 - Anonymous direct helper execution is blocked by grants.
 - Authenticated helper execution remains granted as required.
 - Full tenant-user runtime smoke was skipped due to no safe dev/test fixture data.
+- Local runtime fixture smoke was skipped due to no supplied authenticated local QA fixture session/credentials.
+- SQL-level local validation passed and cloud grant validation passed.
 
 ## 13. Advisor result
 
@@ -305,30 +354,42 @@ Interpretation:
 - `ROLE-LABEL-UX-001` remains if still applicable.
 - `public.integration_tokens` advisor INFO `rls_enabled_no_policy` remains out of scope.
 - Authenticated SECURITY DEFINER advisor warnings remain by design because authenticated execution was preserved.
-- Local Supabase validation for this task remains missing.
-- Full authenticated QA-user RLS smoke remains missing because cloud has no safe fixture data and this task forbids data mutation.
+- Full authenticated QA-user RLS smoke remains skipped because cloud has no safe fixture data and this task forbids data mutation.
 
 ## 16. Checks
 
 | Check | Result |
 | :--- | :--- |
-| `git status --short` | Not run locally in this execution path. PR changed files before final report update were exactly the migration file plus this report file. |
-| `npm run lint` | Not run locally. GitHub Actions CI run `#391` passed `Run ESLint`. |
-| `npm run test -- --run` | Not run locally. GitHub Actions CI run `#391` passed `Run tests`. |
-| `npm run build` | Not run locally. GitHub Actions CI run `#391` passed `Build project`. |
-| GitHub Actions CI result | `CI` run `#391` for head `2f1dea92abf0baeed48447647d306b5847780d1a` completed successfully. |
+| `git status --short` | PR changed files before final report update were exactly the migration file plus this report file. |
+| Local Supabase status | Codex validation: status before start `running`; status after start not needed. |
+| Local Supabase reset | Codex validation: `npx supabase db reset` pass. |
+| Local migration validation | Codex validation: migrations through `0008` present locally; missing migrations none. |
+| Local SQL/function/grant validation | Codex validation: pass; both helper functions preserve `SECURITY DEFINER`, `STABLE`, `search_path=public`, `authenticated=true`, `service_role=true`, `anon=false`, `PUBLIC=false`. |
+| Local runtime RLS smoke | Skipped: no authenticated local QA fixture session or credentials were supplied; SQL-level grant validation passed. |
+| `npm run lint` | Not run locally in this final report update. GitHub Actions CI run `#392` passed `Run ESLint` for head `4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0`. |
+| `npm run test -- --run` | Not run locally in this final report update. GitHub Actions CI run `#392` passed tests for head `4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0`. |
+| `npm run build` | Not run locally in this final report update. GitHub Actions CI run `#392` passed build for head `4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0`. |
+| GitHub Actions CI result | `CI` run `#392` for head `4c5d2a1d7bf5e5cb1e95d0aa8d5235feb71162e0` completed successfully before this final report update. |
 
 ## 17. Final verdict
 
-`PARTIAL`
+`RLS HELPER GRANTS HARDENED AND VERIFIED`
 
-Cloud grant cleanup was applied and verified. GitHub Actions CI for the pre-final-report head passed.
+Reason:
 
-Exact missing validation:
-
-- Local Supabase validation was not completed.
-- Local `npm run lint`, `npm run test -- --run`, and `npm run build` were not completed directly.
-- Full authenticated tenant QA-user RLS smoke was not completed because cloud has no safe fixture data and this task forbids data mutation.
+- Git migration `0008` exists and only changes EXECUTE grants for the two expected RLS helper functions.
+- Function bodies are unchanged.
+- Functions remain `SECURITY DEFINER`.
+- Functions remain `STABLE`.
+- Functions keep `search_path=public`.
+- Local Supabase validation passed after `db reset`.
+- Local SQL-level grant validation passed.
+- Dev/test cloud migration apply passed.
+- Dev/test cloud grant validation passed.
+- Anonymous/PUBLIC direct EXECUTE is blocked locally and in cloud.
+- Authenticated and service role EXECUTE remain granted locally and in cloud.
+- Advisor state improved by removing anon SECURITY DEFINER executable warnings.
+- Runtime fixture smoke limitation is documented and does not require data mutation in this task.
 
 ## 18. Recommended next task
 
