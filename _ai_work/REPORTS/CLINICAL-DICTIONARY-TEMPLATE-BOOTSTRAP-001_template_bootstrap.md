@@ -6,6 +6,8 @@ Implemented a Git-only clinical dictionary template/bootstrap mechanism for tena
 
 Cloud was not modified. Migration 0010 was not applied to cloud.
 
+Review follow-up fixed the MedicalPage regression by restoring the previous diagnosis/work editor flows, status-to-zone selector behavior, and zone/status-label search while keeping bootstrap UX minimal and explicit.
+
 ## Branch
 
 `feature/clinical-dictionary-template-bootstrap-001`
@@ -16,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/287
 
 ## PR head reviewed before final report update
 
-`a544790cb862fde1da55206bac1832c320cd6083`
+`67f3f06b5faddcb39804e37cb4cc59d57ad56c52`
 
 ## Report update commit
 
@@ -92,14 +94,19 @@ Hook:
 
 ## UI changes
 
-`MedicalPage.tsx` now includes explicit empty-dictionary bootstrap UX:
+`MedicalPage.tsx` includes explicit empty-dictionary bootstrap UX without removing the existing dictionary editing behavior:
 
 - Supabase active + active tenant + clinic owner/admin + empty dictionary: shows `Загрузить базовый справочник`
 - Supabase active + active tenant + doctor/non-admin + empty dictionary: shows read-only contact-admin message
 - Supabase active + no tenant: no import button
 - existing dictionary: no auto-import and no import button
-
-Known implementation note: `MedicalPage.tsx` was simplified while adding the import UX. This should receive focused review because the task asked for minimal UI changes.
+- existing diagnosis rows still use `DiagnosisEditorRow`
+- existing work rows still use `WorkEditorRow`
+- `Редактировать` opens the actual editor
+- save calls `saveDiagnosis` / `saveWork`
+- disable/restore still call the relevant save handler
+- `StatusZoneSelector` keeps status-to-zone availability filtering
+- search still matches zone/status labels
 
 ## Local validation
 
@@ -167,11 +174,11 @@ Cloud apply must happen later after merge through a separate task.
 - `npm run lint`: not run locally; GitHub Actions ESLint passed
 - `npm run test -- --run`: not run locally; GitHub Actions tests passed
 - `npm run build`: not run locally; GitHub Actions build passed
-- GitHub Actions CI: run #406 passed for commit `a544790cb862fde1da55206bac1832c320cd6083`
+- GitHub Actions CI: run #412 passed for commit `67f3f06b5faddcb39804e37cb4cc59d57ad56c52`
 
 ## Final verdict
 
-PARTIAL: implementation is present in Git branch and GitHub Actions CI passed, but local Supabase validation and browser smoke are still missing.
+PARTIAL: implementation is present in Git branch, review blockers for MedicalPage/test regression were addressed, and GitHub Actions CI passed, but local Supabase validation and browser smoke are still missing.
 
 ## Recommended next task
 
