@@ -26,7 +26,7 @@ https://github.com/NckNA/codex-test/pull/282
 
 ## 4. PR head reviewed before final report update
 
-`cd5a6bc8bc09f7b4403fd7946e9df42028a18173`
+`7243673ed1de5545b01bb3ecfc106db4bcfaba08`
 
 ## 5. Report update commit
 
@@ -34,7 +34,7 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## 6. Changed files summary
 
-Expected PR changed files:
+PR changed-files validation before final report update confirmed exactly two changed files:
 
 - `[NEW] supabase/migrations/0007_revoke_anon_execute_from_treatment_plan_rpc.sql`
 - `[NEW] _ai_work/REPORTS/SUPABASE-RPC-GRANT-CLEANUP-0007_revoke_anon_execute.md`
@@ -244,11 +244,11 @@ Results:
 
 ## 16. Checks
 
-- `git status --short`: not run in a local working tree. PR changed-files validation must confirm exactly two changed files before merge.
-- `npm run lint`: pending GitHub Actions CI.
-- `npm run test -- --run`: not run exactly in local environment.
-- `npm run build`: pending GitHub Actions CI.
-- `GitHub Actions CI result`: pending for PR #282.
+- `git status --short`: not run in a local working tree. PR changed-files validation confirmed exactly two changed files before final report update: `supabase/migrations/0007_revoke_anon_execute_from_treatment_plan_rpc.sql` and `_ai_work/REPORTS/SUPABASE-RPC-GRANT-CLEANUP-0007_revoke_anon_execute.md`.
+- `npm run lint`: **PASS** via GitHub Actions CI workflow `CI`, job `validate`, step `Run ESLint`, run #383, head `7243673ed1de5545b01bb3ecfc106db4bcfaba08`.
+- `npm run test -- --run`: **NOT RUN EXACTLY**. GitHub Actions CI workflow `CI`, job `validate`, step `Run tests`, passed in run #383. This is not claimed as the exact requested local command.
+- `npm run build`: **PASS** via GitHub Actions CI workflow `CI`, job `validate`, step `Build project`, run #383, head `7243673ed1de5545b01bb3ecfc106db4bcfaba08`.
+- `GitHub Actions CI result`: **PASS**, workflow `CI`, run #383, run id `27542759441`, head `7243673ed1de5545b01bb3ecfc106db4bcfaba08`.
 
 ## 17. Final verdict
 
@@ -261,7 +261,6 @@ Exact missing validation:
   - `npx supabase db reset`
   - local `has_function_privilege` checks.
 - Exact local command `npm run test -- --run` was not run.
-- GitHub Actions CI is pending at the time of this report update.
 
 Verified despite the partial verdict:
 
@@ -276,6 +275,7 @@ Verified despite the partial verdict:
 - No seed.
 - No cloud reset.
 - No data mutation.
+- GitHub Actions CI run #383 passed.
 
 ## 18. Recommended next task
 
