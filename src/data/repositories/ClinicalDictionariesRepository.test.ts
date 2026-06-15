@@ -34,14 +34,14 @@ describe('ClinicalDictionariesRepository', () => {
     expect(setItemSpy).toHaveBeenCalledWith('codex_clinical_works', expect.any(String));
   });
 
-  it('explicit local bootstrap preserves existing local defaults and is idempotent', async () => {
+  it('explicit local bootstrap is idempotent and preserves existing defaults', async () => {
     const repo = new LocalStorageClinicalDictionariesRepository();
 
     const first = await repo.bootstrapFromTemplate();
     const second = await repo.bootstrapFromTemplate();
 
-    expect(first.insertedCount).toBe(defaultDiagnoses.length + defaultClinicalWorks.length);
-    expect(first.skippedExistingCount).toBe(0);
+    expect(first.insertedCount).toBe(0);
+    expect(first.skippedExistingCount).toBe(defaultDiagnoses.length + defaultClinicalWorks.length);
     expect(second.insertedCount).toBe(0);
     expect(second.skippedExistingCount).toBe(defaultDiagnoses.length + defaultClinicalWorks.length);
   });
@@ -141,47 +141,21 @@ describe('ClinicalDictionariesRepository', () => {
       price: 150,
     });
 
-    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({
-      tenant_id: tenantId,
-      id: 'dx_1',
-      type: 'diagnosis',
-      price: null,
-    }), { onConflict: 'tenant_id,id' });
-    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({
-      tenant_id: tenantId,
-      id: 'work_1',
-      type: 'work',
-      price: 150,
-    }), { onConflict: 'tenant_id,id' });
+    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: tenantId, id: 'dx_1', type: 'diagnosis', price: null }), { onConflict: 'tenant_id,id' });
+    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ tenant_id: tenantId, id: 'work_1', type: 'work', price: 150 }), { onConflict: 'tenant_id,id' });
   });
 
   it('calls bootstrap RPC once and maps result', async () => {
     const repo = new SupabaseClinicalDictionariesRepository(tenantId);
     const mockSupabase = supabase as unknown as { rpc: ReturnType<typeof vi.fn> };
 
-    mockSupabase.rpc.mockResolvedValue({
-      data: {
-        inserted_count: 43,
-        skipped_existing_count: 0,
-        template_key: 'default_dental_v1',
-        tenant_id: tenantId,
-      },
-      error: null,
-    });
+    mockSupabase.rpc.mockResolvedValue({ data: { inserted_count: 43, skipped_existing_count: 0, template_key: 'default_dental_v1', tenant_id: tenantId }, error: null });
 
     const result = await repo.bootstrapFromTemplate();
 
     expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('bootstrap_clinical_dictionary_from_template', {
-      target_tenant_id: tenantId,
-      template_key: 'default_dental_v1',
-    });
-    expect(result).toEqual({
-      insertedCount: 43,
-      skippedExistingCount: 0,
-      templateKey: 'default_dental_v1',
-      tenantId,
-    });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('bootstrap_clinical_dictionary_from_template', { target_tenant_id: tenantId, template_key: 'default_dental_v1' });
+    expect(result).toEqual({ insertedCount: 43, skippedExistingCount: 0, templateKey: 'default_dental_v1', tenantId });
   });
 
   it('surfaces bootstrap RPC errors', async () => {
