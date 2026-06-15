@@ -14,7 +14,7 @@ No cloud data was changed. No migration, source code, seed, RLS, tenant, user, o
 https://github.com/NckNA/codex-test/pull/286
 
 ## 4. PR head reviewed before final report update
-`3c7ebedecc029f27fdf0d3b3681733ddfc022e35`
+`f319fd168828ab0584a8f4b495c78cdd5b6da9b9`
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -206,13 +206,13 @@ Scope summary:
 
 ## 16. Checks
 - git status --short: not run locally
-- npm run lint: not run locally
-- npm run test -- --run: not run locally
-- npm run build: not run locally
-- GitHub Actions CI result: pending for report update commit
+- npm run lint: not run locally; GitHub Actions CI run #400 passed ESLint
+- npm run test -- --run: not run locally; GitHub Actions CI run #400 passed tests
+- npm run build: not run locally; GitHub Actions CI run #400 passed build
+- GitHub Actions CI result: run #400 success for pre-final report head `f319fd168828ab0584a8f4b495c78cdd5b6da9b9`
 
 ## 17. Final verdict
-PARTIAL: Git/code and cloud read-only recon completed, but local Supabase validation and CI are still missing.
+PARTIAL: Git/code recon, cloud read-only recon, and GitHub Actions CI passed; local Supabase validation is still missing.
 
 ## 18. Recommended next task
 `CLINICAL-DICTIONARY-TEMPLATE-BOOTSTRAP-001`
