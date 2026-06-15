@@ -6,7 +6,7 @@ This report documents the implementation and validation of atomic treatment plan
 
 - **Branch name**: `fix/treatment-stages-sync-transaction-001`
 - **PR URL**: https://github.com/NckNA/codex-test/pull/280
-- **PR head reviewed before final report update**: `56efdad1758c0678a1f87ddfeee7c59ec84594c2`
+- **PR head reviewed before final report update**: `7c35e6adb3174a0ffd59fb041cf8893e370ba556`
 - **Report update commit**: N/A because the final report update commit cannot reference itself before creation.
 
 ---
@@ -136,7 +136,7 @@ The repository test suite in [TreatmentPlansRepository.test.ts](file:///d:/Users
 - `npm run lint`: **PASS** (Zero warnings or errors).
 - `npm run test -- --run`: **PASS** (All 268 tests pass).
 - `npm run build`: **PASS** (Project builds cleanly).
-- `GitHub Actions CI result`: **PASS** (Workflow CI, run #372, run id 27535613813, head 56efdad1758c0678a1f87ddfeee7c59ec84594c2).
+- `GitHub Actions CI result`: **PASS** (Workflow CI, run #373, run id 27535676421, head 7c35e6adb3174a0ffd59fb041cf8893e370ba556).
 
 ---
 
