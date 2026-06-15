@@ -238,7 +238,7 @@ export function Header() {
               <div className="text-sm font-medium text-slate-900">
                 {authMode === 'supabase-active' && user?.email ? user.email : 'Иван И.'}
               </div>
-              <div className="text-xs text-slate-500">{roleLabel}</div>
+              <div className="text-xs text-slate-500" data-testid="current-role-label">{roleLabel}</div>
             </div>
             <UserCircle className="w-8 h-8 text-slate-400" />
           </button>
