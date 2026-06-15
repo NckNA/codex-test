@@ -16,11 +16,11 @@ Reason: Git/cloud drift was backfilled and cloud validation passed, but local Su
 
 ## 3. PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/285
 
 ## 4. PR head reviewed before final report update
 
-Pending final PR head review.
+PR head reviewed before this report update: `4833bc5f43d5a5a15ef3c7f97f580e9fc04a20a8`.
 
 ## 5. Report update commit
 
@@ -281,7 +281,7 @@ No new warning was attributed to migration `0009`.
 - `npm run lint`: not run locally in this report run.
 - `npm run test -- --run`: not run locally in this report run.
 - `npm run build`: not run locally in this report run.
-- GitHub Actions CI result: pending PR creation.
+- GitHub Actions CI result: pending for PR head after report metadata update.
 
 ## 18. Final verdict
 
@@ -292,7 +292,7 @@ Cloud storage drift was inspected and backfilled into Git and dev/test cloud suc
 Missing validation:
 
 - local Supabase reset and local bucket/policy reproduction checks were not completed;
-- GitHub Actions CI was pending at the time of this initial report.
+- GitHub Actions CI was pending at the time of this report update.
 
 ## 19. Recommended next task
 
