@@ -158,7 +158,7 @@ The isNoTenantSupabase guard in usePatientFindings, useDentalChart, and useDicti
 - Browser QA - No-Tenant: PASS (boundary gate working)
 - Browser QA - Multi-Tenant: PASS (defaults to Clinic A)
 - Console errors across all sessions: pre-existing accessibility warnings only
-- GitHub Actions CI result: PASS, workflow CI, run #363, head 3425596e505eacfeae0e62a0b08344c6950d76ba
+- GitHub Actions CI result: PASS, workflow CI, run #364, head 23ae42e8c3cd976440a182adf236c29391a165bc
 
 
 ## 14. Final verdict
