@@ -195,7 +195,15 @@ describe('TreatmentPlansRepository', () => {
       expect(mockSupabase.rpc).toHaveBeenCalledOnce();
       expect(mockSupabase.rpc).toHaveBeenCalledWith('save_treatment_plan_with_stages', expect.any(Object));
 
-      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as Record<string, any>;
+      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as {
+        p_tenant_id: string;
+        p_patient_id: string;
+        p_plan_id: string;
+        p_title: string;
+        p_status: string;
+        p_total_price: number;
+        p_stages: { id: string; title: string; teeth: number[]; price: number; status: string; findingIds: string[] }[];
+      };
       expect(rpcArgs.p_tenant_id).toBe('tenant_1');
       expect(rpcArgs.p_patient_id).toBe(validUuid);
       expect(rpcArgs.p_plan_id).not.toBe('local_plan_1');
@@ -272,7 +280,15 @@ describe('TreatmentPlansRepository', () => {
       await repo.updateTreatmentPlan(validUuid, plan);
 
       expect(mockSupabase.rpc).toHaveBeenCalledOnce();
-      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as Record<string, any>;
+      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as {
+        p_tenant_id: string;
+        p_patient_id: string;
+        p_plan_id: string;
+        p_title: string;
+        p_status: string;
+        p_total_price: number;
+        p_stages: { id: string; title: string; teeth: number[]; price: number; status: string; findingIds: string[] }[];
+      };
       expect(rpcArgs.p_plan_id).toBe(validPlanUuid);
       expect(rpcArgs.p_stages).toHaveLength(3);
 
@@ -308,7 +324,15 @@ describe('TreatmentPlansRepository', () => {
       await repo.updateTreatmentPlan(validUuid, plan);
 
       expect(mockSupabase.rpc).toHaveBeenCalledOnce();
-      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as Record<string, any>;
+      const rpcArgs = mockSupabase.rpc.mock.calls[0][1] as {
+        p_tenant_id: string;
+        p_patient_id: string;
+        p_plan_id: string;
+        p_title: string;
+        p_status: string;
+        p_total_price: number;
+        p_stages: { id: string; title: string; teeth: number[]; price: number; status: string; findingIds: string[] }[];
+      };
       expect(rpcArgs.p_stages).toHaveLength(1);
       expect(rpcArgs.p_stages[0].id).toBe(validStageUuid);
     });
