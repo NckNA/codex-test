@@ -1,4 +1,3 @@
-
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -9,10 +8,12 @@ import {
 } from './ClinicalDictionariesRepository';
 import { supabase } from '../../lib/supabaseClient';
 import { defaultDiagnoses, defaultClinicalWorks } from '../../config/clinicalDictionaries';
+import type { ClinicalDiagnosis, ClinicalWork } from '../../config/clinicalDictionaries';
 
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
   },
 }));
 
@@ -27,7 +28,7 @@ describe('ClinicalDictionariesRepository', () => {
   describe('A. Local behavior (legacy facade)', () => {
     it('returns defaults if localStorage is missing and auto-saves them', () => {
       const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
-      
+
       const diagnoses = ClinicalDictionariesRepository.getDiagnoses();
       expect(diagnoses).toEqual(defaultDiagnoses);
       expect(setItemSpy).toHaveBeenCalledWith('codex_clinical_diagnoses', expect.any(String));
@@ -48,13 +49,13 @@ describe('ClinicalDictionariesRepository', () => {
     it('reads and writes to localStorage', () => {
       const dx = [...defaultDiagnoses];
       dx[0] = { ...dx[0], name: 'Updated Dx' };
-      
+
       ClinicalDictionariesRepository.saveDiagnoses(dx);
       expect(ClinicalDictionariesRepository.getDiagnoses()[0].name).toBe('Updated Dx');
 
       const wx = [...defaultClinicalWorks];
       wx[0] = { ...wx[0], name: 'Updated Work' };
-      
+
       ClinicalDictionariesRepository.saveWorks(wx);
       expect(ClinicalDictionariesRepository.getWorks()[0].name).toBe('Updated Work');
     });
@@ -123,7 +124,7 @@ describe('ClinicalDictionariesRepository', () => {
       const result = await repo.getDiagnoses();
       expect(result[0].allowedPresenceStatuses).toEqual([]);
       expect(result[0].allowedZones).toEqual([]);
-      expect(result[0].isActive).toBe(true); // default true
+      expect(result[0].isActive).toBe(true);
     });
 
     it('maps visual_priority 0 to visualPriority 0', async () => {
@@ -203,7 +204,7 @@ describe('ClinicalDictionariesRepository', () => {
       expect(result[0].allowedZones).toEqual([]);
       expect(result[0].allowedDiagnosisIds).toEqual([]);
       expect(result[0].price).toBeUndefined();
-      expect(result[0].isActive).toBe(true); // default true
+      expect(result[0].isActive).toBe(true);
     });
   });
 
@@ -220,7 +221,7 @@ describe('ClinicalDictionariesRepository', () => {
     it('filters diagnoses by tenant_id and type', async () => {
       const repo = new SupabaseClinicalDictionariesRepository(tenantId);
       const eqMock = vi.fn().mockReturnThis();
-      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
+      const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn>, rpc: ReturnType<typeof vi.fn> };
       mockSupabase.from.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         eq: eqMock,
@@ -232,6 +233,7 @@ describe('ClinicalDictionariesRepository', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('clinical_dictionary_items');
       expect(eqMock).toHaveBeenCalledWith('tenant_id', tenantId);
       expect(eqMock).toHaveBeenCalledWith('type', 'diagnosis');
+      expect(mockSupabase.rpc).not.toHaveBeenCalled();
     });
 
     it('filters works by tenant_id and type', async () => {
@@ -281,10 +283,11 @@ describe('ClinicalDictionariesRepository', () => {
     it('saves diagnosis correctly', async () => {
       const dx = {
         id: 'dx_1',
+        type: 'diagnosis',
         name: 'New Dx',
         allowedPresenceStatuses: ['natural'],
         allowedZones: ['crown'],
-      } as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis;
+      } as ClinicalDiagnosis;
 
       await repo.saveDiagnosis(dx);
 
@@ -310,9 +313,12 @@ describe('ClinicalDictionariesRepository', () => {
     it('preserves visualPriority 0 on save', async () => {
       const dx = {
         id: 'dx_zero',
+        type: 'diagnosis',
         name: 'Zero Dx',
+        allowedPresenceStatuses: [],
+        allowedZones: [],
         visualPriority: 0,
-      } as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis;
+      } as ClinicalDiagnosis;
 
       await repo.saveDiagnosis(dx);
 
@@ -328,6 +334,7 @@ describe('ClinicalDictionariesRepository', () => {
     it('saves work correctly', async () => {
       const work = {
         id: 'work_1',
+        type: 'work',
         name: 'New Work',
         allowedPresenceStatuses: ['natural'],
         allowedZones: ['crown'],
@@ -335,7 +342,7 @@ describe('ClinicalDictionariesRepository', () => {
         allowedDiagnosisIds: ['dx_1'],
         price: 150,
         isActive: false,
-      } as unknown as import('../../config/clinicalDictionaries').ClinicalWork;
+      } as ClinicalWork;
 
       await repo.saveWork(work);
 
@@ -360,7 +367,65 @@ describe('ClinicalDictionariesRepository', () => {
 
     it('throws errors on save', async () => {
       upsertMock.mockReturnValue({ error: new Error('Save failed') });
-      await expect(repo.saveDiagnosis({} as unknown as import('../../config/clinicalDictionaries').ClinicalDiagnosis)).rejects.toThrow('Save failed');
+      await expect(repo.saveDiagnosis({} as ClinicalDiagnosis)).rejects.toThrow('Save failed');
+    });
+  });
+
+  describe('E. Bootstrap RPC', () => {
+    it('calls bootstrap RPC once and maps result', async () => {
+      const repo = new SupabaseClinicalDictionariesRepository(tenantId);
+      const mockSupabase = supabase as unknown as { rpc: ReturnType<typeof vi.fn> };
+      mockSupabase.rpc.mockResolvedValue({
+        data: {
+          inserted_count: 43,
+          skipped_existing_count: 0,
+          template_key: 'default_dental_v1',
+          tenant_id: tenantId,
+        },
+        error: null,
+      });
+
+      const result = await repo.bootstrapFromTemplate();
+
+      expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('bootstrap_clinical_dictionary_from_template', {
+        target_tenant_id: tenantId,
+        template_key: 'default_dental_v1',
+      });
+      expect(result).toEqual({ insertedCount: 43, skippedExistingCount: 0, templateKey: 'default_dental_v1', tenantId });
+    });
+
+    it('passes custom template key to RPC', async () => {
+      const repo = new SupabaseClinicalDictionariesRepository(tenantId);
+      const mockSupabase = supabase as unknown as { rpc: ReturnType<typeof vi.fn> };
+      mockSupabase.rpc.mockResolvedValue({ data: { inserted_count: 0, skipped_existing_count: 43, template_key: 'custom_v1' }, error: null });
+
+      await repo.bootstrapFromTemplate('custom_v1');
+
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('bootstrap_clinical_dictionary_from_template', {
+        target_tenant_id: tenantId,
+        template_key: 'custom_v1',
+      });
+    });
+
+    it('surfaces bootstrap RPC errors', async () => {
+      const repo = new SupabaseClinicalDictionariesRepository(tenantId);
+      const mockSupabase = supabase as unknown as { rpc: ReturnType<typeof vi.fn> };
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: new Error('not allowed') });
+
+      await expect(repo.bootstrapFromTemplate()).rejects.toThrow('not allowed');
+    });
+
+    it('local explicit bootstrap is idempotent and does not mutate source defaults', async () => {
+      const repo = new LocalStorageClinicalDictionariesRepository();
+      const first = await repo.bootstrapFromTemplate();
+      const second = await repo.bootstrapFromTemplate();
+
+      expect(first.insertedCount).toBe(0);
+      expect(first.skippedExistingCount).toBe(defaultDiagnoses.length + defaultClinicalWorks.length);
+      expect(second.insertedCount).toBe(0);
+      expect(second.skippedExistingCount).toBe(defaultDiagnoses.length + defaultClinicalWorks.length);
+      expect(defaultDiagnoses[0].name).not.toBe('Mutated Name');
     });
   });
 
@@ -372,32 +437,25 @@ describe('ClinicalDictionariesRepository', () => {
     });
 
     it('does not mutate imported default arrays when modifying', async () => {
-      // By default the array comes from legacy facade
-      // Let's modify the 0th element using the async save method
       const initialDiagnoses = await repo.getDiagnoses();
-      
       const toUpdate = { ...initialDiagnoses[0], name: 'Mutated Name' };
       await repo.saveDiagnosis(toUpdate);
 
       const updatedDiagnoses = await repo.getDiagnoses();
       expect(updatedDiagnoses[0].name).toBe('Mutated Name');
-      
-      // Ensure the original source defaults are NOT mutated
       expect(defaultDiagnoses[0].name).not.toBe('Mutated Name');
 
       const initialWorks = await repo.getWorks();
-
       const toUpdateWork = { ...initialWorks[0], name: 'Mutated Work Name' };
       await repo.saveWork(toUpdateWork);
 
       const updatedWorks = await repo.getWorks();
       expect(updatedWorks[0].name).toBe('Mutated Work Name');
-
       expect(defaultClinicalWorks[0].name).not.toBe('Mutated Work Name');
     });
   });
 
-  describe('E. Factory', () => {
+  describe('G. Factory', () => {
     it('returns LocalStorage repo for backend = local', () => {
       const repo = createClinicalDictionariesRepository({ backend: 'local' });
       expect(repo).toBeInstanceOf(LocalStorageClinicalDictionariesRepository);
@@ -417,22 +475,20 @@ describe('ClinicalDictionariesRepository', () => {
       expect(() => createClinicalDictionariesRepository({ backend: 'invalid' })).toThrow();
     });
   });
-  describe('F. MedicalPage compatibility regression', () => {
+
+  describe('H. MedicalPage filtering compatibility', () => {
     it('filters correctly by type', async () => {
       const repo = new SupabaseClinicalDictionariesRepository(tenantId);
-      
-      const mockDiagnosisRow = { id: 'dx_1', name: 'Dx' }; // maps to type: 'diagnosis'
-      const mockWorkRow = { id: 'work_1', name: 'Wk' }; // maps to type: 'work'
-
+      const mockDiagnosisRow = { id: 'dx_1', name: 'Dx' };
+      const mockWorkRow = { id: 'work_1', name: 'Wk' };
       const mockSupabase = supabase as unknown as { from: ReturnType<typeof vi.fn> };
-      
+
       mockSupabase.from.mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         order: vi.fn().mockReturnThis(),
         then: (cb: (res: { data: unknown[]; error: Error | null }) => void) => cb({ data: [mockDiagnosisRow], error: null }),
       } as unknown);
-
       mockSupabase.from.mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -442,15 +498,13 @@ describe('ClinicalDictionariesRepository', () => {
 
       const diagnoses = await repo.getDiagnoses();
       const works = await repo.getWorks();
-      
       const combined = [...diagnoses, ...works];
-      
+
       const filteredDiagnoses = combined.filter(item => item.type === 'diagnosis');
       const filteredWorks = combined.filter(item => item.type === 'work');
-      
+
       expect(filteredDiagnoses).toHaveLength(1);
       expect(filteredDiagnoses[0].id).toBe('dx_1');
-      
       expect(filteredWorks).toHaveLength(1);
       expect(filteredWorks[0].id).toBe('work_1');
     });
