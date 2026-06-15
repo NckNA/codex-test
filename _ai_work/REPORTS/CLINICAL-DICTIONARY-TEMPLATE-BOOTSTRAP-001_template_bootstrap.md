@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/287
 
 ## PR head reviewed before final report update
 
-`21d1a12b7a89e02812b97f113204f0f3af2fe769`
+`e6c95ca290103cf0e43a8fb523d9ab85c8601259`
 
 ## Report update commit
 
@@ -207,7 +207,7 @@ Cloud apply must happen later after merge through a separate task.
 - `npm run build`: PASS
   - existing Vite chunk-size warning remains non-blocking
 - GitHub Actions CI before validation report update: PASS for PR head `21d1a12b7a89e02812b97f113204f0f3af2fe769`
-- GitHub Actions CI after validation report push: pending at report commit time
+- GitHub Actions CI after validation report push: PASS for commit `e6c95ca290103cf0e43a8fb523d9ab85c8601259`, workflow run `27564039337`
 
 ## Final verdict
 
