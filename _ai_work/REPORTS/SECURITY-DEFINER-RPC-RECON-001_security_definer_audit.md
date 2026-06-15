@@ -2,21 +2,20 @@
 
 ## 1. Summary
 
-Read-only Git and dev/test cloud recon was performed for the remaining `SECURITY DEFINER` helper functions in `public`.
+Read-only Git, dev/test cloud, and local Supabase recon was completed for the remaining `SECURITY DEFINER` helper functions in `public`.
 
 Findings:
 
-- `public.get_user_tenants()` and `public.has_tenant_role(target_tenant_id uuid, allowed_roles app_role[])` are the only public `SECURITY DEFINER` functions found in dev/test cloud.
+- `public.get_user_tenants()` and `public.has_tenant_role(target_tenant_id uuid, allowed_roles app_role[])` are the only public `SECURITY DEFINER` functions found in dev/test cloud and local Supabase.
 - Both are expected RLS helper functions created by `supabase/migrations/0001_initial_schema.sql`.
-- Both are `LANGUAGE sql`, `STABLE`, owned by `postgres`, and configured with `SET search_path = public`.
+- Both are `LANGUAGE sql`, `STABLE`, owned by `postgres` in cloud, and configured with explicit `SET search_path = public`.
 - Both read `public.tenant_users` scoped by `auth.uid()`.
-- Both are heavily referenced by RLS policies: 49 total policies in cloud, with 36 references involving `get_user_tenants()` and 13 involving `has_tenant_role(...)`.
+- Both are heavily referenced by RLS policies: 49 total policies, with 36 references involving `get_user_tenants()` and 13 involving `has_tenant_role(...)`.
 - Direct conversion to `SECURITY INVOKER` is not recommended blindly because these functions are used inside tenant-isolation and role-check RLS policies and read the membership table during RLS evaluation.
+- Local validation now matches Git/cloud expectation: migrations through `0007` are present, both expected helper functions are present, no extra public `SECURITY DEFINER` functions were found, both helpers have explicit `search_path=public`, and grants are broad in the same way cloud is broad.
 - Minimal next hardening should preserve behavior, keep `SECURITY DEFINER`, keep `SET search_path = public`, and tighten direct RPC execution grants.
 
-Important limitation:
-
-- Local Supabase validation was not completed in this run, so the final verdict is `PARTIAL`, not `READY FOR HARDENING PLAN`.
+Final verdict: `READY FOR HARDENING PLAN`.
 
 ## 2. Branch name
 
@@ -28,7 +27,7 @@ https://github.com/NckNA/codex-test/pull/283
 
 ## 4. PR head reviewed before final report update
 
-`183e15175ba96d04ceb18cd7c673140bd2d37e4b`
+`9888e280bd98fe526f35215329aabc16828e76ce`
 
 ## 5. Report update commit
 
@@ -40,7 +39,7 @@ PR changed-files validation before final report update confirmed exactly one cha
 
 - `[NEW] _ai_work/REPORTS/SECURITY-DEFINER-RPC-RECON-001_security_definer_audit.md`
 
-No migrations, source files, seed files, or existing reports were intentionally changed.
+No migrations, source files, seed files, existing reports, or source documents were intentionally changed.
 
 ## 7. Project identity
 
@@ -260,41 +259,91 @@ Out of scope:
 
 ## 10. Local audit
 
-Local Supabase audit was **not completed** in this run.
+`LOCAL-SECURITY-DEFINER-RPC-RECON-VALIDATION-001` was completed by Codex on:
 
-Required local commands not completed:
+- **Repository:** `NckNA/codex-test`
+- **Branch:** `recon/security-definer-rpc-001`
+- **Commit:** `9888e280bd98fe526f35215329aabc16828e76ce`
 
-- `npx supabase status`
-- `npx supabase db reset`
+### 10.1 Local Supabase command state
 
-Required local read-only checks therefore remain missing:
+| Check | Result |
+| :--- | :--- |
+| Local Supabase status before start | `running` |
+| Local Supabase start after status | not needed |
+| `npx supabase db reset` | pass |
 
-- local public `SECURITY DEFINER` function inventory;
-- local `pg_get_functiondef(...)` definitions;
-- local grants for `anon`, `authenticated`, and `PUBLIC`;
-- local `search_path` catalog check;
-- local RLS dependency map;
-- local vs cloud comparison.
+### 10.2 Local migration history
 
-No skipped local check is claimed as passed.
+| Check | Result |
+| :--- | :--- |
+| migrations through `0007` present locally | yes |
+| missing migrations | none |
 
-### 10.1 Local vs cloud comparison
+### 10.3 Local SECURITY DEFINER functions found
+
+| Function | Return type | Volatility | Function config | search_path status |
+| :--- | :--- | :--- | :--- | :--- |
+| `public.get_user_tenants()` | `SETOF uuid` | `STABLE` | `search_path=public` | `HAS_EXPLICIT_SEARCH_PATH` |
+| `public.has_tenant_role(target_tenant_id uuid, allowed_roles app_role[])` | `boolean` | `STABLE` | `search_path=public` | `HAS_EXPLICIT_SEARCH_PATH` |
+
+Expected functions:
+
+- `get_user_tenants` found: yes.
+- `has_tenant_role` found: yes.
+- Extra SECURITY DEFINER functions: none.
+
+### 10.4 Local effective EXECUTE privileges
+
+| Function | anon EXECUTE | authenticated EXECUTE | public role EXECUTE |
+| :--- | :--- | :--- | :--- |
+| `public.get_user_tenants()` | `true` | `true` | `true` |
+| `public.has_tenant_role(...)` | `true` | `true` | `true` |
+
+ACL rows:
+
+- `get_user_tenants`: `PUBLIC`, `anon`, `authenticated`, `postgres`, and `service_role` have `EXECUTE`.
+- `has_tenant_role`: `PUBLIC`, `anon`, `authenticated`, `postgres`, and `service_role` have `EXECUTE`.
+
+### 10.5 Local RLS policy dependencies
+
+Local dependency counts:
+
+- policies referencing `get_user_tenants`: 36.
+- policies referencing `has_tenant_role`: 13.
+- affected tables: `appointments`, `audit_logs`, `chief_complaints`, `clinical_dictionary_items`, `dental_charts`, `doctors`, `documents`, `findings`, `patients`, `subscriptions`, `tenant_users`, `tenants`, `tooth_states`, `treatment_plans`, `treatment_stages`.
+- unexpected policies: none.
+
+### 10.6 Local vs cloud comparison
 
 | Area | Git | Cloud | Local |
 | :--- | :--- | :--- | :--- |
-| Helper function definitions | inspected | inspected | not run |
-| `get_user_tenants()` exists | yes | yes | not run |
-| `has_tenant_role(...)` exists | yes | yes | not run |
-| `SECURITY DEFINER` mode | yes | yes | not run |
-| `SET search_path = public` | yes | yes | not run |
-| Grants | no explicit hardening in Git | broad `PUBLIC`, `anon`, `authenticated` execute | not run |
-| RLS dependency map | inspected in migrations | inspected in cloud | not run |
+| Helper function definitions | inspected | inspected | matches expected Git definitions |
+| `get_user_tenants()` exists | yes | yes | yes |
+| `has_tenant_role(...)` exists | yes | yes | yes |
+| Extra public SECURITY DEFINER functions | none found in migrations | none found | none found |
+| `SECURITY DEFINER` mode | yes | yes | yes |
+| `SET search_path = public` | yes | yes | yes |
+| Grants | no explicit hardening in Git | broad `PUBLIC`, `anon`, `authenticated` execute | broad `PUBLIC`, `anon`, `authenticated` execute |
+| RLS dependency map | inspected in migrations | 36 / 13 policy references | 36 / 13 policy references |
+| Migration state | through `0007` in Git | through `0007` expected from prior apply tasks | through `0007` present locally |
 
-Because local validation is missing, final verdict cannot be `READY FOR HARDENING PLAN`.
+Conclusion:
+
+- Local matches Git/cloud expectation: yes.
+- Differences: none.
+- Final local verdict: `LOCAL SECURITY DEFINER RECON VALIDATION PASSED`.
 
 ## 11. RLS dependency map
 
-Cloud policies referencing the helper functions:
+Cloud/local policy dependency summary:
+
+- `get_user_tenants()`: 36 policies.
+- `has_tenant_role(...)`: 13 policies.
+- Affected tables: `appointments`, `audit_logs`, `chief_complaints`, `clinical_dictionary_items`, `dental_charts`, `doctors`, `documents`, `findings`, `patients`, `subscriptions`, `tenant_users`, `tenants`, `tooth_states`, `treatment_plans`, `treatment_stages`.
+- Unexpected policies: none.
+
+Representative policy map from cloud recon:
 
 | Table | Policy | Command | Helper(s) | USING | WITH CHECK |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -359,7 +408,7 @@ Dependency summary:
 
 The functions centralize tenant membership and tenant role checks for RLS policies.
 
-They support the project rule that tenant-owned data must be filtered by current user membership and role. That aligns with the architecture source documents: tenant isolation is a foundational SaaS requirement, not a UI decoration.
+They support the project rule that tenant-owned data must be filtered by current user membership and role. Tenant isolation is a foundational SaaS requirement, not a UI decoration.
 
 ### 12.2 What breaks if changed blindly
 
@@ -449,6 +498,7 @@ Expected acceptance criteria for next task:
 - No service role key printed.
 - No passwords printed.
 - No patient data printed.
+- Hardening implementation was not started.
 
 ## 15. Remaining known issues
 
@@ -456,32 +506,28 @@ Expected acceptance criteria for next task:
 - `FINDINGS-ARCHIVE-UI-CLEANUP-001` remains open.
 - `SUPABASE-CLOUD-DICTIONARY-SEED-RECON-001` remains open.
 - `ROLE-LABEL-UX-001` remains open if still applicable.
-- Direct execution hardening for `get_user_tenants()` / `has_tenant_role(...)` remains open.
+- Direct execution hardening for `get_user_tenants()` / `has_tenant_role(...)` remains open for the next task.
 
 ## 16. Checks
 
-- `git status --short`: not run in a local working tree. PR changed-files validation before final report update confirmed exactly one changed file: `_ai_work/REPORTS/SECURITY-DEFINER-RPC-RECON-001_security_definer_audit.md`.
-- `npx supabase status`: not run.
-- `npx supabase db reset`: not run.
-- `npm run lint`: not run locally.
-- `npm run test -- --run`: not run locally.
-- `npm run build`: not run locally.
-- GitHub Actions CI result: pending for the report update commit.
+- `git status --short`: exact local stdout was not included in the Codex handoff; GitHub PR changed-files validation before final report update confirmed this is a report-only PR with exactly one changed file.
+- `npx supabase status`: local Supabase was already `running`.
+- `npx supabase db reset`: pass.
+- Local migration validation: migrations through `0007` present; missing migrations: none.
+- Local SECURITY DEFINER recon: pass; only `get_user_tenants()` and `has_tenant_role(...)` found.
+- Local grant/search_path/RLS dependency comparison: pass; local matches Git/cloud expectation.
+- `npm run lint`: not provided as local stdout in the Codex handoff; GitHub Actions CI passed ESLint on PR head `9888e280bd98fe526f35215329aabc16828e76ce`.
+- `npm run test -- --run`: not provided as local stdout in the Codex handoff; GitHub Actions CI test phase passed on PR head `9888e280bd98fe526f35215329aabc16828e76ce`.
+- `npm run build`: not provided as local stdout in the Codex handoff; GitHub Actions CI build phase passed on PR head `9888e280bd98fe526f35215329aabc16828e76ce`.
+- GitHub Actions CI result: PASS, workflow `CI`, run `#387`, head `9888e280bd98fe526f35215329aabc16828e76ce`.
 
-No skipped check is claimed as passed.
+No skipped local npm command is claimed as locally passed.
 
 ## 17. Final verdict
 
-**PARTIAL**
+**READY FOR HARDENING PLAN**
 
-Exact missing validation:
-
-- local Supabase validation was not completed;
-- local function definitions/grants/search_path were not compared to cloud;
-- local `npm` command checks were not run in this tool path;
-- GitHub Actions CI is pending for the report update commit.
-
-Verified despite partial verdict:
+Verified:
 
 - Git audit identified both helper functions and their creation point.
 - Cloud audit identified all public `SECURITY DEFINER` functions.
@@ -489,9 +535,15 @@ Verified despite partial verdict:
 - Cloud grants were inspected.
 - Cloud `search_path` safety was inspected.
 - Cloud RLS policy dependencies were mapped.
+- Local Supabase `db reset` passed.
+- Local public `SECURITY DEFINER` function inventory matches Git/cloud expectation.
+- Local grants match cloud expectation.
+- Local `search_path` safety matches Git/cloud expectation.
+- Local RLS policy dependency counts match cloud expectation.
 - Supabase security advisors were run.
-- PR is report-only with exactly one changed file.
+- PR is report-only with exactly one changed file before this final report update.
 - No cloud writes or DDL were performed.
+- No hardening implementation was started.
 
 ## 18. Recommended next task
 
