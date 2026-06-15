@@ -6,7 +6,7 @@ Implemented centralized role display mapping and replaced the layout header's ha
 
 - Branch name: `feature/role-label-ux-001`
 - PR URL: https://github.com/NckNA/codex-test/pull/290
-- PR head reviewed before final report update: `fae3749e3757d1b67264b4c57e49a6c781061f4b`
+- PR head reviewed before final report update: `cfa730142c5a4fc9b7ec9af52d6a0c048097e660`
 - Report update commit: N/A because the final report update commit cannot reference itself before creation.
 
 ---
@@ -16,6 +16,7 @@ Implemented centralized role display mapping and replaced the layout header's ha
 - `src/domain/roleLabels.ts`
 - `src/domain/roleLabels.test.ts`
 - `src/components/layout/Header.tsx`
+- `src/components/layout/Header.test.tsx`
 - `src/contexts/TenantContext.tsx`
 - `src/contexts/TenantContext.test.tsx`
 - `src/App.test.tsx`
@@ -69,6 +70,7 @@ Files changed because they directly participate in role label display or tests:
 
 - `src/domain/roleLabels.ts`
 - `src/components/layout/Header.tsx`
+- `src/components/layout/Header.test.tsx`
 - `src/contexts/TenantContext.tsx`
 - `src/domain/roleLabels.test.ts`
 - `src/contexts/TenantContext.test.tsx`
@@ -145,7 +147,7 @@ No-tenant users remain blocked by the existing `Клиника не назнач
 
 ### Multi-tenant behavior
 
-When `activeTenant.role` changes, the header label changes with it. This is covered by `App.test.tsx`.
+When `activeTenant.role` changes, the header label changes with it. This is covered by `Header.test.tsx`, `TenantContext.test.tsx`, and `App.test.tsx`.
 
 ### Platform context
 
@@ -165,6 +167,17 @@ Covers:
 - unknown fallback;
 - doctor/receptionist/registrar/no-tenant never mapping to generic admin;
 - clinic/platform context separation.
+
+### `src/components/layout/Header.test.tsx`
+
+Covers:
+
+- dev fallback header label;
+- Supabase header label;
+- clinic_admin / clinic_owner / doctor / receptionist / registrar / cashier labels;
+- platform role not shown as clinic role;
+- missing role fallback;
+- header label updates when active tenant role changes.
 
 ### `src/contexts/TenantContext.test.tsx`
 
@@ -202,7 +215,7 @@ Blocked in this environment: Chrome DevTools MCP is not available, so I could no
 
 Not faked.
 
-Required manual smoke after CI if browser tooling is available:
+Required manual smoke if browser tooling is available:
 
 1. Admin Clinic A: visible role label should be `Администратор клиники`, not generic `Администратор`.
 2. Doctor Clinic A: visible role label should be `Врач`; dictionary page should remain read-only.
@@ -229,10 +242,10 @@ Required manual smoke after CI if browser tooling is available:
 ## Checks
 
 - `git status --short`: not run locally; GitHub PR file list must be used as source of truth.
-- `npm run lint`: pending GitHub Actions CI.
-- `npm run test -- --run`: pending GitHub Actions CI.
-- `npm run build`: pending GitHub Actions CI.
-- `GitHub Actions CI result`: pending.
+- `npm run lint`: PASS via GitHub Actions CI #429.
+- `npm run test -- --run`: PASS via GitHub Actions CI #429.
+- `npm run build`: PASS via GitHub Actions CI #429.
+- `GitHub Actions CI result`: PASS, run id `27573586816`, run number `429`, tested commit `cfa730142c5a4fc9b7ec9af52d6a0c048097e660`.
 
 ---
 
@@ -254,7 +267,7 @@ Required manual smoke after CI if browser tooling is available:
 
 **PARTIAL**
 
-Reason: implementation is complete, but GitHub Actions CI and browser smoke are not completed yet.
+Reason: implementation is complete and CI is green, but browser smoke is blocked because Chrome DevTools MCP is not available in this environment.
 
 ---
 
