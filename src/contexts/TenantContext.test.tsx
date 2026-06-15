@@ -95,7 +95,7 @@ describe('TenantContext behavior', () => {
     expect(view.result.availableTenants).toHaveLength(1);
     expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
     expect(view.result.activeTenant?.tenantName).toBe('Demo Clinic');
-    expect(view.result.activeTenant?.role).toBe('admin');
+    expect(view.result.activeTenant?.role).toBe('clinic_admin');
     expect(view.result.isLoading).toBe(false);
     expect(view.result.error).toBeNull();
     expect(mockFrom).not.toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe('TenantContext behavior', () => {
     mockEq.mockResolvedValue({
       data: [
         tenantRow('11111111-1111-1111-1111-111111111111', 'Demo Clinic A', 'clinic_admin'),
-        tenantRow('22222222-2222-2222-2222-222222222222', 'Demo Clinic B', 'registrar'),
+        tenantRow('22222222-2222-2222-2222-222222222222', 'Demo Clinic B', 'doctor'),
       ],
       error: null,
     });
@@ -210,9 +210,11 @@ describe('TenantContext behavior', () => {
 
     expect(view.result.availableTenants).toHaveLength(2);
     expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
+    expect(view.result.activeTenant?.role).toBe('clinic_admin');
 
     await act(async () => view.result.setActiveTenant('22222222-2222-2222-2222-222222222222'));
     expect(view.result.activeTenant?.tenantId).toBe('22222222-2222-2222-2222-222222222222');
+    expect(view.result.activeTenant?.role).toBe('doctor');
 
     await act(async () => view.result.setActiveTenant('unknown-tenant'));
     expect(view.result.activeTenant?.tenantId).toBe('22222222-2222-2222-2222-222222222222');
