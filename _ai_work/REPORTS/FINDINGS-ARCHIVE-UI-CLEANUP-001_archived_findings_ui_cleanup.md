@@ -22,7 +22,7 @@ https://github.com/NckNA/codex-test/pull/289
 
 ## PR head reviewed before final report update
 
-`34e131b0d94a132f50c9dcb44d4d8da40b8482fd`
+`6492471ae7dd2ff5e2fb526e37ac02f752f70e63`
 
 ## Report update commit
 
@@ -129,11 +129,31 @@ Updated/added tests:
   - completed/declined behavior remains inactive;
   - unrelated localStorage mutation safety remains covered.
 
+## GitHub Actions failure root cause and fix
+
+GitHub Actions run `27567348795`, job `81494655312`, failed only in `Run tests`.
+
+Two tests in `src/components/dental/FindingsRisksTab.test.tsx` located the `Архивные записи` heading and then asserted against its immediate parent. The immediate parent contains only the archive heading, explanation, and toggle; archived cards are rendered in the surrounding `<section>`. The production archive behavior was correct, but the assertions searched the wrong DOM scope.
+
+The fix changes both test locators to use `closest('section')`. No production code or archive requirements were weakened.
+
 ## Browser smoke
 
-Not completed in this run.
+Partially completed in local dev fallback mode at `http://127.0.0.1:5177/patients/p1`.
 
-Blocker: Chrome DevTools MCP is not available in this tool environment, so I cannot honestly perform the required browser click-through smoke.
+Confirmed:
+
+- active `Кариес 47 зуба` appears in `Проблемы и риски`;
+- active archive wording is `Архивировать запись Кариес 47 зуба`;
+- `Кариес 47 зуба` and `Начальный кариес 24 зуба` appear in `Создать план из проблем` before archiving.
+
+Blocker:
+
+- clicking the archive action opened the native `window.confirm` dialog;
+- the available in-app browser control timed out while the dialog was open and could not accept or dismiss it;
+- post-confirm disappearance, archive-toggle visibility, create-plan exclusion after archive, and reload persistence could not be honestly verified in this run.
+
+The archive confirmation wording and post-archive UI rules remain covered by automated tests, but this does not replace the blocked browser steps.
 
 ## What was intentionally NOT changed
 
@@ -148,14 +168,21 @@ Blocker: Chrome DevTools MCP is not available in this tool environment, so I can
 
 ## Checks
 
-Pending GitHub Actions CI for report metadata update commit.
+Local working tree before staging:
 
-Local checks not run in this tool environment:
+- modified allowed file: `src/components/dental/FindingsRisksTab.test.tsx`;
+- modified allowed report: this file;
+- pre-existing untracked `_ai_work/scratch/`, `outputs/`, `pr.txt`, `seed_output.sql`, and `temp.md` were not modified or staged.
 
-- `npm run lint`
-- `npm run test -- --run`
-- `npm run build`
-- `git status --short`
+Results:
+
+- `npm run lint`: PASS.
+- focused `npm run test -- --run src/components/dental/FindingsRisksTab.test.tsx`: PASS, 3/3 tests.
+- `npm run test -- --run` with the local `.env.local`: FAIL in the unrelated `AuthContext (Dev Fallback)` test because local Supabase configuration selects `supabase-active` instead of the expected `dev` mode.
+- `npm run test -- --run` in CI-equivalent env-neutral mode: PASS, 36 test files and 279 tests.
+- `npm run build`: PASS. Vite emitted the existing large-chunk warning.
+
+GitHub Actions CI after push: PENDING.
 
 ## Remaining known issues
 
@@ -169,7 +196,7 @@ Local checks not run in this tool environment:
 
 PARTIAL
 
-Reason: implementation is present, but GitHub Actions CI and browser smoke are still pending.
+Reason: the CI test failure has been fixed and all CI-equivalent local checks pass, but the updated branch has not yet completed GitHub Actions and the post-confirm browser archive flow remains blocked.
 
 ## Recommended next task
 

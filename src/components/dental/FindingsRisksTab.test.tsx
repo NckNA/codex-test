@@ -120,7 +120,8 @@ describe('FindingsRisksTab archived findings behavior', () => {
     });
 
     const archiveSection = Array.from(container.querySelectorAll('h3'))
-      .find(h => h.textContent === 'Архивные записи')?.parentElement;
+      .find(h => h.textContent === 'Архивные записи')
+      ?.closest('section');
     expect(archiveSection?.textContent).toContain('Archived Complaint Problem');
 
     await cleanup(root, container);
@@ -165,7 +166,8 @@ describe('FindingsRisksTab archived findings behavior', () => {
     });
 
     const archiveSection = Array.from(container.querySelectorAll('h3'))
-      .find(h => h.textContent === 'Архивные записи')?.parentElement;
+      .find(h => h.textContent === 'Архивные записи')
+      ?.closest('section');
     expect(archiveSection?.textContent).toContain('Archived finding');
     expect(archiveSection?.textContent).not.toContain('В наблюдение');
     expect(archiveSection?.textContent).not.toContain('Отказ пациента');
