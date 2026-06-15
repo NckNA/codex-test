@@ -22,7 +22,7 @@ https://github.com/NckNA/codex-test/pull/289
 
 ## PR head reviewed before final report update
 
-`6492471ae7dd2ff5e2fb526e37ac02f752f70e63`
+`03f26335297941f3c5384fdb541cc1e59d393f9e`
 
 ## Report update commit
 
@@ -182,7 +182,13 @@ Results:
 - `npm run test -- --run` in CI-equivalent env-neutral mode: PASS, 36 test files and 279 tests.
 - `npm run build`: PASS. Vite emitted the existing large-chunk warning.
 
-GitHub Actions CI after push: PENDING.
+GitHub Actions CI after push: PASS.
+
+- run: `27569863492`;
+- job: `81503251432`;
+- check: `validate`;
+- duration: 47 seconds;
+- tested commit: `03f26335297941f3c5384fdb541cc1e59d393f9e`.
 
 ## Remaining known issues
 
@@ -196,7 +202,7 @@ GitHub Actions CI after push: PENDING.
 
 PARTIAL
 
-Reason: the CI test failure has been fixed and all CI-equivalent local checks pass, but the updated branch has not yet completed GitHub Actions and the post-confirm browser archive flow remains blocked.
+Reason: the CI test failure has been fixed, all CI-equivalent local checks pass, and GitHub Actions is green. The post-confirm browser archive flow remains blocked, so the report cannot honestly be promoted to `READY FOR REVIEW` without Nick accepting the missing browser completion.
 
 ## Recommended next task
 
