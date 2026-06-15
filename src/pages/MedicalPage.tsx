@@ -3,6 +3,8 @@ import { useDictionaries } from '../data/hooks/useDictionaries';
 import type { ClinicalDiagnosis, ClinicalWork } from '../config/clinicalDictionaries';
 import { STATUS_TO_ZONES_MAP } from '../config/clinicalDictionaries';
 import type { ToothPresenceStatus, ClinicalZone } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 
 const PRESENCE_STATUS_LABELS: Record<ToothPresenceStatus, string> = {
   natural: 'Естественный зуб',
@@ -115,6 +117,19 @@ function StatusZoneSelector({
 
 export function MedicalPage() {
   const { diagnoses, works, loading, saveDiagnosis, saveWork, refresh } = useDictionaries();
+  const { authMode } = useAuth();
+  const { activeTenant } = useTenant();
+
+  const canManage = useMemo(() => {
+    if (authMode === 'dev') {
+      return true;
+    }
+    if (authMode === 'supabase-active') {
+      const role = activeTenant?.role;
+      return role === 'clinic_admin' || role === 'clinic_owner';
+    }
+    return false;
+  }, [authMode, activeTenant]);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'diagnosis' | 'work'>('all');
@@ -174,18 +189,22 @@ export function MedicalPage() {
           <p className="mt-1 text-slate-500">Настройка диагнозов, работ, цен и связей для зубной карты</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setNewItemType('diagnosis')}
-            className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
-          >
-            + Диагноз
-          </button>
-          <button
-            onClick={() => { setNewItemType('work'); setNewWorkId(`work_${Date.now()}`); }}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
-          >
-            + Работа
-          </button>
+          {canManage && (
+            <>
+              <button
+                onClick={() => setNewItemType('diagnosis')}
+                className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+              >
+                + Диагноз
+              </button>
+              <button
+                onClick={() => { setNewItemType('work'); setNewWorkId(`work_${Date.now()}`); }}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+              >
+                + Работа
+              </button>
+            </>
+          )}
           <button
             onClick={refresh}
             className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
@@ -194,6 +213,12 @@ export function MedicalPage() {
           </button>
         </div>
       </div>
+
+      {!canManage && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-sm text-blue-700">
+          Справочники доступны только для просмотра. Редактирование доступно администратору клиники.
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -276,14 +301,14 @@ export function MedicalPage() {
         </div>
 
         <div className="space-y-3 pt-4 border-t border-slate-100">
-          {newItemType === 'diagnosis' && (
+          {canManage && newItemType === 'diagnosis' && (
             <NewDiagnosisForm 
               onSave={(d) => { saveDiagnosis(d); setNewItemType(null); }} 
               onCancel={() => setNewItemType(null)} 
             />
           )}
 
-          {newItemType === 'work' && newWorkId && (
+          {canManage && newItemType === 'work' && newWorkId && (
             <WorkEditorRow 
               work={{
                 id: newWorkId,
@@ -301,6 +326,7 @@ export function MedicalPage() {
               isEditing={true}
               setEditing={() => setNewItemType(null)}
               isNew={true}
+              canManage={canManage}
             />
           )}
 
@@ -317,6 +343,7 @@ export function MedicalPage() {
                   key={item.id}
                   diagnosis={item as ClinicalDiagnosis}
                   onSave={saveDiagnosis}
+                  canManage={canManage}
                 />
               );
             } else {
@@ -328,6 +355,7 @@ export function MedicalPage() {
                   onSave={saveWork} 
                   isEditing={editingWorkId === item.id}
                   setEditing={() => setEditingWorkId(editingWorkId === item.id ? null : item.id)}
+                  canManage={canManage}
                 />
               );
             }
@@ -383,7 +411,15 @@ function NewDiagnosisForm({ onSave, onCancel }: { onSave: (d: ClinicalDiagnosis)
   );
 }
 
-function DiagnosisEditorRow({ diagnosis, onSave }: { diagnosis: ClinicalDiagnosis, onSave: (d: ClinicalDiagnosis) => void }) {
+function DiagnosisEditorRow({ 
+  diagnosis, 
+  onSave,
+  canManage = true
+}: { 
+  diagnosis: ClinicalDiagnosis, 
+  onSave: (d: ClinicalDiagnosis) => void,
+  canManage?: boolean
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(diagnosis.name);
   const [statuses, setStatuses] = useState<ToothPresenceStatus[]>(diagnosis.allowedPresenceStatuses);
@@ -395,7 +431,7 @@ function DiagnosisEditorRow({ diagnosis, onSave }: { diagnosis: ClinicalDiagnosi
     setIsEditing(false);
   };
 
-  if (isEditing) {
+  if (isEditing && canManage) {
     return (
       <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4">
         <div className="flex justify-between items-start mb-4">
@@ -435,20 +471,22 @@ function DiagnosisEditorRow({ diagnosis, onSave }: { diagnosis: ClinicalDiagnosi
         </div>
         <p className="text-xs text-slate-500">ID: {diagnosis.id} • Зон: {diagnosis.allowedZones.length} • Статусов: {diagnosis.allowedPresenceStatuses.length}</p>
       </div>
-      <div className="flex gap-2 shrink-0">
-        <button
-          onClick={() => { setName(diagnosis.name); setIsEditing(true); }}
-          className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-        >
-          Редактировать
-        </button>
-        <button
-          onClick={() => onSave({ ...diagnosis, isActive: diagnosis.isActive === false ? true : false })}
-          className={`rounded px-3 py-1.5 text-xs font-medium shadow-sm ${diagnosis.isActive === false ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
-        >
-          {diagnosis.isActive === false ? 'Восстановить' : 'Отключить'}
-        </button>
-      </div>
+      {canManage && (
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={() => { setName(diagnosis.name); setIsEditing(true); }}
+            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Редактировать
+          </button>
+          <button
+            onClick={() => onSave({ ...diagnosis, isActive: diagnosis.isActive === false ? true : false })}
+            className={`rounded px-3 py-1.5 text-xs font-medium shadow-sm ${diagnosis.isActive === false ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
+          >
+            {diagnosis.isActive === false ? 'Восстановить' : 'Отключить'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -459,14 +497,16 @@ function WorkEditorRow({
   onSave, 
   isEditing, 
   setEditing,
-  isNew = false
+  isNew = false,
+  canManage = true
 }: { 
   work: ClinicalWork, 
   diagnoses: ClinicalDiagnosis[], 
   onSave: (w: ClinicalWork) => void,
   isEditing: boolean,
   setEditing: () => void,
-  isNew?: boolean
+  isNew?: boolean,
+  canManage?: boolean
 }) {
   const [name, setName] = useState(work.name);
   const [price, setPrice] = useState(work.price || 0);
@@ -525,7 +565,7 @@ function WorkEditorRow({
     );
   };
 
-  if (!isEditing) {
+  if (!isEditing || !canManage) {
     return (
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between rounded-lg border p-3 gap-3 ${work.isActive === false ? 'bg-slate-50 opacity-60' : 'bg-white'}`}>
         <div>
@@ -537,20 +577,22 @@ function WorkEditorRow({
             Цена: {work.price ? `${work.price} тг` : 'не указана'} • ID: {work.id} • Связанных диагнозов: {work.allowedDiagnosisIds?.length || 0}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            onClick={setEditing}
-            className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-          >
-            Редактировать
-          </button>
-          <button
-            onClick={() => onSave({ ...work, isActive: work.isActive === false ? true : false })}
-            className={`rounded px-3 py-1.5 text-xs font-medium shadow-sm ${work.isActive === false ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
-          >
-            {work.isActive === false ? 'Восстановить' : 'Отключить'}
-          </button>
-        </div>
+        {canManage && (
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={setEditing}
+              className="rounded border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              Редактировать
+            </button>
+            <button
+              onClick={() => onSave({ ...work, isActive: work.isActive === false ? true : false })}
+              className={`rounded px-3 py-1.5 text-xs font-medium shadow-sm ${work.isActive === false ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
+            >
+              {work.isActive === false ? 'Восстановить' : 'Отключить'}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
