@@ -5,6 +5,13 @@ import type { ClinicalDiagnosis, ClinicalWork } from '../../config/clinicalDicti
 const STORAGE_KEY_DIAGNOSES = 'codex_clinical_diagnoses';
 const STORAGE_KEY_WORKS = 'codex_clinical_works';
 
+export interface ClinicalDictionaryBootstrapResult {
+  insertedCount: number;
+  skippedExistingCount: number;
+  templateKey: string;
+  tenantId?: string;
+}
+
 export const ClinicalDictionariesRepository = {
   getDiagnoses(): ClinicalDiagnosis[] {
     const data = localStorage.getItem(STORAGE_KEY_DIAGNOSES);
@@ -46,6 +53,12 @@ export interface IClinicalDictionariesRepository {
   getWorks(): Promise<ClinicalWork[]>;
   saveDiagnosis(diagnosis: ClinicalDiagnosis): Promise<void>;
   saveWork(work: ClinicalWork): Promise<void>;
+  bootstrapFromTemplate(templateKey?: string): Promise<ClinicalDictionaryBootstrapResult>;
+}
+
+function countMissingDefaults<T extends { id: string }>(existing: T[], defaults: T[]): number {
+  const existingIds = new Set(existing.map((item) => item.id));
+  return defaults.filter((item) => !existingIds.has(item.id)).length;
 }
 
 export class LocalStorageClinicalDictionariesRepository implements IClinicalDictionariesRepository {
@@ -78,6 +91,62 @@ export class LocalStorageClinicalDictionariesRepository implements IClinicalDict
     }
     ClinicalDictionariesRepository.saveWorks(all);
   }
+
+  async bootstrapFromTemplate(templateKey = 'default_dental_v1'): Promise<ClinicalDictionaryBootstrapResult> {
+    const diagnoses = ClinicalDictionariesRepository.getDiagnoses();
+    const works = ClinicalDictionariesRepository.getWorks();
+
+    const missingDiagnoses = countMissingDefaults(diagnoses, defaultDiagnoses);
+    const missingWorks = countMissingDefaults(works, defaultClinicalWorks);
+
+    const diagnosisById = new Map(diagnoses.map((diagnosis) => [diagnosis.id, diagnosis]));
+    const workById = new Map(works.map((work) => [work.id, work]));
+
+    for (const diagnosis of defaultDiagnoses) {
+      if (!diagnosisById.has(diagnosis.id)) {
+        diagnosisById.set(diagnosis.id, diagnosis);
+      }
+    }
+
+    for (const work of defaultClinicalWorks) {
+      if (!workById.has(work.id)) {
+        workById.set(work.id, work);
+      }
+    }
+
+    ClinicalDictionariesRepository.saveDiagnoses(Array.from(diagnosisById.values()));
+    ClinicalDictionariesRepository.saveWorks(Array.from(workById.values()));
+
+    const insertedCount = missingDiagnoses + missingWorks;
+    const skippedExistingCount = defaultDiagnoses.length + defaultClinicalWorks.length - insertedCount;
+
+    return {
+      insertedCount,
+      skippedExistingCount,
+      templateKey,
+    };
+  }
+}
+
+function mapBootstrapResult(data: unknown, fallbackTemplateKey: string): ClinicalDictionaryBootstrapResult {
+  const row = Array.isArray(data) ? data[0] : data;
+  const result = (row ?? {}) as {
+    inserted_count?: number | string;
+    insertedCount?: number | string;
+    skipped_existing_count?: number | string;
+    skippedExistingCount?: number | string;
+    template_key?: string;
+    templateKey?: string;
+    tenant_id?: string;
+    tenantId?: string;
+  };
+
+  return {
+    insertedCount: Number(result.inserted_count ?? result.insertedCount ?? 0),
+    skippedExistingCount: Number(result.skipped_existing_count ?? result.skippedExistingCount ?? 0),
+    templateKey: result.template_key ?? result.templateKey ?? fallbackTemplateKey,
+    tenantId: result.tenant_id ?? result.tenantId,
+  };
 }
 
 export class SupabaseClinicalDictionariesRepository implements IClinicalDictionariesRepository {
@@ -191,6 +260,20 @@ export class SupabaseClinicalDictionariesRepository implements IClinicalDictiona
 
     if (error) throw error;
   }
+
+  async bootstrapFromTemplate(templateKey = 'default_dental_v1'): Promise<ClinicalDictionaryBootstrapResult> {
+    const { data, error } = await this.supabase.rpc(
+      'bootstrap_clinical_dictionary_from_template',
+      {
+        target_tenant_id: this.tenantId,
+        template_key: templateKey,
+      }
+    );
+
+    if (error) throw error;
+
+    return mapBootstrapResult(data, templateKey);
+  }
 }
 
 interface RepositoryConfig {
@@ -202,7 +285,7 @@ export function createClinicalDictionariesRepository(config: RepositoryConfig): 
   if (config.backend === 'local') {
     return new LocalStorageClinicalDictionariesRepository();
   }
-  
+
   if (config.backend === 'supabase') {
     return new SupabaseClinicalDictionariesRepository(config.tenantId);
   }
