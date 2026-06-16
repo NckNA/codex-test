@@ -4,6 +4,7 @@ import { ArrowLeft, User } from 'lucide-react';
 import type { Patient } from '../types';
 import { PatientModal } from '../components/patients/PatientModal';
 import { DentalChartTab } from '../components/dental/DentalChartTab';
+import { DentalPhotosPanel } from '../components/dental/DentalPhotosPanel';
 import { TreatmentPlansTab } from '../components/treatment/TreatmentPlansTab';
 import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
@@ -22,8 +23,6 @@ const TABS = [
   { id: 'communications', label: 'Коммуникации' },
   { id: 'files', label: 'Файлы' },
 ];
-
-
 
 export function PatientCardPage() {
   const { patientId } = useParams<{ patientId: string }>();
@@ -114,7 +113,6 @@ export function PatientCardPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      {/* Header */}
       <div className="bg-white border-b border-slate-200 px-6 pt-6 shrink-0">
         <button
           onClick={() => navigate('/patients')}
@@ -153,7 +151,6 @@ export function PatientCardPage() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-6 overflow-x-auto">
           {TABS.map(tab => (
             <button
@@ -172,7 +169,6 @@ export function PatientCardPage() {
         </div>
       </div>
 
-      {/* Tab Content */}
       <div className="flex-1 overflow-auto p-6">
         {activeTab === 'overview' && isMedicalSummaryLoading && (
           <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
@@ -202,18 +198,13 @@ export function PatientCardPage() {
           />
         )}
 
-        {activeTab === 'history' && (
-          <PatientHistoryTab
-            patientId={patient.id}
-          />
-        )}
-
+        {activeTab === 'history' && <PatientHistoryTab patientId={patient.id} />}
         {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
         {activeTab === 'findings' && <FindingsRisksTab patientId={patient.id} />}
         {activeTab === 'plan' && <TreatmentPlansTab patientId={patient.id} />}
+        {activeTab === 'files' && <DentalPhotosPanel patientId={patient.id} />}
 
-        {/* Placeholders for other tabs */}
-        {['finance', 'docs', 'communications', 'files'].includes(activeTab) && (
+        {['finance', 'docs', 'communications'].includes(activeTab) && (
           <div className="p-8 h-[400px] flex flex-col items-center justify-center text-slate-400 bg-white rounded-xl border border-slate-200 border-dashed">
             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
               <span className="text-2xl">🚧</span>
