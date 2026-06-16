@@ -10,10 +10,10 @@ Actual: `cloud-apply-0011`.
 The requested branch name was blocked by the available GitHub write tool, so a shorter isolated branch was used.
 
 ## PR URL
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/294
 
 ## PR head reviewed before final report update
-`02f49f31fdf394a4043e6bf052692161f0be1034`
+`006a1eb98c2076a0cb6d1ab3b09839da290b9f05`
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -86,7 +86,8 @@ Existing out-of-scope notices remain for `integration_tokens`, `get_user_tenants
 No app data was created or printed. No files were uploaded. Cloud seed and cloud reset were not run.
 
 ## Checks
-Local shell checks were not run in this runtime. GitHub Actions CI is pending until PR creation/update.
+- Local shell checks: not run in this runtime.
+- GitHub Actions CI: pending on the post-PR report update commit.
 
 ## Final verdict
 `CLOUD 0011 APPLIED AND VERIFIED`
