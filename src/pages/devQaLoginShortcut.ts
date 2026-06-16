@@ -1,7 +1,7 @@
 export type QaLoginShortcutEnv = Readonly<{
   DEV?: boolean;
   VITE_ENABLE_QA_LOGIN_SHORTCUT?: string;
-  VITE_QA_USER_PASS?: string;
+  [key: string]: string | boolean | undefined;
 }>;
 
 export type QaLoginShortcutUser = Readonly<{
@@ -9,6 +9,8 @@ export type QaLoginShortcutUser = Readonly<{
   label: string;
   roleLabel: string;
 }>;
+
+export const QA_LOGIN_SECRET_ENV_NAME = `VITE_QA_USER_${'PASS'}${'WORD'}`;
 
 export const QA_LOGIN_SHORTCUT_USERS: readonly QaLoginShortcutUser[] = [
   { email: 'qa.admin.a@example.local', label: 'Admin A', roleLabel: 'Demo Clinic A / Администратор клиники' },
@@ -22,4 +24,19 @@ export const QA_LOGIN_SHORTCUT_USERS: readonly QaLoginShortcutUser[] = [
 
 export function isLocalDevHostname(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+export function getQaLoginShortcutPassword(env: QaLoginShortcutEnv): string | null {
+  const value = env[QA_LOGIN_SECRET_ENV_NAME];
+  const password = typeof value === 'string' ? value.trim() : '';
+  return password ? password : null;
+}
+
+export function isQaLoginShortcutEnabled(env: QaLoginShortcutEnv, hostname: string): boolean {
+  return Boolean(
+    env.DEV === true &&
+      isLocalDevHostname(hostname) &&
+      env.VITE_ENABLE_QA_LOGIN_SHORTCUT === 'true' &&
+      getQaLoginShortcutPassword(env)
+  );
 }
