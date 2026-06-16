@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/297
 
 ## PR head reviewed before final report update
 
-`e79213fdaf7e5a48945320181ce145c901ffe768`
+`e2387c0cc7a229e843d04ff7c090ffad3b7fd16b`
 
 ## Report update commit
 
@@ -174,10 +174,11 @@ Covered:
 
 ## Checks
 
-GitHub Actions CI on reviewed head `e79213fdaf7e5a48945320181ce145c901ffe768`:
+GitHub Actions CI on reviewed head `e2387c0cc7a229e843d04ff7c090ffad3b7fd16b`:
 
-- run `27630859056`;
-- CI `#475`;
+- run `27630972480`;
+- CI `#476`;
+- tested commit `e2387c0cc7a229e843d04ff7c090ffad3b7fd16b`;
 - ESLint: success;
 - tests: success;
 - build: success.
