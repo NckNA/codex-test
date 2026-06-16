@@ -14,11 +14,11 @@ This task did not add migrations, cloud changes, browser smoke, source mutations
 
 ## PR
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/298
 
 ## PR head reviewed before final report update
 
-[Pending PR creation]
+`8d7834ada4f0bd98253ee44845ce42081d634db8`
 
 ## Report update commit
 
@@ -179,11 +179,11 @@ Covered:
 
 ## Checks
 
-Pending GitHub Actions CI after PR creation.
+Pending GitHub Actions CI on PR head `8d7834ada4f0bd98253ee44845ce42081d634db8`.
 
 ## Final verdict
 
-PARTIAL pending PR creation and CI.
+PARTIAL pending CI.
 
 ## Recommended next task
 
