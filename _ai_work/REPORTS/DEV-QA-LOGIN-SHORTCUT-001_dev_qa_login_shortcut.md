@@ -12,11 +12,11 @@ The shortcut still uses the normal application `signIn` flow. Authentication, te
 
 ## PR URL
 
-Pending until PR creation.
+https://github.com/NckNA/codex-test/pull/300
 
 ## PR head reviewed before final report update
 
-Pending until final PR update.
+`8e19e647113e015850aa071aecf0a38ae48f3f32`
 
 ## Report update commit
 
@@ -24,10 +24,12 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## Changed files summary
 
-- `src/pages/devQaLoginShortcut.ts` — local-only QA shortcut helpers and allowed QA users.
+Matches the GitHub PR changed-file list exactly:
+
+- `_ai_work/REPORTS/DEV-QA-LOGIN-SHORTCUT-001_dev_qa_login_shortcut.md` — this report and final metadata update.
+- `src/pages/LoginPage.test.tsx` — tests for shortcut visibility, role-button sign-in, and the narrow type-only import build fix.
 - `src/pages/LoginPage.tsx` — local QA shortcut panel behind strict local dev gates.
-- `src/pages/LoginPage.test.tsx` — tests for shortcut visibility and role-button sign-in.
-- `_ai_work/REPORTS/DEV-QA-LOGIN-SHORTCUT-001_dev_qa_login_shortcut.md` — this report.
+- `src/pages/devQaLoginShortcut.ts` — local-only QA shortcut helpers and allowed QA users.
 
 ## Implementation details
 
@@ -36,7 +38,7 @@ The shortcut renders only when all conditions are true:
 - Vite dev mode is active.
 - Current hostname is `localhost` or `127.0.0.1`.
 - The QA shortcut feature flag is enabled.
-- The configured local QA login secret exists.
+- The configured local QA login credential exists.
 
 If any condition is false, the normal login page behaves exactly as before and no QA shortcut panel is rendered.
 
@@ -57,13 +59,18 @@ Each role button calls the same `signIn` function used by the normal login form.
 - Authentication was not removed.
 - AuthContext was not disabled.
 - TenantContext was not disabled.
+- Normal login is preserved.
 - RLS was not changed.
 - Role permissions were not changed.
 - Patient pages were not made public.
 - No privileged backend key is used in browser code.
-- No secret value is stored in Git or this report.
+- No passwords or secrets are stored in Git or this report.
 - `.env.local` was not committed.
 - Supabase cloud was not touched.
+- Local Supabase was not required or run.
+- Browser smoke was not run.
+- No migrations were created.
+- No code beyond the local-dev-only QA shortcut implementation and its tests was added.
 
 ## Tests
 
@@ -77,10 +84,10 @@ Covered scenarios:
 - shortcut hidden by default;
 - shortcut hidden when the feature flag is not enabled;
 - shortcut disabled on non-localhost hosts;
-- shortcut visible on localhost when dev flag and local QA login secret are configured;
+- shortcut visible on localhost when dev flag and local QA login credential are configured;
 - all configured QA role buttons render;
-- clicking Admin A calls `signIn` with `qa.admin.a@example.local` and the configured local QA login secret;
-- shortcut helper only depends on local dev flag, localhost, and the local QA login secret.
+- clicking Admin A calls `signIn` with `qa.admin.a@example.local` and the configured local QA login credential;
+- shortcut helper only depends on local dev flag, localhost, and the configured local QA login credential.
 
 ## What was intentionally NOT changed
 
@@ -94,19 +101,29 @@ Covered scenarios:
 - No production/staging shortcut.
 - No next feature work.
 
+## CI result
+
+- Run id: `27651805191`
+- CI number: `488`
+- Conclusion: `success`
+- Tested commit: `8e19e647113e015850aa071aecf0a38ae48f3f32`
+- ESLint: `success`
+- Tests: `success`
+- Build: `success`
+
 ## Checks
 
-Not run locally by this assistant environment.
-
-Expected GitHub Actions validation:
+GitHub Actions CI passed:
 
 - `npm run lint`
 - `npm run test -- --run`
 - `npm run build`
 
+No browser smoke was run in this PR.
+
 ## Final verdict
 
-PENDING CI
+DEV QA LOGIN SHORTCUT IMPLEMENTED AND VERIFIED
 
 ## Recommended next task
 
