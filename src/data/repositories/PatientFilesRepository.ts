@@ -89,8 +89,13 @@ function mapRow(row: Record<string, unknown>): PatientFileRecord {
 }
 
 export class SupabasePatientFilesRepository implements IPatientFilesRepository {
-  constructor(private tenantId?: string, private userId?: string) {
+  private tenantId: string;
+  private userId?: string;
+
+  constructor(tenantId?: string, userId?: string) {
     if (!tenantId) throw new Error(ACTIVE_CLINIC_REQUIRED_ERROR);
+    this.tenantId = tenantId;
+    this.userId = userId;
   }
 
   private get supabase() {
