@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-import { act } from 'react';
+import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePatientFiles } from './usePatientFiles';
@@ -23,7 +23,7 @@ function renderHookProbe(onValue: (value: ReturnType<typeof usePatientFiles>) =>
   }
   const container = document.createElement('div');
   const root = createRoot(container);
-  act(() => root.render(<Probe />));
+  act(() => root.render(React.createElement(Probe)));
   return root;
 }
 
