@@ -16,7 +16,7 @@ https://github.com/NckNA/codex-test/pull/296
 
 ## PR head reviewed before final report update
 
-`6023fe9f48666c4382f6495e0d69e6af1f289b85`
+`641ebae0a5d0a2ea671f03d57a9ac8d5b80a48d6`
 
 ## Report update commit
 
@@ -221,7 +221,7 @@ Do not jump to step 7. That would be decorating scaffolding.
 
 - Local `git status --short`: not run in this runtime.
 - npm checks: not required for report-only recon unless CI runs.
-- GitHub Actions CI: pending after PR creation.
+- GitHub Actions CI: run `27626542103` / CI `#465` / success on head `641ebae0a5d0a2ea671f03d57a9ac8d5b80a48d6`.
 
 ## Final verdict
 
