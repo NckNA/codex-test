@@ -154,6 +154,7 @@ export function filterPatientTimelineEvents(
 function buildPatientEvent(input: BuildPatientTimelineInput): PatientTimelineEvent | null {
   const patient = input.patient;
   if (!patient) return null;
+  if (patient.id !== input.patientId) return null;
 
   return createEvent({
     id: eventId('patient', patient.id, 'created'),
@@ -175,6 +176,7 @@ function buildPatientEvent(input: BuildPatientTimelineInput): PatientTimelineEve
 function buildChiefComplaintEvent(input: BuildPatientTimelineInput): PatientTimelineEvent | null {
   const complaint = input.chiefComplaint;
   if (!complaint) return null;
+  if (complaint.patientId !== input.patientId) return null;
 
   return createEvent({
     id: eventId('complaint', complaint.id, 'created'),
@@ -194,6 +196,8 @@ function buildChiefComplaintEvent(input: BuildPatientTimelineInput): PatientTime
 
 function buildFindingEvents(input: BuildPatientTimelineInput): PatientTimelineEvent[] {
   return (input.findings ?? []).flatMap((finding) => {
+    if (finding.patientId !== input.patientId) return [];
+
     const isArchived = isArchivedFindingStatus(finding.status);
     if (isArchived && !input.includeArchived) return [];
 
@@ -228,6 +232,8 @@ function buildFindingEvents(input: BuildPatientTimelineInput): PatientTimelineEv
 
 function buildTreatmentPlanEvents(input: BuildPatientTimelineInput): PatientTimelineEvent[] {
   return (input.treatmentPlans ?? []).flatMap((plan) => {
+    if (plan.patientId !== input.patientId) return [];
+
     const event = createEvent({
       id: eventId('treatment_plan', plan.id, 'created'),
       tenantId: input.tenantId,
