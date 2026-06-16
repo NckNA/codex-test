@@ -16,7 +16,7 @@ https://github.com/NckNA/codex-test/pull/297
 
 ## PR head reviewed before final report update
 
-`2ddbcf916e84ba3834411ed3ff18c4942624ad97`
+`ddc30fc003dfdf2cf03ba6b34aa97476a7ec388e`
 
 ## Report update commit
 
@@ -157,13 +157,17 @@ Covered:
 
 ## Checks
 
-Pending after report metadata update:
+GitHub Actions CI on reviewed head `ddc30fc003dfdf2cf03ba6b34aa97476a7ec388e`:
 
-- GitHub Actions CI.
+- run `27630136211`;
+- CI `#472`;
+- ESLint: success;
+- tests: success;
+- build: success.
 
 ## Final verdict
 
-PARTIAL pending CI validation.
+TIMELINE AGGREGATOR IMPLEMENTED AND VERIFIED
 
 ## Recommended next task
 
