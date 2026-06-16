@@ -4,6 +4,8 @@ import { clsx } from 'clsx';
 import { useClinicDoctors } from '../../data/hooks/useClinicDoctors';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
+import { getClinicRoleLabel } from '../../domain/roleLabels';
 
 export function Header() {
   const {
@@ -23,6 +25,8 @@ export function Header() {
 
   const { doctors } = useClinicDoctors();
   const { user, authMode, signOut } = useAuth();
+  const { activeTenant } = useTenant();
+  const roleLabel = getClinicRoleLabel(activeTenant?.role);
 
   const formattedDate = selectedDate.toLocaleDateString('ru-RU', {
     weekday: 'long',
@@ -234,7 +238,7 @@ export function Header() {
               <div className="text-sm font-medium text-slate-900">
                 {authMode === 'supabase-active' && user?.email ? user.email : 'Иван И.'}
               </div>
-              <div className="text-xs text-slate-500">Администратор</div>
+              <div className="text-xs text-slate-500" data-testid="current-role-label">{roleLabel}</div>
             </div>
             <UserCircle className="w-8 h-8 text-slate-400" />
           </button>

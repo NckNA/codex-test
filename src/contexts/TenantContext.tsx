@@ -37,7 +37,7 @@ interface LoadedTenantState {
 const devTenant: ActiveTenant = {
   tenantId: '11111111-1111-1111-1111-111111111111',
   tenantName: 'Demo Clinic',
-  role: 'admin',
+  role: 'clinic_admin',
 };
 
 const emptyLoadedTenantState: LoadedTenantState = {
