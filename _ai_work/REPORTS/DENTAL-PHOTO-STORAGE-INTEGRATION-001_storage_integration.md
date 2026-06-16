@@ -10,11 +10,11 @@ This PR adds the first production-oriented patient photo/file storage slice usin
 
 ## PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/293
 
 ## PR head reviewed before final report update
 
-[Pending PR creation]
+`19ac6ed992de99f5d15602ebbf975b91562253c3`
 
 ## Report update commit
 
@@ -141,7 +141,7 @@ Blocker: Chrome DevTools MCP is not available in the current runtime.
 - `npm run lint`: pending GitHub Actions.
 - `npm run test -- --run`: pending GitHub Actions.
 - `npm run build`: pending GitHub Actions.
-- GitHub Actions CI result: pending PR creation.
+- GitHub Actions CI result: pending on PR #293.
 
 ## Remaining known issues
 
