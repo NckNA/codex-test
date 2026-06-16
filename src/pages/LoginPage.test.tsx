@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { createRoot, Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { act } from 'react';
 import { LoginPage } from './LoginPage';
 import * as AuthContextModule from '../contexts/AuthContext';
@@ -10,6 +11,8 @@ import {
   QA_LOGIN_SECRET_ENV_NAME,
   QA_LOGIN_SHORTCUT_USERS,
 } from './devQaLoginShortcut';
+
+const LOCAL_QA_TEST_VALUE = 'local-qa-login-value';
 
 function mockAuth(signInMock = vi.fn().mockResolvedValue(undefined)) {
   vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
@@ -73,7 +76,7 @@ describe('LoginPage', () => {
       nativeInputValueSetter?.call(emailInput, 'test@example.com');
       emailInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-      nativeInputValueSetter?.call(passwordInput, 'password123');
+      nativeInputValueSetter?.call(passwordInput, 'login-value');
       passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
@@ -81,7 +84,7 @@ describe('LoginPage', () => {
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
 
-    expect(signInMock).toHaveBeenCalledWith('test@example.com', 'password123');
+    expect(signInMock).toHaveBeenCalledWith('test@example.com', 'login-value');
 
     await cleanupRendered(root, container);
   });
@@ -97,7 +100,7 @@ describe('LoginPage', () => {
   });
 
   it('hides the QA shortcut when the feature flag is not enabled', async () => {
-    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, 'local-qa-secret');
+    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, LOCAL_QA_TEST_VALUE);
     mockAuth();
     const { container, root } = await renderLoginPage();
 
@@ -113,16 +116,16 @@ describe('LoginPage', () => {
         {
           DEV: true,
           VITE_ENABLE_QA_LOGIN_SHORTCUT: 'true',
-          [QA_LOGIN_SECRET_ENV_NAME]: 'local-qa-secret',
+          [QA_LOGIN_SECRET_ENV_NAME]: LOCAL_QA_TEST_VALUE,
         },
         'app.example.test'
       )
     ).toBe(false);
   });
 
-  it('shows the QA shortcut on localhost when dev flag and local secret are configured', async () => {
+  it('shows the QA shortcut on localhost when dev flag and local QA value are configured', async () => {
     vi.stubEnv('VITE_ENABLE_QA_LOGIN_SHORTCUT', 'true');
-    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, 'local-qa-secret');
+    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, LOCAL_QA_TEST_VALUE);
     mockAuth();
     const { container, root } = await renderLoginPage();
 
@@ -134,9 +137,9 @@ describe('LoginPage', () => {
     await cleanupRendered(root, container);
   });
 
-  it('clicking Admin A uses normal signIn with the QA user email and configured local secret', async () => {
+  it('clicking Admin A uses normal signIn with the QA user email and configured local QA value', async () => {
     vi.stubEnv('VITE_ENABLE_QA_LOGIN_SHORTCUT', 'true');
-    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, 'local-qa-secret');
+    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, LOCAL_QA_TEST_VALUE);
     const signInMock = mockAuth();
     const { container, root } = await renderLoginPage();
 
@@ -147,18 +150,18 @@ describe('LoginPage', () => {
       adminButton?.click();
     });
 
-    expect(signInMock).toHaveBeenCalledWith('qa.admin.a@example.local', 'local-qa-secret');
+    expect(signInMock).toHaveBeenCalledWith('qa.admin.a@example.local', LOCAL_QA_TEST_VALUE);
 
     await cleanupRendered(root, container);
   });
 
-  it('QA shortcut helper only depends on local dev flag, localhost, and local QA secret', () => {
+  it('QA shortcut helper only depends on local dev flag, localhost, and local QA value', () => {
     expect(
       isQaLoginShortcutEnabled(
         {
           DEV: true,
           VITE_ENABLE_QA_LOGIN_SHORTCUT: 'true',
-          [QA_LOGIN_SECRET_ENV_NAME]: 'local-qa-secret',
+          [QA_LOGIN_SECRET_ENV_NAME]: LOCAL_QA_TEST_VALUE,
         },
         'localhost'
       )
