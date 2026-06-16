@@ -150,7 +150,7 @@ describe('PatientTimelineAggregator', () => {
     const patient: Patient = {
       id: patientId,
       fullName: 'Test Patient',
-      phone: '+70000000000',
+      phone: 'test-phone',
       source: 'phone',
       status: 'active',
       createdAt: '2026-01-01T09:00:00.000Z',
@@ -277,10 +277,31 @@ describe('PatientTimelineAggregator', () => {
     expect(filterPatientTimelineEvents(events, { includeArchived: false })).toHaveLength(2);
   });
 
-  it('keeps patientId scoped for appointments and files', () => {
+  it('keeps patientId scoped for all supported source objects', () => {
+    const otherPatient: Patient = {
+      id: 'other-patient',
+      fullName: 'Other Patient',
+      phone: 'test-phone',
+      source: 'phone',
+      status: 'active',
+      createdAt: '2026-01-01T09:00:00.000Z',
+    };
+    const otherComplaint: ChiefComplaint = {
+      id: 'complaint-other',
+      patientId: 'other-patient',
+      text: 'Other complaint',
+      relatedTeeth: [12],
+      createdAt: '2026-01-01T10:00:00.000Z',
+      updatedAt: '2026-01-01T10:00:00.000Z',
+    };
+
     const events = buildPatientTimeline({
       tenantId,
       patientId,
+      patient: otherPatient,
+      chiefComplaint: otherComplaint,
+      findings: [finding({ id: 'other-finding', patientId: 'other-patient' })],
+      treatmentPlans: [plan({ id: 'other-plan', patientId: 'other-patient' })],
       appointments: [appointment({ id: 'other-appointment', patientId: 'other-patient' })],
       patientFiles: [patientFile({ id: 'other-file', patientId: 'other-patient' })],
     });
