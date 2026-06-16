@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/298
 
 ## PR head reviewed before final report update
 
-`00fa9bdbfe01a099d5840ee2dfa4343dd96da888`
+`f0820e72750031ff805e1f23684234d9bb16677e`
 
 ## Report update commit
 
@@ -179,11 +179,11 @@ Covered:
 
 ## Checks
 
-GitHub Actions CI on reviewed head `00fa9bdbfe01a099d5840ee2dfa4343dd96da888`:
+GitHub Actions CI on reviewed head `f0820e72750031ff805e1f23684234d9bb16677e`:
 
-- run `27638543371`;
-- CI `#481`;
-- tested commit `00fa9bdbfe01a099d5840ee2dfa4343dd96da888`;
+- run `27638638066`;
+- CI `#482`;
+- tested commit `f0820e72750031ff805e1f23684234d9bb16677e`;
 - ESLint: success;
 - tests: success;
 - build: success.
