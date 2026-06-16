@@ -16,11 +16,11 @@ This task intentionally does not implement UI, migrations, RLS, cloud changes, s
 
 ## PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/295
 
 ## PR head reviewed before final report update
 
-[Pending PR creation]
+`4c4ad2598f1eb70914d99a1cef74ce71ef943245`
 
 ## Report update commit
 
@@ -732,9 +732,9 @@ Scope:
 
 ## Checks
 
-- `git status --short`: not run locally in this runtime; GitHub compare will be used to verify one-file PR scope.
-- npm checks: not required for report-only recon, but GitHub Actions CI will run if PR triggers.
-- GitHub Actions CI: pending PR creation.
+- `git status --short`: not run locally in this runtime; PR compare must remain one-file report-only.
+- npm checks: not required for report-only recon, but GitHub Actions CI will run because PR opened.
+- GitHub Actions CI: pending on report metadata update.
 
 ## Final verdict
 
