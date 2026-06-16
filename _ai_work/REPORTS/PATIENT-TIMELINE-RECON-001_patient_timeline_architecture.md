@@ -20,7 +20,7 @@ https://github.com/NckNA/codex-test/pull/295
 
 ## PR head reviewed before final report update
 
-`4c4ad2598f1eb70914d99a1cef74ce71ef943245`
+`3df8434ce9ed7ce1da066ab723e8137e669ef7c9`
 
 ## Report update commit
 
@@ -733,8 +733,8 @@ Scope:
 ## Checks
 
 - `git status --short`: not run locally in this runtime; PR compare must remain one-file report-only.
-- npm checks: not required for report-only recon, but GitHub Actions CI will run because PR opened.
-- GitHub Actions CI: pending on report metadata update.
+- npm checks: not required for report-only recon.
+- GitHub Actions CI: run `27623192248` / CI `#460` / success on head `3df8434ce9ed7ce1da066ab723e8137e669ef7c9`.
 
 ## Final verdict
 
