@@ -2,9 +2,11 @@
 
 ## Summary
 
-Implemented a UI-neutral patient timeline event model and a pure computed aggregator.
+Implemented a UI-neutral patient timeline event model and pure computed aggregator.
 
 The aggregator accepts already loaded source objects. It does not query Supabase, read localStorage, use browser APIs, or require local/cloud databases.
+
+Review follow-up fixed patient scoping for every supported source object. Wrong-patient objects are ignored before timeline events are emitted.
 
 ## Branch
 
@@ -16,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/297
 
 ## PR head reviewed before final report update
 
-`ddc30fc003dfdf2cf03ba6b34aa97476a7ec388e`
+`e79213fdaf7e5a48945320181ce145c901ffe768`
 
 ## Report update commit
 
@@ -75,7 +77,22 @@ Deferred:
 - audit/activity;
 - encounter/visit model.
 
-## Rules
+## Patient scoping
+
+All supported source objects are defensively scoped to `input.patientId` before event creation.
+
+Wrong-patient source objects are ignored for:
+
+- patient;
+- chief complaint;
+- findings;
+- treatment plans;
+- appointments;
+- patient files.
+
+Appointments and patient files already had patient filters. This update added the missing patient filters for patient, chief complaint, findings, and treatment plans.
+
+## Timeline rules
 
 Event id strategy:
 
@@ -121,7 +138,7 @@ It does not perform data loading. Future hook/UI code must load source data and 
 
 ## Tests
 
-Added `src/data/aggregators/PatientTimelineAggregator.test.ts`.
+Added and updated `src/data/aggregators/PatientTimelineAggregator.test.ts`.
 
 Covered:
 
@@ -138,7 +155,7 @@ Covered:
 - missing tenant/patient errors;
 - invalid timestamp omission;
 - category/visibility/archive filtering;
-- patientId scoping;
+- patientId scoping across patient, complaint, findings, treatment plans, appointments, and files;
 - pure unit behavior;
 - role visibility helper.
 
@@ -157,10 +174,10 @@ Covered:
 
 ## Checks
 
-GitHub Actions CI on reviewed head `ddc30fc003dfdf2cf03ba6b34aa97476a7ec388e`:
+GitHub Actions CI on reviewed head `e79213fdaf7e5a48945320181ce145c901ffe768`:
 
-- run `27630136211`;
-- CI `#472`;
+- run `27630859056`;
+- CI `#475`;
 - ESLint: success;
 - tests: success;
 - build: success.
