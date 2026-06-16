@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/298
 
 ## PR head reviewed before final report update
 
-`8d7834ada4f0bd98253ee44845ce42081d634db8`
+`00fa9bdbfe01a099d5840ee2dfa4343dd96da888`
 
 ## Report update commit
 
@@ -179,11 +179,18 @@ Covered:
 
 ## Checks
 
-Pending GitHub Actions CI on PR head `8d7834ada4f0bd98253ee44845ce42081d634db8`.
+GitHub Actions CI on reviewed head `00fa9bdbfe01a099d5840ee2dfa4343dd96da888`:
+
+- run `27638543371`;
+- CI `#481`;
+- tested commit `00fa9bdbfe01a099d5840ee2dfa4343dd96da888`;
+- ESLint: success;
+- tests: success;
+- build: success.
 
 ## Final verdict
 
-PARTIAL pending CI.
+TIMELINE UI IMPLEMENTED AND VERIFIED
 
 ## Recommended next task
 
