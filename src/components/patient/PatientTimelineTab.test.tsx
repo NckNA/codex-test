@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PatientTimelineTab } from './PatientTimelineTab';
-import type { PatientTimelineEvent, PatientTimelineEventCategory } from '../../data/aggregators/PatientTimelineAggregator';
+import type { PatientTimelineEvent } from '../../data/aggregators/PatientTimelineAggregator';
 
 const baseEvent: PatientTimelineEvent = {
   id: 'finding:finding-1:created',
