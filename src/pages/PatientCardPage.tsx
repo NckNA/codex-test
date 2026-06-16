@@ -9,11 +9,16 @@ import { TreatmentPlansTab } from '../components/treatment/TreatmentPlansTab';
 import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
+import { PatientTimelineTab } from '../components/patient/PatientTimelineTab';
 import { usePatientMedicalSummary } from '../data/hooks/usePatientMedicalSummary';
 import { usePatientProfile } from '../data/hooks/usePatientProfile';
+import { usePatientTimeline } from '../data/hooks/usePatientTimeline';
+import { useTenant } from '../contexts/TenantContext';
+import type { PatientTimelineEventCategory } from '../data/aggregators/PatientTimelineAggregator';
 
 const TABS = [
   { id: 'overview', label: 'Обзор' },
+  { id: 'timeline', label: 'История' },
   { id: 'history', label: 'История приёмов' },
   { id: 'dental_chart', label: 'Зубная карта' },
   { id: 'findings', label: 'Проблемы и риски' },
@@ -27,9 +32,12 @@ const TABS = [
 export function PatientCardPage() {
   const { patientId } = useParams<{ patientId: string }>();
   const navigate = useNavigate();
+  const { activeTenant } = useTenant();
 
   const [activeTab, setActiveTab] = useState(TABS[0].id);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [timelineIncludeArchived, setTimelineIncludeArchived] = useState(false);
+  const [timelineCategory, setTimelineCategory] = useState<PatientTimelineEventCategory | 'all'>('all');
 
   const {
     patient,
@@ -46,6 +54,13 @@ export function PatientCardPage() {
     refetch: refetchMedicalSummary,
   } = usePatientMedicalSummary(patientId || '');
   const { dentalSummary, lastVisit, nextVisit } = medicalSummary;
+
+  const {
+    events: timelineEvents,
+    isLoading: isTimelineLoading,
+    isError: isTimelineError,
+    error: timelineError,
+  } = usePatientTimeline({ patient, includeArchived: timelineIncludeArchived });
 
   const previousTabRef = useRef(activeTab);
 
@@ -198,6 +213,18 @@ export function PatientCardPage() {
           />
         )}
 
+        {activeTab === 'timeline' && (
+          <PatientTimelineTab
+            events={timelineEvents}
+            isLoading={isTimelineLoading}
+            error={isTimelineError ? timelineError : null}
+            role={activeTenant?.role}
+            includeArchived={timelineIncludeArchived}
+            onIncludeArchivedChange={setTimelineIncludeArchived}
+            selectedCategory={timelineCategory}
+            onSelectedCategoryChange={setTimelineCategory}
+          />
+        )}
         {activeTab === 'history' && <PatientHistoryTab patientId={patient.id} />}
         {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
         {activeTab === 'findings' && <FindingsRisksTab patientId={patient.id} />}
