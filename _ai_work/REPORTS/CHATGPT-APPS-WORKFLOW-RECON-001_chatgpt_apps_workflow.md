@@ -16,7 +16,7 @@ https://github.com/NckNA/codex-test/pull/296
 
 ## PR head reviewed before final report update
 
-`641ebae0a5d0a2ea671f03d57a9ac8d5b80a48d6`
+`69da2ae5836b778c088ed72786cbd1939587bfdd`
 
 ## Report update commit
 
@@ -27,6 +27,22 @@ N/A because the final report update commit cannot reference itself before creati
 One report file only:
 
 - `_ai_work/REPORTS/CHATGPT-APPS-WORKFLOW-RECON-001_chatgpt_apps_workflow.md`
+
+## Official sources reviewed
+
+Official OpenAI documentation reviewed for this recon:
+
+- OpenAI Developers — Apps SDK: https://developers.openai.com/apps-sdk
+- Apps SDK Quickstart: https://developers.openai.com/apps-sdk/quickstart
+- MCP Apps in ChatGPT: https://developers.openai.com/apps-sdk/mcp-apps-in-chatgpt
+- MCP Server: https://developers.openai.com/apps-sdk/concepts/mcp-server
+- Apps SDK Security & Privacy: https://developers.openai.com/apps-sdk/guides/security-privacy
+- App submission guidelines: https://developers.openai.com/apps-sdk/app-submission-guidelines
+- ChatGPT Actions introduction: https://developers.openai.com/api/docs/actions/introduction
+- Codex app computer use: https://developers.openai.com/codex/app/computer-use
+- OpenAI API computer use: https://developers.openai.com/api/docs/guides/tools-computer-use
+
+Only concise references were added. No external documentation text was copied into this report.
 
 ## Source basis
 
@@ -221,7 +237,7 @@ Do not jump to step 7. That would be decorating scaffolding.
 
 - Local `git status --short`: not run in this runtime.
 - npm checks: not required for report-only recon unless CI runs.
-- GitHub Actions CI: run `27626542103` / CI `#465` / success on head `641ebae0a5d0a2ea671f03d57a9ac8d5b80a48d6`.
+- GitHub Actions CI: run `27626655241` / CI `#466` / success / tested commit `69da2ae5836b778c088ed72786cbd1939587bfdd`.
 
 ## Final verdict
 
