@@ -2,7 +2,7 @@
 
 ## Summary
 
-This PR adds the first production-oriented patient photo/file storage slice using the existing private `patient-files` Supabase Storage bucket and a new tenant-scoped metadata table.
+This PR adds a tenant-scoped patient file metadata table and a first dental photo upload/list/archive UI slice using the existing private `patient-files` bucket.
 
 ## Branch
 
@@ -14,7 +14,7 @@ https://github.com/NckNA/codex-test/pull/293
 
 ## PR head reviewed before final report update
 
-`19ac6ed992de99f5d15602ebbf975b91562253c3`
+`ad2f0856a6266c32ba34328c894b662ebf6c2af7`
 
 ## Report update commit
 
@@ -34,75 +34,73 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## Root cause / need
 
-The `patient-files` bucket already existed, but the app only had local PNG snapshot download via canvas. There was no production-safe Supabase upload flow, no metadata table, no tenant-scoped file records, and no signed private preview flow.
+The storage bucket existed, but the app did not have a production-style upload flow with database metadata, tenant isolation, signed previews, or archive-by-default file lifecycle.
 
 ## Recon findings
 
-- `0009_backfill_dental_photo_storage.sql` defines the private `patient-files` bucket with image-only MIME policy and tenant-scoped Storage object policies by first folder segment.
-- `DentalChartTab` had canvas export via `toDataURL('image/png')`; this remains a local browser download only.
-- `PatientCardPage` already had a `files` tab placeholder, so the integration point is the patient card Files tab.
-- `patients.id` is UUID in the database and string in TypeScript. Metadata uses UUID `patient_id` with a composite `(tenant_id, patient_id)` FK to `patients`.
+- Existing chart snapshot export uses browser canvas download only.
+- The existing `files` patient-card tab was the least invasive integration point.
+- The existing private bucket is `patient-files`, and storage paths are tenant-scoped by first folder segment.
+- Patient ids are UUID in the database and string in the TypeScript domain model.
 
 ## Migration
 
-- Filename: `supabase/migrations/0011_patient_file_metadata.sql`
-- Table: `public.patient_files`
-- Metadata includes tenant, patient, storage bucket/path, original filename, MIME type, size, file kind, source context, optional tooth/finding/plan/stage/appointment ids, uploader, caption/notes, archive state, timestamps.
-- Constraints enforce `patient-files`, image MIME, non-negative size, supported file kinds and source contexts.
-- RLS enabled.
-- Runtime SELECT allowed for tenant members.
-- INSERT/UPDATE archive allowed for `clinic_owner`, `clinic_admin`, `doctor`.
-- No runtime DELETE policy is created; archive is metadata update.
-- FK added to `tenants` and composite `(tenant_id, patient_id)` to `patients`.
-- Other clinical context ids are metadata links only in this first slice because not every target table exposes a safe tenant-scoped composite unique key.
+Migration `0011_patient_file_metadata.sql` creates `public.patient_files`.
+
+Key points:
+- tenant-scoped metadata;
+- composite patient FK on `(tenant_id, patient_id)`;
+- image MIME and size constraints;
+- supported file kind/source context constraints;
+- RLS enabled;
+- tenant members can read;
+- `clinic_owner`, `clinic_admin`, and `doctor` can insert/archive metadata;
+- no runtime hard-delete policy.
+
+Optional clinical context ids are stored as metadata links in this first slice. Some target tables do not yet expose safe tenant-scoped composite unique keys for FK enforcement.
 
 ## Storage path strategy
 
 - Bucket: `patient-files`
-- Supabase path format: `${tenantId}/patients/${patientId}/dental-photos/${generatedId}-${safeFilename}`
-- The first path segment is the tenant id to match existing Storage policies.
-- Private previews use short-lived signed URLs.
+- Path format: `${tenantId}/patients/${patientId}/dental-photos/${generatedId}-${safeFilename}`
+- Private previews use signed URLs.
 - No public bucket access is introduced.
 
 ## Repository / hook
 
-- Added `PatientFilesRepository.ts` with Supabase and local/dev implementations.
-- Supabase mode requires active tenant id and throws: `Active clinic is required for Supabase file access.`
-- Upload validates image-only, non-empty, <= 10MB.
-- Upload writes Storage object first, then metadata.
-- If metadata insert fails after upload, repository attempts Storage cleanup.
+- `PatientFilesRepository.ts` adds Supabase and local/dev implementations.
+- Supabase mode requires active tenant id.
+- Upload validates image-only, non-empty, and <= 10MB.
+- Upload writes storage first, then metadata.
+- Metadata insert failure attempts uploaded-object cleanup.
 - Listing loads metadata and creates signed preview URLs.
-- Archive updates metadata state instead of hard-deleting.
-- Hook `usePatientFiles` loads, uploads, archives and refreshes.
-- Supabase no-tenant boundary returns empty files and blocks writes.
+- Archive updates metadata instead of deleting.
+- `usePatientFiles.ts` loads, uploads, archives, refreshes, and blocks no-tenant writes.
 
 ## UI
 
-- Added `DentalPhotosPanel.tsx`.
-- Integrated into `PatientCardPage` under the existing `files` tab.
+- `DentalPhotosPanel.tsx` is integrated in the patient card `files` tab.
 - Admin/owner/doctor can upload and archive.
 - Registrar/cashier are read-only.
-- No-tenant shows a safe active clinic message and no upload control.
-- Empty state: `Файлы ещё не загружены.`
-- Archive wording says archive, not delete.
+- No-tenant users see a safe clinic-selection message and no upload control.
+- Empty state and archive wording are explicit.
 
 ## Tests
 
-- Repository tests cover tenant-scoped bucket path, metadata insert, validation, cleanup on metadata failure, signed URL listing, archive update, local/dev path.
-- Hook tests cover load, upload refresh, archive refresh, no-tenant boundary.
-- UI tests cover empty state, upload visibility, read-only roles, file rendering, archive wording.
+- Repository tests cover storage bucket/path, metadata insert, validation, cleanup on metadata failure, signed URL listing, archive update, and local/dev path.
+- Hook tests cover load, upload refresh, archive refresh, and no-tenant boundary.
+- UI tests cover empty state, upload visibility, read-only roles, file rendering, and archive wording.
 
-## Local Supabase validation
+## Local validation
 
 Not completed in this environment.
 
 Missing:
-- `npx supabase status`
-- `npx supabase db reset`
-- SQL validation for `patient_files`, RLS, policies, bucket and seed rows.
-- Local upload/list/archive smoke.
+- local Supabase status/reset;
+- SQL validation for `patient_files`, RLS, policies, bucket, and seed rows;
+- local upload/list/archive smoke.
 
-Blocker: executable local shell / Terminal Bridge is not available in the current runtime.
+Blocker: this runtime does not provide executable local shell access for the required local commands.
 
 ## Browser smoke
 
@@ -115,7 +113,7 @@ Missing:
 - registrar/cashier read-only smoke;
 - no-tenant smoke.
 
-Blocker: Chrome DevTools MCP is not available in the current runtime.
+Blocker: this runtime does not provide browser automation access.
 
 ## Cloud safety
 
@@ -127,7 +125,7 @@ Blocker: Chrome DevTools MCP is not available in the current runtime.
 
 ## What was intentionally NOT changed
 
-- No full document module.
+- No full documents module.
 - No DICOM/OCR/annotation/image editor.
 - No image compression.
 - No treatment/financial modules.
@@ -138,29 +136,16 @@ Blocker: Chrome DevTools MCP is not available in the current runtime.
 ## Checks
 
 - `git status --short`: not run locally.
-- `npm run lint`: pending GitHub Actions.
-- `npm run test -- --run`: pending GitHub Actions.
-- `npm run build`: pending GitHub Actions.
-- GitHub Actions CI result: pending on PR #293.
-
-## Remaining known issues
-
-- patient timeline;
-- encounter/visit model;
-- tenant creation/onboarding;
-- tenant switcher UI;
-- full documents module;
-- payments/debts;
-- stock/inventory;
-- billing/subscriptions;
-- audit/activity log;
-- reports.
+- `npm run lint`: PASS via GitHub Actions CI #446.
+- `npm run test -- --run`: PASS via GitHub Actions CI #446.
+- `npm run build`: PASS via GitHub Actions CI #446.
+- GitHub Actions CI result: PASS, run id `27602263682`, tested commit `ad2f0856a6266c32ba34328c894b662ebf6c2af7`.
 
 ## Final verdict
 
 **PARTIAL**
 
-Reason: implementation is present, but local Supabase validation, browser smoke, and CI are not completed yet.
+Reason: implementation is present and CI is green, but local validation and browser smoke are not completed.
 
 ## Recommended next task
 
