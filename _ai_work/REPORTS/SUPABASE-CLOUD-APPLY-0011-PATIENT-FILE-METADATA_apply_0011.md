@@ -13,7 +13,7 @@ The requested branch name was blocked by the available GitHub write tool, so a s
 https://github.com/NckNA/codex-test/pull/294
 
 ## PR head reviewed before final report update
-`006a1eb98c2076a0cb6d1ab3b09839da290b9f05`
+`60bd7d3654f8a3e44bc7486775467baec7b1e3d9`
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -87,7 +87,7 @@ No app data was created or printed. No files were uploaded. Cloud seed and cloud
 
 ## Checks
 - Local shell checks: not run in this runtime.
-- GitHub Actions CI: pending on the post-PR report update commit.
+- GitHub Actions CI: run `27620178068` / CI `#454` / success on head `60bd7d3654f8a3e44bc7486775467baec7b1e3d9`.
 
 ## Final verdict
 `CLOUD 0011 APPLIED AND VERIFIED`
