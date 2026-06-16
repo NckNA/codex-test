@@ -12,11 +12,11 @@ Recommendation: do not build a DentalFlow ChatGPT App now. Finish patient timeli
 
 ## PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/296
 
 ## PR head reviewed before final report update
 
-[Pending PR creation]
+`6023fe9f48666c4382f6495e0d69e6af1f289b85`
 
 ## Report update commit
 
