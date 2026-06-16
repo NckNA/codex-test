@@ -1,6 +1,5 @@
 -- 0011_patient_file_metadata.sql
 -- Add tenant-scoped metadata for patient files and dental photo storage.
--- Binary files stay in the private `patient-files` Supabase Storage bucket created/backfilled by 0009.
 
 CREATE TABLE IF NOT EXISTS public.patient_files (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,14 +36,6 @@ CREATE TABLE IF NOT EXISTS public.patient_files (
   ),
   CONSTRAINT patient_files_patient_fk FOREIGN KEY (tenant_id, patient_id)
     REFERENCES public.patients(tenant_id, id) ON DELETE CASCADE,
-  CONSTRAINT patient_files_finding_fk FOREIGN KEY (tenant_id, finding_id)
-    REFERENCES public.findings(tenant_id, id) ON DELETE SET NULL,
-  CONSTRAINT patient_files_treatment_plan_fk FOREIGN KEY (tenant_id, treatment_plan_id)
-    REFERENCES public.treatment_plans(tenant_id, id) ON DELETE SET NULL,
-  CONSTRAINT patient_files_treatment_stage_fk FOREIGN KEY (tenant_id, treatment_stage_id)
-    REFERENCES public.treatment_stages(tenant_id, id) ON DELETE SET NULL,
-  CONSTRAINT patient_files_appointment_fk FOREIGN KEY (tenant_id, appointment_id)
-    REFERENCES public.appointments(tenant_id, id) ON DELETE SET NULL,
   UNIQUE (tenant_id, storage_path),
   UNIQUE (tenant_id, id)
 );
@@ -90,5 +81,3 @@ USING (
 WITH CHECK (
   public.has_tenant_role(tenant_id, ARRAY['clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role])
 );
-
--- Intentionally no DELETE policy for runtime users. Clinical files are archived by metadata update.
