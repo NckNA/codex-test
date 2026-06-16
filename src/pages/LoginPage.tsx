@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { AlertTriangle, Lock, Mail } from 'lucide-react';
+import { AlertTriangle, Lock, Mail, TestTube2 } from 'lucide-react';
+import {
+  getQaLoginShortcutPassword,
+  isQaLoginShortcutEnabled,
+  QA_LOGIN_SHORTCUT_USERS,
+} from './devQaLoginShortcut';
+
+const currentHostname = () => (typeof window === 'undefined' ? '' : window.location.hostname);
 
 export function LoginPage() {
   const { signIn, error: authError } = useAuth();
@@ -9,18 +16,33 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const qaShortcutEnabled = isQaLoginShortcutEnabled(import.meta.env, currentHostname());
+  const qaShortcutPassword = qaShortcutEnabled ? getQaLoginShortcutPassword(import.meta.env) : null;
+
+  const signInSafely = async (targetEmail: string, targetPassword: string) => {
     setIsSubmitting(true);
     setLocalError('');
-    
+
     try {
-      await signIn(email, password);
+      await signIn(targetEmail, targetPassword);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Ошибка при авторизации');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await signInSafely(email, password);
+  };
+
+  const handleQaLogin = async (targetEmail: string) => {
+    if (!qaShortcutPassword) {
+      return;
+    }
+
+    await signInSafely(targetEmail, qaShortcutPassword);
   };
 
   return (
@@ -95,6 +117,35 @@ export function LoginPage() {
               </button>
             </div>
           </form>
+
+          {qaShortcutEnabled && qaShortcutPassword && (
+            <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4" aria-label="Локальный QA-вход">
+              <div className="flex items-start gap-2 text-amber-900">
+                <TestTube2 className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold">Локальный QA-вход. Только для разработки.</h3>
+                  <p className="mt-1 text-xs text-amber-800">
+                    Использует обычный Supabase Auth для локальных QA-пользователей.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-2">
+                {QA_LOGIN_SHORTCUT_USERS.map((user) => (
+                  <button
+                    key={user.email}
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void handleQaLogin(user.email)}
+                    className="rounded-md border border-amber-200 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="font-medium">Войти как {user.label}</span>
+                    <span className="block text-xs text-slate-500">{user.roleLabel}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>
