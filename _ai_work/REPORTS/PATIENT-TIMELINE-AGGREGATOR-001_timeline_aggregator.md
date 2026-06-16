@@ -2,29 +2,27 @@
 
 ## Summary
 
-Implemented the first patient timeline foundation: a UI-neutral domain event model plus a computed `buildPatientTimeline` aggregator.
+Implemented a UI-neutral patient timeline event model and a pure computed aggregator.
 
-The aggregator is intentionally pure. It accepts already loaded source objects and does not query Supabase, read localStorage, call browser APIs, or require local/cloud databases.
+The aggregator accepts already loaded source objects. It does not query Supabase, read localStorage, use browser APIs, or require local/cloud databases.
 
-## Branch name
+## Branch
 
 `feature/patient-timeline-aggregator-001`
 
-## PR URL
+## PR
 
-Pending PR creation.
+https://github.com/NckNA/codex-test/pull/297
 
 ## PR head reviewed before final report update
 
-Pending PR creation.
+`2ddbcf916e84ba3834411ed3ff18c4942624ad97`
 
 ## Report update commit
 
 N/A because the final report update commit cannot reference itself before creation.
 
-## Changed files summary
-
-Initial implementation scope:
+## Changed files
 
 - `src/data/aggregators/PatientTimelineAggregator.ts`
 - `src/data/aggregators/PatientTimelineAggregator.test.ts`
@@ -32,42 +30,17 @@ Initial implementation scope:
 
 ## Current state recon
 
-Inspected current project types and data-layer files:
+Inspected current patient-related data shapes:
 
-- `src/types/index.ts`
-- `src/data/aggregators/ClinicalSummaryAggregator.ts`
-- `src/domain/findingStatus.ts`
-- `src/data/repositories/PatientFilesRepository.ts`
-- `src/contexts/TenantContext.tsx`
+- `Patient`: id, status, createdAt.
+- `ChiefComplaint`: patientId, text, relatedTeeth, createdAt, updatedAt.
+- `DentalFinding`: patientId, optional toothNumber, status, createdAt, updatedAt.
+- `TreatmentPlan`: patientId, status, createdAt, updatedAt, stages, totalPrice.
+- `Appointment`: optional patientId, doctorId, service, start/end, status, createdAt.
+- `PatientFileRecord`: tenantId, patientId, storage metadata, archive fields, uploadedBy, archivedBy, createdAt, updatedAt.
+- `DentalChart`: patientId, createdAt, updatedAt, but no reliable per-change event history.
 
-Existing shapes found:
-
-- `Patient` has `id`, profile fields, `status`, and `createdAt`.
-- `ChiefComplaint` has `patientId`, `text`, `relatedTeeth`, `createdAt`, and `updatedAt`.
-- `DentalFinding` has `patientId`, optional `toothNumber`, `status`, `createdAt`, and `updatedAt`.
-- `TreatmentPlan` has `patientId`, `status`, `createdAt`, `updatedAt`, stages, and total price.
-- `Appointment` has optional `patientId`, start/end time, status, doctor id, service, and created timestamp.
-- `PatientFileRecord` has tenant/patient ids, storage metadata, archive fields, upload/archive actors, and created/updated timestamps.
-- `DentalChart` has patient id and chart timestamps, but no reliable per-change history or actor attribution.
-
-## Sources supported in this PR
-
-Supported now:
-
-- patient profile creation event, when patient object is provided;
-- chief complaint creation event, when complaint object is provided;
-- finding events;
-- treatment plan creation events;
-- appointment scheduled events;
-- patient file upload/archive events.
-
-Deferred:
-
-- dental chart per-tooth change events, because current chart data lacks reliable per-change actor/type history;
-- treatment stage events, because current stage type does not have reliable timestamps;
-- payments, stock, documents, audit events, and encounters, because those modules are future work or not stable timeline sources yet.
-
-## Implementation summary
+## Implementation
 
 Added `PatientTimelineAggregator.ts` with:
 
@@ -81,21 +54,42 @@ Added `PatientTimelineAggregator.ts` with:
 - `filterPatientTimelineEvents`;
 - `canRoleSeePatientTimelineEvent`.
 
-## Timeline event rules
+## Sources covered
+
+Supported:
+
+- patient creation event;
+- chief complaint event;
+- finding events;
+- treatment plan events;
+- appointment events;
+- patient file events.
+
+Deferred:
+
+- dental chart per-change events;
+- treatment stage events;
+- payments;
+- stock;
+- documents;
+- audit/activity;
+- encounter/visit model.
+
+## Rules
 
 Event id strategy:
 
 - `${sourceType}:${sourceId}:${type}`.
 
-`occurredAt` strategy:
+Timestamps:
 
-- source timestamp only;
-- no fake `now` events;
-- invalid or missing source timestamps are omitted.
+- source timestamps only;
+- invalid/missing timestamps are omitted;
+- no generated `now` events.
 
 Sorting:
 
-1. `occurredAt` descending;
+1. occurredAt descending;
 2. category order;
 3. source type;
 4. source id;
@@ -103,97 +97,68 @@ Sorting:
 
 Archived handling:
 
-- archived findings are excluded by default;
-- archived patient files are excluded by default;
+- archived findings/files are excluded by default;
 - archived findings/files are included only with `includeArchived: true`.
 
-Source links:
+Role visibility helper:
 
-- finding ids, tooth ids, treatment plan ids, appointment ids, file ids, and file clinical metadata are preserved where present.
+- owner/admin: all event visibility buckets;
+- doctor: clinical and admin;
+- registrar/receptionist: admin only;
+- cashier: financial and admin;
+- platform roles: no patient event access in this helper.
 
-Role visibility:
-
-- owner/admin can see all event visibility buckets;
-- doctor can see clinical and admin events;
-- registrar/receptionist can see admin events only;
-- cashier can see financial and admin events;
-- platform roles are conservative and do not receive patient event access in this helper.
-
-## No-tenant and data boundary
+## Boundary
 
 The aggregator requires:
 
 - `tenantId`;
 - `patientId`.
 
-Missing `tenantId` throws:
+It throws clear errors when either is missing.
 
-`Active clinic is required for patient timeline.`
-
-Missing `patientId` throws:
-
-`Patient is required for patient timeline.`
-
-The aggregator does not:
-
-- call Supabase;
-- read localStorage;
-- use browser APIs;
-- know about auth mode;
-- require local Supabase;
-- require cloud Supabase.
+It does not perform data loading. Future hook/UI code must load source data and pass it in.
 
 ## Tests
 
-Added:
+Added `src/data/aggregators/PatientTimelineAggregator.test.ts`.
 
-- `src/data/aggregators/PatientTimelineAggregator.test.ts`
+Covered:
 
-Covered cases:
+- findings;
+- treatment plans;
+- appointments;
+- appointment is not treatment completion;
+- patient files;
+- patient and complaint events;
+- timestamp sorting;
+- deterministic tie-break;
+- archived default exclusion;
+- includeArchived behavior;
+- missing tenant/patient errors;
+- invalid timestamp omission;
+- category/visibility/archive filtering;
+- patientId scoping;
+- pure unit behavior;
+- role visibility helper.
 
-- builds finding events;
-- builds treatment plan events;
-- builds appointment events;
-- appointment is not treated as completed treatment;
-- builds patient file events;
-- preserves tooth/finding/plan/file source links;
-- can include patient and complaint events;
-- sorts descending by source timestamp;
-- deterministic tie-break for equal timestamps;
-- archived findings excluded by default;
-- archived findings included with `includeArchived: true`;
-- archived patient files excluded by default;
-- archived patient files included with `includeArchived: true`;
-- missing tenant error;
-- missing patient error;
-- invalid timestamps are omitted;
-- filters by category, visibility, and archived flag;
-- patientId scoping for appointments/files;
-- pure unit behavior without Supabase/localStorage/browser;
-- conservative role visibility helper.
+## Not changed
 
-## What was intentionally NOT changed
-
-- no UI;
-- no PatientCardPage `История` tab;
+- no UI tab;
 - no hook;
-- no browser smoke;
 - no migrations;
 - no cloud;
-- no local Supabase;
+- no browser smoke;
+- no local database;
 - no audit table;
-- no encounter/visit model;
+- no visit/encounter model;
 - no payment/stock/documents implementation;
 - no dependencies.
 
 ## Checks
 
-Pending after PR creation:
+Pending after report metadata update:
 
-- `git status --short`;
-- `npm run lint`;
-- `npm run test -- --run`;
-- `npm run build`;
 - GitHub Actions CI.
 
 ## Final verdict
