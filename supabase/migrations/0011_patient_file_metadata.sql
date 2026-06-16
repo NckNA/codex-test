@@ -81,3 +81,37 @@ USING (
 WITH CHECK (
   public.has_tenant_role(tenant_id, ARRAY['clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role])
 );
+
+DROP POLICY IF EXISTS "Tenant members can upload patient files" ON storage.objects;
+DROP POLICY IF EXISTS "Clinical staff can upload patient files" ON storage.objects;
+CREATE POLICY "Clinical staff can upload patient files"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'patient-files'
+  AND EXISTS (
+    SELECT 1
+    FROM public.tenant_users
+    WHERE tenant_users.user_id = auth.uid()
+      AND tenant_users.tenant_id::text = (storage.foldername(name))[1]
+      AND tenant_users.role IN ('clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role)
+  )
+);
+
+DROP POLICY IF EXISTS "Tenant members can delete patient files" ON storage.objects;
+DROP POLICY IF EXISTS "Clinical staff can delete patient files" ON storage.objects;
+CREATE POLICY "Clinical staff can delete patient files"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'patient-files'
+  AND EXISTS (
+    SELECT 1
+    FROM public.tenant_users
+    WHERE tenant_users.user_id = auth.uid()
+      AND tenant_users.tenant_id::text = (storage.foldername(name))[1]
+      AND tenant_users.role IN ('clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role)
+  )
+);
