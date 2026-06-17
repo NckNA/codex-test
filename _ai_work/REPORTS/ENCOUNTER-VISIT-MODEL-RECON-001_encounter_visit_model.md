@@ -2,11 +2,11 @@
 
 ## Summary
 
-This recon defines the boundary between calendar appointments, real patient attendance, clinical encounters, performed services, payment facts, stock movements, and audit/activity events for DentalFlow CRM.
+This report defines the boundary between calendar appointments, real patient visits, clinical encounters, completed services, payments, stock movements, and audit/activity events for DentalFlow CRM.
 
-The current product already has patient records, appointments, findings, treatment plans/stages, computed patient timeline events, patient files, and an initial `audit_logs` table. It does not yet have a dedicated visit/encounter/completed-service model.
+The current product has patients, appointments, findings, treatment plans/stages, patient timeline events, patient files, and a basic `audit_logs` table. It does not yet have a dedicated visit, encounter, or completed-service model.
 
-Main recommendation: use a staged hybrid architecture. Do not treat appointment completion as performed treatment. Introduce visit/encounter/completed-service concepts deliberately, then connect them to timeline, payments, stock, reports, and audit.
+Main recommendation: use a staged hybrid approach. Keep appointment as calendar intent, add visit/encounter/completed-service concepts later, then integrate timeline, payments, stock, reports, and audit.
 
 ## Branch
 
@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/301
 
 ## PR head reviewed before final report update
 
-`6acfacadbc2fabdd884ef6691fa5f2aeef7fab17`
+`00466c94e95451e19676e36afa7d31a16ad4546f`
 
 ## Report update commit
 
@@ -30,7 +30,7 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## Current state recon
 
-### Source files and migrations inspected
+Inspected code and migrations:
 
 - `src/types/index.ts`
 - `src/data/repositories/AppointmentRepository.ts`
@@ -43,105 +43,49 @@ N/A because the final report update commit cannot reference itself before creati
 - `supabase/migrations/0001_initial_schema.sql`
 - `supabase/migrations/0004_align_findings_status_lifecycle.sql`
 - `supabase/migrations/0006_treatment_plan_stage_sync_rpc.sql`
-- project timeline and storage reports where present on `main`
 
-Search/recon terms included appointment, visit, encounter, treatment_plan, treatment_stage, completed, completed_service, service, procedure, work, finding, diagnosis, payment, invoice, debt, stock, inventory, material, audit, timeline, created_at, updated_at, completed_at, cancelled_at, and no_show.
+### Appointments
 
-### Existing appointment model
+Current model:
 
-Current TypeScript type: `Appointment`.
+- TypeScript: `Appointment`.
+- Repository: `AppointmentRepository.ts`.
+- Table: `appointments`.
+- Tenant scoping: `tenant_id` in table and Supabase repository.
+- Patient relation: `patient_id` / `patientId`, optional for blocked slots.
+- Doctor relation: `doctor_id` / `doctorId`.
+- Time fields: `start_time`, `end_time`, `created_at` mapped to `start`, `end`, `createdAt`.
+- Status values: `new`, `confirmed`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_show`, `blocked`.
 
-Current repository: `AppointmentRepository.ts`.
+Finding: `appointment.status = completed` exists, but it is still a calendar/attendance state. It must not be treated as completed clinical service, performed work, payment, or stock usage.
 
-Current table: `appointments`.
+### Treatment plans and stages
 
-Key fields:
+Current model:
 
-- `tenant_id` / `tenantId` boundary exists in Supabase repository and table.
-- `patient_id` / `patientId` is optional in TypeScript because blocked calendar slots may not belong to a patient.
-- `doctor_id` / `doctorId` exists.
-- `start_time` / `start` and `end_time` / `end` define calendar time.
-- `status` exists.
-- `created_at` / `createdAt` exists.
+- Types: `TreatmentPlan`, `TreatmentStage`.
+- Repository: `TreatmentPlansRepository.ts`.
+- Tables: `treatment_plans`, `treatment_stages`.
+- Plan statuses: `draft`, `approved`, `in_progress`, `completed`, `cancelled`.
+- Stage statuses: `planned`, `in_progress`, `completed`, `cancelled`.
+- RPC: `save_treatment_plan_with_stages` saves plan/stage intent transactionally.
 
-Current appointment statuses:
+Finding: treatment plans and stages represent intended or managed treatment workflow. They are not a performed-service ledger.
 
-- `new`
-- `confirmed`
-- `arrived`
-- `in_progress`
-- `completed`
-- `cancelled`
-- `no_show`
-- `blocked`
+### Findings
 
-Important finding: `Appointment.status = completed` exists, but it is still a calendar/attendance state. It must not be interpreted as completed clinical service, performed work, billable treatment, or stock usage.
+Current model:
 
-The current appointment model can support scheduling, calendar state, patient arrival-like state, and no-show/cancellation flags. It cannot by itself prove which clinical services were performed.
+- Type: `DentalFinding`.
+- Repository: `FindingsRepository.ts`.
+- Table: `findings`.
+- Canonical statuses: `discovered`, `planned`, `in_treatment`, `completed`, `declined_by_patient`, `monitoring`, `archived`.
 
-### Existing treatment plan model
+Finding: a finding is a clinical observation/problem/risk. It is not a dictionary diagnosis and not a performed service.
 
-Current TypeScript types: `TreatmentPlan`, `TreatmentStage`.
+### Timeline
 
-Current repository: `TreatmentPlansRepository.ts`.
-
-Current tables:
-
-- `treatment_plans`
-- `treatment_stages`
-
-Plan statuses:
-
-- `draft`
-- `approved`
-- `in_progress`
-- `completed`
-- `cancelled`
-
-Stage statuses:
-
-- `planned`
-- `in_progress`
-- `completed`
-- `cancelled`
-
-Important finding: plans and stages represent intended or managed treatment workflow. A stage being marked `completed` may indicate stage progress, but the project still lacks a separate performed-service/completed-work fact table that can safely feed clinical reports, invoices, doctor workload, and stock write-off.
-
-The RPC `save_treatment_plan_with_stages` stores plan/stage intent transactionally. It does not create completed service facts.
-
-### Existing findings model
-
-Current TypeScript type: `DentalFinding`.
-
-Current repository: `FindingsRepository.ts`.
-
-Current table: `findings`.
-
-Canonical finding lifecycle after alignment:
-
-- `discovered`
-- `planned`
-- `in_treatment`
-- `completed`
-- `declined_by_patient`
-- `monitoring`
-- `archived`
-
-Findings are patient-scoped and may link to tooth number, clinical zone, diagnosis IDs, planned work IDs, and treatment-plan inclusion flags.
-
-Important finding: a finding is a clinical observation/problem/risk. It is not the same as a diagnosis dictionary item, and it is not the same as a performed service.
-
-Archive behavior is history-preserving. Delete/archive should not erase clinical history.
-
-### Existing patient timeline model
-
-Current type/model: `PatientTimelineEvent`.
-
-Current aggregator: `PatientTimelineAggregator.ts`.
-
-Current UI: `PatientTimelineTab` in `PatientCardPage`.
-
-Current computed timeline sources:
+Current timeline is computed from:
 
 - patient creation;
 - chief complaint;
@@ -150,226 +94,149 @@ Current computed timeline sources:
 - appointments;
 - patient files.
 
-Important finding: appointment events are emitted as appointment events, not completed treatment events. This must stay true when future visits and services are added.
+Finding: the current aggregator correctly keeps appointment events as appointment events. It does not treat appointments as completed treatment.
 
-Current timeline intentionally does not invent dental chart change events because the chart lacks reliable per-change event history.
+### Payments, stock, documents, audit
 
-### Existing payments, stock, documents, audit
+Payments/debts are not implemented as a proper ledger. `Appointment.paymentType` and patient balance fields exist, but those are not enough for accounting.
 
-Payments/debts: no implemented payment/invoice/debt module was found in current code search. `Appointment.paymentType` and patient balance fields exist, but they are not a proper payment ledger.
+Stock/material inventory is not implemented.
 
-Stock/inventory/materials: no implemented stock/inventory/material movement module was found.
+Documents/files exist as metadata concepts, including newer patient file metadata. Files are not encounters.
 
-Documents/files: legacy `documents` metadata table exists in the initial schema, and the newer `patient_files` metadata model exists from the dental photo storage slice. Patient files are metadata/storage events, not clinical encounters.
-
-Audit/activity: `audit_logs` exists in the initial schema, but current patient timeline is not yet backed by an immutable audit/activity event model.
-
-### Potentially dangerous conflations found or avoided
-
-No intentional code path was found that directly treats appointment as completed service in the new patient timeline. The appointment status list contains `completed`, so future reporting code must not use appointment completion as performed-work evidence.
-
-No implemented completed-service model exists yet. This is the main gap.
-
-Treatment plan/stage status can show planned workflow progress, but must not become the billing/performed-work source of truth without a dedicated performed-service layer.
+`audit_logs` exists, but no mature immutable activity model is integrated into patient timeline or correction flows yet.
 
 ## Domain boundary definitions
 
 ### Appointment
 
-An appointment is a scheduled time slot or booking intent.
-
-It answers:
-
-- when the patient is expected;
-- which doctor/cabinet/time slot is reserved;
-- whether the booking was new, confirmed, cancelled, no-show, arrived, in progress, completed, or blocked.
-
-It does not prove clinical work was performed.
+A scheduled calendar slot or booking intent. It answers when the patient is expected and which doctor/cabinet/time is reserved. It does not prove clinical work happened.
 
 ### Visit
 
-A visit is a real attendance instance.
-
-It answers:
-
-- did the patient actually come;
-- when they checked in and checked out;
-- which appointment it was linked to, if any;
-- which clinic/tenant handled the attendance;
-- who was primarily responsible administratively or clinically.
-
-A visit can be linked to an appointment, but it should also support walk-ins and cases where attendance is registered without a prior booking.
+A real attendance instance. It answers whether the patient came, when they checked in/out, who saw them, and which appointment it was linked to if any.
 
 ### Clinical encounter
 
-A clinical encounter is a documented clinical session or examination.
-
-It answers:
-
-- what clinical interaction happened;
-- which doctor documented it;
-- what complaints/findings/files/plans were linked;
-- what notes were made;
-- whether the encounter is draft, active, completed, corrected, or archived.
-
-A visit may contain one or more clinical encounters. A single visit can involve multiple clinicians or separate clinical sessions.
+A documented clinical session. It answers what clinical interaction happened, which doctor documented it, and what notes, findings, files, plans, or complaints were linked.
 
 ### Completed service / performed procedure
 
-A completed service is a clinical and/or billable fact that work was performed.
-
-It answers:
-
-- what was actually done;
-- when it was performed;
-- which doctor performed it;
-- which tooth/finding/stage/encounter it relates to;
-- what price/quantity was recorded;
-- how it should later connect to invoice, payment, debt, and stock write-off.
-
-It is not the same as an appointment, treatment plan, or payment.
+A clinical or billable fact that work was actually performed. It may link to encounter, visit, appointment, treatment stage, finding, tooth, doctor, price, invoice, and later stock/material usage.
 
 ### Treatment plan
 
-A treatment plan is intended future work.
-
-It may be approved, in progress, completed, or cancelled as a planning object. It is not automatically proof that services were performed.
+Intended future treatment. It is not a performed fact.
 
 ### Treatment stage
 
-A treatment stage is a step inside a treatment plan.
-
-It may help structure intended work and track progress, but completion must be carefully defined. Stage completion should not automatically create financial or stock facts unless the performed service model explicitly says so.
+A step inside a plan. It may track progress, but completion must be carefully defined and should not silently create financial or stock facts.
 
 ### Payment
 
-A payment is a financial fact.
-
-It proves money moved or debt changed. It does not prove clinical treatment was completed.
+A financial fact. It does not prove clinical work was done.
 
 ### Stock movement
 
-A stock movement is a material/accounting fact.
-
-It may later link to completed services, but it should not be inferred merely from appointment or planned stage status.
+A material/accounting fact. It should later link to completed services, not calendar appointments.
 
 ### Audit/activity event
 
-An audit/activity event is an immutable record of who changed what and when.
-
-It is not the same as patient timeline content, although selected audit/activity events may later appear in patient timeline if product rules allow.
+An immutable record of who changed what and when. It is not the same as a patient timeline event, though selected events may later be shown in timeline.
 
 ## Architecture options compared
 
 ### Option 1: use appointment status as visit/completion source
 
-This approach treats `appointment.status = completed` as evidence that the patient visited and treatment happened.
-
 Pros:
 
 - simplest;
 - no new tables;
-- quick to show something in reports.
+- quick for simple reports.
 
 Cons:
 
 - mixes calendar and clinical facts;
-- cannot safely support walk-ins;
+- weak for walk-ins;
 - weak for multi-doctor visits;
-- cannot prove performed services;
-- unsafe for invoices and debts;
-- unsafe for stock write-off;
-- weak auditability;
-- dangerous for timeline and reports.
+- unsafe for payments/debts;
+- unsafe for stock;
+- bad for audit;
+- dangerous for patient timeline.
 
 Verdict: not recommended.
 
-### Option 2: create visits table only
-
-This separates attendance from appointments by adding a patient visit record linked to patient, tenant, optional appointment, and doctor.
+### Option 2: visits table only
 
 Pros:
 
-- separates real attendance from booking intent;
+- separates attendance from booking;
 - supports walk-ins;
-- improves visit/no-show reporting;
-- gives check-in/check-out lifecycle.
+- enables check-in/check-out;
+- improves visit/no-show reporting.
 
 Cons:
 
-- still does not capture detailed clinical session notes;
+- still does not capture clinical details;
 - still does not define performed services;
-- may become an overloaded table if clinical facts are stuffed into it.
+- may become an overloaded dumping-ground table.
 
 Verdict: useful, but incomplete alone.
 
-### Option 3: create encounters + completed services
-
-This introduces clinical encounters for documented sessions and completed services for performed works.
+### Option 3: encounters plus completed services
 
 Pros:
 
 - clean clinical boundary;
 - separates intent from fact;
 - supports doctor workload;
-- supports patient timeline;
-- supports future payment/debt and stock models;
-- better audit/correction story.
+- supports timeline;
+- supports payments and stock later.
 
 Cons:
 
-- larger schema and UI work;
-- requires careful RLS;
-- requires correction/archive rules;
-- requires staged rollout and backfill thinking.
+- larger schema/UI work;
+- needs careful RLS;
+- needs correction/audit rules;
+- too big for a single safe PR.
 
-Verdict: correct target architecture, but too large for one PR.
+Verdict: correct target architecture, but should be staged.
 
 ### Option 4: hybrid staged approach
 
-This approach introduces the model in safe stages:
-
-1. define visits/encounters/completed services;
-2. add repositories and tests;
-3. add check-in/check-out UI;
-4. add clinical notes and performed service recording;
-5. integrate timeline;
-6. only then add payments, stock, and richer reports.
-
 Pros:
 
-- safer rollout;
-- avoids a giant migration/UI PR;
-- keeps future payments/stock/reporting grounded;
-- reduces risk of mixing calendar and clinical facts.
+- safest rollout;
+- avoids a giant PR;
+- keeps future reports grounded;
+- prevents calendar/clinical/financial confusion.
 
 Cons:
 
 - requires discipline;
-- requires temporary limitations while model fills out;
-- requires clear task sequencing.
+- requires multiple tasks;
+- requires temporary limitations until the model is complete.
 
-Verdict: recommended for DentalFlow now.
+Verdict: recommended now.
 
 ## Recommended architecture
 
-Use the hybrid staged approach.
+Use the hybrid staged approach:
 
-Do not use appointment completion as completed treatment.
+1. Design audit/activity rules first.
+2. Add schema for visits and encounters.
+3. Add repositories/types/tests.
+4. Add check-in/check-out UI.
+5. Add clinical encounter notes.
+6. Add completed services/performed works.
+7. Add timeline integration.
+8. Add payments/debts and stock after completed services exist.
 
-Introduce these concepts separately:
-
-- appointments for calendar booking;
-- visits for attendance/check-in/check-out;
-- clinical encounters for documented clinical sessions;
-- completed services/performed works for actual clinical/billable facts;
-- payments/invoices later as financial facts;
-- stock movements later as material/accounting facts;
-- audit/activity log for immutable correction and change tracking.
+Do not infer completed clinical work from appointment status alone. Да, очень заманчиво сделать “completed appointment = treatment done”, и именно поэтому так делать нельзя. Человечество слишком часто выбирает удобную ложь с красивой кнопкой.
 
 ## Proposed future data model
 
-This is a proposal only. No migration is created in this recon.
+This is design only. No migration is created in this PR.
 
 ### `patient_visits`
 
@@ -377,24 +244,24 @@ Purpose: attendance/check-in/check-out.
 
 Suggested fields:
 
-- `id uuid primary key`
-- `tenant_id uuid not null`
-- `patient_id uuid not null`
-- `appointment_id uuid null`
-- `primary_doctor_id uuid null`
-- `status text not null`
-- `visit_type text not null`
-- `started_at timestamptz null`
-- `ended_at timestamptz null`
-- `checked_in_at timestamptz null`
-- `checked_out_at timestamptz null`
-- `created_by uuid null`
-- `updated_by uuid null`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-- `archived_at timestamptz null`
+- `id`
+- `tenant_id`
+- `patient_id`
+- `appointment_id` nullable
+- `primary_doctor_id` nullable
+- `status`
+- `visit_type`
+- `started_at`
+- `ended_at`
+- `checked_in_at`
+- `checked_out_at`
+- `created_by`
+- `updated_by`
+- `created_at`
+- `updated_at`
+- `archived_at`
 
-Possible visit statuses:
+Suggested statuses:
 
 - `planned`
 - `arrived`
@@ -403,7 +270,7 @@ Possible visit statuses:
 - `cancelled`
 - `archived`
 
-No-show recommendation: keep no-show primarily on appointment, because no-show means the patient did not attend. Only create a visit record for no-show if product explicitly wants an attendance/administrative trace object. Do not let no-show become a clinical encounter.
+No-show should stay primarily on appointment because no-show means no attendance happened.
 
 ### `clinical_encounters`
 
@@ -411,24 +278,24 @@ Purpose: documented clinical session.
 
 Suggested fields:
 
-- `id uuid primary key`
-- `tenant_id uuid not null`
-- `patient_id uuid not null`
-- `visit_id uuid null`
-- `appointment_id uuid null`
-- `doctor_id uuid not null`
-- `encounter_type text not null`
-- `status text not null`
-- `notes text null`
-- `started_at timestamptz null`
-- `ended_at timestamptz null`
-- `created_by uuid null`
-- `updated_by uuid null`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-- `archived_at timestamptz null`
+- `id`
+- `tenant_id`
+- `patient_id`
+- `visit_id` nullable
+- `appointment_id` nullable
+- `doctor_id`
+- `encounter_type`
+- `status`
+- `notes`
+- `started_at`
+- `ended_at`
+- `created_by`
+- `updated_by`
+- `created_at`
+- `updated_at`
+- `archived_at`
 
-Possible encounter statuses:
+Suggested statuses:
 
 - `draft`
 - `in_progress`
@@ -442,88 +309,78 @@ Purpose: performed clinical/billable fact.
 
 Suggested fields:
 
-- `id uuid primary key`
-- `tenant_id uuid not null`
-- `patient_id uuid not null`
-- `encounter_id uuid not null`
-- `visit_id uuid null`
-- `appointment_id uuid null`
-- `treatment_plan_id uuid null`
-- `treatment_stage_id uuid null`
-- `finding_id uuid null`
-- `tooth_id text null`
-- `dictionary_work_id uuid null`
-- `name text not null`
-- `quantity numeric not null default 1`
-- `unit_price numeric not null default 0`
-- `total_price numeric not null default 0`
-- `doctor_id uuid not null`
-- `performed_at timestamptz not null`
-- `status text not null`
-- `created_by uuid null`
-- `updated_by uuid null`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-- `archived_at timestamptz null`
+- `id`
+- `tenant_id`
+- `patient_id`
+- `encounter_id`
+- `visit_id` nullable
+- `appointment_id` nullable
+- `treatment_plan_id` nullable
+- `treatment_stage_id` nullable
+- `finding_id` nullable
+- `tooth_id` nullable
+- `dictionary_work_id` nullable
+- `name`
+- `quantity`
+- `unit_price`
+- `total_price`
+- `doctor_id`
+- `performed_at`
+- `status`
+- `created_by`
+- `updated_by`
+- `created_at`
+- `updated_at`
+- `archived_at`
 
-Possible completed-service statuses:
+Suggested statuses:
 
 - `performed`
 - `corrected`
 - `voided`
 - `archived`
 
-Recommendation: corrections should be append-friendly or audit-backed. Editing completed work silently is dangerous for medical, financial, and stock records.
+Corrections should be audit-backed or append-friendly. Silent edits to completed work are dangerous for clinical, financial, and stock records.
 
 ### Future payment relation
 
-Payments should not link directly to appointments as proof of treatment.
-
-Recommended later model:
-
-- `invoice_items` link to `completed_services`;
-- invoices collect performed/billable items;
-- payments link to invoices/payment records;
-- debts are derived from invoices minus payments/adjustments.
+- `invoice_items` should link to `completed_services`.
+- Invoices should group billable performed facts.
+- Payments should link to invoice/payment records.
+- Debts should be derived from invoice totals minus payments/adjustments.
 
 ### Future stock relation
 
-Stock movements should link to performed services, not appointments or planned stages alone.
+- `stock_movements` should link to `completed_services`.
+- Stock should not be written off from appointment or planned treatment alone.
 
-Recommended later model:
+## Timeline integration plan
 
-- `stock_movements.completed_service_id`;
-- optional material usage templates from dictionary works;
-- no stock write-off without a performed service or explicit manual inventory event.
+Current timeline should keep existing computed sources:
 
-## Relation to patient timeline
+- patient;
+- chief complaint;
+- findings;
+- treatment plans;
+- appointments;
+- patient files.
 
-Current timeline should stay as-is for existing sources:
-
-- patient created;
-- chief complaint added;
-- finding discovered/archived;
-- treatment plan created;
-- appointment scheduled;
-- patient file uploaded/archived.
-
-Future timeline additions:
+Future timeline should add:
 
 - visit checked in;
-- visit checked out/completed;
+- visit completed;
 - encounter started/completed;
 - completed service performed;
-- invoice created;
-- payment added;
+- invoice/payment created;
 - stock/material used;
-- important audit/activity events if product decides they are patient-visible.
+- selected audit/activity events if patient-visible.
 
 Rules:
 
 - appointment scheduled remains appointment event;
-- appointment completed remains appointment/calendar state, not service performed;
+- appointment completed remains appointment/calendar state;
 - visit completed becomes visit event;
-- service performed becomes completed_service event;
+- service performed becomes completed-service event;
 - payment added becomes financial event;
 - treatment plan remains plan/intention event;
 - audit event remains system/history event.
@@ -532,198 +389,149 @@ Rules:
 
 ### `clinic_owner` / `clinic_admin`
 
-Can see visits, encounters, completed services, and financial summary according to clinic policy.
-
-They can manage corrections only with audit trail and role checks.
+Can see visits, encounters, completed services, and financial summary according to product policy. Correction rights must require audit trail.
 
 ### `doctor`
 
-Can see clinical visits, encounters, findings, files, and performed services for assigned clinic/patient access.
-
-Can create/update clinical encounters if product permissions allow.
-
-Should not silently edit financial records unless explicitly allowed.
+Can see clinical visits, encounters, findings, files, and performed services in their clinic context. Can create/update clinical encounter if permitted.
 
 ### `registrar` / `receptionist`
 
-Can manage appointments, check-in, check-out, and attendance status.
-
-May see visit attendance/admin status.
-
-Should not see detailed clinical notes unless the product explicitly permits it.
+Can manage appointments, check-in, check-out, and attendance status. Should not see detailed clinical notes unless product policy explicitly allows it.
 
 ### `cashier`
 
-Can see billing/payment/debt context and possibly completed service names needed for invoice explanation.
+Can see billing/debt context and maybe completed service names needed for invoices. Should not see detailed clinical findings or notes unless explicitly allowed.
 
-Should not see detailed findings, notes, or clinical context unless explicitly allowed.
-
-### No-tenant and cross-tenant users
+### No-tenant / cross-tenant
 
 No access.
 
-The future model must preserve tenant_id scoping and RLS on every table.
-
 ### Platform roles
 
-No patient data by default.
+No patient data by default. Platform support/admin access must be explicit and audited.
 
-Any platform support/admin patient access must be explicit, audited, and probably separate from normal clinic role access.
-
-### Open product decisions
+Open decisions:
 
 - Should registrar see performed service names?
 - Should cashier see tooth/finding context?
-- Should doctors see financial/debt status?
+- Should doctor see financial status?
 - Who can mark a service as completed?
-- Who can reverse/correct a completed service?
-- Should corrections be append-only or editable with audit?
-- Should visit check-out require encounter completion?
-- Can a visit contain multiple encounters?
-- Can one encounter contain multiple completed services from different doctors?
+- Who can correct a completed service?
+- Are corrections append-only or editable with audit?
 
 ## Reporting impact
 
 Appointments alone cannot produce reliable performed-service reports.
 
-Future reports need the model split:
+Future reporting should use:
 
-- doctor workload: based on encounters and completed services, not only appointments;
-- performed services: based on completed_services/performed_works;
-- treatment plan acceptance: plan intent vs completed services;
-- planned vs completed work: treatment stages vs completed_services;
-- patient visits: based on patient_visits and appointment linkage;
-- no-shows: appointment no_show and no visit attendance;
-- revenue/debts: invoices/payments based on completed services;
-- chair utilization: appointments + visits + real occupancy/check-in;
+- doctor workload: encounters and completed services;
+- performed services: completed_services/performed_works;
+- treatment plan acceptance: plans vs completed services;
+- planned vs completed work: treatment stages vs completed services;
+- patient visits: patient_visits and appointment linkage;
+- no-shows: appointment no_show without attendance;
+- revenue/debts: invoices/payments from completed services;
+- chair utilization: appointments plus visits/check-in;
 - stock/material usage: stock_movements linked to completed services.
-
-If the app reports revenue or workload from appointments alone, those reports will be wrong.
 
 ## Staged implementation plan
 
-### 1. `AUDIT-ACTIVITY-LOG-RECON-001`
+1. `AUDIT-ACTIVITY-LOG-RECON-001`
+   - Design correction/audit rules before editable clinical facts.
 
-Design audit/correction rules before clinical facts become editable.
+2. `ENCOUNTER-VISIT-MODEL-001A`
+   - Schema only: visits, encounters, maybe completed services if safely scoped.
+   - RLS policies.
+   - No UI.
 
-Reason: completed services, encounter corrections, and financial corrections need a safe history model.
+3. `ENCOUNTER-VISIT-REPOSITORY-001B`
+   - Types, repositories, tests.
 
-### 2. `ENCOUNTER-VISIT-MODEL-001A`
+4. `VISIT-CHECKIN-UI-001`
+   - Check-in/check-out from appointment/patient card.
+   - Do not create performed services automatically.
 
-Schema-only PR.
+5. `ENCOUNTER-CLINICAL-NOTES-UI-001`
+   - Doctor encounter notes and links to findings/files/plans.
 
-Include:
+6. `COMPLETED-SERVICES-001`
+   - Record performed works/services.
+   - Do not auto-complete from appointment alone.
 
-- `patient_visits`;
-- `clinical_encounters`;
-- maybe `completed_services` if scoped safely;
-- tenant-scoped RLS;
-- no UI;
-- no payments/stock.
+7. `TIMELINE-ENCOUNTER-INTEGRATION-001`
+   - Add visit/encounter/completed-service events to `PatientTimelineAggregator`.
 
-### 3. `ENCOUNTER-VISIT-REPOSITORY-001B`
+8. `PAYMENTS-DEBTS-RECON-001`
+   - Start only after completed services exist.
 
-Add types, repositories, pure tests, and no UI.
-
-### 4. `VISIT-CHECKIN-UI-001`
-
-Add check-in/check-out from appointment/patient card.
-
-Do not create completed service facts automatically.
-
-### 5. `ENCOUNTER-CLINICAL-NOTES-UI-001`
-
-Doctor encounter notes and links to findings/files/plans.
-
-### 6. `COMPLETED-SERVICES-001`
-
-Mark performed works/services.
-
-Do not auto-complete from appointment alone.
-
-### 7. `TIMELINE-ENCOUNTER-INTEGRATION-001`
-
-Add visit/encounter/completed-service events to `PatientTimelineAggregator`.
-
-### 8. `PAYMENTS-DEBTS-RECON-001`
-
-Start only after completed services are defined.
-
-### 9. `STOCK-INVENTORY-RECON-001`
-
-Start only after completed services are defined.
+9. `STOCK-INVENTORY-RECON-001`
+   - Start only after completed services exist.
 
 ## Risks and mitigations
 
-### Risk: appointment treated as completed treatment
+- Appointment treated as completed treatment.
+  - Mitigation: keep performed services separate.
 
-Mitigation: keep appointment as booking/attendance state only. Completed services must be separate.
+- Treatment plan treated as performed work.
+  - Mitigation: keep plan as intent, service as fact.
 
-### Risk: treatment plan treated as performed work
+- Payment treated as clinical completion.
+  - Mitigation: payments link to invoices, not clinical proof.
 
-Mitigation: treatment plan/stage remains intent/progress. Performed service facts live in completed_services.
+- Duplicated clinical facts.
+  - Mitigation: define source of truth for encounter and completed services.
 
-### Risk: payment treated as clinical completion
+- Wrong reports from calendar-only data.
+  - Mitigation: report from visits/encounters/services depending on question.
 
-Mitigation: payments link to invoices/payment records. They do not prove clinical work.
+- Cross-tenant leakage.
+  - Mitigation: tenant_id, composite FK patterns, RLS.
 
-### Risk: duplicated clinical facts
+- Role visibility leakage.
+  - Mitigation: conservative role rules before UI.
 
-Mitigation: define source of truth: encounter documents clinical session, completed_services documents performed works, plan/stage documents intent.
+- Editing completed service without audit.
+  - Mitigation: correction/void/archive plus audit.
 
-### Risk: wrong reports from calendar-only data
+- Deleting clinical history.
+  - Mitigation: archive/correct, do not hard-delete by default.
 
-Mitigation: reports must use visits/encounters/services depending on question.
+- Overloading PatientCardPage.
+  - Mitigation: dedicated components/hooks.
 
-### Risk: cross-tenant leakage
+- Noisy timeline.
+  - Mitigation: filters and patient-visible rules.
 
-Mitigation: every future table must have tenant_id, tenant-scoped FK patterns, and RLS matching existing rules.
-
-### Risk: role visibility leakage
-
-Mitigation: define role rules before UI; keep registrar/cashier conservative.
-
-### Risk: editing completed service without audit
-
-Mitigation: design correction/void/archive and audit before enabling edits.
-
-### Risk: deleting clinical history
-
-Mitigation: archive/correct instead of hard delete by default.
-
-### Risk: overloading PatientCardPage
-
-Mitigation: introduce dedicated visit/encounter components and hooks. Keep PatientCardPage orchestration thin.
-
-### Risk: overloading timeline with noisy events
-
-Mitigation: category filters and patient-visible rules; do not show every audit row by default.
-
-### Risk: premature payments/stock
-
-Mitigation: complete service model first, then payments/stock.
+- Premature payments/stock.
+  - Mitigation: completed services first.
 
 ## What was intentionally NOT changed
 
-- no application code;
-- no database migration;
-- no RLS change;
+- no app code;
+- no migrations;
+- no schema;
+- no RLS;
 - no Supabase cloud;
 - no local Supabase;
 - no browser smoke;
 - no visit UI;
 - no completed services implementation;
-- no payments module;
-- no stock module;
-- no documents module;
+- no payments/stock/documents implementation;
 - no audit implementation;
 - no next task started.
 
 ## Checks
 
-Report-only PR.
+GitHub Actions CI on reviewed head `00466c94e95451e19676e36afa7d31a16ad4546f`:
 
-GitHub Actions CI: pending after report metadata update.
+- run `27713635699`;
+- CI `#496`;
+- tested commit `00466c94e95451e19676e36afa7d31a16ad4546f`;
+- ESLint: success;
+- tests: success;
+- build: success.
 
 ## Final verdict
 
