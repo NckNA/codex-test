@@ -4,7 +4,7 @@
 
 This recon defines the boundary between calendar appointments, real patient attendance, clinical encounters, performed services, payment facts, stock movements, and audit/activity events for DentalFlow CRM.
 
-The current product already has patient records, appointments, findings, treatment plans/stages, computed patient timeline events, patient files, and an initial audit_logs table. It does not yet have a dedicated visit/encounter/completed-service model.
+The current product already has patient records, appointments, findings, treatment plans/stages, computed patient timeline events, patient files, and an initial `audit_logs` table. It does not yet have a dedicated visit/encounter/completed-service model.
 
 Main recommendation: use a staged hybrid architecture. Do not treat appointment completion as performed treatment. Introduce visit/encounter/completed-service concepts deliberately, then connect them to timeline, payments, stock, reports, and audit.
 
@@ -14,11 +14,11 @@ Main recommendation: use a staged hybrid architecture. Do not treat appointment 
 
 ## PR URL
 
-[Pending PR creation]
+https://github.com/NckNA/codex-test/pull/301
 
 ## PR head reviewed before final report update
 
-[Pending PR creation]
+`6acfacadbc2fabdd884ef6691fa5f2aeef7fab17`
 
 ## Report update commit
 
@@ -133,7 +133,7 @@ Important finding: a finding is a clinical observation/problem/risk. It is not t
 
 Archive behavior is history-preserving. Delete/archive should not erase clinical history.
 
-### Existing timeline model
+### Existing patient timeline model
 
 Current type/model: `PatientTimelineEvent`.
 
@@ -251,7 +251,7 @@ It proves money moved or debt changed. It does not prove clinical treatment was 
 
 A stock movement is a material/accounting fact.
 
-It may later link to completed services, but it should not be inferred merely from appointment or plan status.
+It may later link to completed services, but it should not be inferred merely from appointment or planned stage status.
 
 ### Audit/activity event
 
@@ -259,7 +259,7 @@ An audit/activity event is an immutable record of who changed what and when.
 
 It is not the same as patient timeline content, although selected audit/activity events may later appear in patient timeline if product rules allow.
 
-## Architecture options
+## Architecture options compared
 
 ### Option 1: use appointment status as visit/completion source
 
@@ -723,9 +723,7 @@ Mitigation: complete service model first, then payments/stock.
 
 Report-only PR.
 
-Local npm checks were not required for this recon before PR creation.
-
-GitHub Actions CI: pending after PR creation.
+GitHub Actions CI: pending after report metadata update.
 
 ## Final verdict
 
