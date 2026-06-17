@@ -29,7 +29,7 @@ https://github.com/NckNA/codex-test/pull/299
 
 ## 4. PR head reviewed before final report update
 
-`16a26335f24ade4e90fc0e5c5728bf8f18048159`
+`abf8e6c3220b9fa9562666aca6ee8869e2424fb7`
 
 ## 5. Report update commit
 
@@ -248,7 +248,7 @@ PASS.
   - Note: one earlier run failed because `.env.local` intentionally enabled the local QA shortcut/Supabase browser-smoke environment. The file was removed because it is not committed, then tests passed: 44 test files, 354 tests.
 - `npm run build`: PASS.
   - Vite emitted the existing large chunk warning.
-- GitHub Actions CI result for reviewed PR head `16a26335f24ade4e90fc0e5c5728bf8f18048159`: PASS. Run id `27711796573`; workflow `CI`; job `validate`; ESLint, tests, and build passed. GitHub emitted a Node 20 deprecation warning for Actions, but the workflow conclusion was success.
+- GitHub Actions CI result for reviewed PR head `abf8e6c3220b9fa9562666aca6ee8869e2424fb7`: PASS. Run id `27711954202`; workflow `CI`; run number `492`; job `validate`; ESLint, tests, and build passed. GitHub emitted a Node 20 deprecation warning for Actions, but the workflow conclusion was success.
 
 ## 20. Final verdict
 
