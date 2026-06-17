@@ -4,9 +4,9 @@
 
 This report defines the boundary between calendar appointments, real patient visits, clinical encounters, completed services, payments, stock movements, and audit/activity events for DentalFlow CRM.
 
-The current product has patients, appointments, findings, treatment plans/stages, patient timeline events, patient files, and a basic `audit_logs` table. It does not yet have a dedicated visit, encounter, or completed-service model.
+The current product has patients, appointments, findings, treatment plans/stages, computed patient timeline events, patient files, and a basic `audit_logs` table. It does not yet have a dedicated visit, encounter, or completed-service model.
 
-Main recommendation: use a staged hybrid approach. Keep appointment as calendar intent, add visit/encounter/completed-service concepts later, then integrate timeline, payments, stock, reports, and audit.
+Main recommendation: use a staged hybrid approach. Keep appointments as calendar intent. Add visit, encounter, and completed-service concepts later. Then integrate timeline, payments, stock, reports, and audit.
 
 ## Branch
 
@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/301
 
 ## PR head reviewed before final report update
 
-`00466c94e95451e19676e36afa7d31a16ad4546f`
+`07ff3a81e6d90ce1f58f046e90e7b43583a947c8`
 
 ## Report update commit
 
@@ -43,6 +43,7 @@ Inspected code and migrations:
 - `supabase/migrations/0001_initial_schema.sql`
 - `supabase/migrations/0004_align_findings_status_lifecycle.sql`
 - `supabase/migrations/0006_treatment_plan_stage_sync_rpc.sql`
+- `supabase/migrations/0011_patient_file_metadata.sql`
 
 ### Appointments
 
@@ -57,7 +58,7 @@ Current model:
 - Time fields: `start_time`, `end_time`, `created_at` mapped to `start`, `end`, `createdAt`.
 - Status values: `new`, `confirmed`, `arrived`, `in_progress`, `completed`, `cancelled`, `no_show`, `blocked`.
 
-Finding: `appointment.status = completed` exists, but it is still a calendar/attendance state. It must not be treated as completed clinical service, performed work, payment, or stock usage.
+Finding: `appointment.status = completed` exists, but it is still a calendar or attendance state. It must not be treated as completed clinical service, performed work, payment, or stock usage.
 
 ### Treatment plans and stages
 
@@ -232,7 +233,7 @@ Use the hybrid staged approach:
 7. Add timeline integration.
 8. Add payments/debts and stock after completed services exist.
 
-Do not infer completed clinical work from appointment status alone. Да, очень заманчиво сделать “completed appointment = treatment done”, и именно поэтому так делать нельзя. Человечество слишком часто выбирает удобную ложь с красивой кнопкой.
+Do not infer completed clinical work from appointment status alone. `completed appointment` must remain a calendar or attendance state until a real visit, encounter, or completed service proves what actually happened.
 
 ## Proposed future data model
 
@@ -524,11 +525,11 @@ Future reporting should use:
 
 ## Checks
 
-GitHub Actions CI on reviewed head `00466c94e95451e19676e36afa7d31a16ad4546f`:
+GitHub Actions CI on reviewed head `07ff3a81e6d90ce1f58f046e90e7b43583a947c8`:
 
-- run `27713635699`;
-- CI `#496`;
-- tested commit `00466c94e95451e19676e36afa7d31a16ad4546f`;
+- run `27713757697`;
+- CI `#497`;
+- tested commit `07ff3a81e6d90ce1f58f046e90e7b43583a947c8`;
 - ESLint: success;
 - tests: success;
 - build: success.
