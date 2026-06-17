@@ -25,11 +25,11 @@ Notes:
 
 ## 3. PR URL
 
-TBD after PR creation.
+https://github.com/NckNA/codex-test/pull/299
 
 ## 4. PR head reviewed before final report update
 
-TBD after PR creation.
+`16a26335f24ade4e90fc0e5c5728bf8f18048159`
 
 ## 5. Report update commit
 
@@ -51,7 +51,7 @@ No application code, tests, migrations, storage policy files, or environment fil
 - Supabase cloud project `cwkgxgubvdkkjcslvdgn` was not touched.
 - Browser tool used: Playwright Chromium through the local terminal. Hermes browser snapshot/open calls were blocked for localhost, so the real browser smoke was performed through local Playwright instead.
 - QA shortcut used: yes.
-- QA users tested without printing passwords:
+- QA users tested without passwords:
   - Admin A
   - Doctor A
   - Registrar A
@@ -248,7 +248,7 @@ PASS.
   - Note: one earlier run failed because `.env.local` intentionally enabled the local QA shortcut/Supabase browser-smoke environment. The file was removed because it is not committed, then tests passed: 44 test files, 354 tests.
 - `npm run build`: PASS.
   - Vite emitted the existing large chunk warning.
-- GitHub Actions CI result: TBD after PR creation.
+- GitHub Actions CI result for reviewed PR head `16a26335f24ade4e90fc0e5c5728bf8f18048159`: PASS. Run id `27711796573`; workflow `CI`; job `validate`; ESLint, tests, and build passed. GitHub emitted a Node 20 deprecation warning for Actions, but the workflow conclusion was success.
 
 ## 20. Final verdict
 
