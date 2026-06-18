@@ -7,7 +7,7 @@ This PR adds a read-only TypeScript repository layer for the audit/activity sche
 It adds domain types, query options, mapper functions, a read-only repository interface, and a Supabase implementation for:
 
 - tenant audit events;
--- tenant activity events;
+- tenant activity events;
 - patient activity events.
 
 The repository does not create, update, delete, archive, or insert audit/activity events. Write paths remain a future `AUDIT-ACTIVITY-RPC-001C` task, because letting arbitrary client code write compliance history would be software malpractice with prettier syntax.
