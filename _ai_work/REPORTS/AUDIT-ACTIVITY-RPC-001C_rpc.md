@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/305
 
 ## PR head reviewed before final report update
 
-`d8c95496c56e40d470d5046351bfb91157b68f5b`
+`b5ad766b3ffacd608fcecebc93a128d97d4fe217`
 
 ## Report update commit
 
@@ -130,7 +130,14 @@ No broad client write path was added.
 
 ## Validation status
 
-GitHub-side checks can validate SQL file presence and app build health.
+GitHub Actions CI passed for the current code/report head:
+
+- run: `27747624664`
+- CI: `#521`
+- tested commit: `b5ad766b3ffacd608fcecebc93a128d97d4fe217`
+- ESLint: success
+- tests: success
+- build: success
 
 Local Supabase validation is still required and was not run in this environment because no local terminal/Supabase CLI is available here.
 
@@ -191,13 +198,17 @@ Local checks:
 
 GitHub Actions CI:
 
-- pending after PR creation
+- run: `27747624664`
+- CI: `#521`
+- status: completed
+- conclusion: success
+- tested commit: `b5ad766b3ffacd608fcecebc93a128d97d4fe217`
 
 ## Final verdict
 
 PARTIAL
 
-Reason: migration and report are created, but local Supabase replay/RLS/grant/helper execution validation is not available in this environment and must be run by an agent with local terminal/Supabase CLI access.
+Reason: migration and report are created, and GitHub Actions CI is green, but local Supabase replay/RLS/grant/helper execution validation is not available in this environment and must be run by an agent with local terminal/Supabase CLI access.
 
 ## Recommended next task
 
