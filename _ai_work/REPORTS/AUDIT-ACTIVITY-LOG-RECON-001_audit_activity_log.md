@@ -6,7 +6,7 @@ This report researches the current DentalFlow CRM audit/activity state and propo
 
 Current finding: the database already has a minimal `audit_logs` table, but the current product does not yet have a complete immutable audit/activity model. The existing table is useful as an early scaffold, but it is not enough for clinical corrections, completed service changes, payment/refund adjustments, role changes, support access, or patient-visible activity.
 
-Recommendation: use a hybrid staged approach. Keep patient timeline as a patient-facing summary layer, introduce explicit `audit_events` and either `activity_events` or a filtered activity view, and require transactional/RPC or trusted service-layer audit writes for high-risk clinical, financial, role, and correction flows. Because apparently "who changed the money and the medical fact" should not be answered by shrugging at a calendar row.
+Recommendation: use a hybrid staged approach. Keep patient timeline as a patient-facing summary layer, introduce explicit `audit_events` and either `activity_events` or a filtered activity view, and require transactional/RPC or trusted service-layer audit writes for high-risk clinical, financial, role, and correction flows.
 
 ## 2. Branch name
 
@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/302
 
 ## 4. PR head reviewed before final report update
 
-`66e043b71767d6308cec7232b60e205d4b66b744`
+`bf3f56090d1f57959d3b7f3ef50afa7d02cda391`
 
 ## 5. Report update commit
 
@@ -756,10 +756,10 @@ Any future assistant that reads or acts on patient, financial, or clinical data 
 ## 20. Checks
 
 - `git status --short`: report-only branch, exactly one new report file.
-- `npm run lint`: pending GitHub Actions.
-- `npm run test -- --run`: pending GitHub Actions.
-- `npm run build`: pending GitHub Actions.
-- GitHub Actions CI: pending after PR creation.
+- `npm run lint`: passed in GitHub Actions.
+- `npm run test -- --run`: passed in GitHub Actions.
+- `npm run build`: passed in GitHub Actions.
+- GitHub Actions CI: run `27739351296` / CI `#501` / success / tested commit `bf3f56090d1f57959d3b7f3ef50afa7d02cda391`.
 
 ## 21. Final verdict
 
