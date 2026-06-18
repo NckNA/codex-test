@@ -22,9 +22,9 @@ https://github.com/NckNA/codex-test/pull/304
 
 ## PR head reviewed before final report update
 
-`e4ee992eca67d580106bb57b4fff172e37590cec`
+`5335d99fbdfe6783333a79f52ba5112ab1e22fc6`
 
-This is the PR head before the report metadata update that added the PR URL and reviewed head.
+This is the PR head validated before this final report metadata update.
 
 ## Report update commit
 
@@ -76,6 +76,8 @@ Added in `src/data/repositories/AuditActivityRepository.ts`:
 - `normalizeAuditActivityOffset`
 
 The repository exposes camelCase domain records and hides Supabase snake_case rows behind mapper functions.
+
+The factory supports the Supabase backend only. A local backend request throws a clear unsupported error instead of creating fake local audit history.
 
 ## Read-only boundary
 
@@ -192,6 +194,7 @@ Covered scenarios:
 18. Before/after/diff JSON is preserved.
 19. Limit and offset are normalized safely.
 20. The public repository object does not expose create/update/delete methods.
+21. Local backend creation is rejected instead of creating fake audit history.
 
 Tests use a mocked Supabase query chain only.
 
@@ -214,19 +217,21 @@ Tests use a mocked Supabase query chain only.
 
 Local terminal checks were not run in this environment.
 
-GitHub Actions CI is pending after PR creation.
+GitHub Actions CI before this final report metadata update:
 
-Expected checks:
-
-- `npm run lint`
-- `npm run test -- --run`
-- `npm run build`
+- workflow: `CI`
+- run id: `27745822816`
+- run number / CI: `#515`
+- status: `completed`
+- conclusion: `success`
+- tested commit: `5335d99fbdfe6783333a79f52ba5112ab1e22fc6`
+- ESLint: success
+- tests: success
+- build: success
 
 ## Final verdict
 
-`PARTIAL`
-
-Reason: implementation and unit tests were added, but GitHub Actions CI has not run yet at this report metadata update.
+`AUDIT ACTIVITY REPOSITORY IMPLEMENTED AND VERIFIED`
 
 ## Recommended next task
 
