@@ -23,9 +23,9 @@ https://github.com/NckNA/codex-test/pull/303
 
 ## PR head reviewed before final report update
 
-`c6882e49ec5bf8feb904d8a6b2b5bdf91c570820`
+`4fabb9a02e9e8c53efe057aade1d16ce690082d1`
 
-This is the local grants-fix commit created before this final report update.
+This is the PR head validated before this final report metadata update.
 
 ## Report update commit
 
@@ -255,14 +255,20 @@ Notes:
 
 ## GitHub Actions CI
 
-Fresh GitHub Actions CI must be checked after this report update is pushed.
+Result: **PASS**
 
-The final PR body and final handoff should record:
+Final GitHub Actions CI before this report metadata update:
 
-- workflow run id;
-- CI number;
-- success/failure;
-- tested commit.
+- workflow: `CI`
+- run id: `27744273340`
+- run number / CI: `#509`
+- status: `completed`
+- conclusion: `success`
+- tested commit: `4fabb9a02e9e8c53efe057aade1d16ce690082d1`
+- job: `validate`
+- ESLint: success
+- tests: success
+- build: success
 
 ## What was intentionally NOT changed
 
