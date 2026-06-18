@@ -25,11 +25,11 @@ Final validation confirms:
 
 ## 3. PR URL
 
-TBD before PR creation.
+https://github.com/NckNA/codex-test/pull/307
 
 ## 4. PR head reviewed before final report update
 
-TBD before final report update.
+`a6334474f6da1ba3e8996e69efc417586710225c`
 
 ## 5. Report update commit
 
@@ -322,7 +322,7 @@ Report-only PR expected. Git status equivalent is represented by PR changed file
 
 ### GitHub Actions CI
 
-Pending until PR is opened and GitHub Actions completes.
+Pending for report metadata update commit.
 
 ## 16. Final verdict
 
