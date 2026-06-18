@@ -21,7 +21,7 @@ https://github.com/NckNA/codex-test/pull/303
 
 ## PR head reviewed before final report update
 
-`8b2a974ad1351b6dddb5646d2bc8a429a7b61c48`
+`8157bcf0eb0d9f0441a107d166b42d2c90938949`
 
 ## Report update commit
 
@@ -294,7 +294,14 @@ Local checks not run from this environment:
 
 GitHub Actions CI:
 
-- pending after PR metadata update.
+- run `27740893192`
+- CI `#506`
+- status: completed
+- conclusion: success
+- tested commit: `8157bcf0eb0d9f0441a107d166b42d2c90938949`
+- ESLint: success
+- tests: success
+- build: success
 
 ## Final verdict
 
