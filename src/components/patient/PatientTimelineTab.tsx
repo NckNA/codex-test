@@ -28,7 +28,7 @@ const CATEGORY_LABELS: Record<PatientTimelineEventCategory, string> = {
   file: 'Файл',
   payment: 'Оплата',
   stock: 'Склад',
-  audit: 'Журнал',
+  audit: 'Активность',
 };
 
 const CATEGORY_FILTERS: Array<{ value: PatientTimelineEventCategory | 'all'; label: string }> = [
@@ -39,6 +39,9 @@ const CATEGORY_FILTERS: Array<{ value: PatientTimelineEventCategory | 'all'; lab
   { value: 'treatment_plan', label: 'Планы лечения' },
   { value: 'appointment', label: 'Приёмы' },
   { value: 'file', label: 'Файлы' },
+  { value: 'payment', label: 'Оплаты' },
+  { value: 'stock', label: 'Склад' },
+  { value: 'audit', label: 'Активность' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {

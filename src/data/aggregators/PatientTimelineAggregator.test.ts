@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Appointment, ChiefComplaint, DentalFinding, Patient, TreatmentPlan } from '../../types';
+import type { ActivityEvent } from '../repositories/AuditActivityRepository';
 import type { TimelinePatientFile, PatientTimelineEvent } from './PatientTimelineAggregator';
 import {
   ACTIVE_CLINIC_REQUIRED_FOR_TIMELINE,
+  ACTIVITY_TIMELINE_CATEGORY_MAP,
   PATIENT_REQUIRED_FOR_TIMELINE,
   buildPatientTimeline,
   canRoleSeePatientTimelineEvent,
@@ -79,6 +81,30 @@ function patientFile(overrides: Partial<TimelinePatientFile> = {}): TimelinePati
     findingId: 'finding-a',
     treatmentPlanId: 'plan-a',
     uploadedBy: 'doctor-a',
+    ...overrides,
+  };
+}
+
+function activityEvent(overrides: Partial<ActivityEvent> = {}): ActivityEvent {
+  return {
+    id: 'activity-a',
+    tenantId,
+    patientId,
+    auditEventId: 'audit-a',
+    actorUserId: 'doctor-a',
+    category: 'finding',
+    type: 'finding_note_added',
+    title: 'Activity finding note added',
+    description: 'Safe short description',
+    sourceType: 'finding',
+    sourceId: 'finding-a',
+    sourceStatus: 'discovered',
+    visibility: 'clinical',
+    severity: 'info',
+    occurredAt: '2026-01-06T10:00:00.000Z',
+    metadata: { before_data: { raw: true }, after_data: { raw: true }, secret: 'do-not-render' },
+    isArchived: false,
+    createdAt: '2026-01-06T09:00:00.000Z',
     ...overrides,
   };
 }
@@ -307,6 +333,139 @@ describe('PatientTimelineAggregator', () => {
     });
 
     expect(events).toHaveLength(0);
+  });
+
+  it('builds timeline events from activity_events without exposing raw audit payloads', () => {
+    const events = buildPatientTimeline({
+      tenantId,
+      patientId,
+      activityEvents: [activityEvent()],
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      id: 'activity_event:activity-a:finding_note_added',
+      category: 'finding',
+      sourceType: 'finding',
+      sourceId: 'finding-a',
+      sourceStatus: 'discovered',
+      activityEventId: 'activity-a',
+      auditEventId: 'audit-a',
+      actorUserId: 'doctor-a',
+      visibility: 'clinical',
+      title: 'Activity finding note added',
+      description: 'Safe short description',
+    });
+    expect(events[0].title).not.toContain('secret');
+    expect(events[0].description).not.toContain('before_data');
+    expect(JSON.stringify(events[0])).not.toContain('do-not-render');
+  });
+
+  it('uses occurredAt for activity timeline date and falls back to createdAt only when needed', () => {
+    const [event] = buildPatientTimeline({
+      tenantId,
+      patientId,
+      activityEvents: [activityEvent({ occurredAt: '2026-01-08T10:00:00.000Z', createdAt: '2026-01-01T10:00:00.000Z' })],
+    });
+    expect(event.occurredAt).toBe('2026-01-08T10:00:00.000Z');
+
+    const [fallbackEvent] = buildPatientTimeline({
+      tenantId,
+      patientId,
+      activityEvents: [activityEvent({ id: 'activity-fallback', occurredAt: 'not-a-date', createdAt: '2026-01-09T10:00:00.000Z' })],
+    });
+    expect(fallbackEvent.occurredAt).toBe('2026-01-09T10:00:00.000Z');
+  });
+
+  it('keeps activity_events additive and sorts them with domain timeline events', () => {
+    const events = buildPatientTimeline({
+      tenantId,
+      patientId,
+      findings: [finding()],
+      appointments: [appointment()],
+      activityEvents: [activityEvent({ occurredAt: '2026-01-03T12:00:00.000Z' })],
+    });
+
+    expect(events.map((event) => event.sourceType)).toEqual(['appointment', 'finding', 'finding']);
+    expect(events.some((event) => event.activityEventId === 'activity-a')).toBe(true);
+    expect(events.some((event) => event.findingId === 'finding-a')).toBe(true);
+  });
+
+  it('excludes archived activity events by default and includes them when requested', () => {
+    const archived = activityEvent({ id: 'activity-archived', isArchived: true });
+
+    expect(buildPatientTimeline({ tenantId, patientId, activityEvents: [archived] })).toHaveLength(0);
+
+    const events = buildPatientTimeline({ tenantId, patientId, activityEvents: [archived], includeArchived: true });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ isArchived: true, activityEventId: 'activity-archived' });
+  });
+
+  it('keeps activity_events scoped by tenantId and patientId', () => {
+    const events = buildPatientTimeline({
+      tenantId,
+      patientId,
+      activityEvents: [
+        activityEvent({ id: 'activity-ok' }),
+        activityEvent({ id: 'activity-other-tenant', tenantId: 'tenant-b' }),
+        activityEvent({ id: 'activity-other-patient', patientId: 'patient-b' }),
+        activityEvent({ id: 'activity-null-patient', patientId: null }),
+      ],
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].activityEventId).toBe('activity-ok');
+  });
+
+  it('maps every ActivityEventCategory to an explicit safe timeline category', () => {
+    expect(ACTIVITY_TIMELINE_CATEGORY_MAP).toEqual({
+      patient: 'patient',
+      complaint: 'complaint',
+      dental_chart: 'dental_chart',
+      finding: 'finding',
+      treatment_plan: 'treatment_plan',
+      appointment: 'appointment',
+      visit: 'appointment',
+      encounter: 'appointment',
+      completed_service: 'treatment_plan',
+      file: 'file',
+      document: 'file',
+      payment: 'payment',
+      stock: 'stock',
+      audit: 'audit',
+      system: 'audit',
+    });
+
+    const categories = Object.keys(ACTIVITY_TIMELINE_CATEGORY_MAP) as Array<keyof typeof ACTIVITY_TIMELINE_CATEGORY_MAP>;
+    const events = buildPatientTimeline({
+      tenantId,
+      patientId,
+      activityEvents: categories.map((category) => activityEvent({ id: `activity-${category}`, category })),
+      includeArchived: true,
+    });
+
+    expect(events).toHaveLength(categories.length);
+    expect(events.map((event) => event.category)).toEqual(
+      expect.arrayContaining(['patient', 'complaint', 'dental_chart', 'finding', 'treatment_plan', 'appointment', 'file', 'payment', 'stock', 'audit']),
+    );
+  });
+
+  it('keeps timeline filters working with activity-derived events', () => {
+    const events = buildPatientTimeline({
+      tenantId,
+      patientId,
+      activityEvents: [
+        activityEvent({ id: 'activity-admin', category: 'patient', visibility: 'admin' }),
+        activityEvent({ id: 'activity-payment', category: 'payment', visibility: 'financial' }),
+      ],
+    });
+
+    expect(filterPatientTimelineEvents(events, { categories: ['payment'] }).map((event) => event.id)).toEqual([
+      'activity_event:activity-payment:finding_note_added',
+    ]);
+    expect(filterPatientTimelineEvents(events, { visibility: ['admin'] }).map((event) => event.id)).toEqual([
+      'activity_event:activity-admin:finding_note_added',
+    ]);
   });
 
   it('does not require Supabase, localStorage, browser, or local database', () => {
