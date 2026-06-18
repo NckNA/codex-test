@@ -18,11 +18,13 @@ The repository does not create, update, delete, archive, or insert audit/activit
 
 ## PR URL
 
-Pending until PR creation.
+https://github.com/NckNA/codex-test/pull/304
 
 ## PR head reviewed before final report update
 
-Pending until final report update.
+`e4ee992eca67d580106bb57b4fff172e37590cec`
+
+This is the PR head before the report metadata update that added the PR URL and reviewed head.
 
 ## Report update commit
 
@@ -224,7 +226,7 @@ Expected checks:
 
 `PARTIAL`
 
-Reason: implementation and unit tests were added, but GitHub Actions CI has not run yet at initial report creation time.
+Reason: implementation and unit tests were added, but GitHub Actions CI has not run yet at this report metadata update.
 
 ## Recommended next task
 
