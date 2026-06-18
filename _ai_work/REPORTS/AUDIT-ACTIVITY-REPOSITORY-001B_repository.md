@@ -7,7 +7,7 @@ This PR adds a read-only TypeScript repository layer for the audit/activity sche
 It adds domain types, query options, mapper functions, a read-only repository interface, and a Supabase implementation for:
 
 - tenant audit events;
-- tenant activity events;
+-- tenant activity events;
 - patient activity events.
 
 The repository does not create, update, delete, archive, or insert audit/activity events. Write paths remain a future `AUDIT-ACTIVITY-RPC-001C` task, because letting arbitrary client code write compliance history would be software malpractice with prettier syntax.
@@ -22,7 +22,7 @@ https://github.com/NckNA/codex-test/pull/304
 
 ## PR head reviewed before final report update
 
-`5335d99fbdfe6783333a79f52ba5112ab1e22fc6`
+`5176f954284dc9bf4ee4fca3ff4ba147f07d7547`
 
 This is the PR head validated before this final report metadata update.
 
@@ -220,11 +220,11 @@ Local terminal checks were not run in this environment.
 GitHub Actions CI before this final report metadata update:
 
 - workflow: `CI`
-- run id: `27745822816`
-- run number / CI: `#515`
+- run id: `27745915253`
+- run number / CI: `#516`
 - status: `completed`
 - conclusion: `success`
-- tested commit: `5335d99fbdfe6783333a79f52ba5112ab1e22fc6`
+- tested commit: `5176f954284dc9bf4ee4fca3ff4ba147f07d7547`
 - ESLint: success
 - tests: success
 - build: success
