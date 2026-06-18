@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/305
 
 ## PR head reviewed before final report update
 
-`4bd54ebf1d5df6aca2ac9c0cecd5c67b59eb15ac`
+`fccfa685daab11d021553dae3d818c4ef0b052b0`
 
 ## Changed files summary
 
@@ -253,17 +253,15 @@ Fresh GitHub Actions CI was checked after pushing the local validation report up
 | field | value |
 |---|---|
 | workflow | `CI` |
-| run id | `27749157274` |
-| CI number | `523` |
+| run id | `27749372701` |
+| CI number | `524` |
 | status | `completed` |
 | conclusion | `success` |
-| tested commit | `4bd54ebf1d5df6aca2ac9c0cecd5c67b59eb15ac` |
+| tested commit | `fccfa685daab11d021553dae3d818c4ef0b052b0` |
 | job | `validate` |
 | ESLint | success |
 | tests | success |
 | build | success |
-
-Final report metadata update requires one additional commit after this CI result is recorded. Fresh CI must also be checked on that final commit.
 
 ## Cloud / browser / UI status
 
