@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/310
 
 ## 4. PR head reviewed before final report update
 
-`9ed4be4c9097a8048c3c8a96ccd880a64acb00de`
+`7f7a75ff05c808c94b29ef532bed16e78f5b8704`
 
 ## 5. Report update commit
 
@@ -215,7 +215,7 @@ Expected & Observed:
 - `npm run lint`: **PASS** (completed with no errors).
 - `npm run test -- --run`: **PASS** (414 tests across 47 test files).
 - `npm run build`: **PASS** (build completes successfully).
-- GitHub Actions CI: pending
+- GitHub Actions CI (Run ID: `27780869348`, CI: `#546` on head reviewed commit): **SUCCESS**.
 
 ## 20. Final verdict
 
