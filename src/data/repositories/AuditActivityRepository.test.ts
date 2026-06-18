@@ -22,47 +22,52 @@ type QueryCall = {
   args: unknown[];
 };
 
-type QueryChain = {
-  select: ReturnType<typeof vi.fn>;
-  eq: ReturnType<typeof vi.fn>;
-  in: ReturnType<typeof vi.fn>;
-  gte: ReturnType<typeof vi.fn>;
-  lte: ReturnType<typeof vi.fn>;
-  order: ReturnType<typeof vi.fn>;
-  range: ReturnType<typeof vi.fn>;
-};
-
-function createQuery(result: QueryResult) {
-  const calls: QueryCall[] = [];
-  let chain: QueryChain;
-  const record = (method: string, args: unknown[]) => {
-    calls.push({ method, args });
-    return chain;
-  };
-
-  chain = {
-    select: vi.fn((...args: unknown[]) => record('select', args)),
-    eq: vi.fn((...args: unknown[]) => record('eq', args)),
-    in: vi.fn((...args: unknown[]) => record('in', args)),
-    gte: vi.fn((...args: unknown[]) => record('gte', args)),
-    lte: vi.fn((...args: unknown[]) => record('lte', args)),
-    order: vi.fn((...args: unknown[]) => record('order', args)),
-    range: vi.fn(async (...args: unknown[]) => {
-      calls.push({ method: 'range', args });
-      return result;
-    }),
-  };
-
-  return { chain, calls };
-}
-
 function createRepository(result: QueryResult) {
-  const query = createQuery(result);
+  const calls: QueryCall[] = [];
+  const chain = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    gte: vi.fn(),
+    lte: vi.fn(),
+    order: vi.fn(),
+    range: vi.fn(),
+  };
+
+  chain.select.mockImplementation((...args: unknown[]) => {
+    calls.push({ method: 'select', args });
+    return chain;
+  });
+  chain.eq.mockImplementation((...args: unknown[]) => {
+    calls.push({ method: 'eq', args });
+    return chain;
+  });
+  chain.in.mockImplementation((...args: unknown[]) => {
+    calls.push({ method: 'in', args });
+    return chain;
+  });
+  chain.gte.mockImplementation((...args: unknown[]) => {
+    calls.push({ method: 'gte', args });
+    return chain;
+  });
+  chain.lte.mockImplementation((...args: unknown[]) => {
+    calls.push({ method: 'lte', args });
+    return chain;
+  });
+  chain.order.mockImplementation((...args: unknown[]) => {
+    calls.push({ method: 'order', args });
+    return chain;
+  });
+  chain.range.mockImplementation(async (...args: unknown[]) => {
+    calls.push({ method: 'range', args });
+    return result;
+  });
+
   const client = {
-    from: vi.fn(() => query.chain),
+    from: vi.fn(() => chain),
   };
   const repository = new SupabaseAuditActivityRepository(client as unknown as SupabaseClient);
-  return { repository, client, calls: query.calls };
+  return { repository, client, calls };
 }
 
 const tenantId = '11111111-1111-1111-1111-111111111111';
@@ -266,5 +271,9 @@ describe('AuditActivityRepository', () => {
     expect('createActivityEvent' in repository).toBe(false);
     expect('updateAuditEvent' in repository).toBe(false);
     expect('deleteAuditEvent' in repository).toBe(false);
+  });
+
+  it('rejects local backend instead of creating fake audit history', () => {
+    expect(() => createAuditActivityRepository({ backend: 'local' })).toThrow('does not support localStorage fallback');
   });
 });
