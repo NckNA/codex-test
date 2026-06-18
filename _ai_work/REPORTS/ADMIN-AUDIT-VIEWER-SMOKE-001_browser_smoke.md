@@ -16,11 +16,11 @@ Main limitation: temporary local smoke rows could not be inserted through the av
 
 ## 3. PR URL
 
-TBD until PR creation.
+https://github.com/NckNA/codex-test/pull/309
 
 ## 4. PR head reviewed before final report update
 
-TBD until PR creation / final report update.
+`e3a1e42c811598506d55d92d50b079935e07c321`
 
 ## 5. Report update commit
 
@@ -277,9 +277,15 @@ Warnings:
 - existing React `act(...)` warnings in unrelated tests;
 - existing Vite chunk-size warning.
 
-GitHub Actions CI:
+GitHub Actions CI on reviewed report head:
 
-- TBD after report PR push.
+- Workflow: `CI`
+- Run id: `27767899790`
+- CI number: `543`
+- Tested commit: `e3a1e42c811598506d55d92d50b079935e07c321`
+- Status: completed
+- Conclusion: success
+- Required checks: ESLint, tests, build passed.
 
 ## 19. Final verdict
 
