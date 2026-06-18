@@ -1,23 +1,26 @@
-# SUPABASE-CLOUD-APPLY-AUDIT-ACTIVITY-001 — Cloud audit/activity apply
+# SUPABASE-CLOUD-APPLY-AUDIT-ACTIVITY-001 — Cloud audit/activity validation
 
 ## 1. Summary
 
-Applied audit/activity migrations `0012_create_audit_activity_log` and `0013_create_audit_activity_rpc` to the Supabase cloud dev/test project `cwkgxgubvdkkjcslvdgn`.
+Cloud project `codex-test-cloud` / `cwkgxgubvdkkjcslvdgn` was checked for the merged audit/activity migrations:
 
-This was a controlled cloud schema sync only. No app code, migrations, seed data, UI, local Supabase, browser smoke, Edge Functions, storage policies, tenants, users, patients, or persistent audit/activity rows were changed outside the two cloud migration DDL applications.
+- `0012_create_audit_activity_log`
+- `0013_create_audit_activity_rpc`
 
-Final validation confirms:
+Current cloud state was already in sync before this report update. No migration was reapplied.
 
-- `public.audit_events` exists;
-- `public.activity_events` exists;
-- legacy `public.audit_logs` remains preserved;
-- RLS is enabled on all audit/activity tables;
-- table grants remain conservative;
-- internal helper functions exist;
-- helper functions are `SECURITY DEFINER` with `search_path=public, pg_temp`;
-- `PUBLIC`, `anon`, and `authenticated` cannot execute internal helpers;
-- `service_role` can execute internal helpers;
-- final `audit_events` and `activity_events` counts are both zero.
+Validation confirmed that cloud has:
+
+- `public.audit_events`;
+- `public.activity_events`;
+- legacy `public.audit_logs` preserved;
+- RLS enabled;
+- conservative table grants;
+- internal helper functions;
+- conservative helper function grants;
+- final `audit_events` and `activity_events` counts equal to zero.
+
+This task touched Supabase cloud only for schema state inspection and rollback-only validation. It did not change app code, migrations in Git, seed data, UI, local Supabase, browser smoke, storage policies, Edge Functions, tenant/user/patient data, or persistent audit/activity rows.
 
 ## 2. Branch name
 
@@ -29,7 +32,7 @@ https://github.com/NckNA/codex-test/pull/307
 
 ## 4. PR head reviewed before final report update
 
-`aa99118e17c9d17602d5ff8ce8e9f7ae8f3d98b2`
+`e8d01bbaa0e45daecf8d29ec0437b6b0c63c1302`
 
 ## 5. Report update commit
 
@@ -49,89 +52,85 @@ No app code, migration file, seed, generated type, UI, browser, local Supabase, 
 - Project ref: `cwkgxgubvdkkjcslvdgn`
 - Project name: `codex-test-cloud`
 - Region: `ap-northeast-2`
-- Status before apply: `ACTIVE_HEALTHY`
+- Status: `ACTIVE_HEALTHY`
 - Database host: `db.cwkgxgubvdkkjcslvdgn.supabase.co`
 - Postgres version: `17.6.1.127`
 
 Cloud only. Local Supabase was intentionally not used for this task.
 
-## 8. Preflight
+## 8. Preflight cloud state
 
-### Migrations before apply
+### Project identity
 
-Before apply, cloud migrations existed through:
+Validated project identity/status before any schema decision:
 
-- `0011_patient_file_metadata`
+- `codex-test-cloud`
+- `cwkgxgubvdkkjcslvdgn`
+- `ACTIVE_HEALTHY`
 
-`0012_create_audit_activity_log` was not present.
+### Migrations before apply decision
 
-`0013_create_audit_activity_rpc` was not present.
+Cloud migrations already included:
 
-### Tables before apply
+- `20260618114955` / `0012_create_audit_activity_log`
+- `20260618115334` / `0013_create_audit_activity_rpc`
 
-Before apply:
+Because both required migrations were already applied, no migration was reapplied.
 
-- `public.audit_logs` existed and had RLS enabled;
-- `public.audit_events` did not exist;
-- `public.activity_events` did not exist.
+Current latest migration seen during preflight:
 
-### Functions before apply
+- `20260618115334` / `0013_create_audit_activity_rpc`
 
-Before apply:
+### Tables before apply decision
 
-- `public.record_audit_event_internal(...)` did not exist;
-- `public.record_activity_event_internal(...)` did not exist.
+Validated existing tables:
 
-### Advisors before apply
+- `public.audit_logs`: exists, RLS enabled, row count 0;
+- `public.audit_events`: exists, RLS enabled, row count 0;
+- `public.activity_events`: exists, RLS enabled, row count 0.
 
-Security advisor findings before apply were pre-existing/out of scope:
+### Functions before apply decision
+
+Validated existing functions:
+
+- `public.record_audit_event_internal(...)`: exists;
+- `public.record_activity_event_internal(...)`: exists.
+
+### Advisors snapshot
+
+Security advisors were checked during this validation run. Current warnings are existing/out of scope:
 
 - `public.integration_tokens` has RLS enabled with no policies;
-- `public.get_user_tenants()` is a `SECURITY DEFINER` function executable by `authenticated`;
-- `public.has_tenant_role(...)` is a `SECURITY DEFINER` function executable by `authenticated`.
+- `public.get_user_tenants()` is a SECURITY DEFINER function executable by `authenticated`;
+- `public.has_tenant_role(...)` is a SECURITY DEFINER function executable by `authenticated`.
 
-Performance advisor findings before apply were pre-existing and unrelated to this task. They included unindexed foreign key warnings and unused index warnings on existing tables.
+No security advisor warning was reported for the audit/activity tables or internal helper functions.
+
+Performance advisors were checked during this validation run. They include INFO/WARN items such as unindexed foreign keys and unused indexes. Current audit/activity-related performance items are not blockers for this cloud-sync task because the tables are empty and these indexes are expected to appear unused until real workloads exist. Future performance tuning can address composite FK coverage if needed.
 
 ## 9. Applied migrations
 
 ### `0012_create_audit_activity_log`
 
-Applied exact merged SQL from:
+Status: already present in cloud before this run.
+
+Source file inspected in Git:
 
 - `supabase/migrations/0012_create_audit_activity_log.sql`
 
-Result: applied successfully.
-
-Immediate validation after 0012 passed:
-
-- `public.audit_events` exists;
-- `public.activity_events` exists;
-- `public.audit_logs` still exists;
-- RLS enabled on `audit_events`;
-- RLS enabled on `activity_events`;
-- `audit_events` count = 0;
-- `activity_events` count = 0;
-- `anon` has no table access;
-- `authenticated` has SELECT only;
-- `authenticated` has no INSERT/UPDATE/DELETE;
-- expected policies exist;
-- expected constraints exist;
-- expected indexes exist.
+No reapply was performed.
 
 ### `0013_create_audit_activity_rpc`
 
-Applied exact merged SQL from:
+Status: already present in cloud before this run.
+
+Source file inspected in Git:
 
 - `supabase/migrations/0013_create_audit_activity_rpc.sql`
 
-Result: applied successfully.
+No reapply was performed.
 
-Post-apply migrations now include:
-
-- `20260618114955` / `0012_create_audit_activity_log`
-- `20260618115334` / `0013_create_audit_activity_rpc`
-
-## 10. Post-apply table validation
+## 10. Post-validation table state
 
 ### Tables
 
@@ -146,30 +145,29 @@ Validated cloud tables:
 Final persistent counts:
 
 - `audit_events` = 0;
-- `activity_events` = 0;
-- `tenants` = 0.
+- `activity_events` = 0.
 
-No seed, backfill, or persistent test rows were inserted.
+Rollback-only helper tests also confirmed no temporary tenant row remained.
 
 ### Table grants
 
-Validated role privileges:
+Validated role privileges for `public.audit_events` and `public.activity_events`.
 
 `anon`:
 
-- no SELECT;
-- no INSERT;
-- no UPDATE;
-- no DELETE.
+- no table privileges found.
 
 `authenticated`:
 
 - SELECT = yes;
 - INSERT = no;
 - UPDATE = no;
-- DELETE = no.
+- DELETE = no;
+- TRUNCATE = no;
+- REFERENCES = no;
+- TRIGGER = no.
 
-This matches the intended design: SELECT is still filtered by RLS, and runtime writes are blocked.
+`service_role` remains privileged, which is expected for trusted backend/service contexts.
 
 ### Policies
 
@@ -178,7 +176,7 @@ Validated policies:
 - `Clinic admins can read tenant audit events` on `audit_events`;
 - `Clinic members can read allowed activity events` on `activity_events`.
 
-### Constraints and indexes
+### Constraints
 
 Validated constraints include:
 
@@ -188,6 +186,8 @@ Validated constraints include:
 - activity category/visibility/severity checks;
 - activity type/title/source checks;
 - tenant/patient FK safety.
+
+### Indexes
 
 Validated indexes include:
 
@@ -206,12 +206,12 @@ Validated indexes include:
 - activity source;
 - activity occurred_at.
 
-## 11. Post-apply function validation
+## 11. Post-validation function state
 
 Validated functions:
 
-- `public.record_audit_event_internal(...)` exists;
-- `public.record_activity_event_internal(...)` exists.
+- `public.record_audit_event_internal(...)`;
+- `public.record_activity_event_internal(...)`.
 
 Both functions are:
 
@@ -227,51 +227,53 @@ Function execute grants:
 
 This preserves the intended rule: internal raw helpers are not browser-callable by normal authenticated users.
 
-## 12. Optional function tests
+## 12. Optional safe function tests
 
-A safe rollback transaction was used to test valid helper execution without persistent rows.
+Rollback-only runtime tests were performed against cloud.
 
-Because cloud had no existing tenants, the test transaction created a temporary tenant row inside the transaction, called both helpers, and then rolled the transaction back.
+The valid-helper test created a temporary tenant row inside a transaction, called both helpers, confirmed helper ids, confirmed activity linked to `audit_event_id`, then deliberately rolled back.
 
-Observed inside the rollback test:
+Validated:
 
-- audit helper returned an id;
-- activity helper returned an id;
-- no persistent rows remained after rollback.
+- valid audit helper insert works in trusted context;
+- valid activity helper insert works in trusted context;
+- activity helper links `audit_event_id`;
+- rollback returns `audit_events` count to 0;
+- rollback returns `activity_events` count to 0;
+- rollback removes temporary tenant row.
 
-Same-statement row visibility for the inserted rows was not used as the authoritative link/count check because PostgreSQL snapshot behavior around helper calls in CTEs made that unreliable in this tool context. Final post-rollback counts were checked separately and remained zero.
+Invalid payload tests were performed in a rollback-only block and rejected 11 cases:
 
-Runtime invalid payload checks performed successfully:
+- empty audit action;
+- empty audit target_type;
+- empty audit target_id;
+- invalid audit category;
+- invalid audit severity;
+- invalid audit redaction_level;
+- audit metadata array/non-object;
+- audit before_data array/non-object;
+- invalid activity category;
+- invalid activity severity;
+- activity metadata array/non-object.
 
-- empty audit action rejected;
-- unsupported audit category rejected;
-- audit metadata array rejected;
-- missing activity tenant rejected.
+Final persistent counts after rollback validations:
 
-Additional invalid payload protections were validated by function body/table constraints:
+- `audit_events` = 0;
+- `activity_events` = 0.
 
-- empty target_type;
-- empty target_id;
-- invalid severity;
-- invalid redaction level;
-- before_data/after_data/diff_data non-object payloads;
-- unsupported activity category;
-- unsupported activity visibility;
-- activity metadata non-object payload.
+No persistent audit/activity rows, tenants, users, or patient data were inserted.
 
-The larger batch invalid-payload test was blocked by the SQL tool safety layer before reaching Postgres, so the report uses the successful single-case runtime checks plus catalog/function validation instead of pretending a blocked batch ran.
-
-## 13. Advisors after apply
+## 13. Advisors after validation
 
 ### Security advisors
 
-Security advisor after apply reported the same existing warnings as preflight:
+Security advisor after validation reported the same known out-of-scope warnings:
 
 - `public.integration_tokens` has RLS enabled with no policies;
-- `public.get_user_tenants()` is a SECURITY DEFINER function executable by `authenticated`;
-- `public.has_tenant_role(...)` is a SECURITY DEFINER function executable by `authenticated`.
+- `public.get_user_tenants()` can be executed by `authenticated` as a SECURITY DEFINER helper;
+- `public.has_tenant_role(...)` can be executed by `authenticated` as a SECURITY DEFINER helper.
 
-No new advisor warning was reported for:
+No new warning was reported for:
 
 - `public.audit_events`;
 - `public.activity_events`;
@@ -280,7 +282,13 @@ No new advisor warning was reported for:
 
 ### Performance advisors
 
-Post-apply performance advisor was attempted twice but blocked by the tool safety layer. Preflight performance advisors were captured and contained only existing warnings unrelated to this task. This limitation is documented rather than hidden, because apparently even advisor calls can have stage fright.
+Performance advisor output includes existing/project-wide INFO/WARN items such as:
+
+- unindexed foreign key notices;
+- unused index notices;
+- auth RLS initialization plan warnings on existing profile policies.
+
+Audit/activity-specific performance items include unused indexes and FK coverage notices on currently empty audit/activity tables. These are not blockers for this cloud-sync task. They should be revisited after real workload patterns exist.
 
 ## 14. What was intentionally NOT changed
 
@@ -308,12 +316,13 @@ Completed:
 - project identity/status check;
 - migration list preflight;
 - table/function preflight;
-- preflight advisors;
-- applied `0012` only because missing;
-- validated `0012` before continuing;
-- applied `0013` only because missing;
+- advisors snapshot;
+- confirmed `0012` already present;
+- confirmed `0013` already present;
+- did not reapply migrations;
 - validated tables, RLS, policies, constraints, indexes, grants, functions, function grants, and counts;
 - safe rollback helper execution test;
+- invalid payload rejection tests;
 - final counts remain zero.
 
 ### Git status
@@ -322,19 +331,11 @@ Report-only PR expected. Git status equivalent is represented by PR changed file
 
 ### GitHub Actions CI
 
-Fresh CI after PR metadata update:
-
-- Workflow: `CI`
-- Run id: `27758298462`
-- CI number: `533`
-- Tested commit: `aa99118e17c9d17602d5ff8ce8e9f7ae8f3d98b2`
-- Status: completed
-- Conclusion: success
-- Required checks: ESLint, tests, build passed.
+Pending for this report update commit.
 
 ## 16. Final verdict
 
-`CLOUD AUDIT ACTIVITY MIGRATIONS APPLIED AND VERIFIED`
+`CLOUD ALREADY IN SYNC AND VERIFIED`
 
 ## 17. Recommended next task
 
