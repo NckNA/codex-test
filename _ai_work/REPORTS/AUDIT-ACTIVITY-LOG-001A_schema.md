@@ -2,16 +2,16 @@
 
 ## Summary
 
-This PR adds the first schema-only audit/activity log foundation for DentalFlow CRM.
+This PR adds the schema-only audit/activity log foundation for DentalFlow CRM and the follow-up grants fix from `AUDIT-ACTIVITY-LOG-001A-GRANTS-FIX`.
 
 It introduces two new tables:
 
 - `public.audit_events`: append-only compliance/security audit log.
-- `public.activity_events`: safer product-facing activity projection for future patient timeline and admin activity feeds.
+- `public.activity_events`: safe product-facing activity projection for future patient timeline and admin activity feeds.
 
-The existing `public.audit_logs` table is not removed, renamed, backfilled, or destructively changed. It remains a legacy/minimal scaffold for now.
+The existing `public.audit_logs` table remains present and was not removed, renamed, backfilled, or destructively changed.
 
-Local Supabase migration replay and RLS simulation were performed in this validation update. The schema and RLS behavior mostly validate, but the PR is **not ready to merge** because grants on the new tables are not conservative enough: `authenticated` has `TRUNCATE`, `REFERENCES`, and `TRIGGER` privileges in addition to `SELECT`.
+Local Supabase reset, schema validation, grants validation, and RLS simulation were performed after the grants fix. The previous blocker is fixed: `authenticated` now has `SELECT` only on `audit_events` and `activity_events`; it no longer has `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES`, or `TRIGGER`.
 
 ## Branch name
 
@@ -23,12 +23,9 @@ https://github.com/NckNA/codex-test/pull/303
 
 ## PR head reviewed before final report update
 
-`b222a005cc72154f03aac239c1b089dd0857ba26`
+`c6882e49ec5bf8feb904d8a6b2b5bdf91c570820`
 
-GitHub PR metadata before this report update showed the expected branch, base branch `main`, and exactly two changed files:
-
-1. `supabase/migrations/0012_create_audit_activity_log.sql`
-2. `_ai_work/REPORTS/AUDIT-ACTIVITY-LOG-001A_schema.md`
+This is the local grants-fix commit created before this final report update.
 
 ## Report update commit
 
@@ -36,97 +33,43 @@ N/A because the final report update commit cannot reference itself before creati
 
 ## Changed files summary
 
-Expected PR files:
+Expected PR files remain:
 
 1. `supabase/migrations/0012_create_audit_activity_log.sql`
 2. `_ai_work/REPORTS/AUDIT-ACTIVITY-LOG-001A_schema.md`
 
-This validation update changes only:
+This grants-fix update changes:
 
-1. `_ai_work/REPORTS/AUDIT-ACTIVITY-LOG-001A_schema.md`
+1. `supabase/migrations/0012_create_audit_activity_log.sql`
+2. `_ai_work/REPORTS/AUDIT-ACTIVITY-LOG-001A_schema.md`
 
-No app code, UI, repositories, generated types, seed data, cloud changes, or browser smoke were added.
+No app code, UI, repositories, generated types, seed data, browser smoke, or Supabase cloud changes were added.
 
-## Current schema recon
-
-### Existing `audit_logs`
-
-`audit_logs` is defined with:
-
-- `id uuid primary key default gen_random_uuid()`
-- `tenant_id uuid not null references tenants(id)`
-- `user_id uuid references auth.users(id)`
-- `action text not null`
-- `entity_type text not null`
-- `entity_id uuid`
-- `metadata jsonb`
-- `created_at timestamptz default now()`
-
-Local post-reset validation confirmed the legacy table still exists with that same 8-column shape. It was not removed or destructively changed by migration `0012`.
-
-RLS remains enabled on `audit_logs`.
-
-### Existing helper functions
-
-Existing helpers are used by the new RLS policies:
-
-- `public.get_user_tenants()`
-- `public.has_tenant_role(target_tenant_id uuid, allowed_roles app_role[])`
-
-No new helper or SECURITY DEFINER function is introduced by this PR.
-
-### Roles detected
-
-Exact `app_role` enum values detected in the schema:
-
-- `platform_owner`
-- `platform_admin`
-- `clinic_owner`
-- `clinic_admin`
-- `doctor`
-- `registrar`
-- `cashier`
-- `marketer`
-- `support`
-
-`receptionist` is not present in the enum, so the migration does not invent it.
-
-### FK safety findings
-
-Safe current references used:
-
-- `tenant_id` references `public.tenants(id)`.
-- `actor_user_id` references `auth.users(id)`.
-- patient references use `(tenant_id, patient_id)` against `public.patients(tenant_id, id)` and clear only `patient_id` if that patient row is deleted, preserving tenant scope.
-
-Future objects are intentionally not hard-FKed because the tables do not exist yet:
-
-- visits;
-- encounters;
-- payments;
-- stock movements.
-
-Future links are stored as nullable id fields for now.
-
-## Migration summary
+## Migration patch summary
 
 Migration file:
 
 `supabase/migrations/0012_create_audit_activity_log.sql`
 
-Creates:
+Patch applied inside the existing unmerged migration, not as a new `0013` migration.
 
-- `public.audit_events`
-- `public.activity_events`
+The grants block now explicitly revokes all non-read table privileges from `authenticated` on both new tables while keeping RLS-controlled `SELECT`:
 
-Adds:
+```sql
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.audit_events FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.activity_events FROM authenticated;
+GRANT SELECT ON TABLE public.audit_events TO authenticated;
+GRANT SELECT ON TABLE public.activity_events TO authenticated;
+```
 
-- check constraints;
-- JSON object checks;
-- table and column comments;
-- tenant/patient/actor/source/category/visibility indexes;
+The migration still keeps:
+
+- tables;
+- constraints;
+- indexes;
+- comments;
 - RLS policies;
-- explicit grant/revoke statements.
+- the legacy `public.audit_logs` table untouched.
 
 ## Local Supabase status
 
@@ -136,15 +79,16 @@ Command run:
 npx supabase status
 ```
 
-Result:
+Result: **PASS**
+
+Observed local services:
 
 - local Supabase was running;
 - Project URL: `http://127.0.0.1:54321`;
-- local database URL target: `127.0.0.1:54322/postgres`;
-- Studio was available at `http://127.0.0.1:54323`;
-- some optional local containers were reported as stopped/restarting, but the local database was healthy enough for `db reset` and SQL validation.
+- local database target: `127.0.0.1:54322/postgres`;
+- Studio was available at `http://127.0.0.1:54323`.
 
-Credential/key values printed by Supabase CLI were not copied into this report.
+Supabase CLI printed local development key material in stdout. Those values were not copied into this report.
 
 Supabase cloud project `cwkgxgubvdkkjcslvdgn` was not touched.
 
@@ -158,22 +102,9 @@ npx supabase db reset
 
 Result: **PASS**
 
-Observed migration replay:
+The reset replayed migrations `0001` through `0012_create_audit_activity_log.sql` and completed successfully.
 
-- `0001_initial_schema.sql`
-- `0002_add_dental_chart_editor_fields_to_tooth_states.sql`
-- `0003_add_dental_chart_links_to_findings.sql`
-- `0004_align_findings_status_lifecycle.sql`
-- `0005_create_clinical_dictionary_items.sql`
-- `0006_treatment_plan_stage_sync_rpc.sql`
-- `0007_revoke_anon_execute_from_treatment_plan_rpc.sql`
-- `0008_harden_rls_helper_function_grants.sql`
-- `0009_backfill_dental_photo_storage.sql`
-- `0010_clinical_dictionary_template_bootstrap.sql`
-- `0011_patient_file_metadata.sql`
-- `0012_create_audit_activity_log.sql`
-
-The reset completed successfully and seeded `supabase/seed.sql`.
+No cloud project was touched.
 
 ## Table existence and RLS enabled results
 
@@ -185,16 +116,18 @@ Post-reset SQL validation:
 | `public.audit_events` | yes | yes | no |
 | `public.audit_logs` | yes | yes | no |
 
+`public.audit_logs` remains present and RLS-enabled. It was not destructively changed.
+
 ## Counts after reset
 
-Post-reset counts before any RLS simulation fixture transaction:
+Post-reset counts before RLS simulation:
 
 | table | rows |
 |---|---:|
 | `public.audit_events` | 0 |
 | `public.activity_events` | 0 |
 
-Counts after the RLS simulation rollback were also checked and remained:
+Counts after the RLS simulation transaction rollback:
 
 | table | rows |
 |---|---:|
@@ -205,352 +138,149 @@ Counts after the RLS simulation rollback were also checked and remained:
 
 Result: **PASS**
 
-Detected constraints on `public.audit_events`:
+Detected constraint counts:
 
-- primary key: `audit_events_pkey`;
-- FK: `audit_events_tenant_id_fkey` to `public.tenants(id)`;
-- FK: `audit_events_actor_user_id_fkey` to `auth.users(id)`;
-- composite FK: `audit_events_patient_fk` to `public.patients(tenant_id, id)` with `ON DELETE SET NULL (patient_id)`;
-- non-empty checks for `action`, `target_type`, `target_id`;
-- category enum-like check;
-- severity check;
-- redaction level check;
-- JSON object checks for `metadata`, `before_data`, `after_data`, `diff_data`.
+| table | constraints |
+|---|---:|
+| `public.audit_events` | 14 |
+| `public.activity_events` | 13 |
 
-Detected constraints on `public.activity_events`:
+Validation confirmed primary keys, foreign keys, enum-like check constraints, non-empty checks, and JSON object checks are present.
 
-- primary key: `activity_events_pkey`;
-- FK: `activity_events_tenant_id_fkey` to `public.tenants(id)`;
-- FK: `activity_events_actor_user_id_fkey` to `auth.users(id)`;
-- FK: `activity_events_audit_event_id_fkey` to `public.audit_events(id)` with `ON DELETE SET NULL`;
-- composite FK: `activity_events_patient_fk` to `public.patients(tenant_id, id)` with `ON DELETE SET NULL (patient_id)`;
-- category check;
-- visibility check;
-- severity check;
-- JSON object check for `metadata`;
-- non-empty checks for `type`, `title`, `source_type`, `source_id`.
-
-## Index validation
+## Indexes validation
 
 Result: **PASS**
 
-Detected indexes on `public.audit_events`:
+Detected index counts:
 
-- `audit_events_pkey`
-- `idx_audit_events_actor_created_at`
-- `idx_audit_events_category_created_at`
-- `idx_audit_events_created_at`
-- `idx_audit_events_patient_created_at`
-- `idx_audit_events_severity_created_at`
-- `idx_audit_events_target`
-- `idx_audit_events_tenant_created_at`
-
-Detected indexes on `public.activity_events`:
-
-- `activity_events_pkey`
-- `idx_activity_events_audit_event_id`
-- `idx_activity_events_category_occurred_at`
-- `idx_activity_events_occurred_at`
-- `idx_activity_events_patient_occurred_at`
-- `idx_activity_events_source`
-- `idx_activity_events_tenant_occurred_at`
-- `idx_activity_events_visibility_occurred_at`
+| table | indexes |
+|---|---:|
+| `public.audit_events` | 8 |
+| `public.activity_events` | 8 |
 
 ## Comments validation
 
 Result: **PASS**
 
-Detected table comments:
+Detected table/column comments for the new audit/activity schema: `12`.
 
-- `public.audit_events`: append-only compliance/security audit log; patient timeline must not render raw audit diffs directly.
-- `public.activity_events`: safe product-facing activity projection for future patient timeline and admin activity feeds.
-
-Detected column comments include:
-
-- audit tenant scope;
-- audit before/after/diff safety guidance;
-- redaction level meaning;
-- correction reason intent;
-- activity audit link safety note;
-- activity visibility meaning;
-- activity metadata safety guidance.
-
-## Policy validation
+## Policies validation
 
 Result: **PASS**
 
 Detected policies:
 
-### `public.audit_events`
+| table | policy | command | roles |
+|---|---|---|---|
+| `public.audit_events` | `Clinic admins can read tenant audit events` | SELECT | `{authenticated}` |
+| `public.activity_events` | `Clinic members can read allowed activity events` | SELECT | `{authenticated}` |
 
-Policy:
+No mutation policies were added.
 
-`Clinic admins can read tenant audit events`
+## Final grants validation
 
-Command:
+Result: **PASS**
 
-- `SELECT`
+### `authenticated`
 
-Role:
+Expected final state: `SELECT` only, controlled by RLS.
 
-- `authenticated`
-
-Condition:
-
-- `tenant_id IS NOT NULL`
-- current authenticated user must have `clinic_owner` or `clinic_admin` for that tenant through `public.has_tenant_role(...)`.
-
-### `public.activity_events`
-
-Policy:
-
-`Clinic members can read allowed activity events`
-
-Command:
-
-- `SELECT`
-
-Role:
-
-- `authenticated`
-
-Condition:
-
-- `clinic_owner` and `clinic_admin` can read all tenant activity;
-- `doctor` can read `clinical` and `admin` activity;
-- `registrar` can read `admin` activity;
-- `cashier` can read `financial` and `admin` activity.
-
-No `INSERT`, `UPDATE`, or `DELETE` policies were detected for the new tables.
-
-## Grants validation
-
-Result: **FAIL**
-
-The migration correctly prevents `anon` from selecting or mutating the two new tables.
-
-However, local privilege validation showed `authenticated` has more than `SELECT`:
-
-| grantee | table | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `anon` | `audit_events` | no | no | no | no | no | no | no |
-| `anon` | `activity_events` | no | no | no | no | no | no | no |
-| `authenticated` | `audit_events` | yes | no | no | no | **yes** | **yes** | **yes** |
-| `authenticated` | `activity_events` | yes | no | no | no | **yes** | **yes** | **yes** |
-| `service_role` | both tables | yes | yes | yes | yes | yes | yes | yes |
-
-This is not conservative enough for audit/activity tables.
-
-Exact issue:
-
-- `authenticated` should not retain `TRUNCATE`, `REFERENCES`, or `TRIGGER` privileges on `public.audit_events` or `public.activity_events`.
-- For this schema foundation, `authenticated` should be limited to `SELECT` only, with RLS deciding row visibility.
-- Write paths should remain reserved for future controlled repository/RPC/service work.
-
-Likely fix in this PR:
-
-```sql
-REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.audit_events FROM authenticated;
-REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.activity_events FROM authenticated;
-```
-
-This report does not apply the fix because the requested action was validation/report-only.
-
-## RLS simulation results
-
-Result: **PASS for row visibility behavior**
-
-Local simulation method:
-
-- used a local transaction;
-- inserted temporary local-only tenants/users/tenant role memberships/audit events/activity events;
-- used `SET LOCAL ROLE authenticated`;
-- used `set_config('request.jwt.claim.sub', <test-user-id>, true)` to simulate `auth.uid()`;
-- rolled back the transaction after the simulation;
-- rechecked counts after rollback.
+| table | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `public.audit_events` | yes | no | no | no | no | no | no |
+| `public.activity_events` | yes | no | no | no | no | no | no |
 
 ### `anon`
 
-`anon` cannot select either new table:
+Expected final state: no table access.
 
-- `audit_events`: `permission denied for table audit_events`
-- `activity_events`: `permission denied for table activity_events`
+| table | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `public.audit_events` | no | no | no | no | no | no | no |
+| `public.activity_events` | no | no | no | no | no | no | no |
 
-This is expected.
+Direct anon select probes returned `permission denied` for both `audit_events` and `activity_events`.
 
-### No-tenant user
+### `service_role`
 
-No tenant membership:
+Expected final state: privileged backend role keeps broad access as normal.
 
-| probe | visible rows |
-|---|---:|
-| audit events | 0 |
-| activity events | 0 |
+Validation focus remained on ensuring `anon` has no access and `authenticated` has only RLS-controlled `SELECT`. The migration does not revoke service-role access.
 
-Result: **PASS**
-
-### Cross-tenant user
-
-Clinic B admin against Clinic A data:
-
-| probe | visible rows |
-|---|---:|
-| all audit visible to Clinic B admin | 1 |
-| Clinic A audit visible to Clinic B admin | 0 |
-| Clinic B audit visible to Clinic B admin | 1 |
-| all activity visible to Clinic B admin | 1 |
-| Clinic A activity visible to Clinic B admin | 0 |
-| Clinic B activity visible to Clinic B admin | 1 |
+## RLS simulation results
 
 Result: **PASS**
 
-No cross-tenant leakage was observed.
+The simulation inserted local-only fixture users, tenant memberships, patients, audit events, and activity events inside a transaction, then rolled it back.
 
-### `clinic_owner` / `clinic_admin`
+Observed results:
 
-Clinic A owner/admin against Clinic A data:
+| simulated role/user | raw `audit_events` result | `activity_events` result |
+|---|---:|---|
+| `anon` | permission denied | permission denied |
+| no-tenant authenticated user | 0 | 0 |
+| cross-tenant clinic admin for Clinic B | 1 Clinic B audit row only | `admin` Clinic B activity only |
+| Clinic A `clinic_owner` | 1 Clinic A audit row | `admin`, `clinical`, `financial` |
+| Clinic A `clinic_admin` | 1 Clinic A audit row | `admin`, `clinical`, `financial` |
+| Clinic A `doctor` | 0 raw audit rows | `admin`, `clinical` |
+| Clinic A `registrar` | 0 raw audit rows | `admin` only |
+| Clinic A `cashier` | 0 raw audit rows | `admin`, `financial` |
 
-| role | audit visible | activity visible |
-|---|---:|---:|
-| `clinic_owner` | 1 | 4 |
-| `clinic_admin` | 1 | 4 |
+Post-rollback counts remained zero for both new tables.
 
-Result: **PASS**
+## Local checks
 
-Owner/admin can read raw tenant audit events and all tenant activity events.
+Commands run:
 
-### `doctor`
+```bash
+git status --short
+npm run lint
+npm run test -- --run
+npm run build
+```
 
-Clinic A doctor:
-
-| probe | result |
-|---|---:|
-| raw audit events | 0 |
-| activity `admin` | 1 |
-| activity `clinical` | 1 |
-| activity `financial` | 0 |
-| activity `system` | 0 |
-
-Result: **PASS**
-
-Doctor cannot select raw audit events and can read only clinical/admin activity.
-
-### `registrar`
-
-Clinic A registrar:
-
-| probe | result |
-|---|---:|
-| raw audit events | 0 |
-| activity `admin` | 1 |
-| activity `clinical` | 0 |
-| activity `financial` | 0 |
-| activity `system` | 0 |
-
-Result: **PASS**
-
-Registrar cannot select raw audit events and can read only admin activity.
-
-### `cashier`
-
-Clinic A cashier:
-
-| probe | result |
-|---|---:|
-| raw audit events | 0 |
-| activity `admin` | 1 |
-| activity `financial` | 1 |
-| activity `clinical` | 0 |
-| activity `system` | 0 |
-
-Result: **PASS**
-
-Cashier cannot select raw audit events and can read financial/admin activity.
-
-## Data boundary
-
-- Local Supabase only.
-- Supabase cloud was not touched.
-- No cloud project reset/apply/migration command was run.
-- No storage upload was performed.
-- No browser smoke was performed.
-- No app code was changed.
-- No UI was changed.
-- No repository/RPC work was started.
-- No `AUDIT-ACTIVITY-REPOSITORY-001B` work was started.
-
-## What was intentionally NOT changed
-
-- Existing `audit_logs` was not removed.
-- No app code.
-- No React UI.
-- No repositories.
-- No RPC functions.
-- No cloud migration apply.
-- No browser smoke.
-- No seed or backfill committed.
-- No visit/encounter/payment/stock/document implementation.
-- No source mutation outside this report.
-- No secrets or credential values are stored in this report.
-
-## Checks
-
-Local checks:
+Results:
 
 | check | result |
-|---|---:|
-| `git status --short` before report update | clean |
-| `npx supabase status` | PASS |
-| `npx supabase db reset` | PASS |
-| local table/RLS/grants SQL validation | PARTIAL, grants failure |
-| local RLS simulation | PASS |
+|---|---|
+| `git status --short` before report update | only migration file modified |
 | `npm run lint` | PASS |
 | `npm run test -- --run` | PASS, 44 files / 354 tests |
 | `npm run build` | PASS |
 
-Test warnings observed:
+Notes:
 
-- known React `act(...)` warnings in existing component/hook tests;
-- expected error-path console output in dictionary tests;
-- these did not fail the test run.
+- Vitest emitted existing `act(...)` warnings, but all tests passed.
+- Vite emitted the existing large chunk warning, but build passed.
 
-Build warning observed:
+## GitHub Actions CI
 
-- existing Vite chunk size warning for the large app bundle;
-- build still passed.
+Fresh GitHub Actions CI must be checked after this report update is pushed.
 
-GitHub Actions CI before this report update:
+The final PR body and final handoff should record:
 
-- PR: `#303`
-- workflow: `CI`
-- job: `validate`
-- run: `27740976604`
-- tested commit: `b222a005cc72154f03aac239c1b089dd0857ba26`
-- conclusion: success
+- workflow run id;
+- CI number;
+- success/failure;
+- tested commit.
 
-Fresh GitHub Actions CI for the report update commit must be checked after this report update is pushed.
+## What was intentionally NOT changed
+
+- No Supabase cloud access.
+- No new migration `0013`.
+- No app code.
+- No UI.
+- No repository/RPC implementation.
+- No browser smoke.
+- No seed changes.
+- No `.env.local` commit.
+- No secrets, passwords, or service-role key stored in this report.
+- No `AUDIT-ACTIVITY-REPOSITORY-001B` work started.
 
 ## Final verdict
 
-`PARTIAL`
-
-Exact failure:
-
-- Local Supabase reset and RLS simulation were performed.
-- Table creation, constraints, indexes, comments, policies, counts, and RLS row visibility behavior passed.
-- Grants did **not** pass conservative validation because `authenticated` retains `TRUNCATE`, `REFERENCES`, and `TRIGGER` on both `public.audit_events` and `public.activity_events`.
-
-The PR should not be merged until those grants are tightened.
+`AUDIT ACTIVITY SCHEMA IMPLEMENTED AND VERIFIED`
 
 ## Recommended next task
 
-`AUDIT-ACTIVITY-LOG-001A-GRANTS-FIX`
-
-Suggested scope:
-
-- update only migration/report if acceptable for this PR;
-- revoke `TRUNCATE`, `REFERENCES`, and `TRIGGER` from `authenticated` on both new tables;
-- rerun `npx supabase db reset`;
-- rerun grants/RLS validation;
-- rerun lint/tests/build;
-- wait for CI.
+`AUDIT-ACTIVITY-REPOSITORY-001B`
