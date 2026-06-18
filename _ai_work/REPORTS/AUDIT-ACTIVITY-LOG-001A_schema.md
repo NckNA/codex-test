@@ -17,11 +17,11 @@ The existing `public.audit_logs` table is not removed, renamed, backfilled, or d
 
 ## PR URL
 
-Pending until PR creation.
+https://github.com/NckNA/codex-test/pull/303
 
 ## PR head reviewed before final report update
 
-Pending until final report update.
+`8b2a974ad1351b6dddb5646d2bc8a429a7b61c48`
 
 ## Report update commit
 
@@ -102,7 +102,7 @@ Safe current references used:
 
 - `tenant_id` references `public.tenants(id)`.
 - `actor_user_id` references `auth.users(id)`.
-- patient references use `(tenant_id, patient_id)` against `public.patients(tenant_id, id)`.
+- patient references use `(tenant_id, patient_id)` against `public.patients(tenant_id, id)` and clear only `patient_id` if that patient row is deleted, preserving tenant scope.
 
 Future objects are intentionally not hard-FKed because the tables do not exist yet:
 
@@ -294,7 +294,7 @@ Local checks not run from this environment:
 
 GitHub Actions CI:
 
-- pending after PR creation.
+- pending after PR metadata update.
 
 ## Final verdict
 
