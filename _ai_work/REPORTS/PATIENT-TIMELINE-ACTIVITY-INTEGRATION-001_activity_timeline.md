@@ -16,9 +16,9 @@ https://github.com/NckNA/codex-test/pull/306
 
 ## 4. PR head reviewed before final report update
 
-`dc5b68595a6fd1fce34d43b462d6741a1ff198df`
+`a493a576bf8ddcbe8997b837d0465706a7b09dbf`
 
-This is the PR head reviewed before the final report update. It includes the implementation commits and the initial report commit.
+This is the PR head reviewed before the final report update. It includes the implementation commits and the final verified report state from CI #529.
 
 ## 5. Report update commit
 
@@ -332,14 +332,13 @@ Both commands exited successfully.
 Fresh CI after push:
 
 - Workflow: `CI`
-- Run id: `27752631877`
-- CI number: `528`
-- Tested commit: `dc5b68595a6fd1fce34d43b462d6741a1ff198df`
+- Run id: `27752767059`
+- CI number: `529`
+- Tested commit: `a493a576bf8ddcbe8997b837d0465706a7b09dbf`
 - Status: completed
 - Conclusion: success
 - Required checks: ESLint, tests, build passed.
 
-A final report-only commit will be pushed after this update; that commit cannot include its own future CI result inside this file before it exists.
 
 ## 19. Final verdict
 
