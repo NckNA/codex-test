@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/305
 
 ## PR head reviewed before final report update
 
-`34e3a86246fb50633d032aa64a17d4fea0e4b257`
+`4bd54ebf1d5df6aca2ac9c0cecd5c67b59eb15ac`
 
 ## Changed files summary
 
@@ -246,9 +246,24 @@ Notes:
 - Test run emitted existing React `act(...)` warnings and intentional repository error logs from error-handling tests.
 - Exit code remained 0.
 
-## GitHub Actions CI after final push
+## GitHub Actions CI after validation report push
 
-Pending at the moment of this local validation report update. This section must be updated after pushing the report commit and waiting for fresh CI.
+Fresh GitHub Actions CI was checked after pushing the local validation report update.
+
+| field | value |
+|---|---|
+| workflow | `CI` |
+| run id | `27749157274` |
+| CI number | `523` |
+| status | `completed` |
+| conclusion | `success` |
+| tested commit | `4bd54ebf1d5df6aca2ac9c0cecd5c67b59eb15ac` |
+| job | `validate` |
+| ESLint | success |
+| tests | success |
+| build | success |
+
+Final report metadata update requires one additional commit after this CI result is recorded. Fresh CI must also be checked on that final commit.
 
 ## Cloud / browser / UI status
 
