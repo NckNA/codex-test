@@ -143,7 +143,7 @@ export interface AuditActivityRepository {
   listPatientActivityEvents(options: ListPatientActivityEventsOptions): Promise<ActivityEvent[]>;
 }
 
-export type AuditActivityRepositoryBackend = 'supabase';
+export type AuditActivityRepositoryBackend = 'supabase' | 'local';
 
 export interface CreateAuditActivityRepositoryOptions {
   backend: AuditActivityRepositoryBackend;
@@ -387,8 +387,8 @@ export class SupabaseAuditActivityRepository implements AuditActivityRepository 
 }
 
 export function createAuditActivityRepository(options: CreateAuditActivityRepositoryOptions): AuditActivityRepository {
-  if (options.backend !== 'supabase') {
-    throw new Error('Audit/activity repository only supports Supabase backend.');
+  if (options.backend === 'local') {
+    throw new Error('Audit/activity repository does not support localStorage fallback.');
   }
 
   const client = options.client ?? defaultSupabase;
