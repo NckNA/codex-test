@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/302
 
 ## 4. PR head reviewed before final report update
 
-`bf3f56090d1f57959d3b7f3ef50afa7d02cda391`
+`4ad55feda668473e4fbf07e866008727a17f56d4`
 
 ## 5. Report update commit
 
@@ -49,19 +49,7 @@ Current migration `0001_initial_schema.sql` creates `audit_logs` with:
 
 RLS is enabled for `audit_logs`. Tenant members can read tenant audit logs, and users can insert audit logs in their tenant. Update and delete are intentionally not granted.
 
-This means DentalFlow has an audit-like scaffold, but not a mature compliance/event architecture. Missing pieces include:
-
-- before/after safe diff;
-- redaction policy;
-- severity;
-- event category;
-- role visibility;
-- reason/correction note;
-- correction chain;
-- request/session context;
-- patient/appointment/visit/encounter/completed-service/payment/stock/file link columns;
-- support access mode;
-- explicit write-path rules.
+This means DentalFlow has an audit-like scaffold, but not a mature compliance/event architecture. Missing pieces include before/after safe diff, redaction policy, severity, event category, role visibility, reason/correction note, correction chain, request/session context, patient/appointment/visit/encounter/completed-service/payment/stock/file link columns, support access mode, and explicit write-path rules.
 
 There is no dedicated activity feed UI. Patient timeline is currently computed from source tables and should remain distinct from raw audit.
 
@@ -69,13 +57,13 @@ There is no dedicated activity feed UI. Patient timeline is currently computed f
 
 Current source inspection:
 
-- `patients`: has `created_at`/`updated_at`, but no `created_by` or `updated_by` in the inspected initial schema.
+- `patients`: has `created_at` and `updated_at`, but no `created_by` or `updated_by` in the inspected initial schema.
 - `appointments`: has `doctor_id`, `created_at`, `updated_at`, but no `created_by` or `updated_by`.
-- `findings`: has `created_at`/`updated_at`, but no `created_by`, `updated_by`, or `archived_by`; archive is currently represented through status update in code.
-- `treatment_plans`: has `created_at`/`updated_at`, but no actor fields.
-- `treatment_stages`: has `created_at`/`updated_at`, but no actor fields.
+- `findings`: has `created_at` and `updated_at`, but no `created_by`, `updated_by`, or `archived_by`; archive is currently represented through status update in code.
+- `treatment_plans`: has `created_at` and `updated_at`, but no actor fields.
+- `treatment_stages`: has `created_at` and `updated_at`, but no actor fields.
 - `patient_files`: has `uploaded_by`, `archived_by`, `created_at`, `updated_at`, and `archived_at`.
-- `tenant_users`: has `user_id`, `role`, and `created_at`; no actor fields for who granted/revoked role.
+- `tenant_users`: has `user_id`, `role`, and `created_at`; no actor fields for who granted or revoked role.
 - `clinical dictionary` data exists as product dictionary/template direction, but dictionary import/bootstrap is not yet a robust audited product flow.
 - `storage.objects`: storage policy is tenant/path-based, but metadata in `patient_files` is the proper auditable application record.
 
@@ -134,17 +122,7 @@ The current system cannot reliably answer, for every sensitive object:
 
 An immutable security/compliance record of a data mutation or sensitive access/action.
 
-It must answer:
-
-- who performed the action;
-- in which tenant/context;
-- what object was targeted;
-- what action occurred;
-- when it occurred;
-- before/after or safe diff where needed;
-- reason/correction note where needed;
-- request/session context where safe;
-- whether the event is security, clinical, financial, support, or system relevant.
+It must answer who performed the action, in which tenant/context, what object was targeted, what action occurred, when it occurred, before/after or safe diff where needed, reason/correction note where needed, request/session context where safe, and whether the event is security, clinical, financial, support, or system relevant.
 
 Audit is for accountability, investigation, correction history, compliance, and debugging high-risk workflow. Audit must not be freely editable or used as a casual UI note bucket.
 
@@ -152,22 +130,11 @@ Audit is for accountability, investigation, correction history, compliance, and 
 
 A product-level workflow event that is safe and useful for users. It may be derived from audit events or from source tables.
 
-Examples:
-
-- appointment cancelled;
-- visit checked in;
-- encounter completed;
-- file uploaded;
-- service corrected;
-- payment recorded.
-
-Activity is summarized. It should not expose raw diffs or sensitive hidden fields.
+Examples include appointment cancelled, visit checked in, encounter completed, file uploaded, service corrected, or payment recorded. Activity is summarized and should not expose raw diffs or sensitive hidden fields.
 
 ### Patient timeline event
 
-A patient-centered chronological UI event. It can combine source-computed facts and selected activity events.
-
-It should respect role visibility and avoid raw audit details. The patient timeline is not the canonical audit log. It is the readable patient story, not the black box recorder.
+A patient-centered chronological UI event. It can combine source-computed facts and selected activity events. It should respect role visibility and avoid raw audit details. The patient timeline is not the canonical audit log. It is the readable patient story, not the black box recorder.
 
 ### System log
 
@@ -217,7 +184,7 @@ Verdict: useful as a safety layer for selected high-risk tables later, but not a
 
 ### Option 3: RPC/service-layer mutations only
 
-Sensitive mutations go through SQL RPC or trusted service functions that write domain object + audit atomically.
+Sensitive mutations go through SQL RPC or trusted service functions that write domain object and audit atomically.
 
 Pros:
 
@@ -755,11 +722,11 @@ Any future assistant that reads or acts on patient, financial, or clinical data 
 
 ## 20. Checks
 
-- `git status --short`: report-only branch, exactly one new report file.
+- `git status --short`: report-only branch, exactly one report file.
 - `npm run lint`: passed in GitHub Actions.
 - `npm run test -- --run`: passed in GitHub Actions.
 - `npm run build`: passed in GitHub Actions.
-- GitHub Actions CI: run `27739351296` / CI `#501` / success / tested commit `bf3f56090d1f57959d3b7f3ef50afa7d02cda391`.
+- GitHub Actions CI: run `27739453244` / CI `#502` / success / tested commit `4ad55feda668473e4fbf07e866008727a17f56d4`.
 
 ## 21. Final verdict
 
