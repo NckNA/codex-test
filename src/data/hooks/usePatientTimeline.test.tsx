@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => {
   const listAppointmentsByPatient = vi.fn();
   const listPatientFiles = vi.fn();
   const getDentalChart = vi.fn();
+  const listPatientActivityEvents = vi.fn();
+  const listAuditEvents = vi.fn();
 
   return {
     getChiefComplaint,
@@ -24,12 +26,15 @@ const mocks = vi.hoisted(() => {
     listAppointmentsByPatient,
     listPatientFiles,
     getDentalChart,
+    listPatientActivityEvents,
+    listAuditEvents,
     createChiefComplaintRepository: vi.fn(() => ({ getChiefComplaint })),
     createFindingsRepository: vi.fn(() => ({ listFindingsByPatient })),
     createTreatmentPlansRepository: vi.fn(() => ({ listTreatmentPlansByPatient })),
     createAppointmentRepository: vi.fn(() => ({ listAppointmentsByPatient })),
     createPatientFilesRepository: vi.fn(() => ({ listPatientFiles })),
     createDentalChartRepository: vi.fn(() => ({ getDentalChart })),
+    createAuditActivityRepository: vi.fn(() => ({ listPatientActivityEvents, listAuditEvents })),
     buildPatientTimeline: vi.fn(),
   };
 });
@@ -43,6 +48,7 @@ vi.mock('../repositories/TreatmentPlansRepository', () => ({ createTreatmentPlan
 vi.mock('../repositories/AppointmentRepository', () => ({ createAppointmentRepository: mocks.createAppointmentRepository }));
 vi.mock('../repositories/PatientFilesRepository', () => ({ createPatientFilesRepository: mocks.createPatientFilesRepository }));
 vi.mock('../repositories/DentalChartRepository', () => ({ createDentalChartRepository: mocks.createDentalChartRepository }));
+vi.mock('../repositories/AuditActivityRepository', () => ({ createAuditActivityRepository: mocks.createAuditActivityRepository }));
 vi.mock('../aggregators/PatientTimelineAggregator', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../aggregators/PatientTimelineAggregator')>();
   return {
@@ -90,10 +96,25 @@ describe('usePatientTimeline', () => {
     mocks.listAppointmentsByPatient.mockResolvedValue([]);
     mocks.listPatientFiles.mockResolvedValue([]);
     mocks.getDentalChart.mockResolvedValue(null);
-    mocks.buildPatientTimeline.mockReturnValue([{ id: 'event-1', tenantId: 'tenant-1', patientId: 'patient-1', occurredAt: '2026-01-01T00:00:00.000Z', category: 'finding', type: 'finding_discovered', title: 'Выявлена находка', sourceType: 'finding', sourceId: 'finding-1', visibility: 'clinical' }]);
+    mocks.listPatientActivityEvents.mockResolvedValue([]);
+    mocks.listAuditEvents.mockResolvedValue([]);
+    mocks.buildPatientTimeline.mockReturnValue([
+      {
+        id: 'event-1',
+        tenantId: 'tenant-1',
+        patientId: 'patient-1',
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        category: 'finding',
+        type: 'finding_discovered',
+        title: 'Finding discovered',
+        sourceType: 'finding',
+        sourceId: 'finding-1',
+        visibility: 'clinical',
+      },
+    ]);
   });
 
-  it('loads existing patient sources and builds role-visible timeline events', async () => {
+  it('loads existing patient sources and activity events before building role-visible timeline events', async () => {
     const { container, root, render } = renderHook(patient, true);
     const latest = await render();
 
@@ -103,9 +124,18 @@ describe('usePatientTimeline', () => {
     expect(mocks.listAppointmentsByPatient).toHaveBeenCalledWith('patient-1');
     expect(mocks.listPatientFiles).toHaveBeenCalledWith('patient-1', true);
     expect(mocks.getDentalChart).toHaveBeenCalledWith('patient-1');
-    expect(buildPatientTimeline).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-1', patientId: 'patient-1', patient, includeArchived: true }));
+    expect(mocks.createAuditActivityRepository).toHaveBeenCalledWith({ backend: 'supabase' });
+    expect(mocks.listPatientActivityEvents).toHaveBeenCalledWith({ tenantId: 'tenant-1', patientId: 'patient-1', includeArchived: true });
+    expect(mocks.listAuditEvents).not.toHaveBeenCalled();
+    expect(buildPatientTimeline).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId: 'tenant-1',
+      patientId: 'patient-1',
+      patient,
+      activityEvents: [],
+      includeArchived: true,
+    }));
     expect(latest?.events).toHaveLength(1);
-    expect(container.textContent).toContain('Выявлена находка');
+    expect(container.textContent).toContain('Finding discovered');
     act(() => root.unmount());
   });
 
@@ -116,6 +146,7 @@ describe('usePatientTimeline', () => {
 
     expect(latest?.events).toEqual([]);
     expect(mocks.createChiefComplaintRepository).not.toHaveBeenCalled();
+    expect(mocks.createAuditActivityRepository).not.toHaveBeenCalled();
     expect(buildPatientTimeline).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
@@ -126,7 +157,30 @@ describe('usePatientTimeline', () => {
 
     expect(latest?.events).toEqual([]);
     expect(mocks.createChiefComplaintRepository).not.toHaveBeenCalled();
+    expect(mocks.createAuditActivityRepository).not.toHaveBeenCalled();
     expect(buildPatientTimeline).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('surfaces activity repository errors instead of silently hiding them', async () => {
+    mocks.listPatientActivityEvents.mockRejectedValue(new Error('activity load failed'));
+    const { root, render } = renderHook(patient);
+    const latest = await render();
+
+    expect(mocks.listPatientActivityEvents).toHaveBeenCalledWith({ tenantId: 'tenant-1', patientId: 'patient-1', includeArchived: false });
+    expect(latest?.isError).toBe(true);
+    expect(latest?.error?.message).toBe('activity load failed');
+    act(() => root.unmount());
+  });
+
+  it('does not query activity repository in non-Supabase local mode and does not create a local fallback', async () => {
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'local' } as unknown as ReturnType<typeof useAuth>);
+    const { root, render } = renderHook(patient);
+    await render();
+
+    expect(mocks.createAuditActivityRepository).not.toHaveBeenCalled();
+    expect(mocks.listPatientActivityEvents).not.toHaveBeenCalled();
+    expect(buildPatientTimeline).toHaveBeenCalledWith(expect.objectContaining({ activityEvents: [] }));
     act(() => root.unmount());
   });
 });

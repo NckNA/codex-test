@@ -10,6 +10,7 @@ import { createTreatmentPlansRepository } from '../repositories/TreatmentPlansRe
 import { createAppointmentRepository } from '../repositories/AppointmentRepository';
 import { createPatientFilesRepository } from '../repositories/PatientFilesRepository';
 import { createDentalChartRepository } from '../repositories/DentalChartRepository';
+import { createAuditActivityRepository } from '../repositories/AuditActivityRepository';
 import {
   buildPatientTimeline,
   canRoleSeePatientTimelineEvent,
@@ -48,14 +49,24 @@ export function usePatientTimeline({ patient, includeArchived = false }: UsePati
     const appointmentRepository = createAppointmentRepository(repositoryConfig);
     const patientFilesRepository = createPatientFilesRepository(repositoryConfig);
     const dentalChartRepository = createDentalChartRepository(repositoryConfig);
+    const activityRepository = repositoryConfig.backend === 'supabase'
+      ? createAuditActivityRepository({ backend: 'supabase' })
+      : null;
 
-    const [chiefComplaint, findings, treatmentPlans, appointments, patientFiles, dentalChart] = await Promise.all([
+    const [chiefComplaint, findings, treatmentPlans, appointments, patientFiles, dentalChart, activityEvents] = await Promise.all([
       chiefComplaintRepository.getChiefComplaint(patient.id),
       findingsRepository.listFindingsByPatient(patient.id),
       treatmentPlansRepository.listTreatmentPlansByPatient(patient.id),
       appointmentRepository.listAppointmentsByPatient(patient.id),
       patientFilesRepository.listPatientFiles(patient.id, includeArchived),
       dentalChartRepository.getDentalChart(patient.id),
+      activityRepository
+        ? activityRepository.listPatientActivityEvents({
+          tenantId: activeTenant.tenantId,
+          patientId: patient.id,
+          includeArchived,
+        })
+        : Promise.resolve([]),
     ]);
 
     const events = buildPatientTimeline({
@@ -67,6 +78,7 @@ export function usePatientTimeline({ patient, includeArchived = false }: UsePati
       treatmentPlans,
       appointments,
       patientFiles,
+      activityEvents,
       dentalChart,
       includeArchived,
     });

@@ -8,6 +8,7 @@ import type {
 } from '../../types';
 import { isArchivedFindingStatus } from '../../domain/findingStatus';
 import type { PatientFileRecord } from '../repositories/PatientFilesRepository';
+import type { ActivityEvent, ActivityEventCategory } from '../repositories/AuditActivityRepository';
 
 export type PatientTimelineEventCategory =
   | 'patient'
@@ -34,7 +35,9 @@ export type PatientTimelineSourceType =
   | 'patient_file'
   | 'payment'
   | 'stock_movement'
-  | 'audit_event';
+  | 'audit_event'
+  | 'activity_event'
+  | (string & {});
 
 export interface PatientTimelineEvent {
   id: string;
@@ -55,6 +58,8 @@ export interface PatientTimelineEvent {
   treatmentStageId?: string | null;
   appointmentId?: string | null;
   fileId?: string | null;
+  activityEventId?: string | null;
+  auditEventId?: string | null;
   actorUserId?: string | null;
   actorLabel?: string | null;
   isArchived?: boolean;
@@ -84,6 +89,7 @@ export interface BuildPatientTimelineInput {
   treatmentPlans?: TreatmentPlan[];
   appointments?: Appointment[];
   patientFiles?: TimelinePatientFile[];
+  activityEvents?: ActivityEvent[];
   dentalChart?: DentalChart | null;
   includeArchived?: boolean;
 }
@@ -99,6 +105,24 @@ const CATEGORY_ORDER: Record<PatientTimelineEventCategory, number> = {
   payment: 80,
   stock: 90,
   audit: 100,
+};
+
+export const ACTIVITY_TIMELINE_CATEGORY_MAP: Record<ActivityEventCategory, PatientTimelineEventCategory> = {
+  patient: 'patient',
+  complaint: 'complaint',
+  dental_chart: 'dental_chart',
+  finding: 'finding',
+  treatment_plan: 'treatment_plan',
+  appointment: 'appointment',
+  visit: 'appointment',
+  encounter: 'appointment',
+  completed_service: 'treatment_plan',
+  file: 'file',
+  document: 'file',
+  payment: 'payment',
+  stock: 'stock',
+  audit: 'audit',
+  system: 'audit',
 };
 
 export const ACTIVE_CLINIC_REQUIRED_FOR_TIMELINE = 'Active clinic is required for patient timeline.';
@@ -329,6 +353,47 @@ function buildPatientFileEvents(input: BuildPatientTimelineInput): PatientTimeli
   });
 }
 
+function buildActivityEvents(input: BuildPatientTimelineInput): PatientTimelineEvent[] {
+  return (input.activityEvents ?? []).flatMap((activityEvent) => {
+    if (activityEvent.tenantId !== input.tenantId) return [];
+    if (activityEvent.patientId !== input.patientId) return [];
+    if (activityEvent.isArchived && !input.includeArchived) return [];
+
+    const occurredAt = isValidIsoLikeDate(activityEvent.occurredAt)
+      ? activityEvent.occurredAt
+      : activityEvent.createdAt;
+
+    const event = createEvent({
+      id: eventId('activity_event', activityEvent.id, activityEvent.type || 'activity'),
+      tenantId: input.tenantId,
+      patientId: input.patientId,
+      occurredAt,
+      category: ACTIVITY_TIMELINE_CATEGORY_MAP[activityEvent.category],
+      type: activityEvent.type || 'activity_event',
+      title: activityEvent.title,
+      description: activityEvent.description ?? undefined,
+      sourceType: activityEvent.sourceType || 'activity_event',
+      sourceId: activityEvent.sourceId || activityEvent.id,
+      sourceStatus: activityEvent.sourceStatus ?? undefined,
+      visibility: activityEvent.visibility,
+      activityEventId: activityEvent.id,
+      auditEventId: activityEvent.auditEventId ?? null,
+      actorUserId: activityEvent.actorUserId ?? null,
+      isArchived: activityEvent.isArchived,
+      linkTarget: 'patient_timeline',
+      metadata: {
+        activityEventId: activityEvent.id,
+        auditEventId: activityEvent.auditEventId ?? null,
+        activityCategory: activityEvent.category,
+        originalSourceType: activityEvent.sourceType,
+        severity: activityEvent.severity,
+      },
+    });
+
+    return event ? [event] : [];
+  });
+}
+
 export function buildPatientTimeline(input: BuildPatientTimelineInput): PatientTimelineEvent[] {
   if (!input.tenantId) throw new Error(ACTIVE_CLINIC_REQUIRED_FOR_TIMELINE);
   if (!input.patientId) throw new Error(PATIENT_REQUIRED_FOR_TIMELINE);
@@ -341,6 +406,7 @@ export function buildPatientTimeline(input: BuildPatientTimelineInput): PatientT
   events.push(...buildTreatmentPlanEvents(input));
   events.push(...buildAppointmentEvents(input));
   events.push(...buildPatientFileEvents(input));
+  events.push(...buildActivityEvents(input));
 
   // Dental chart changes are intentionally not emitted yet because the current chart model has
   // tooth-level updatedAt values but no reliable per-change actor/type history.
