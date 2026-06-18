@@ -14,11 +14,11 @@ The PR does not expose arbitrary raw audit/activity writes to authenticated brow
 
 ## PR URL
 
-TBD before PR creation.
+https://github.com/NckNA/codex-test/pull/305
 
 ## PR head reviewed before final report update
 
-TBD before final report update.
+`d8c95496c56e40d470d5046351bfb91157b68f5b`
 
 ## Report update commit
 
