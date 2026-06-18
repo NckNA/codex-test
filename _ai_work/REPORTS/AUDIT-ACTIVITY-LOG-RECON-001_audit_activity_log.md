@@ -14,11 +14,11 @@ Recommendation: use a hybrid staged approach. Keep patient timeline as a patient
 
 ## 3. PR URL
 
-Pending until PR creation.
+https://github.com/NckNA/codex-test/pull/302
 
 ## 4. PR head reviewed before final report update
 
-Pending final report update.
+`66e043b71767d6308cec7232b60e205d4b66b744`
 
 ## 5. Report update commit
 
