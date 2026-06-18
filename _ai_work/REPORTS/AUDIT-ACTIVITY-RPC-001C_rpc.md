@@ -4,7 +4,7 @@
 
 This PR adds a schema-only SQL helper foundation for trusted transactional audit/activity writes.
 
-It adds internal database helper functions that future domain-specific RPCs can call in the same transaction as sensitive mutations.
+It adds internal `SECURITY DEFINER` database helper functions that future domain-specific RPCs can call in the same transaction as sensitive mutations.
 
 The PR does not expose arbitrary raw audit/activity writes to authenticated browser users.
 
@@ -18,11 +18,7 @@ https://github.com/NckNA/codex-test/pull/305
 
 ## PR head reviewed before final report update
 
-`b5ad766b3ffacd608fcecebc93a128d97d4fe217`
-
-## Report update commit
-
-N/A because the final report update commit cannot reference itself before creation.
+`34e3a86246fb50633d032aa64a17d4fea0e4b257`
 
 ## Changed files summary
 
@@ -31,187 +27,242 @@ Expected files only:
 - `supabase/migrations/0013_create_audit_activity_rpc.sql`
 - `_ai_work/REPORTS/AUDIT-ACTIVITY-RPC-001C_rpc.md`
 
-No app code, UI, repository write methods, seed, browser smoke, or cloud changes.
+No app code, UI, repository write methods, timeline integration, browser smoke, seed changes, or cloud changes.
 
-## Current RPC/function recon
+## Local Supabase status
 
-Existing `save_treatment_plan_with_stages(...)` uses `SECURITY INVOKER`, sets `search_path = public`, revokes public execute, and grants execute to authenticated users. It performs a domain-specific transactional write for treatment plans and stages.
+Local Supabase was used only against the local Docker stack.
 
-Existing RLS helpers `get_user_tenants()` and `has_tenant_role(uuid, app_role[])` were grant-hardened in migration `0008_harden_rls_helper_function_grants.sql` by revoking execute from `anon` and `PUBLIC`, while granting execute to authenticated and service_role.
+`npx supabase status` result:
 
-Current audit/activity schema from `0012_create_audit_activity_log.sql` already contains:
+- local DB/API stack reachable;
+- local DB container: `supabase_db_codex-test-supabase`;
+- project URL: `http://127.0.0.1:54321`;
+- local database: `127.0.0.1:54322/postgres`;
+- warning: Supabase CLI reported stopped optional services: `imgproxy`, `edge_runtime`, and `pooler`;
+- no Supabase cloud project was touched.
 
-- `public.audit_events`
-- `public.activity_events`
-- RLS on both tables
-- conservative table grants
-- no broad client insert/update/delete
-- legacy `public.audit_logs` preserved as minimal scaffold
+Local development keys printed by the CLI were treated as secrets and are intentionally not recorded in this report.
 
-## Migration summary
+## Local migration replay / reset
 
-Migration added:
+Command executed:
 
-`supabase/migrations/0013_create_audit_activity_rpc.sql`
+```bash
+npx supabase db reset
+```
 
-Created functions:
+Result: PASS.
+
+Migration replay applied through:
+
+- `0012_create_audit_activity_log.sql`
+- `0013_create_audit_activity_rpc.sql`
+
+Seed completed after migration replay.
+
+## Function existence checks
+
+Validated through local PostgreSQL catalog inspection.
+
+| function | exists |
+|---|---:|
+| `public.record_audit_event_internal(...)` | yes |
+| `public.record_activity_event_internal(...)` | yes |
+
+## Function security shape
+
+Validated from the migration and local catalog.
+
+| function | security | search_path |
+|---|---|---|
+| `public.record_audit_event_internal(...)` | `SECURITY DEFINER` | `public, pg_temp` |
+| `public.record_activity_event_internal(...)` | `SECURITY DEFINER` | `public, pg_temp` |
+
+## Function grants validation
+
+Validated with `has_function_privilege(...)` and function ACL inspection.
+
+| role | `record_audit_event_internal` EXECUTE | `record_activity_event_internal` EXECUTE |
+|---|---:|---:|
+| `PUBLIC` | no | no |
+| `anon` | no | no |
+| `authenticated` | no | no |
+| `service_role` | yes | yes |
+
+Result: PASS.
+
+## Table grants unchanged
+
+Validated with `has_table_privilege(...)` after local reset.
+
+### `public.audit_events`
+
+| role | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `authenticated` | yes | no | no | no | no | no | no |
+| `anon` | no | no | no | no | no | no | no |
+
+### `public.activity_events`
+
+| role | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `authenticated` | yes | no | no | no | no | no | no |
+| `anon` | no | no | no | no | no | no | no |
+
+Result: PASS.
+
+## RLS unchanged
+
+Validated from `pg_class.relrowsecurity` after local reset.
+
+| table | RLS enabled |
+|---|---:|
+| `public.audit_events` | yes |
+| `public.activity_events` | yes |
+
+Result: PASS.
+
+## Counts after reset
+
+| table | count |
+|---|---:|
+| `public.audit_events` | 0 |
+| `public.activity_events` | 0 |
+
+Result: PASS.
+
+## Authenticated direct helper execution blocked
+
+Validated with `SET LOCAL ROLE authenticated` inside a transaction.
+
+Attempted direct call:
 
 - `public.record_audit_event_internal(...)`
-- `public.record_activity_event_internal(...)`
 
-The optional combined helper was intentionally deferred. Future domain RPCs can call both internal helpers in the same transaction when both raw audit and product activity rows are needed.
+Expected result:
 
-## Security model
+- `insufficient_privilege`
 
-The helpers are internal trusted write helpers, not browser-facing raw audit writers.
+Observed result:
 
-Both helper functions are:
+- blocked
 
-- `SECURITY DEFINER`
-- `SET search_path = public, pg_temp`
-- revoked from `PUBLIC`
-- revoked from `anon`
-- revoked from `authenticated`
-- granted only to `service_role`
+Result: PASS.
 
-This prevents normal authenticated browser code from creating fake audit or activity rows directly.
+## Authenticated direct table INSERT blocked
 
-Future domain-specific RPCs should enforce tenant/role/business rules and then call these helpers transactionally.
+Validated with `SET LOCAL ROLE authenticated` inside a transaction.
 
-## Function behavior
+Attempted direct insert:
 
-### `record_audit_event_internal(...)`
+- `INSERT INTO public.audit_events (...)`
 
-Inserts one row into `public.audit_events` and returns the inserted audit event id.
+Expected result:
 
-It validates:
+- `insufficient_privilege`
 
-- non-empty `action`
-- allowed audit `category`
-- non-empty `target_type`
-- non-empty `target_id`
-- allowed `severity`
-- allowed `redaction_level`
-- `metadata` is a JSON object
-- `before_data`, `after_data`, and `diff_data` are JSON objects when provided
+Observed result:
 
-It supports future links for patient, appointment, visit, encounter, treatment plan, stage, finding, file, payment, and stock movement.
+- blocked
 
-### `record_activity_event_internal(...)`
+Result: PASS.
 
-Inserts one row into `public.activity_events` and returns the inserted activity event id.
+## Trusted helper insert tests
 
-It validates:
+Validated with `SET LOCAL ROLE service_role` inside a transaction.
 
-- non-null `tenant_id`
-- allowed activity `category`
-- non-empty `type`
-- non-empty `title`
-- non-empty `source_type`
-- non-empty `source_id`
-- allowed `visibility`
-- allowed `severity`
-- `metadata` is a JSON object
+| test | result |
+|---|---:|
+| valid audit helper insert works | PASS |
+| valid activity helper insert works | PASS |
+| activity helper links `audit_event_id` | PASS |
+| test rows are rolled back | PASS |
 
-It optionally links to `audit_event_id` and patient id.
+## RLS simulation
 
-## Grants and revokes
+Validated using local transaction fixtures in `auth.users`, `profiles`, `tenants`, and `tenant_users`, all rolled back.
 
-No table grants were expanded.
+| scenario | result |
+|---|---:|
+| `anon` cannot select `audit_events` | PASS |
+| `anon` cannot select `activity_events` | PASS |
+| no-tenant authenticated user sees 0 audit rows | PASS |
+| no-tenant authenticated user sees 0 activity rows | PASS |
+| cross-tenant user cannot see other tenant audit rows | PASS |
+| cross-tenant user cannot see other tenant activity rows | PASS |
+| `clinic_owner` can read tenant audit/activity | PASS |
+| `clinic_admin` can read tenant audit/activity | PASS |
+| `doctor` cannot read raw audit events | PASS |
+| `doctor` can read `clinical` and `admin` activity events | PASS |
+| `registrar` cannot read raw audit events | PASS |
+| `registrar` can read `admin` activity events only | PASS |
+| `cashier` cannot read raw audit events | PASS |
+| `cashier` can read `financial` and `admin` activity events | PASS |
 
-Function grants are conservative:
+Result: PASS.
 
-- `PUBLIC`: no execute
-- `anon`: no execute
-- `authenticated`: no execute
-- `service_role`: execute
+## Invalid payload tests
 
-No broad client write path was added.
+Validated with trusted helper calls inside a transaction. Each case was expected to raise and did raise.
 
-## Validation status
+| invalid payload | result |
+|---|---:|
+| empty audit `action` | rejected |
+| empty audit `target_type` | rejected |
+| empty audit `target_id` | rejected |
+| invalid audit `category` | rejected |
+| invalid activity `category` | rejected |
+| invalid audit `severity` | rejected |
+| invalid audit `redaction_level` | rejected |
+| audit `metadata` array/non-object | rejected |
+| activity `metadata` array/non-object | rejected |
+| audit `before_data` array/non-object | rejected |
 
-GitHub Actions CI passed for the current code/report head:
+Result: PASS.
 
-- run: `27747624664`
-- CI: `#521`
-- tested commit: `b5ad766b3ffacd608fcecebc93a128d97d4fe217`
-- ESLint: success
-- tests: success
-- build: success
+## Rollback / final counts
 
-Local Supabase validation is still required and was not run in this environment because no local terminal/Supabase CLI is available here.
+After the transaction rollback, final counts were validated again.
 
-Not run locally here:
+| table | count |
+|---|---:|
+| `public.audit_events` | 0 |
+| `public.activity_events` | 0 |
 
-- `npx supabase status`
-- `npx supabase db reset`
-- local function existence SQL checks
-- local grant checks
-- local authenticated direct helper execution denial
-- local service_role helper insert tests
-- local invalid payload tests
-- local rollback/count cleanup validation
-- local advisor checks
+Result: PASS.
 
-Because cloud is explicitly forbidden for this task, Supabase cloud was not used as a substitute.
+## Local checks
 
-## Expected local validation checklist for reviewer/agent with terminal
+| command | result |
+|---|---:|
+| `git status --short` before report update | clean |
+| `npm run lint` | PASS |
+| `npm run test -- --run` | PASS, 45 files / 366 tests |
+| `npm run build` | PASS |
 
-Run locally only:
+Notes:
 
-- `npx supabase status`
-- `npx supabase db reset`
-- confirm both helper functions exist
-- confirm PUBLIC/anon/authenticated cannot execute internal helpers
-- confirm service_role/trusted context can execute helpers
-- confirm direct authenticated table inserts remain blocked
-- confirm RLS remains enabled on `audit_events` and `activity_events`
-- confirm table grants remain conservative
-- confirm valid helper inserts work inside rollback transaction
-- confirm invalid payloads are rejected
-- confirm final counts for `audit_events` and `activity_events` are zero after rollback/cleanup
+- Test run emitted existing React `act(...)` warnings and intentional repository error logs from error-handling tests.
+- Exit code remained 0.
 
-## What was intentionally NOT changed
+## GitHub Actions CI after final push
 
-- no Supabase cloud
-- no app UI
-- no frontend write repository methods
-- no timeline integration
-- no existing mutation wiring
-- no visits/encounters
-- no completed services
-- no payments
-- no stock
-- no documents
-- no seed/backfill
-- no legacy `audit_logs` destructive change
+Pending at the moment of this local validation report update. This section must be updated after pushing the report commit and waiting for fresh CI.
 
-## Checks
+## Cloud / browser / UI status
 
-Local checks:
-
-- `git status --short`: not run here
-- `npm run lint`: not run locally here
-- `npm run test -- --run`: not run locally here
-- `npm run build`: not run locally here
-- local Supabase reset: not run here
-
-GitHub Actions CI:
-
-- run: `27747624664`
-- CI: `#521`
-- status: completed
-- conclusion: success
-- tested commit: `b5ad766b3ffacd608fcecebc93a128d97d4fe217`
+- Supabase cloud: not touched.
+- Browser smoke: not run.
+- UI: not changed.
+- Frontend write repository methods: not added.
+- Timeline/domain integration: not started.
+- Visits/encounters work: not started.
 
 ## Final verdict
 
-PARTIAL
-
-Reason: migration and report are created, and GitHub Actions CI is green, but local Supabase replay/RLS/grant/helper execution validation is not available in this environment and must be run by an agent with local terminal/Supabase CLI access.
+`AUDIT ACTIVITY RPC FOUNDATION IMPLEMENTED AND VERIFIED`
 
 ## Recommended next task
 
-PATIENT-TIMELINE-ACTIVITY-INTEGRATION-001 only after local Supabase validation of this PR passes.
-
-If local validation finds SQL/grant issues, do `AUDIT-ACTIVITY-RPC-001C-FIX` first.
+`PATIENT-TIMELINE-ACTIVITY-INTEGRATION-001`
