@@ -18,6 +18,7 @@ import { BonusPage } from './pages/BonusPage';
 import { MailingPage } from './pages/MailingPage';
 import { SmsPage } from './pages/SmsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AdminAuditPage } from './pages/AdminAuditPage';
 import { PatientCardPage } from './pages/PatientCardPage';
 import { ClinicalDictionariesProvider } from './data/hooks/useDictionaries';
 
@@ -111,6 +112,7 @@ function AppContent() {
           <Route path="mailing" element={<MailingPage />} />
           <Route path="sms" element={<SmsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="admin/audit" element={<AdminAuditPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

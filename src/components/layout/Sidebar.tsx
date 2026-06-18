@@ -15,8 +15,11 @@ import {
   Gift,
   Mail,
   MessageSquare,
-  Settings
+  Settings,
+  ShieldCheck,
 } from 'lucide-react';
+import { useTenant } from '../../contexts/TenantContext';
+import { canViewAdminAudit } from '../../data/hooks/useAuditActivityEvents';
 
 const navItems = [
   { to: '/', icon: CalendarDays, label: 'Расписание' },
@@ -36,7 +39,16 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Настройки' },
 ];
 
+const adminNavItems = [
+  { to: '/admin/audit', icon: ShieldCheck, label: 'Журнал действий' },
+];
+
 export function Sidebar() {
+  const { activeTenant } = useTenant();
+  const visibleItems = canViewAdminAudit(activeTenant?.role)
+    ? [...navItems, ...adminNavItems]
+    : navItems;
+
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col h-full overflow-y-auto shrink-0 border-r border-slate-800">
       <div className="p-4 border-b border-slate-800/50 sticky top-0 bg-slate-900 z-10">
@@ -49,7 +61,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 py-4">
         <ul className="space-y-1 px-2">
-          {navItems.map((item) => (
+          {visibleItems.map((item) => (
             <li key={item.to}>
               <NavLink
                 to={item.to}
