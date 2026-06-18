@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.audit_events (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT audit_events_patient_fk
-    FOREIGN KEY (tenant_id, patient_id) REFERENCES public.patients(tenant_id, id) ON DELETE SET NULL,
+    FOREIGN KEY (tenant_id, patient_id) REFERENCES public.patients(tenant_id, id) ON DELETE SET NULL (patient_id),
   CONSTRAINT audit_events_action_non_empty CHECK (length(btrim(action)) > 0),
   CONSTRAINT audit_events_target_type_non_empty CHECK (length(btrim(target_type)) > 0),
   CONSTRAINT audit_events_target_id_non_empty CHECK (length(btrim(target_id)) > 0),
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.activity_events (
   is_archived boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT activity_events_patient_fk
-    FOREIGN KEY (tenant_id, patient_id) REFERENCES public.patients(tenant_id, id) ON DELETE SET NULL,
+    FOREIGN KEY (tenant_id, patient_id) REFERENCES public.patients(tenant_id, id) ON DELETE SET NULL (patient_id),
   CONSTRAINT activity_events_category_check CHECK (category IN (
     'patient',
     'complaint',
