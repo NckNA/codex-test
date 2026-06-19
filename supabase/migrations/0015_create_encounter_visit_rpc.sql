@@ -16,6 +16,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_patient_ok boolean;
   v_appointment_ok boolean;
@@ -23,13 +24,22 @@ DECLARE
   v_visit public.patient_visits;
   v_audit_id uuid;
   v_activity_id uuid;
+  v_event_metadata jsonb;
 BEGIN
-  -- 1. Verify tenant is not null
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
+  -- Verify tenant is not null
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
 
-  -- 2. Verify role permissions
+  -- Verify role permissions
   v_role_ok := public.has_tenant_role(
     p_tenant_id,
     ARRAY['clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'registrar'::public.app_role, 'doctor'::public.app_role]
@@ -38,7 +48,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied: insufficient permissions for this tenant';
   END IF;
 
-  -- 3. Verify patient exists in tenant
+  -- Verify patient exists in tenant
   SELECT EXISTS (
     SELECT 1 FROM public.patients
     WHERE id = p_patient_id AND tenant_id = p_tenant_id
@@ -47,7 +57,7 @@ BEGIN
     RAISE EXCEPTION 'Patient not found in this tenant';
   END IF;
 
-  -- 4. Verify appointment belongs to patient and tenant (if provided)
+  -- Verify appointment belongs to patient and tenant (if provided)
   IF p_appointment_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.appointments
@@ -57,7 +67,7 @@ BEGIN
       RAISE EXCEPTION 'Appointment not found or does not belong to this patient/tenant';
     END IF;
 
-    -- 5. Reject if appointment already has an active (non-cancelled, non-archived) visit
+    -- Reject if appointment already has an active (non-cancelled, non-archived) visit
     SELECT EXISTS (
       SELECT 1 FROM public.patient_visits
       WHERE appointment_id = p_appointment_id AND tenant_id = p_tenant_id AND status NOT IN ('cancelled', 'archived')
@@ -67,7 +77,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 6. Insert visit
+  -- Insert visit
   INSERT INTO public.patient_visits (
     tenant_id,
     patient_id,
@@ -91,10 +101,21 @@ BEGIN
     auth.uid(),
     auth.uid(),
     p_notes,
-    p_metadata
+    v_metadata
   ) RETURNING * INTO v_visit;
 
-  -- 7. Log audit event
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'patient_visit_checked_in',
+    'patientId', p_patient_id,
+    'visitId', v_visit.id,
+    'appointmentId', p_appointment_id,
+    'toStatus', 'checked_in',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
+
+  -- Log audit event
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
     'patient_visit_checked_in',
@@ -105,10 +126,10 @@ BEGIN
     p_patient_id => p_patient_id,
     p_appointment_id => p_appointment_id::text,
     p_visit_id => v_visit.id,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
-  -- 8. Log activity event
+  -- Log activity event
   v_activity_id := public.record_activity_event_internal(
     p_tenant_id,
     'visit',
@@ -121,7 +142,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'checked_in',
     p_visibility => 'admin',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_visit;
@@ -139,11 +160,22 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_visit public.patient_visits;
+  v_old_status text;
   v_audit_id uuid;
   v_activity_id uuid;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -165,9 +197,12 @@ BEGIN
     RAISE EXCEPTION 'Patient visit not found in this tenant';
   END IF;
 
+  -- Capture old status
+  v_old_status := v_visit.status;
+
   -- Validate transition
-  IF v_visit.status <> 'checked_in' THEN
-    RAISE EXCEPTION 'Invalid status transition: cannot start visit from status %', v_visit.status;
+  IF v_old_status <> 'checked_in' THEN
+    RAISE EXCEPTION 'Invalid status transition: cannot start visit from status %', v_old_status;
   END IF;
 
   -- Update visit
@@ -177,6 +212,18 @@ BEGIN
       updated_by = auth.uid()
   WHERE id = p_visit_id AND tenant_id = p_tenant_id
   RETURNING * INTO v_visit;
+
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'patient_visit_started',
+    'patientId', v_visit.patient_id,
+    'visitId', p_visit_id,
+    'appointmentId', v_visit.appointment_id,
+    'fromStatus', v_old_status,
+    'toStatus', 'in_progress',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
 
   -- Log audit event
   v_audit_id := public.record_audit_event_internal(
@@ -189,7 +236,7 @@ BEGIN
     p_patient_id => v_visit.patient_id,
     p_appointment_id => v_visit.appointment_id::text,
     p_visit_id => p_visit_id,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   -- Log activity event
@@ -205,7 +252,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'in_progress',
     p_visibility => 'admin',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_visit;
@@ -223,11 +270,22 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_visit public.patient_visits;
+  v_old_status text;
   v_audit_id uuid;
   v_activity_id uuid;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -248,8 +306,11 @@ BEGIN
     RAISE EXCEPTION 'Patient visit not found in this tenant';
   END IF;
 
-  IF v_visit.status NOT IN ('checked_in', 'in_progress') THEN
-    RAISE EXCEPTION 'Invalid status transition: cannot complete visit from status %', v_visit.status;
+  -- Capture old status
+  v_old_status := v_visit.status;
+
+  IF v_old_status NOT IN ('checked_in', 'in_progress') THEN
+    RAISE EXCEPTION 'Invalid status transition: cannot complete visit from status %', v_old_status;
   END IF;
 
   UPDATE public.patient_visits
@@ -258,6 +319,18 @@ BEGIN
       updated_by = auth.uid()
   WHERE id = p_visit_id AND tenant_id = p_tenant_id
   RETURNING * INTO v_visit;
+
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'patient_visit_completed',
+    'patientId', v_visit.patient_id,
+    'visitId', p_visit_id,
+    'appointmentId', v_visit.appointment_id,
+    'fromStatus', v_old_status,
+    'toStatus', 'completed',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
 
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
@@ -269,7 +342,7 @@ BEGIN
     p_patient_id => v_visit.patient_id,
     p_appointment_id => v_visit.appointment_id::text,
     p_visit_id => p_visit_id,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   v_activity_id := public.record_activity_event_internal(
@@ -284,7 +357,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'completed',
     p_visibility => 'admin',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_visit;
@@ -303,12 +376,23 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_visit public.patient_visits;
+  v_old_status text;
   v_audit_id uuid;
   v_activity_id uuid;
   v_final_metadata jsonb;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -333,11 +417,14 @@ BEGIN
     RAISE EXCEPTION 'Patient visit not found in this tenant';
   END IF;
 
-  IF v_visit.status NOT IN ('checked_in', 'in_progress') THEN
-    RAISE EXCEPTION 'Invalid status transition: cannot cancel visit from status %', v_visit.status;
+  -- Capture old status
+  v_old_status := v_visit.status;
+
+  IF v_old_status NOT IN ('checked_in', 'in_progress') THEN
+    RAISE EXCEPTION 'Invalid status transition: cannot cancel visit from status %', v_old_status;
   END IF;
 
-  v_final_metadata := COALESCE(p_metadata, '{}'::jsonb) || jsonb_build_object('cancellation_reason', p_reason);
+  v_final_metadata := COALESCE(v_metadata, '{}'::jsonb) || jsonb_build_object('cancellation_reason', p_reason);
 
   UPDATE public.patient_visits
   SET status = 'cancelled',
@@ -351,6 +438,18 @@ BEGIN
   WHERE id = p_visit_id AND tenant_id = p_tenant_id
   RETURNING * INTO v_visit;
 
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'patient_visit_cancelled',
+    'patientId', v_visit.patient_id,
+    'visitId', p_visit_id,
+    'appointmentId', v_visit.appointment_id,
+    'fromStatus', v_old_status,
+    'toStatus', 'cancelled',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
+
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
     'patient_visit_cancelled',
@@ -362,7 +461,7 @@ BEGIN
     p_appointment_id => v_visit.appointment_id::text,
     p_visit_id => p_visit_id,
     p_reason => p_reason,
-    p_metadata => v_final_metadata
+    p_metadata => v_event_metadata
   );
 
   v_activity_id := public.record_activity_event_internal(
@@ -378,7 +477,7 @@ BEGIN
     p_description => p_reason,
     p_source_status => 'cancelled',
     p_visibility => 'admin',
-    p_metadata => v_final_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_visit;
@@ -402,6 +501,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_patient_ok boolean;
   v_visit_ok boolean;
@@ -411,12 +511,21 @@ DECLARE
   v_encounter public.clinical_encounters;
   v_audit_id uuid;
   v_activity_id uuid;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
 
-  -- 1. Check permissions
+  -- Check permissions
   v_role_ok := public.has_tenant_role(
     p_tenant_id,
     ARRAY['clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role]
@@ -425,7 +534,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied: insufficient permissions for this tenant';
   END IF;
 
-  -- 2. Verify patient belongs to tenant
+  -- Verify patient belongs to tenant
   SELECT EXISTS (
     SELECT 1 FROM public.patients
     WHERE id = p_patient_id AND tenant_id = p_tenant_id
@@ -434,7 +543,7 @@ BEGIN
     RAISE EXCEPTION 'Patient not found in this tenant';
   END IF;
 
-  -- 3. Verify visit (if provided)
+  -- Verify visit (if provided)
   IF p_visit_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.patient_visits
@@ -445,7 +554,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 4. Verify appointment (if provided)
+  -- Verify appointment (if provided)
   IF p_appointment_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.appointments
@@ -456,10 +565,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- 5. Set doctor user ID
+  -- Set doctor user ID
   v_doc_user_id := COALESCE(p_doctor_user_id, auth.uid());
 
-  -- 6. Verify doctor user belongs to tenant and has allowed role
+  -- Verify doctor user belongs to tenant and has allowed role
   SELECT EXISTS (
     SELECT 1 FROM public.tenant_users
     WHERE user_id = v_doc_user_id AND tenant_id = p_tenant_id 
@@ -469,7 +578,7 @@ BEGIN
     RAISE EXCEPTION 'Doctor user not authorized or does not belong to this tenant';
   END IF;
 
-  -- 7. Insert encounter
+  -- Insert encounter
   INSERT INTO public.clinical_encounters (
     tenant_id,
     patient_id,
@@ -495,10 +604,22 @@ BEGIN
     auth.uid(),
     p_chief_complaint_snapshot,
     p_clinical_summary,
-    p_metadata
+    v_metadata
   ) RETURNING * INTO v_encounter;
 
-  -- 8. Log audit event
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'clinical_encounter_created',
+    'patientId', p_patient_id,
+    'visitId', p_visit_id,
+    'encounterId', v_encounter.id,
+    'appointmentId', p_appointment_id,
+    'toStatus', 'draft',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
+
+  -- Log audit event
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
     'clinical_encounter_created',
@@ -510,10 +631,10 @@ BEGIN
     p_appointment_id => p_appointment_id::text,
     p_visit_id => p_visit_id,
     p_encounter_id => v_encounter.id,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
-  -- 9. Log activity event
+  -- Log activity event
   v_activity_id := public.record_activity_event_internal(
     p_tenant_id,
     'encounter',
@@ -526,7 +647,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'draft',
     p_visibility => 'clinical',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_encounter;
@@ -544,12 +665,22 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_encounter public.clinical_encounters;
+  v_old_status text;
   v_audit_id uuid;
   v_activity_id uuid;
-END_TIME timestamptz;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -570,8 +701,11 @@ BEGIN
     RAISE EXCEPTION 'Clinical encounter not found in this tenant';
   END IF;
 
-  IF v_encounter.status <> 'draft' THEN
-    RAISE EXCEPTION 'Invalid status transition: cannot start encounter from status %', v_encounter.status;
+  -- Capture old status
+  v_old_status := v_encounter.status;
+
+  IF v_old_status <> 'draft' THEN
+    RAISE EXCEPTION 'Invalid status transition: cannot start encounter from status %', v_old_status;
   END IF;
 
   UPDATE public.clinical_encounters
@@ -580,6 +714,19 @@ BEGIN
       updated_by = auth.uid()
   WHERE id = p_encounter_id AND tenant_id = p_tenant_id
   RETURNING * INTO v_encounter;
+
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'clinical_encounter_started',
+    'patientId', v_encounter.patient_id,
+    'encounterId', p_encounter_id,
+    'visitId', v_encounter.visit_id,
+    'appointmentId', v_encounter.appointment_id,
+    'fromStatus', v_old_status,
+    'toStatus', 'in_progress',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
 
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
@@ -592,7 +739,7 @@ BEGIN
     p_appointment_id => v_encounter.appointment_id::text,
     p_visit_id => v_encounter.visit_id,
     p_encounter_id => p_encounter_id,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   v_activity_id := public.record_activity_event_internal(
@@ -607,7 +754,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'in_progress',
     p_visibility => 'clinical',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_encounter;
@@ -626,11 +773,22 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_encounter public.clinical_encounters;
+  v_old_status text;
   v_audit_id uuid;
   v_activity_id uuid;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -651,8 +809,11 @@ BEGIN
     RAISE EXCEPTION 'Clinical encounter not found in this tenant';
   END IF;
 
-  IF v_encounter.status NOT IN ('draft', 'in_progress') THEN
-    RAISE EXCEPTION 'Invalid status transition: cannot complete encounter from status %', v_encounter.status;
+  -- Capture old status
+  v_old_status := v_encounter.status;
+
+  IF v_old_status NOT IN ('draft', 'in_progress') THEN
+    RAISE EXCEPTION 'Invalid status transition: cannot complete encounter from status %', v_old_status;
   END IF;
 
   UPDATE public.clinical_encounters
@@ -662,6 +823,19 @@ BEGIN
       updated_by = auth.uid()
   WHERE id = p_encounter_id AND tenant_id = p_tenant_id
   RETURNING * INTO v_encounter;
+
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'clinical_encounter_completed',
+    'patientId', v_encounter.patient_id,
+    'encounterId', p_encounter_id,
+    'visitId', v_encounter.visit_id,
+    'appointmentId', v_encounter.appointment_id,
+    'fromStatus', v_old_status,
+    'toStatus', 'completed',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
 
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
@@ -674,7 +848,7 @@ BEGIN
     p_appointment_id => v_encounter.appointment_id::text,
     p_visit_id => v_encounter.visit_id,
     p_encounter_id => p_encounter_id,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   v_activity_id := public.record_activity_event_internal(
@@ -689,7 +863,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'completed',
     p_visibility => 'clinical',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_encounter;
@@ -723,6 +897,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_patient_ok boolean;
   v_visit_ok boolean;
@@ -735,7 +910,16 @@ DECLARE
   v_service public.completed_services;
   v_audit_id uuid;
   v_activity_id uuid;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -760,7 +944,7 @@ BEGIN
     RAISE EXCEPTION 'Currency is required';
   END IF;
 
-  -- 1. Check permissions
+  -- Check permissions
   v_role_ok := public.has_tenant_role(
     p_tenant_id,
     ARRAY['clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role]
@@ -769,7 +953,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied: insufficient permissions for this tenant';
   END IF;
 
-  -- 2. Verify patient
+  -- Verify patient
   SELECT EXISTS (
     SELECT 1 FROM public.patients
     WHERE id = p_patient_id AND tenant_id = p_tenant_id
@@ -778,7 +962,7 @@ BEGIN
     RAISE EXCEPTION 'Patient not found in this tenant';
   END IF;
 
-  -- 3. Verify visit
+  -- Verify visit
   IF p_visit_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.patient_visits
@@ -789,7 +973,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 4. Verify encounter
+  -- Verify encounter
   IF p_encounter_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.clinical_encounters
@@ -800,7 +984,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 5. Verify appointment
+  -- Verify appointment
   IF p_appointment_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.appointments
@@ -811,7 +995,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 6. Verify finding
+  -- Verify finding
   IF p_finding_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.findings
@@ -822,7 +1006,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 7. Verify treatment plan
+  -- Verify treatment plan
   IF p_treatment_plan_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.treatment_plans
@@ -833,7 +1017,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 8. Verify treatment stage
+  -- Verify treatment stage
   IF p_treatment_stage_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.treatment_stages s
@@ -845,7 +1029,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 9. Verify dictionary item
+  -- Verify dictionary item
   IF p_clinical_dictionary_item_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1 FROM public.clinical_dictionary_items
@@ -856,7 +1040,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 10. Insert completed service
+  -- Insert completed service
   INSERT INTO public.completed_services (
     tenant_id,
     patient_id,
@@ -904,10 +1088,23 @@ BEGIN
     'completed',
     auth.uid(),
     auth.uid(),
-    p_metadata
+    v_metadata
   ) RETURNING * INTO v_service;
 
-  -- 11. Log audit event
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'completed_service_recorded',
+    'patientId', p_patient_id,
+    'visitId', p_visit_id,
+    'encounterId', p_encounter_id,
+    'completedServiceId', v_service.id,
+    'appointmentId', p_appointment_id,
+    'toStatus', 'completed',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
+
+  -- Log audit event
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
     'completed_service_recorded',
@@ -922,10 +1119,10 @@ BEGIN
     p_treatment_plan_id => p_treatment_plan_id::text,
     p_treatment_stage_id => p_treatment_stage_id::text,
     p_finding_id => p_finding_id::text,
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
-  -- 12. Log activity event
+  -- Log activity event
   v_activity_id := public.record_activity_event_internal(
     p_tenant_id,
     'completed_service',
@@ -938,7 +1135,7 @@ BEGIN
     p_actor_user_id => auth.uid(),
     p_source_status => 'completed',
     p_visibility => 'clinical',
-    p_metadata => p_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_service;
@@ -957,12 +1154,23 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  v_metadata jsonb := p_metadata;
   v_role_ok boolean;
   v_service public.completed_services;
+  v_old_status text;
   v_audit_id uuid;
   v_activity_id uuid;
   v_final_metadata jsonb;
+  v_event_metadata jsonb;
 BEGIN
+  -- Validate metadata
+  IF v_metadata IS NULL THEN
+    v_metadata := '{}'::jsonb;
+  END IF;
+  IF jsonb_typeof(v_metadata) <> 'object' THEN
+    RAISE EXCEPTION 'Metadata must be a JSON object';
+  END IF;
+
   IF p_tenant_id IS NULL THEN
     RAISE EXCEPTION 'Tenant ID is required';
   END IF;
@@ -971,7 +1179,7 @@ BEGIN
     RAISE EXCEPTION 'Reason for voiding is required';
   END IF;
 
-  -- 1. Check permissions
+  -- Check permissions
   v_role_ok := public.has_tenant_role(
     p_tenant_id,
     ARRAY['clinic_owner'::public.app_role, 'clinic_admin'::public.app_role, 'doctor'::public.app_role]
@@ -980,7 +1188,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied: insufficient permissions for this tenant';
   END IF;
 
-  -- 2. Select service for update
+  -- Select service for update
   SELECT * INTO v_service FROM public.completed_services
   WHERE id = p_completed_service_id AND tenant_id = p_tenant_id
   FOR UPDATE;
@@ -989,20 +1197,23 @@ BEGIN
     RAISE EXCEPTION 'Completed service not found in this tenant';
   END IF;
 
-  -- 3. Check allowed status transitions
-  IF v_service.status = 'voided' THEN
+  -- Capture old status
+  v_old_status := v_service.status;
+
+  -- Check allowed status transitions
+  IF v_old_status = 'voided' THEN
     RAISE EXCEPTION 'Completed service is already voided';
   END IF;
-  IF v_service.status = 'archived' THEN
+  IF v_old_status = 'archived' THEN
     RAISE EXCEPTION 'Completed service is archived and cannot be voided';
   END IF;
-  IF v_service.status NOT IN ('completed', 'corrected') THEN
-    RAISE EXCEPTION 'Invalid status transition: cannot void service with status %', v_service.status;
+  IF v_old_status NOT IN ('completed', 'corrected') THEN
+    RAISE EXCEPTION 'Invalid status transition: cannot void service with status %', v_old_status;
   END IF;
 
-  v_final_metadata := COALESCE(p_metadata, '{}'::jsonb) || jsonb_build_object('void_reason', p_reason);
+  v_final_metadata := COALESCE(v_metadata, '{}'::jsonb) || jsonb_build_object('void_reason', p_reason);
 
-  -- 4. Update service
+  -- Update service
   UPDATE public.completed_services
   SET status = 'voided',
       voided_at = now(),
@@ -1013,7 +1224,21 @@ BEGIN
   WHERE id = p_completed_service_id AND tenant_id = p_tenant_id
   RETURNING * INTO v_service;
 
-  -- 5. Log audit event
+  -- Build sanitized event metadata
+  v_event_metadata := jsonb_strip_nulls(jsonb_build_object(
+    'rpc', 'ENCOUNTER-VISIT-RPC-001C',
+    'action', 'completed_service_voided',
+    'patientId', v_service.patient_id,
+    'completedServiceId', p_completed_service_id,
+    'visitId', v_service.visit_id,
+    'encounterId', v_service.encounter_id,
+    'appointmentId', v_service.appointment_id,
+    'fromStatus', v_old_status,
+    'toStatus', 'voided',
+    'smokeTest', COALESCE(v_metadata->>'smokeTest', NULL)
+  ));
+
+  -- Log audit event
   v_audit_id := public.record_audit_event_internal(
     p_tenant_id,
     'completed_service_voided',
@@ -1029,10 +1254,10 @@ BEGIN
     p_treatment_stage_id => v_service.treatment_stage_id::text,
     p_finding_id => v_service.finding_id::text,
     p_reason => p_reason,
-    p_metadata => v_final_metadata
+    p_metadata => v_event_metadata
   );
 
-  -- 6. Log activity event
+  -- Log activity event
   v_activity_id := public.record_activity_event_internal(
     p_tenant_id,
     'completed_service',
@@ -1046,7 +1271,7 @@ BEGIN
     p_description => p_reason,
     p_source_status => 'voided',
     p_visibility => 'clinical',
-    p_metadata => v_final_metadata
+    p_metadata => v_event_metadata
   );
 
   RETURN v_service;
