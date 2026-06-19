@@ -30,7 +30,7 @@ https://github.com/NckNA/codex-test/pull/312
 
 ## 4. PR head reviewed before final report update
 
-`02059d7a9efc442cbaff296e1905ccfebabf360e`
+`12a7cbb5d7a5d8c9480b9b3d9e48c69f32c2d6c4`
 
 ## 5. Report update commit
 
@@ -293,7 +293,15 @@ Notes:
 
 GitHub Actions CI:
 
-- Pending after report commit.
+- Workflow: `CI`
+- Run id: `27816806057`
+- CI number: `556`
+- Tested commit: `12a7cbb5d7a5d8c9480b9b3d9e48c69f32c2d6c4`
+- Job: `validate`
+- ESLint: success
+- Tests: success
+- Build: success
+- Conclusion: success
 
 ## 15. Final verdict
 
