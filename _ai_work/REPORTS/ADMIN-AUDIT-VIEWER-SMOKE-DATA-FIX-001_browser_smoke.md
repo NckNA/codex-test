@@ -18,7 +18,7 @@ https://github.com/NckNA/codex-test/pull/310
 
 ## 4. PR head reviewed before final report update
 
-`7f7a75ff05c808c94b29ef532bed16e78f5b8704`
+`7ef074b8c687c72b42649ccf810e27c3f3ee2ef3`
 
 ## 5. Report update commit
 
@@ -211,11 +211,11 @@ Expected & Observed:
 
 ## 19. Checks
 
-- `git status --short`: Only report file modified (`R _ai_work/REPORTS/ADMIN-AUDIT-VIEWER-SMOKE-001_browser_smoke.md -> _ai_work/REPORTS/ADMIN-AUDIT-VIEWER-SMOKE-DATA-FIX-001_browser_smoke.md`).
+- `git status --short`: Only the new report file was changed.
 - `npm run lint`: **PASS** (completed with no errors).
 - `npm run test -- --run`: **PASS** (414 tests across 47 test files).
 - `npm run build`: **PASS** (build completes successfully).
-- GitHub Actions CI (Run ID: `27780869348`, CI: `#546` on head reviewed commit): **SUCCESS**.
+- GitHub Actions CI (Run ID: `27781124296`, CI: `#547` on head reviewed commit): **SUCCESS**.
 
 ## 20. Final verdict
 
