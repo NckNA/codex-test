@@ -22,9 +22,9 @@ https://github.com/NckNA/codex-test/pull/311
 
 ## 4. PR head reviewed before final report update
 
-`cca428c57be6227556b3ec1ecf890bf5fd08c256`
+`288bee64133507fe5f5ea1f88c548871aef10905`
 
-This is the migration-only PR head reviewed before adding this report.
+This is the PR head reviewed before the final report update. It includes the migration and validation report commits verified by CI #551.
 
 ## 5. Report update commit
 
@@ -530,7 +530,15 @@ All commands exited successfully.
 
 ### GitHub Actions CI
 
-Pending after report push.
+Fresh CI after report push:
+
+- Workflow: `CI`
+- Run id: `27806672669`
+- CI number: `551`
+- Tested commit: `288bee64133507fe5f5ea1f88c548871aef10905`
+- Status: completed
+- Conclusion: success
+- Required checks: ESLint, tests, build passed.
 
 ## 18. Final verdict
 
