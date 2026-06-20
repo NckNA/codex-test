@@ -14,7 +14,7 @@ Reason: implementation, unit tests, lint, full test suite, build, GitHub CI, and
 https://github.com/NckNA/codex-test/pull/315
 
 ## PR head reviewed before final report update
-`aa107033a96db6ca012f1d122135ce40bbf88edf`
+`bc138eb9a2bb3f28a67141c7e53fb854d3ed7571`
 
 ## Report update commit
 Recorded in the managed metadata block and immutable local finalization receipt.
@@ -189,7 +189,7 @@ Cleanup ran in a `finally` block and removed exactly `8` activity events, `8` au
 - targeted visit tests: passed, 3 files / 22 tests.
 - `npm run build`: passed.
 - `git diff --check`: passed.
-- GitHub Actions CI: passed, run `27863573667` / `CI #573`, tested commit `aa107033a96db6ca012f1d122135ce40bbf88edf`.
+- GitHub Actions CI: passed, run `27864685064` / `CI #574`, tested commit `bc138eb9a2bb3f28a67141c7e53fb854d3ed7571`.
 - Super Hermes lifecycle smoke: passed, 6/6 role and tenant scenarios; cleanup verified at zero remaining rows.
 
 ## Issues / warnings
@@ -211,21 +211,21 @@ Cleanup ran in a `finally` block and removed exactly `8` activity events, `8` au
 - PR number: 315
 - Branch: feature/visit-checkin-ui-001
 - Base branch: main
-- Implementation/reviewed HEAD: aa107033a96db6ca012f1d122135ce40bbf88edf
-- Local HEAD at finalization: aa107033a96db6ca012f1d122135ce40bbf88edf
-- Latest CI run ID: 27863573667
-- Latest CI number: 573
+- Implementation/reviewed HEAD: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
+- Local HEAD at finalization: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
+- Latest CI run ID: 27864685064
+- Latest CI number: 574
 - Latest CI conclusion: SUCCESS
-- CI tested commit: aa107033a96db6ca012f1d122135ce40bbf88edf
-- Latest green CI run ID: 27863573667
-- Latest green CI number: 573
-- Latest green CI tested commit: aa107033a96db6ca012f1d122135ce40bbf88edf
+- CI tested commit: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
+- Latest green CI run ID: 27864685064
+- Latest green CI number: 574
+- Latest green CI tested commit: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
 
 ### Checks
 
 | Check | Workflow | Status | Conclusion | Run | Tested commit |
 | --- | --- | --- | --- | --- | --- |
-| validate | CI | COMPLETED | SUCCESS | 27863573667 | aa107033a96db6ca012f1d122135ce40bbf88edf |
+| validate | CI | COMPLETED | SUCCESS | 27864685064 | bc138eb9a2bb3f28a67141c7e53fb854d3ed7571 |
 
 > A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
 <!-- SUPER_HERMES_METADATA:END -->
