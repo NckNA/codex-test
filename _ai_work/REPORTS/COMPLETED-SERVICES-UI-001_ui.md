@@ -10,7 +10,7 @@ feature/completed-services-ui-001
 https://github.com/NckNA/codex-test/pull/317
 
 ## PR head reviewed before final report update
-83331f32311766a07a87031953b87d736869957a
+2e1cc04c86e0abffb35e3b610c1c4f5298ce992e
 
 ## Changed files summary
 - Added completed services UI components under `src/components/services/`.
@@ -71,8 +71,8 @@ UI behavior:
 ## Role behavior
 - `clinic_owner` / `clinic_admin`: can view, record, void.
 - `doctor`: can view, record, void.
-- `registrar`: can view when allowed by backend/RLS, no record/void controls.
-- `cashier`: can view when allowed by backend/RLS, no record/void controls.
+- `registrar`: canView=true is acceptable (read-only panel visible, no record/void controls, no no-access block).
+- `cashier`: canView=false (sees no-access block/banner, does not fetch completed services, does not see service details, prices, stage, or void controls).
 - no-tenant: safe blocked state, no actions.
 - cross-tenant: no smoke patient/service leakage observed for Admin B.
 
@@ -132,7 +132,9 @@ Registrar A:
 Cashier A:
 - Logged in through local QA shortcut.
 - Opened smoke patient.
-- Record/void controls were not visible.
+- `completed-services-no-access` block was visible.
+- Verified that database fetch is disabled completely (`listCompletedServices` is not called).
+- Verified cashier does not see service names, prices, amounts, statuses, stage, or void controls.
 - No console errors.
 
 No-tenant:
@@ -162,12 +164,12 @@ Cleanup:
 - Fresh Vite dev server was stopped.
 
 Screenshots:
-- `reports/completed-services-ui-001/admin-record-void.png`
-- `reports/completed-services-ui-001/doctor-record-void.png`
-- `reports/completed-services-ui-001/registrar-readonly.png`
-- `reports/completed-services-ui-001/cashier-readonly.png`
-- `reports/completed-services-ui-001/no-tenant-blocked.png`
-- `reports/completed-services-ui-001/admin-b-cross-tenant.png`
+- `reports/completed-services-smoke/admin-services.png`
+- `reports/completed-services-smoke/doctor-services.png`
+- `reports/completed-services-smoke/registrar-services.png`
+- `reports/completed-services-smoke/cashier-services.png`
+- `reports/completed-services-smoke/no-tenant-services.png`
+- `reports/completed-services-smoke/admin-b-cross-tenant-services.png`
 
 ## What was intentionally NOT changed
 - No migrations.
@@ -188,11 +190,13 @@ Screenshots:
 - `npm run lint`: passed.
 - `npm run build`: passed.
 - New layer safety scan: passed.
-- GitHub Actions CI #587: success on 83331f32311766a07a87031953b87d736869957a.
+- GitHub Actions CI: success (current head verified).
+- Hardened bridge tool `completed_service_smoke_run` was run successfully and passes live.
+- Tool `dev_server_context_check` returned compact inline JSON without resource URIs.
+- Tool `project_context_map` recommended `completed_service_smoke_run` for this task.
 
 ## Issues
 - Full project test suite still emits pre-existing act/test-environment warnings from older visit/encounter/dental tests. New completed services targeted tests are clean.
-- No dedicated completed services lifecycle smoke runner exists yet. Smoke was assembled using fixture + browser role smoke tools.
 
 ## Final verdict
 **PASS**
