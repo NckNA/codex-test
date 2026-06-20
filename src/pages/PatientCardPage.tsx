@@ -23,7 +23,7 @@ const TABS = [
   { id: 'timeline', label: 'История' },
   { id: 'history', label: 'История приёмов' },
   { id: 'visits', label: 'Визиты' },
-  { id: 'encounters', label: '??????' },
+  { id: 'encounters', label: 'Приёмы' },
   { id: 'dental_chart', label: 'Зубная карта' },
   { id: 'findings', label: 'Проблемы и риски' },
   { id: 'plan', label: 'План лечения' },

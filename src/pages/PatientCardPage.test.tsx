@@ -83,6 +83,12 @@ describe('PatientCardPage timeline tab', () => {
     act(() => root.unmount());
   });
 
+  it('renders the clinical encounters tab label without encoding damage', () => {
+    const { container, root } = renderPage();
+    expect(container.querySelector('[data-testid="patient-tab-encounters"]')?.textContent?.trim()).toBe('Приёмы');
+    act(() => root.unmount());
+  });
+
   it('renders timeline content after clicking История', async () => {
     const { container, root } = renderPage();
     const timelineButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'История') as HTMLButtonElement;
