@@ -3,21 +3,21 @@
 ## Summary
 Implemented the first patient visit lifecycle UI layer in the patient card. The UI adds a dedicated `Визиты` tab, reads patient visits through `EncounterVisitRepository`, and sends visit lifecycle mutations through `EncounterVisitRpcClient` only.
 
-Final verdict: **PARTIAL**
+Final verdict: **PASS**
 
-Reason: implementation, unit tests, lint, full test suite, build, and browser UI smoke passed. Full local Supabase lifecycle browser smoke with seeded QA patients was blocked by local tool/safety restrictions while trying to run `supabase db reset`, seed QA users, and create local smoke rows. No cloud Supabase was touched.
+Reason: implementation, unit tests, lint, full test suite, build, GitHub CI, and the complete local Supabase role-based lifecycle smoke all passed. The smoke covered real check-in/start/complete/cancel RPC writes, role and tenant boundaries, audit/activity creation, and verified cleanup. No cloud Supabase was touched.
 
 ## Branch
 `feature/visit-checkin-ui-001`
 
 ## PR URL
-Pending PR creation.
+https://github.com/NckNA/codex-test/pull/315
 
 ## PR head reviewed before final report update
-Pending finalization.
+`d5de6dc73d905f64394220aa9c8b9386cd7026d2`
 
 ## Report update commit
-N/A before PR creation.
+Recorded in the managed metadata block and immutable local finalization receipt.
 
 ## Changed files summary
 
@@ -34,6 +34,7 @@ Hooks:
 
 Page integration:
 - `src/pages/PatientCardPage.tsx`
+- `src/pages/LoginPage.tsx` (stable local QA login selector only)
 
 Tests:
 - `src/components/visits/VisitCheckInPanel.test.tsx`
@@ -153,14 +154,20 @@ Known test-suite warning: existing React `act(...)` warning noise appears in std
 - No visible `service_role` / service-role key markers.
 - Since Supabase env was not configured in that app process, the panel correctly surfaced a safe configuration error instead of crashing.
 
-### Supabase-env login smoke
-- Started/attempted a Supabase-env app process on `http://127.0.0.1:5175`.
-- Login page loaded.
-- `qa.admin.a@example.local` login via host-env password path reached the Patients page but did not find seeded demo patient data.
-- `supabase db reset`, QA seed, and smoke row setup were blocked by local tool/safety restrictions, so full lifecycle browser smoke could not be completed.
+### Full local Supabase lifecycle smoke
+- Started a dedicated Supabase-configured Vite process on `http://127.0.0.1:5175` with credentials injected only through the process environment.
+- Created one task-scoped local patient and exercised the real UI and visit RPCs in six isolated browser sessions.
+- `clinic_admin`: check-in -> start -> complete passed.
+- `doctor`: check-in -> start -> complete passed.
+- `registrar`: check-in -> cancel passed; complete control was absent.
+- `cashier`: visit history was readable; all mutation controls were absent.
+- no-tenant user: Tenant A patient visit panel was blocked.
+- Tenant B admin: cross-tenant access to the Tenant A patient visit panel was blocked.
+- Database verification before cleanup: `2` completed visits, `1` cancelled visit, `8` audit events, and `8` activity events.
+- Screenshots were saved under `D:\hermes\reports\visit-lifecycle-smoke`.
 
 ### Cleanup
-No local smoke rows were inserted by this task, because smoke data setup was blocked before data creation. Therefore there were no task-created rows to delete from `patient_visits`, `audit_events`, or `activity_events`.
+Cleanup ran in a `finally` block and removed exactly `8` activity events, `8` audit events, `3` patient visits, and `1` task-created patient. Post-cleanup verification returned `0` remaining task rows.
 
 ## What was intentionally NOT changed
 - No migrations.
@@ -181,20 +188,21 @@ No local smoke rows were inserted by this task, because smoke data setup was blo
 - `npm run test`: passed, 52 files / 490 tests.
 - targeted visit tests: passed, 3 files / 22 tests.
 - `npm run build`: passed.
-- GitHub Actions CI: pending after PR creation.
+- `git diff --check`: passed.
+- GitHub Actions CI: passed, run `27863506385` / `CI #572`, tested commit `d5de6dc73d905f64394220aa9c8b9386cd7026d2`.
+- Super Hermes lifecycle smoke: passed, 6/6 role and tenant scenarios; cleanup verified at zero remaining rows.
 
 ## Issues / warnings
 
-1. Full local Supabase lifecycle browser smoke is not complete because local tool calls for `supabase db reset`, QA seed, and task-scoped smoke SQL setup were blocked by safety filters.
-2. Browser UI smoke confirms render/no-crash behavior, but not real check-in/start/complete/cancel against local database.
-3. Existing Vitest stderr contains React `act(...)` warning noise; tests still pass.
-4. Vite build reports the existing large chunk warning.
+1. Existing Vitest stderr contains React `act(...)` warning noise; tests still pass.
+2. Vite build reports the existing large chunk warning.
+3. The existing prototype-mode banner is still visible in the Supabase-configured browser view; it is outside this visit UI task and does not affect the verified repository/RPC behavior.
 
 ## Final verdict
-**PARTIAL with exact missing validation:** visit UI implemented and test/build/lint/browser-render verified, but full local Supabase lifecycle browser smoke remains unverified due tool/safety blocks.
+**PASS:** visit UI, role controls, real local Supabase lifecycle writes, RLS/tenant boundaries, audit/activity side effects, cleanup, unit tests, build, and GitHub CI are verified.
 
 ## Recommended next task
-**VISIT-CHECKIN-UI-001B-LOCAL-SMOKE** — run full local Supabase role-based browser smoke once DB reset/QA seed/smoke-row tooling is available without safety blockage.
+**VISIT-CHECKIN-UI-002** — design the next scoped clinical encounter UI task without coupling visit completion to clinical or billing facts.
 
 <!-- SUPER_HERMES_METADATA:START -->
 ## Final Report Metadata
@@ -203,21 +211,21 @@ No local smoke rows were inserted by this task, because smoke data setup was blo
 - PR number: 315
 - Branch: feature/visit-checkin-ui-001
 - Base branch: main
-- Implementation/reviewed HEAD: 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52
-- Local HEAD at finalization: 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52
-- Latest CI run ID: 27856193466
-- Latest CI number: 570
-- Latest CI conclusion: none
-- CI tested commit: 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52
-- Latest green CI run ID: none
-- Latest green CI number: none
-- Latest green CI tested commit: none
+- Implementation/reviewed HEAD: d5de6dc73d905f64394220aa9c8b9386cd7026d2
+- Local HEAD at finalization: d5de6dc73d905f64394220aa9c8b9386cd7026d2
+- Latest CI run ID: 27863506385
+- Latest CI number: 572
+- Latest CI conclusion: SUCCESS
+- CI tested commit: d5de6dc73d905f64394220aa9c8b9386cd7026d2
+- Latest green CI run ID: 27863506385
+- Latest green CI number: 572
+- Latest green CI tested commit: d5de6dc73d905f64394220aa9c8b9386cd7026d2
 
 ### Checks
 
 | Check | Workflow | Status | Conclusion | Run | Tested commit |
 | --- | --- | --- | --- | --- | --- |
-| validate | CI | IN_PROGRESS | IN_PROGRESS | 27856193466 | 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52 |
+| validate | CI | COMPLETED | SUCCESS | 27863506385 | d5de6dc73d905f64394220aa9c8b9386cd7026d2 |
 
 > A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
 <!-- SUPER_HERMES_METADATA:END -->
