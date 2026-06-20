@@ -7,10 +7,10 @@ The verification of Supabase Cloud credentials and remote connectivity for proje
 `report/supabase-cloud-auth-connect-001`
 
 ## 3. PR URL
-PENDING_PR_URL
+https://github.com/NckNA/codex-test/pull/320
 
 ## 4. PR Head Reviewed Before Final Report Update
-`63bcb03935945fcef840a50c7c4a2b24ce9003c2`
+`295bd5c4e5196c6f300fbfbe55bbf1e2fb5d83ff`
 
 ## 5. Report Update Commit
 N/A because the final report update commit cannot reference itself before creation.
