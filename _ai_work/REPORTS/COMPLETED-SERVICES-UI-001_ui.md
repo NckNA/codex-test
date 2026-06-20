@@ -10,7 +10,10 @@ feature/completed-services-ui-001
 https://github.com/NckNA/codex-test/pull/317
 
 ## PR head reviewed before final report update
-2e1cc04c86e0abffb35e3b610c1c4f5298ce992e
+8999912a6077349a785583839cbb96e8ad927de4
+
+## Report update commit
+N/A because the final report update commit cannot reference itself before creation.
 
 ## Changed files summary
 - Added completed services UI components under `src/components/services/`.
@@ -190,7 +193,7 @@ Screenshots:
 - `npm run lint`: passed.
 - `npm run build`: passed.
 - New layer safety scan: passed.
-- GitHub Actions CI: success (current head verified).
+- GitHub Actions CI #590 / run 27873388497: success on 8999912a6077349a785583839cbb96e8ad927de4.
 - Hardened bridge tool `completed_service_smoke_run` was run successfully and passes live.
 - Tool `dev_server_context_check` returned compact inline JSON without resource URIs.
 - Tool `project_context_map` recommended `completed_service_smoke_run` for this task.
