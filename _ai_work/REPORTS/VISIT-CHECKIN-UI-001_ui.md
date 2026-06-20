@@ -14,10 +14,10 @@ Reason: implementation, unit tests, lint, full test suite, build, GitHub CI, and
 https://github.com/NckNA/codex-test/pull/315
 
 ## PR head reviewed before final report update
-`bc138eb9a2bb3f28a67141c7e53fb854d3ed7571`
+`990699bedbdd7578c1374046af4d4587d208aec9`
 
 ## Report update commit
-Recorded in the managed metadata block and immutable local finalization receipt.
+N/A — the final report update commit cannot reference itself before creation.
 
 ## Changed files summary
 
@@ -189,7 +189,7 @@ Cleanup ran in a `finally` block and removed exactly `8` activity events, `8` au
 - targeted visit tests: passed, 3 files / 22 tests.
 - `npm run build`: passed.
 - `git diff --check`: passed.
-- GitHub Actions CI: passed, run `27864685064` / `CI #574`, tested commit `bc138eb9a2bb3f28a67141c7e53fb854d3ed7571`.
+- GitHub Actions CI: passed, run `27864786601` / `CI #575`, tested commit `990699bedbdd7578c1374046af4d4587d208aec9`.
 - Super Hermes lifecycle smoke: passed, 6/6 role and tenant scenarios; cleanup verified at zero remaining rows.
 
 ## Issues / warnings
@@ -202,7 +202,7 @@ Cleanup ran in a `finally` block and removed exactly `8` activity events, `8` au
 **PASS:** visit UI, role controls, real local Supabase lifecycle writes, RLS/tenant boundaries, audit/activity side effects, cleanup, unit tests, build, and GitHub CI are verified.
 
 ## Recommended next task
-**VISIT-CHECKIN-UI-002** — design the next scoped clinical encounter UI task without coupling visit completion to clinical or billing facts.
+**ENCOUNTER-CLINICAL-NOTES-UI-001** — add the first clinical notes/encounter UI layer for a patient visit, scoped to the clinical encounter model created in ENCOUNTER-VISIT-MODEL-001A.
 
 <!-- SUPER_HERMES_METADATA:START -->
 ## Final Report Metadata
@@ -211,21 +211,21 @@ Cleanup ran in a `finally` block and removed exactly `8` activity events, `8` au
 - PR number: 315
 - Branch: feature/visit-checkin-ui-001
 - Base branch: main
-- Implementation/reviewed HEAD: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
-- Local HEAD at finalization: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
-- Latest CI run ID: 27864685064
-- Latest CI number: 574
+- Implementation/reviewed HEAD: 990699bedbdd7578c1374046af4d4587d208aec9
+- Local HEAD at finalization: 990699bedbdd7578c1374046af4d4587d208aec9
+- Latest CI run ID: 27864786601
+- Latest CI number: 575
 - Latest CI conclusion: SUCCESS
-- CI tested commit: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
-- Latest green CI run ID: 27864685064
-- Latest green CI number: 574
-- Latest green CI tested commit: bc138eb9a2bb3f28a67141c7e53fb854d3ed7571
+- CI tested commit: 990699bedbdd7578c1374046af4d4587d208aec9
+- Latest green CI run ID: 27864786601
+- Latest green CI number: 575
+- Latest green CI tested commit: 990699bedbdd7578c1374046af4d4587d208aec9
 
 ### Checks
 
 | Check | Workflow | Status | Conclusion | Run | Tested commit |
 | --- | --- | --- | --- | --- | --- |
-| validate | CI | COMPLETED | SUCCESS | 27864685064 | bc138eb9a2bb3f28a67141c7e53fb854d3ed7571 |
+| validate | CI | COMPLETED | SUCCESS | 27864786601 | 990699bedbdd7578c1374046af4d4587d208aec9 |
 
 > A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
 <!-- SUPER_HERMES_METADATA:END -->
