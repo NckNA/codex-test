@@ -20,11 +20,11 @@ No cloud DDL was executed. No cloud data was created, updated, deleted, reset, o
 
 ## PR URL
 
-Pending first report-only publish.
+https://github.com/NckNA/codex-test/pull/319
 
 ## PR head reviewed before final report update
 
-Pending first report-only publish.
+c8ef7b4935144ed2e4729690aa9ab5ce474a3a6c
 
 ## Report update commit
 
