@@ -11,6 +11,7 @@ import { PatientOverviewTab } from '../components/patients/patient-card/PatientO
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
 import { PatientTimelineTab } from '../components/patient/PatientTimelineTab';
 import { VisitCheckInPanel } from '../components/visits/VisitCheckInPanel';
+import { ClinicalEncounterPanel } from '../components/encounters/ClinicalEncounterPanel';
 import { usePatientMedicalSummary } from '../data/hooks/usePatientMedicalSummary';
 import { usePatientProfile } from '../data/hooks/usePatientProfile';
 import { usePatientTimeline } from '../data/hooks/usePatientTimeline';
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'timeline', label: 'История' },
   { id: 'history', label: 'История приёмов' },
   { id: 'visits', label: 'Визиты' },
+  { id: 'encounters', label: '??????' },
   { id: 'dental_chart', label: 'Зубная карта' },
   { id: 'findings', label: 'Проблемы и риски' },
   { id: 'plan', label: 'План лечения' },
@@ -232,6 +234,15 @@ export function PatientCardPage() {
         {activeTab === 'visits' && (
           <div data-testid="patient-visits-tab">
             <VisitCheckInPanel
+              tenantId={activeTenant?.tenantId}
+              patientId={patient.id}
+              role={activeTenant?.role}
+            />
+          </div>
+        )}
+        {activeTab === 'encounters' && (
+          <div data-testid="patient-encounters-tab">
+            <ClinicalEncounterPanel
               tenantId={activeTenant?.tenantId}
               patientId={patient.id}
               role={activeTenant?.role}
