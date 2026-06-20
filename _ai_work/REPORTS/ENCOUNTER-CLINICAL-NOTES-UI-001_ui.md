@@ -24,15 +24,19 @@ This task keeps the domain boundary explicit: a visit is patient attendance, a c
 
 ## 3. PR URL
 
-Will be recorded by the final metadata block after PR creation.
+https://github.com/NckNA/codex-test/pull/316
 
 ## 4. PR head reviewed before final report update
 
-Will be recorded by the final metadata block after PR creation.
+Implementation head reviewed before report finalization: `5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6`.
+
+Report finalization commit: `fafa70c2fcf0bdddd0def110fb3d4f12aaddf5ed`.
 
 ## 5. Report update commit
 
-N/A before final report metadata commit.
+Initial report metadata update commit: `fafa70c2fcf0bdddd0def110fb3d4f12aaddf5ed`.
+
+This report body may be updated by a later report-only cleanup commit if validation requires it.
 
 ## 6. Changed files summary
 
@@ -380,9 +384,10 @@ Browser/smoke:
 
 GitHub Actions CI:
 
-- To be filled after PR creation.
+- CI #579: success
+- Tested commit: `fafa70c2fcf0bdddd0def110fb3d4f12aaddf5ed`
 
-## 16. Issues / warnings
+## Issues / warnings
 
 1. Full browser lifecycle smoke is incomplete.
 2. Available QA dev server on port 5174 appears stale for the newly added encounter tab.
@@ -390,38 +395,13 @@ GitHub Actions CI:
 4. UI test suite has existing React `act(...)` warning noise, but tests pass.
 5. Hook-level errors are intentionally normalized and UI displays safe Russian messages.
 
-## 17. Final verdict
+## Final verdict
 
-PARTIAL with exact missing validation:
+Final verdict: **PARTIAL**
 
-Clinical encounter UI, hooks, patient page integration, unit tests, lint, full test suite, and build are complete. Full local browser lifecycle smoke for create/start/complete clinical encounter through the current UI is not completed.
+Reason: clinical encounter UI, hooks, patient page integration, unit tests, lint, full test suite, and build are complete. Full local browser lifecycle smoke for create/start/complete clinical encounter through the current UI is not completed.
 
-## 18. Recommended next task
+## Recommended next task
 
 ENCOUNTER-CLINICAL-NOTES-UI-001B-LOCAL-SMOKE
 
-<!-- SUPER_HERMES_METADATA:START -->
-## Final Report Metadata
-
-- PR: https://github.com/NckNA/codex-test/pull/316
-- PR number: 316
-- Branch: feature/encounter-clinical-notes-ui-001
-- Base branch: main
-- Implementation/reviewed HEAD: 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6
-- Local HEAD at finalization: 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6
-- Latest CI run ID: 27866289995
-- Latest CI number: 578
-- Latest CI conclusion: none
-- CI tested commit: 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6
-- Latest green CI run ID: none
-- Latest green CI number: none
-- Latest green CI tested commit: none
-
-### Checks
-
-| Check | Workflow | Status | Conclusion | Run | Tested commit |
-| --- | --- | --- | --- | --- | --- |
-| validate | CI | IN_PROGRESS | IN_PROGRESS | 27866289995 | 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6 |
-
-> A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
-<!-- SUPER_HERMES_METADATA:END -->
