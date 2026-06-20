@@ -399,3 +399,29 @@ Clinical encounter UI, hooks, patient page integration, unit tests, lint, full t
 ## 18. Recommended next task
 
 ENCOUNTER-CLINICAL-NOTES-UI-001B-LOCAL-SMOKE
+
+<!-- SUPER_HERMES_METADATA:START -->
+## Final Report Metadata
+
+- PR: https://github.com/NckNA/codex-test/pull/316
+- PR number: 316
+- Branch: feature/encounter-clinical-notes-ui-001
+- Base branch: main
+- Implementation/reviewed HEAD: 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6
+- Local HEAD at finalization: 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6
+- Latest CI run ID: 27866289995
+- Latest CI number: 578
+- Latest CI conclusion: none
+- CI tested commit: 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6
+- Latest green CI run ID: none
+- Latest green CI number: none
+- Latest green CI tested commit: none
+
+### Checks
+
+| Check | Workflow | Status | Conclusion | Run | Tested commit |
+| --- | --- | --- | --- | --- | --- |
+| validate | CI | IN_PROGRESS | IN_PROGRESS | 27866289995 | 5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6 |
+
+> A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
+<!-- SUPER_HERMES_METADATA:END -->
