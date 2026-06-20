@@ -28,15 +28,11 @@ https://github.com/NckNA/codex-test/pull/316
 
 ## 4. PR head reviewed before final report update
 
-Implementation head reviewed before report finalization: `5a22e57ccce4b25ee8154ff3ab4d5c957ad254f6`.
-
-Report finalization commit: `fafa70c2fcf0bdddd0def110fb3d4f12aaddf5ed`.
+Implementation and smoke-fix head reviewed before report finalization: `c6db8c336c45bec26e609ad4f08e0b4a01040a20`.
 
 ## 5. Report update commit
 
-Initial report metadata update commit: `fafa70c2fcf0bdddd0def110fb3d4f12aaddf5ed`.
-
-This report body may be updated by a later report-only cleanup commit if validation requires it.
+Recorded in the managed metadata block and immutable local finalization receipt.
 
 ## 6. Changed files summary
 
@@ -293,58 +289,43 @@ Known warning noise:
 
 ### Environment
 
-- Local Supabase detected and reachable.
-- Local DB URL is local-only.
-- Cloud Supabase was not touched.
-- Active migration count: 15.
-- Latest migration: `0015_create_encounter_visit_rpc.sql`.
-
-### Smoke setup attempted
-
-A deterministic local smoke patient was created with:
-
-- patient id: `22222222-3333-4444-5555-666666666666`
-- tenant: Demo Clinic A
-- source: `walk_in`
-- marker in integration JSON: `ENCOUNTER-CLINICAL-NOTES-UI-001`
-
-Initial attempt with source `smoke` correctly failed due local `patients_source_check`. Retried with allowed source `walk_in`.
+- `clinical_encounter_lifecycle_smoke_run` detected local Supabase and rejected all cloud access.
+- It refreshed the guarded local QA users, selected a free port, and started a fresh Vite process from `feature/encounter-clinical-notes-ui-001`.
+- Tested implementation head: `c6db8c336c45bec26e609ad4f08e0b4a01040a20`.
+- The temporary app process was stopped by the runner after verification.
 
 ### Browser validation results
 
-Partial browser validation succeeded:
+Six isolated role and tenant scenarios passed:
 
-- QA shortcut was visible on `http://localhost:5174/login`.
-- Admin A login succeeded.
-- Smoke patient page loaded.
-- Smoke patient name was visible.
-- Screenshot captured:
-  - `D:\hermes\reports\encounter-clinical-notes-smoke\debug-5174-patient-with-row.png`
+- `clinic_admin`: create draft -> start -> complete with exact persisted clinical summary.
+- `doctor`: create draft -> start -> complete with exact persisted clinical summary.
+- `registrar`: encounter history visible; create/start/complete controls absent.
+- `cashier`: encounter history visible; create/start/complete controls absent.
+- no-tenant user: Tenant A encounter panel blocked.
+- Tenant B admin: cross-tenant access to the Tenant A encounter panel blocked.
 
-Full clinical encounter lifecycle browser flow did **not** complete in this run.
+Database evidence before cleanup:
 
-Observed blockers:
+- completed encounters: `2`;
+- completed services: `0`;
+- documents: `0`;
+- payments: `0` (no payment table in the current schema);
+- stock movements: `0` (no stock movement table in the current schema);
+- audit events: `6`;
+- activity events: `6`.
 
-1. `http://localhost:5173` did not expose the QA login shortcut.
-2. `http://localhost:5174` exposed QA login and loaded the patient, but the running dev server did not expose the newly added `patient-tab-encounters` selector, likely because that server was still running an older bundle.
-3. A fresh Vite dev server started on `http://127.0.0.1:5180`, but browser text extraction on `/login` returned an empty app shell, preventing reliable role smoke on the fresh port.
+Visual inspection also found and fixed a damaged tab label (`??????` -> `Приёмы`). A regression test now verifies the exact visible label.
+
+Screenshots are stored under `D:\hermes\reports\clinical-encounter-lifecycle-smoke-after-label-fix`.
 
 ### Cleanup
 
-Smoke rows were cleaned manually after the partial smoke attempt.
-
-Final cleanup counts:
-
-- `clinical_encounters`: 0
-- `audit_events`: 0
-- `activity_events`: 0
-- `patients`: 0 for the smoke patient id
+Cleanup ran in a `finally` block and deleted exactly `6` activity events, `6` audit events, `2` clinical encounters, and `1` smoke patient. Completed services, documents, visits, payments, and stock rows remained zero. Post-cleanup verification returned `0` remaining related rows.
 
 ### Browser smoke verdict
 
-PARTIAL.
-
-The UI has unit/build coverage and partial browser rendering/auth validation, but the full create/start/complete clinical encounter lifecycle through the current UI was not completed because the available dev server with QA auth did not serve the new tab and the fresh dev server did not render usable login content.
+PASS.
 
 ## 14. What was intentionally NOT changed
 
@@ -369,7 +350,7 @@ Local checks:
 
 - `npm run lint`: PASSED
 - targeted clinical encounter tests: PASSED, 21 tests
-- `npm run test -- --run`: PASSED, 55 files / 511 tests
+- `npm run test -- --run`: PASSED, 55 files / 512 tests
 - `npm run build`: PASSED
 
 Build warning:
@@ -378,30 +359,55 @@ Build warning:
 
 Browser/smoke:
 
-- local SQL setup and cleanup: PASSED after using valid patient source;
-- Admin A login and smoke patient page render on existing QA dev server: PASSED;
-- full clinical encounter lifecycle browser smoke: PARTIAL / not completed.
+- schema-valid fixture creation with `patients.source=walk_in`: PASSED;
+- full clinical encounter lifecycle browser smoke: PASSED, 6/6 scenarios;
+- side-effect boundary checks: PASSED, completed services/documents/payments/stock all zero;
+- cleanup: PASSED, zero remaining rows;
+- React `act(...)` warning scan: PASSED, no warnings emitted by the current 512-test run.
 
 GitHub Actions CI:
 
-- CI #579: success
-- Tested commit: `fafa70c2fcf0bdddd0def110fb3d4f12aaddf5ed`
+- CI #581: success
+- Tested commit: `c6db8c336c45bec26e609ad4f08e0b4a01040a20`
 
 ## Issues / warnings
 
-1. Full browser lifecycle smoke is incomplete.
-2. Available QA dev server on port 5174 appears stale for the newly added encounter tab.
-3. Fresh dev server on port 5180 served an empty app shell in browser text extraction.
-4. UI test suite has existing React `act(...)` warning noise, but tests pass.
-5. Hook-level errors are intentionally normalized and UI displays safe Russian messages.
+1. Vite still reports the existing non-blocking large chunk warning.
+2. The existing prototype-mode banner remains visible in the Supabase-configured app; it is outside this clinical encounter task.
+3. Hook-level errors are intentionally normalized and UI displays safe Russian messages.
 
 ## Final verdict
 
-Final verdict: **PARTIAL**
+Final verdict: **PASS**
 
-Reason: clinical encounter UI, hooks, patient page integration, unit tests, lint, full test suite, and build are complete. Full local browser lifecycle smoke for create/start/complete clinical encounter through the current UI is not completed.
+Reason: clinical encounter UI, hooks, patient page integration, role and tenant boundaries, real local create/start/complete RPC writes, summary persistence, absence of adjacent service/document/payment/stock facts, audit/activity side effects, cleanup, tests, build, and CI are verified.
 
 ## Recommended next task
 
-ENCOUNTER-CLINICAL-NOTES-UI-001B-LOCAL-SMOKE
+ENCOUNTER-CLINICAL-NOTES-UI-002 — define the next scoped correction/locking workflow without coupling encounters to billing facts.
 
+<!-- SUPER_HERMES_METADATA:START -->
+## Final Report Metadata
+
+- PR: https://github.com/NckNA/codex-test/pull/316
+- PR number: 316
+- Branch: feature/encounter-clinical-notes-ui-001
+- Base branch: main
+- Implementation/reviewed HEAD: c6db8c336c45bec26e609ad4f08e0b4a01040a20
+- Local HEAD at finalization: c6db8c336c45bec26e609ad4f08e0b4a01040a20
+- Latest CI run ID: 27868043407
+- Latest CI number: 581
+- Latest CI conclusion: SUCCESS
+- CI tested commit: c6db8c336c45bec26e609ad4f08e0b4a01040a20
+- Latest green CI run ID: 27868043407
+- Latest green CI number: 581
+- Latest green CI tested commit: c6db8c336c45bec26e609ad4f08e0b4a01040a20
+
+### Checks
+
+| Check | Workflow | Status | Conclusion | Run | Tested commit |
+| --- | --- | --- | --- | --- | --- |
+| validate | CI | COMPLETED | SUCCESS | 27868043407 | c6db8c336c45bec26e609ad4f08e0b4a01040a20 |
+
+> A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
+<!-- SUPER_HERMES_METADATA:END -->
