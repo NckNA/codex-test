@@ -195,3 +195,29 @@ No local smoke rows were inserted by this task, because smoke data setup was blo
 
 ## Recommended next task
 **VISIT-CHECKIN-UI-001B-LOCAL-SMOKE** — run full local Supabase role-based browser smoke once DB reset/QA seed/smoke-row tooling is available without safety blockage.
+
+<!-- SUPER_HERMES_METADATA:START -->
+## Final Report Metadata
+
+- PR: https://github.com/NckNA/codex-test/pull/315
+- PR number: 315
+- Branch: feature/visit-checkin-ui-001
+- Base branch: main
+- Implementation/reviewed HEAD: 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52
+- Local HEAD at finalization: 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52
+- Latest CI run ID: 27856193466
+- Latest CI number: 570
+- Latest CI conclusion: none
+- CI tested commit: 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52
+- Latest green CI run ID: none
+- Latest green CI number: none
+- Latest green CI tested commit: none
+
+### Checks
+
+| Check | Workflow | Status | Conclusion | Run | Tested commit |
+| --- | --- | --- | --- | --- | --- |
+| validate | CI | IN_PROGRESS | IN_PROGRESS | 27856193466 | 11763da306f936d52c0fc9ab3a4b9c5ff1e19e52 |
+
+> A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
+<!-- SUPER_HERMES_METADATA:END -->
