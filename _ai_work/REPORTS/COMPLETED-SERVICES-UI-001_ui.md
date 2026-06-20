@@ -201,3 +201,29 @@ COMPLETED SERVICES UI IMPLEMENTED AND VERIFIED
 
 ## Recommended next task
 SUPABASE-CLOUD-APPLY-ENCOUNTER-VISIT-001
+
+<!-- SUPER_HERMES_METADATA:START -->
+## Final Report Metadata
+
+- PR: https://github.com/NckNA/codex-test/pull/317
+- PR number: 317
+- Branch: feature/completed-services-ui-001
+- Base branch: main
+- Implementation/reviewed HEAD: 7a8ffeca7efc5c0820068d61b29495510aaa698c
+- Local HEAD at finalization: 7a8ffeca7efc5c0820068d61b29495510aaa698c
+- Latest CI run ID: 27870707109
+- Latest CI number: 586
+- Latest CI conclusion: none
+- CI tested commit: 7a8ffeca7efc5c0820068d61b29495510aaa698c
+- Latest green CI run ID: none
+- Latest green CI number: none
+- Latest green CI tested commit: none
+
+### Checks
+
+| Check | Workflow | Status | Conclusion | Run | Tested commit |
+| --- | --- | --- | --- | --- | --- |
+| validate | CI | IN_PROGRESS | IN_PROGRESS | 27870707109 | 7a8ffeca7efc5c0820068d61b29495510aaa698c |
+
+> A report-only commit cannot contain its own SHA or future CI result. After commit/push, Super Hermes stores those final values in an immutable local finalization receipt.
+<!-- SUPER_HERMES_METADATA:END -->
