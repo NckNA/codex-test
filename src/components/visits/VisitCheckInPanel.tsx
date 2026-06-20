@@ -127,7 +127,7 @@ export function VisitCheckInPanel({
   };
 
   return (
-    <section className="space-y-5" aria-label="Визиты пациента">
+    <section className="space-y-5" aria-label="Визиты пациента" data-testid="visit-checkin-panel">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -153,7 +153,7 @@ export function VisitCheckInPanel({
         )}
 
         {canCheckIn && (
-          <form onSubmit={handleCheckIn} className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+          <form onSubmit={handleCheckIn} className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4" data-testid="visit-checkin-form">
             <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-blue-800" htmlFor="visit-type">
@@ -184,6 +184,7 @@ export function VisitCheckInPanel({
               </div>
               <button
                 type="submit"
+                data-testid="visit-checkin-submit"
                 disabled={actionLoading !== null}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -226,7 +227,7 @@ export function VisitCheckInPanel({
         {!isLoading && !isError && visits.length > 0 && (
           <div className="space-y-4">
             {visits.map((visit) => (
-              <article key={visit.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <article key={visit.id} data-testid={`visit-card-${visit.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">

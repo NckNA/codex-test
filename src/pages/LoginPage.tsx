@@ -135,6 +135,7 @@ export function LoginPage() {
                   <button
                     key={user.email}
                     type="button"
+                    data-testid={`qa-login-${user.email}`}
                     disabled={isSubmitting}
                     onClick={() => void handleQaLogin(user.email)}
                     className="rounded-md border border-amber-200 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"

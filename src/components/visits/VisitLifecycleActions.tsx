@@ -47,6 +47,7 @@ export function VisitLifecycleActions({
         {canStart && (
           <button
             type="button"
+            data-testid={`visit-start-${visit.id}`}
             disabled={isBusy}
             onClick={() => onStart(visit.id)}
             className={`${buttonClass} bg-blue-600 text-white hover:bg-blue-700`}
@@ -57,6 +58,7 @@ export function VisitLifecycleActions({
         {canComplete && (
           <button
             type="button"
+            data-testid={`visit-complete-${visit.id}`}
             disabled={isBusy}
             onClick={() => onComplete(visit.id)}
             className={`${buttonClass} bg-emerald-600 text-white hover:bg-emerald-700`}
@@ -67,6 +69,7 @@ export function VisitLifecycleActions({
         {canCancel && (
           <button
             type="button"
+            data-testid={`visit-cancel-${visit.id}`}
             disabled={isBusy}
             onClick={() => setIsCancelOpen((value) => !value)}
             className={`${buttonClass} bg-white text-rose-700 border border-rose-200 hover:bg-rose-50`}
@@ -83,6 +86,7 @@ export function VisitLifecycleActions({
           </label>
           <textarea
             id={`visit-cancel-${visit.id}`}
+            data-testid={`visit-cancel-reason-${visit.id}`}
             value={cancelReason}
             onChange={(event) => setCancelReason(event.target.value)}
             className="w-full min-h-20 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-rose-400"
@@ -91,6 +95,7 @@ export function VisitLifecycleActions({
           <div className="mt-2 flex gap-2">
             <button
               type="button"
+              data-testid={`visit-cancel-confirm-${visit.id}`}
               disabled={isBusy || !cancelReason.trim()}
               onClick={async () => {
                 await onCancel(visit.id, cancelReason);

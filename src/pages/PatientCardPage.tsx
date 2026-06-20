@@ -172,6 +172,7 @@ export function PatientCardPage() {
           {TABS.map(tab => (
             <button
               key={tab.id}
+              data-testid={`patient-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={`pb-3 text-sm font-medium transition-colors relative ${
                 activeTab === tab.id ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
@@ -229,11 +230,13 @@ export function PatientCardPage() {
         )}
         {activeTab === 'history' && <PatientHistoryTab patientId={patient.id} />}
         {activeTab === 'visits' && (
-          <VisitCheckInPanel
-            tenantId={activeTenant?.tenantId}
-            patientId={patient.id}
-            role={activeTenant?.role}
-          />
+          <div data-testid="patient-visits-tab">
+            <VisitCheckInPanel
+              tenantId={activeTenant?.tenantId}
+              patientId={patient.id}
+              role={activeTenant?.role}
+            />
+          </div>
         )}
         {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
         {activeTab === 'findings' && <FindingsRisksTab patientId={patient.id} />}
