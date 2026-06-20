@@ -10,6 +10,7 @@ import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
 import { PatientTimelineTab } from '../components/patient/PatientTimelineTab';
+import { VisitCheckInPanel } from '../components/visits/VisitCheckInPanel';
 import { usePatientMedicalSummary } from '../data/hooks/usePatientMedicalSummary';
 import { usePatientProfile } from '../data/hooks/usePatientProfile';
 import { usePatientTimeline } from '../data/hooks/usePatientTimeline';
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'overview', label: 'Обзор' },
   { id: 'timeline', label: 'История' },
   { id: 'history', label: 'История приёмов' },
+  { id: 'visits', label: 'Визиты' },
   { id: 'dental_chart', label: 'Зубная карта' },
   { id: 'findings', label: 'Проблемы и риски' },
   { id: 'plan', label: 'План лечения' },
@@ -170,6 +172,7 @@ export function PatientCardPage() {
           {TABS.map(tab => (
             <button
               key={tab.id}
+              data-testid={`patient-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={`pb-3 text-sm font-medium transition-colors relative ${
                 activeTab === tab.id ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
@@ -226,6 +229,15 @@ export function PatientCardPage() {
           />
         )}
         {activeTab === 'history' && <PatientHistoryTab patientId={patient.id} />}
+        {activeTab === 'visits' && (
+          <div data-testid="patient-visits-tab">
+            <VisitCheckInPanel
+              tenantId={activeTenant?.tenantId}
+              patientId={patient.id}
+              role={activeTenant?.role}
+            />
+          </div>
+        )}
         {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
         {activeTab === 'findings' && <FindingsRisksTab patientId={patient.id} />}
         {activeTab === 'plan' && <TreatmentPlansTab patientId={patient.id} />}
