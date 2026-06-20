@@ -81,6 +81,7 @@ export function CompletedServicesPanel({ tenantId, patientId, role, repository, 
     patientId,
     includeVoided: true,
     repository,
+    enabled: capabilities.canView,
   });
 
   const { actionLoading, error: actionError, recordService, voidService } = useCompletedServiceActions({

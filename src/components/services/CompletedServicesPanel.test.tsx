@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
@@ -88,16 +88,23 @@ describe('CompletedServicesPanel', () => {
     expect(container.querySelector('[data-testid="completed-service-void-service-1"]')).not.toBeNull();
   });
 
-  it('registrar does not see record or void controls', async () => {
-    await renderPanel({ role: 'registrar' });
+  it('registrar does not see record or void controls but can view panel', async () => {
+    const { repository } = await renderPanel({ role: 'registrar' });
+    expect(repository.listCompletedServices).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="completed-services-no-access"]')).toBeNull();
+    expect(container.querySelector('[data-testid="completed-services-panel"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="completed-service-create-form"]')).toBeNull();
     expect(container.querySelector('[data-testid="completed-service-void-service-1"]')).toBeNull();
   });
 
-  it('cashier does not see mutation controls', async () => {
-    await renderPanel({ role: 'cashier' });
+  it('cashier does not call repository, does not see service details, and sees no-access block', async () => {
+    const { repository } = await renderPanel({ role: 'cashier' });
+    expect(repository.listCompletedServices).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="completed-services-no-access"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="completed-services-panel"]')).toBeNull();
     expect(container.querySelector('[data-testid="completed-service-create-form"]')).toBeNull();
     expect(container.querySelector('[data-testid="completed-service-void-service-1"]')).toBeNull();
+    expect(container.textContent).not.toContain('Smoke completed service');
   });
 
   it('voided service hides mutation action and renders reason', async () => {

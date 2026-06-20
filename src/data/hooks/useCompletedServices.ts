@@ -1,4 +1,4 @@
-﻿import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
 import {
   createEncounterVisitRepository,
@@ -13,6 +13,7 @@ export interface UseCompletedServicesOptions {
   includeArchived?: boolean;
   includeVoided?: boolean;
   repository?: EncounterVisitRepository;
+  enabled?: boolean;
 }
 
 export interface UseCompletedServicesResult {
@@ -32,8 +33,9 @@ export function useCompletedServices({
   includeArchived = false,
   includeVoided = true,
   repository,
+  enabled = true,
 }: UseCompletedServicesOptions): UseCompletedServicesResult {
-  const canFetch = Boolean(tenantId && patientId);
+  const canFetch = Boolean(tenantId && patientId) && enabled;
 
   const serviceRepository = useMemo(() => {
     if (repository) return repository;
