@@ -7,10 +7,10 @@ The application of local SQL migrations `0014` and `0015` to the remote Supabase
 `report/supabase-cloud-apply-encounter-visit-001`
 
 ## 3. PR URL
-N/A (will be created or updated upon publish)
+https://github.com/NckNA/codex-test/pull/321
 
 ## 4. PR Head Reviewed Before Final Report Update
-N/A
+d11142f76d69ba9e698d03f16ded47eb95db2f05
 
 ## 5. Report Update Commit
 N/A
