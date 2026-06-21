@@ -1,4 +1,4 @@
-# PAYMENTS-DEBTS-REPOSITORY-001B — Finance read repository
+﻿# PAYMENTS-DEBTS-REPOSITORY-001B — Finance read repository
 
 ## Summary
 Implemented a read-only finance repository layer for the finance schema introduced by PAYMENTS-DEBTS-SCHEMA-001A.
@@ -14,7 +14,7 @@ No write paths, RPCs, UI, hooks, migrations, cloud actions, seed data, generated
 https://github.com/NckNA/codex-test/pull/324
 
 ## PR head reviewed before final report update
-cc360f548713074b0e7226fd4ac25421ceb9e1d7
+d380980a0d3087d453499f46b94ed57825dd4000
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -42,8 +42,8 @@ Reviewed existing repository conventions from the encounter/visit read repositor
 Finance schema dependency:
 
 - The implementation targets `0016_create_finance_model.sql` from PAYMENTS-DEBTS-SCHEMA-001A.
-- At implementation time, `origin/main` still contained migrations only through `0015`, because PR #323 had not yet been merged.
-- The repository therefore avoids changing migrations and documents local DB validation as partial until #323 lands on `main`.
+- `origin/main` now contains `0016_create_finance_model.sql` after PR #323 was merged.
+- This branch was rebased onto current `origin/main` and validated against the local finance tables created by `0016`.
 
 ## Repository design
 Added `src/data/repositories/FinanceRepository.ts`.
@@ -218,22 +218,17 @@ Covered scenarios:
 - no mocked write calls.
 
 ## Local validation
-Dependency caveat:
+`npx supabase db reset --no-seed` was rerun through the local Supabase reset tool after rebasing onto current origin/main.
 
-- `origin/main` did not contain `supabase/migrations/0016_create_finance_model.sql` at implementation time.
-- Clean `npx supabase db reset --no-seed` therefore applied migrations only through `0015`.
-- This confirms existing migrations still reset cleanly, but it cannot validate empty finance tables until PR #323 is merged into `main` or this branch is rebased onto a base that includes `0016`.
+Validation result:
 
-Commands run:
-
-- `npx supabase db reset --no-seed` — passed after Docker Desktop was started, applying migrations through `0015` on current `main`.
-- No seed data was inserted.
-- No local finance rows were created.
-
-Finance table read validation:
-
-- Not run against local DB because `0016` was not present on current `origin/main`.
-- Repository behavior was validated through mocked Supabase reads and TypeScript summary tests.
+- local reset passed with `0016_create_finance_model.sql` applied;
+- finance tables exist locally: `invoices`, `invoice_items`, `payments`, `payment_allocations`, `refunds`, `financial_adjustments`;
+- row counts are `0` for all six finance tables;
+- no seed data was inserted;
+- no invoice/payment/refund/adjustment rows were created;
+- repository empty-list and zero-summary behavior is covered by unit tests;
+- repository reads remain read-only and tenant-bound.
 
 ## What was intentionally NOT changed
 - no migrations;
@@ -259,23 +254,24 @@ Local checks:
 - `npm run test -- --run src/data/repositories/FinanceRepository.test.ts` — passed, 19 tests.
 - `npm run test -- --run` — passed, 59 files / 552 tests.
 - `npm run build` — passed.
-- `npx supabase db reset --no-seed` — passed for current main migrations through `0015`; finance table validation blocked until `0016` is on base.
+- `npx supabase db reset --no-seed` — passed through local Supabase reset after rebase; `0016_create_finance_model.sql` applied and finance tables validated empty.
 
 GitHub Actions CI:
 
-- TBD after PR creation.
+- Pending fresh CI after final report update.
 
 ## Issues / warnings
 Known limitations:
 
-1. Base dependency: `0016_create_finance_model.sql` is not yet present on `origin/main` at implementation time.
-2. Local finance-table DB validation remains pending until PR #323 is merged or this branch is rebased onto a base containing `0016`.
-3. Patient finance summary is preliminary and should not be treated as final accounting truth.
-4. Existing project test warnings remain: React `act(...)` warnings in unrelated UI tests and intentional error-handling stderr logs.
-5. `npm ci` reports existing dependency audit warnings; no dependency changes were made.
+1. Patient finance summary is preliminary and should not be treated as final accounting truth.
+2. Existing project test warnings remain: React `act(...)` warnings in unrelated UI tests and intentional error-handling stderr logs.
+3. 
+pm ci` reports existing dependency audit warnings; no dependency changes were made.
 
 ## Final verdict
-PARTIAL — read-only finance repository implemented and locally TypeScript-tested, but local DB validation against finance tables is pending because the schema migration dependency is not yet on `main`.
+PAYMENTS DEBTS REPOSITORY IMPLEMENTED AND VERIFIED
 
 ## Recommended next task
-PAYMENTS-DEBTS-RPC-001C, after PAYMENTS-DEBTS-SCHEMA-001A is merged and this repository branch is rebased/validated against `0016`.
+PAYMENTS-DEBTS-RPC-001C
+
+
