@@ -16,10 +16,10 @@ This task deliberately separates clinical facts from financial facts:
 `feature/payments-debts-schema-001a`
 
 ## PR URL
-TBD before PR creation.
+https://github.com/NckNA/codex-test/pull/323
 
 ## PR head reviewed before final report update
-TBD before final report update.
+c6cbe62e3ea244747ca2ede9f8aee08224859636
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
