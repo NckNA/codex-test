@@ -21,11 +21,11 @@ The implementation is intentionally limited to database RPC functions. It does n
 
 ## PR URL
 
-TBD after PR creation.
+https://github.com/NckNA/codex-test/pull/325
 
 ## PR head reviewed before final report update
 
-TBD before final report update.
+535ed33e9f507a6a05f36e52032ac4019d23676d
 
 ## Report update commit
 
@@ -382,7 +382,7 @@ Known unrelated warnings:
 
 GitHub Actions CI:
 
-TBD after PR creation.
+GitHub Actions CI #618 / run 27909088569: success on 535ed33e9f507a6a05f36e52032ac4019d23676d.
 
 ## Issues / warnings
 
