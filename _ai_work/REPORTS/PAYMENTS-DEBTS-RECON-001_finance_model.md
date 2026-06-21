@@ -26,7 +26,7 @@ https://github.com/NckNA/codex-test/pull/322
 
 ## PR head reviewed before final report update
 
-6d6958b6d03f99c4026efa85e8162edb6b75380a
+7573bc2029294f8ff6ba87de7ed77d8570bfb651
 
 ## Report update commit
 
@@ -629,7 +629,7 @@ Local recon checks performed:
 
 Git status / CI:
 
-- Final GitHub Actions CI to be recorded after report-only PR publication.
+- GitHub Actions CI #606 / run 27889878143: success on 7573bc2029294f8ff6ba87de7ed77d8570bfb651.
 
 ## Final verdict
 
