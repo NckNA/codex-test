@@ -19,7 +19,7 @@ This task deliberately separates clinical facts from financial facts:
 https://github.com/NckNA/codex-test/pull/323
 
 ## PR head reviewed before final report update
-c6cbe62e3ea244747ca2ede9f8aee08224859636
+fbfc99df4a89b29c488fce49318e783c8ec5d4b2
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -295,7 +295,7 @@ Known warnings:
 
 GitHub Actions CI:
 
-- TBD after PR creation.
+- GitHub Actions CI #610 / run 27902189175: success on fbfc99df4a89b29c488fce49318e783c8ec5d4b2.
 
 ## Issues / warnings
 - `patient_financial_summary` view was intentionally skipped for first schema foundation to avoid a misleading summary before controlled write paths and role-specific summary access are implemented.
