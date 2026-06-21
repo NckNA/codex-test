@@ -22,11 +22,11 @@ The current clinical workflow now has visits, clinical encounters, and completed
 
 ## PR URL
 
-TBD after report-only PR creation.
+https://github.com/NckNA/codex-test/pull/322
 
 ## PR head reviewed before final report update
 
-TBD after first report publish.
+6d6958b6d03f99c4026efa85e8162edb6b75380a
 
 ## Report update commit
 
