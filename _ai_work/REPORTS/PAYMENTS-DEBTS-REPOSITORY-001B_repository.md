@@ -11,10 +11,10 @@ No write paths, RPCs, UI, hooks, migrations, cloud actions, seed data, generated
 `feature/payments-debts-repository-001b`
 
 ## PR URL
-TBD after PR creation.
+https://github.com/NckNA/codex-test/pull/324
 
 ## PR head reviewed before final report update
-TBD after PR creation.
+cc360f548713074b0e7226fd4ac25421ceb9e1d7
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
