@@ -26,3 +26,16 @@ dist-ssr
 # Supabase local artifacts
 supabase/.branches/
 supabase/.temp/
+
+# Agent scratch and generated local payloads
+_ai_work/scratch/
+outputs/
+*.bak-*
+/pr.txt
+/seed_output.sql
+/temp.md
+
+# Agent Memory
+_ai_work/task_memory/*.db
+_ai_work/task_memory/*.db-shm
+_ai_work/task_memory/*.db-wal
