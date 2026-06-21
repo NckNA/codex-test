@@ -14,7 +14,7 @@ No write paths, RPCs, UI, hooks, migrations, cloud actions, seed data, generated
 https://github.com/NckNA/codex-test/pull/324
 
 ## PR head reviewed before final report update
-d380980a0d3087d453499f46b94ed57825dd4000
+14e0b53521c656ce7e470ca431ddd39bddc3db09
 
 ## Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -258,7 +258,7 @@ Local checks:
 
 GitHub Actions CI:
 
-- Pending fresh CI after final report update.
+- GitHub Actions CI #615 / run 27907475017: success on 14e0b53521c656ce7e470ca431ddd39bddc3db09.
 
 ## Issues / warnings
 Known limitations:
