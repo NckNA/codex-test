@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as childProcess from "node:child_process";
 import { verifyNodeEnvironment, redactSecrets, TaskMemoryManager } from "../task-memory.ts";
 import { validateWorktreePath, checkWorkspaceClean, WorktreeManager, gitExecutor } from "../worktree-manager.ts";
+import { finalizeReport, detectLatestReport } from "../metadata-finalizer.ts";
 
 describe("HEP Tooling Validation Test Suite", () => {
   const tempDir = path.resolve("./_ai_work/scratch/temp-hep-tests");
@@ -224,6 +225,382 @@ describe("HEP Tooling Validation Test Suite", () => {
       expect(gitFiles).not.toContain("task_memory.db");
       expect(gitFiles).not.toContain("task_memory.db-shm");
       expect(gitFiles).not.toContain("task_memory.db-wal");
+    });
+  });
+
+  // 8. Report Metadata Finalizer
+  describe("Report Metadata Finalizer", () => {
+    const mockReportsDir = path.join(tempDir, "_ai_work/REPORTS");
+
+    beforeEach(() => {
+      if (!fs.existsSync(mockReportsDir)) {
+        fs.mkdirSync(mockReportsDir, { recursive: true });
+      }
+    });
+
+    it("should successfully finalize bullet-list metadata format", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-BULLET-001.md");
+      const initialContent = `# Test Report
+## Metadata
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+- **Final Verdict**: TBD
+- **Recommended Next Task**: TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockImplementation((cmd) => {
+        if (cmd === "git branch --show-current") return "feature/test-branch";
+        if (cmd === "git rev-parse HEAD") return "local-head-sha-12345";
+        if (cmd.startsWith("gh pr view")) return JSON.stringify({ url: "https://github.com/some/pr/326" });
+        if (cmd.startsWith("gh run list")) {
+          return JSON.stringify([{
+            databaseId: 1234567,
+            number: 42,
+            status: "completed",
+            conclusion: "success",
+            headSha: "local-head-sha-12345"
+          }]);
+        }
+        if (cmd === "git status --porcelain") return "";
+        return "";
+      });
+
+      finalizeReport({
+        repositoryPath: tempDir,
+        reportPath,
+        verdict: "SUCCESS",
+        nextTask: "HEP-NEXT-TASK-001"
+      });
+
+      const updatedContent = fs.readFileSync(reportPath, "utf8");
+      expect(updatedContent).toContain("- **PR URL**: [https://github.com/some/pr/326](https://github.com/some/pr/326)");
+      expect(updatedContent).toContain("- **Branch**: `feature/test-branch`");
+      expect(updatedContent).toContain("- **PR Head Reviewed**: `local-head-sha-12345`");
+      expect(updatedContent).toContain("- **Report Update Commit**: `N/A because the final report update commit cannot reference itself before creation.`");
+      expect(updatedContent).toContain("- **Run ID**: `1234567`");
+      expect(updatedContent).toContain("- **Run Number**: `42`");
+      expect(updatedContent).toContain("- **Tested Commit**: `local-head-sha-12345`");
+      expect(updatedContent).toContain("- **Final Verdict**: **SUCCESS**");
+      expect(updatedContent).toContain("- **Recommended Next Task**: **HEP-NEXT-TASK-001**");
+
+      execSpy.mockRestore();
+    });
+
+    it("should successfully finalize numbered-section metadata format", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-NUMBERED-001.md");
+      const initialContent = `# Test Report
+## 1. PR URL
+TBD
+
+## 2. Branch
+TBD
+
+## 3. PR Head Reviewed
+TBD
+
+## 4. Report Update Commit
+TBD
+
+## 5. Run ID
+TBD
+
+## 6. Run Number
+TBD
+
+## 7. Tested Commit
+TBD
+
+## 8. Final Verdict
+TBD
+
+## 9. Recommended Next Task
+TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockImplementation((cmd) => {
+        if (cmd === "git branch --show-current") return "feature/test-branch";
+        if (cmd === "git rev-parse HEAD") return "local-head-sha-12345";
+        if (cmd.startsWith("gh pr view")) return JSON.stringify({ url: "https://github.com/some/pr/326" });
+        if (cmd.startsWith("gh run list")) {
+          return JSON.stringify([{
+            databaseId: 1234567,
+            number: 42,
+            status: "completed",
+            conclusion: "success",
+            headSha: "local-head-sha-12345"
+          }]);
+        }
+        if (cmd === "git status --porcelain") return "";
+        return "";
+      });
+
+      finalizeReport({
+        repositoryPath: tempDir,
+        reportPath,
+        verdict: "SUCCESS",
+        nextTask: "HEP-NEXT-TASK-001"
+      });
+
+      const updatedContent = fs.readFileSync(reportPath, "utf8");
+      expect(updatedContent).toContain("## 1. PR URL\nhttps://github.com/some/pr/326");
+      expect(updatedContent).toContain("## 2. Branch\nfeature/test-branch");
+      expect(updatedContent).toContain("## 3. PR Head Reviewed\nlocal-head-sha-12345");
+      expect(updatedContent).toContain("## 4. Report Update Commit\nN/A because the final report update commit cannot reference itself before creation.");
+      expect(updatedContent).toContain("## 5. Run ID\n1234567");
+      expect(updatedContent).toContain("## 6. Run Number\n42");
+      expect(updatedContent).toContain("## 7. Tested Commit\nlocal-head-sha-12345");
+      expect(updatedContent).toContain("## 8. Final Verdict\nSUCCESS");
+      expect(updatedContent).toContain("## 9. Recommended Next Task\nHEP-NEXT-TASK-001");
+
+      execSpy.mockRestore();
+    });
+
+    it("should reject finalization if CI is pending", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-PENDING-001.md");
+      const initialContent = `# Test Report
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockImplementation((cmd) => {
+        if (cmd === "git branch --show-current") return "feature/test-branch";
+        if (cmd === "git rev-parse HEAD") return "local-head-sha-12345";
+        if (cmd.startsWith("gh pr view")) return JSON.stringify({ url: "https://github.com/some/pr/326" });
+        if (cmd.startsWith("gh run list")) {
+          return JSON.stringify([{
+            databaseId: 1234567,
+            number: 42,
+            status: "in_progress",
+            conclusion: "",
+            headSha: "local-head-sha-12345"
+          }]);
+        }
+        if (cmd === "git status --porcelain") return "";
+        return "";
+      });
+
+      expect(() => {
+        finalizeReport({
+          repositoryPath: tempDir,
+          reportPath
+        });
+      }).toThrow(/CI Validation Blocked: Latest workflow run is still in status "in_progress"/);
+
+      execSpy.mockRestore();
+    });
+
+    it("should reject finalization if CI has failed", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-FAILED-001.md");
+      const initialContent = `# Test Report
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockImplementation((cmd) => {
+        if (cmd === "git branch --show-current") return "feature/test-branch";
+        if (cmd === "git rev-parse HEAD") return "local-head-sha-12345";
+        if (cmd.startsWith("gh pr view")) return JSON.stringify({ url: "https://github.com/some/pr/326" });
+        if (cmd.startsWith("gh run list")) {
+          return JSON.stringify([{
+            databaseId: 1234567,
+            number: 42,
+            status: "completed",
+            conclusion: "failure",
+            headSha: "local-head-sha-12345"
+          }]);
+        }
+        if (cmd === "git status --porcelain") return "";
+        return "";
+      });
+
+      expect(() => {
+        finalizeReport({
+          repositoryPath: tempDir,
+          reportPath
+        });
+      }).toThrow(/CI Validation Blocked: Latest workflow run finished with conclusion "failure"/);
+
+      execSpy.mockRestore();
+    });
+
+    it("should reject finalization if latest CI headSha does not match local HEAD (stale CI)", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-MISMATCH-001.md");
+      const initialContent = `# Test Report
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockImplementation((cmd) => {
+        if (cmd === "git branch --show-current") return "feature/test-branch";
+        if (cmd === "git rev-parse HEAD") return "local-head-sha-12345";
+        if (cmd.startsWith("gh pr view")) return JSON.stringify({ url: "https://github.com/some/pr/326" });
+        if (cmd.startsWith("gh run list")) {
+          return JSON.stringify([{
+            databaseId: 1234567,
+            number: 42,
+            status: "completed",
+            conclusion: "success",
+            headSha: "old-stale-sha-999"
+          }]);
+        }
+        if (cmd === "git status --porcelain") return "";
+        return "";
+      });
+
+      expect(() => {
+        finalizeReport({
+          repositoryPath: tempDir,
+          reportPath
+        });
+      }).toThrow(/CI Validation Blocked: Tested SHA in CI \(old-stale-sha-999\) does not match local HEAD commit \(local-head-sha-12345\)/);
+
+      execSpy.mockRestore();
+    });
+
+    it("should throw error if required metadata fields are missing", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-MISSING-FIELD-001.md");
+      const initialContent = `# Test Report
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      expect(() => {
+        finalizeReport({
+          repositoryPath: tempDir,
+          reportPath
+        });
+      }).toThrow(/Error: Required metadata field "PR URL" not found in the report/);
+    });
+
+    it("should throw error if multiple conflicting metadata fields are found", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-CONFLICT-001.md");
+      const initialContent = `# Test Report
+- **PR URL**: TBD
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      expect(() => {
+        finalizeReport({
+          repositoryPath: tempDir,
+          reportPath
+        });
+      }).toThrow(/Conflict: Multiple entries found for metadata field "PR URL"/);
+    });
+
+    it("should warn on unresolved placeholders (TBD, TODO, PARTIAL) in finalized report", () => {
+      const reportPath = path.join(mockReportsDir, "HEP-TEST-PLACEHOLDERS-001.md");
+      const initialContent = `# Test Report
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Tested Commit**: TBD
+
+This task has some TODO notes and the implementation is PARTIAL.
+`;
+      fs.writeFileSync(reportPath, initialContent, "utf8");
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockImplementation((cmd) => {
+        if (cmd === "git branch --show-current") return "feature/test-branch";
+        if (cmd === "git rev-parse HEAD") return "local-head-sha-12345";
+        if (cmd.startsWith("gh pr view")) return JSON.stringify({ url: "https://github.com/some/pr/326" });
+        if (cmd.startsWith("gh run list")) {
+          return JSON.stringify([{
+            databaseId: 1234567,
+            number: 42,
+            status: "completed",
+            conclusion: "success",
+            headSha: "local-head-sha-12345"
+          }]);
+        }
+        if (cmd === "git status --porcelain") return "";
+        return "";
+      });
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      finalizeReport({
+        repositoryPath: tempDir,
+        reportPath
+      });
+
+      expect(warnSpy).toHaveBeenCalled();
+      const warningOutput = warnSpy.mock.calls.flat().join("\n");
+      expect(warningOutput).toContain("warning: Unresolved placeholder");
+      expect(warningOutput).toContain("TODO");
+      expect(warningOutput).toContain("PARTIAL");
+
+      warnSpy.mockRestore();
+      execSpy.mockRestore();
+    });
+
+    it("should throw when latest report is ambiguous (multiple files modified in the last 5 minutes)", () => {
+      const report1 = path.join(mockReportsDir, "HEP-REPORT-A.md");
+      const report2 = path.join(mockReportsDir, "HEP-REPORT-B.md");
+
+      fs.writeFileSync(report1, "A", "utf8");
+      fs.writeFileSync(report2, "B", "utf8");
+
+      const now = Date.now();
+      fs.utimesSync(report1, new Date(now), new Date(now));
+      fs.utimesSync(report2, new Date(now - 1000), new Date(now - 1000));
+
+      const execSpy = vi.spyOn(gitExecutor, "execSync").mockReturnValue(""); // Clean git status
+
+      expect(() => {
+        detectLatestReport(tempDir);
+      }).toThrow(/Ambiguous reports: The two most recently modified reports were updated within 5 minutes/);
+
+      execSpy.mockRestore();
+    });
+
+    it("should throw when no report path is found", () => {
+      const emptyDir = path.join(tempDir, "empty-reports-dir");
+      const emptyReportsDir = path.join(emptyDir, "_ai_work/REPORTS");
+      fs.mkdirSync(emptyReportsDir, { recursive: true });
+
+      expect(() => {
+        detectLatestReport(emptyDir);
+      }).toThrow(/No report markdown files \(\.md\) found/);
     });
   });
 });

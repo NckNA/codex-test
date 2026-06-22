@@ -12,6 +12,7 @@ Commands:
   status              Check status of a task worktree.
   clean-task          Clean/remove a task worktree.
   test-db             Run connection test on SQLite database.
+  finalize-report     Finalize metadata in a task report file using Git/GitHub CLI.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -22,6 +23,9 @@ Options:
   --dry-run           Show git operations and DB updates without running them
   --bypassCleanCheck  Bypass check for uncommitted changes in the main workspace
   --force             Force removal of dirty worktrees (only for clean-task)
+  --report <path>     Path to the report file (default: auto-detect latest modified report)
+  --verdict <str>     Optional final verdict text to update in report
+  --next-task <str>   Optional next task ID to update in report
 `);
 }
 
@@ -75,6 +79,10 @@ async function main(): Promise<void> {
   const dryRun = !!options.dryRun || !!options["dry-run"];
   const force = !!options.force;
   const bypassCleanCheck = !!options.bypassCleanCheck || !!options["bypass-clean-check"];
+  
+  const report = (options.report as string) || (options["report"] as string);
+  const nextTask = (options.nextTask as string) || (options["next-task"] as string);
+  const verdict = options.verdict as string;
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -117,6 +125,16 @@ async function main(): Promise<void> {
         console.log(`Database connected successfully at: ${mem.getDbPath()}`);
         mem.close();
         console.log("Database connection test PASSED.");
+        break;
+      }
+      case "finalize-report": {
+        const { finalizeReport } = await import("./metadata-finalizer.ts");
+        finalizeReport({
+          repositoryPath,
+          reportPath: report,
+          verdict,
+          nextTask
+        });
         break;
       }
       default: {
