@@ -196,6 +196,8 @@ export function finalizeReport(options: {
   const testedCommitKeys = ["Tested Commit", "CI Tested Commit"];
   const verdictKeys = ["Final Verdict", "final_verdict"];
   const nextTaskKeys = ["Recommended Next Task", "recommended_next_task"];
+  const statusKeys = ["CI Status", "Status"];
+  const conclusionKeys = ["CI Conclusion", "Conclusion"];
 
   // Validate duplicate conflicts and required presence
   const validationList = [
@@ -206,6 +208,8 @@ export function finalizeReport(options: {
     { name: "Run ID", keys: runIdKeys, required: true },
     { name: "Run Number", keys: runNumberKeys, required: true },
     { name: "Tested Commit", keys: testedCommitKeys, required: true },
+    { name: "Status", keys: statusKeys, required: false },
+    { name: "Conclusion", keys: conclusionKeys, required: false },
     { name: "Final Verdict", keys: verdictKeys, required: !!options.verdict },
     { name: "Recommended Next Task", keys: nextTaskKeys, required: !!options.nextTask }
   ];
@@ -297,6 +301,8 @@ export function finalizeReport(options: {
   content = replaceField(content, runIdKeys, String(latestRun.databaseId), `\`${latestRun.databaseId}\``);
   content = replaceField(content, runNumberKeys, String(latestRun.number), `\`${latestRun.number}\``);
   content = replaceField(content, testedCommitKeys, latestRun.headSha, `\`${latestRun.headSha}\``);
+  content = replaceField(content, statusKeys, latestRun.status, `\`${latestRun.status}\``);
+  content = replaceField(content, conclusionKeys, latestRun.conclusion, `\`${latestRun.conclusion}\``);
 
   if (options.verdict) {
     content = replaceField(content, verdictKeys, options.verdict, `**${options.verdict}**`);

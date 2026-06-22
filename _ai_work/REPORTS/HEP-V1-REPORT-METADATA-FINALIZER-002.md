@@ -1,19 +1,19 @@
 # HEP v1 Report Metadata Finalizer Implementation Report (HEP-V1-REPORT-METADATA-FINALIZER-002)
 
 ## Metadata
-- **PR URL**: TBD
-- **Branch**: TBD
-- **PR Head Reviewed**: TBD
-- **Report Update Commit**: TBD
+- **PR URL**: [https://github.com/NckNA/codex-test/pull/326](https://github.com/NckNA/codex-test/pull/326)
+- **Branch**: `feature/hep-v1-worktree-memory-001`
+- **PR Head Reviewed**: `b94a004fafb21c3b6c7b6371e010f0f4264a4686`
+- **Report Update Commit**: `N/A because the final report update commit cannot reference itself before creation.`
 
 ---
 
 ## GitHub Actions CI Verification
-- **Run ID**: TBD
-- **Run Number**: TBD
-- **Status**: TBD
-- **Conclusion**: TBD
-- **Tested Commit**: TBD
+- **Run ID**: `27936322208`
+- **Run Number**: `626`
+- **Status**: `completed`
+- **Conclusion**: `success`
+- **Tested Commit**: `b94a004fafb21c3b6c7b6371e010f0f4264a4686`
 
 ---
 
