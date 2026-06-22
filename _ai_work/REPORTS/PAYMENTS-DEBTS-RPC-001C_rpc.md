@@ -16,21 +16,21 @@ Implemented a schema-only PostgreSQL migration that adds controlled finance RPC 
 The implementation is intentionally limited to database RPC functions. It does not add UI, frontend clients, hooks, repositories, cloud apply, seed data, refunds, write-offs, discounts, stock, documents, timeline integration, or finance reports.
 
 ## Metadata
-- **PR URL**: TBD
-- **Branch**: TBD
-- **PR Head Reviewed**: TBD
-- **Report Update Commit**: TBD
-- **Final Verdict**: TBD
-- **Recommended Next Task**: TBD
+- **PR URL**: [https://github.com/NckNA/codex-test/pull/325](https://github.com/NckNA/codex-test/pull/325)
+- **Branch**: `feature/payments-debts-rpc-001c`
+- **PR Head Reviewed**: `fa7959fbe386f691c02de6077019f6b06007cebc`
+- **Report Update Commit**: `N/A because the final report update commit cannot reference itself before creation.`
+- **Final Verdict**: **PARTIAL — finance RPC migration implemented and schema/security validation passed, but full functional local smoke is blocked by current tooling.**
+- **Recommended Next Task**: **PAYMENTS-DEBTS-RPC-SMOKE-RUNNER-001**
 
 ---
 
 ## GitHub Actions CI Verification
-- **Run ID**: TBD
-- **Run Number**: TBD
-- **Status**: TBD
-- **Conclusion**: TBD
-- **Tested Commit**: TBD
+- **Run ID**: `27947585697`
+- **Run Number**: `629`
+- **Status**: `completed`
+- **Conclusion**: `success`
+- **Tested Commit**: `fa7959fbe386f691c02de6077019f6b06007cebc`
 
 ---
 
