@@ -15,21 +15,24 @@ Implemented a schema-only PostgreSQL migration that adds controlled finance RPC 
 
 The implementation is intentionally limited to database RPC functions. It does not add UI, frontend clients, hooks, repositories, cloud apply, seed data, refunds, write-offs, discounts, stock, documents, timeline integration, or finance reports.
 
-## Branch name
+## Metadata
+- **PR URL**: TBD
+- **Branch**: TBD
+- **PR Head Reviewed**: TBD
+- **Report Update Commit**: TBD
+- **Final Verdict**: TBD
+- **Recommended Next Task**: TBD
 
-`feature/payments-debts-rpc-001c`
+---
 
-## PR URL
+## GitHub Actions CI Verification
+- **Run ID**: TBD
+- **Run Number**: TBD
+- **Status**: TBD
+- **Conclusion**: TBD
+- **Tested Commit**: TBD
 
-https://github.com/NckNA/codex-test/pull/325
-
-## PR head reviewed before final report update
-
-535ed33e9f507a6a05f36e52032ac4019d23676d
-
-## Report update commit
-
-N/A because the final report update commit cannot reference itself before creation.
+---
 
 ## Changed files summary
 
@@ -380,9 +383,7 @@ Known unrelated warnings:
 - existing React `act(...)` warnings in visit tests;
 - existing Vite chunk-size warning during build.
 
-GitHub Actions CI:
 
-GitHub Actions CI #618 / run 27909088569: success on 535ed33e9f507a6a05f36e52032ac4019d23676d.
 
 ## Issues / warnings
 
