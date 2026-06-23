@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
+
+vi.mock('../lib/supabaseClient', () => ({
+  isSupabaseConfigured: false,
+  supabase: null,
+}));
+
 import { AuthProvider, useAuth } from './AuthContext';
 
 describe('AuthContext (Dev Fallback)', () => {

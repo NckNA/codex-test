@@ -56,6 +56,8 @@ describe('LoginPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    vi.stubEnv('VITE_ENABLE_QA_LOGIN_SHORTCUT', 'false');
+    vi.stubEnv(QA_LOGIN_SECRET_ENV_NAME, '');
     document.body.innerHTML = '';
   });
 
