@@ -20,7 +20,7 @@ No UI, React hooks, migrations, SQL edits, cloud Supabase, seed data, generated 
 
 ## 4. PR Head Reviewed Before Final Report Update
 
-- PR head reviewed before final report update: b8280f8f891391f194f558f6edff2c3c6b8477b2
+- PR head reviewed before final report update: e27317557c35d0df6df43ac1381faf67777b45de
 
 ## 5. Report Update Commit
 
@@ -239,9 +239,7 @@ Local checks:
 - `npm run test -- --run`: passed, 61 files / 620 tests.
 - `npm run build`: passed.
 
-GitHub Actions CI:
-
-- Pending until PR creation and push.
+GitHub Actions CI: pending fresh run after report update push.
 
 ## 17. Issues / Warnings
 
@@ -265,4 +263,32 @@ PAYMENTS DEBTS RPC CLIENT IMPLEMENTED AND VERIFIED
 ## 19. Recommended Next Task
 
 PATIENT-FINANCE-UI-001
+
+
+## Encoding/message fix
+
+- Restored proper UTF-8 Russian validation and operation error messages in FinanceRpcClient.ts.
+- Replaced mojibake strings such as Рќ, Рџ, СЃ, and С‚ with proper messages, including:
+  - Не выбрана клиника.
+  - Пациент не выбран.
+  - Счёт не выбран.
+  - Название услуги обязательно.
+  - Количество должно быть больше 0.
+  - Сумма должна быть больше 0.
+  - Причина обязательна.
+  - Не удалось выполнить финансовую операцию.
+- Updated FinanceRpcClient.test.ts expectations to use proper UTF-8 messages.
+- Added a mojibake guard in expectFinanceClientError so validation/error assertions fail if corrupted fragments return.
+
+## Fresh validation after encoding fix
+
+- 
+pm run lint: passed
+- 
+pm run test -- --run src/data/repositories/FinanceRpcClient.test.ts: passed, 40/40
+- 
+pm run test -- --run: passed, 61 files / 620 tests
+- 
+pm run build: passed
+- Existing unrelated warnings remain: React ct(...) warnings and Vite chunk-size warning.
 
