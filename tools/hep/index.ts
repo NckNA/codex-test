@@ -1,3 +1,4 @@
+import type { DependencyAction } from "./dependency-guard.ts";
 import { verifyNodeEnvironmentSync } from "./preflight.ts";
 
 function printUsage(): void {
@@ -16,10 +17,12 @@ Commands:
   maintenance-plan    Scan Hermes workspace and write a reversible maintenance plan.
   maintenance-apply   Apply only low/medium risk reversible archive/quarantine moves.
   maintenance-restore Restore one archived/quarantined maintenance action by actionId.
-  lifecycle-finalize Finalize task/PR lifecycle registries after review or merge.
-  reports-index      Build a durable report index for project/workspace reports.
-  guardian-init      Create default Guardian ACL manifest if missing.
-  guardian-check     Evaluate one actor/action/target access decision.
+  lifecycle-finalize  Finalize task/PR lifecycle registries after review or merge.
+  reports-index       Build a durable report index for project/workspace reports.
+  guardian-init       Create default Guardian ACL manifest if missing.
+  guardian-check      Evaluate one actor/action/target access decision.
+  dependency-init     Create baseline dependency registry and graph.
+  dependency-check    Evaluate dependency risk and impact waiver route.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -45,6 +48,11 @@ Options:
   --head <sha>        Task head SHA for lifecycle-finalize.
   --merged-at <iso>   Merge timestamp for lifecycle-finalize.
   --output <path>     Output path for reports-index.
+  --actor <id>        Actor ID for guardian/dependency checks.
+  --action <name>     Action for guardian/dependency checks.
+  --target <path>     Target path for guardian/dependency checks.
+  --allow-impact-plan Permit dependency-check to return ALLOW_WITH_IMPACT_PLAN.
+  --write-audit       Write guardian/dependency audit ledger entry.
 `);
 }
 
@@ -124,38 +132,26 @@ async function main(): Promise<void> {
   const action = (options.action as string) || (options["action"] as string);
   const target = (options.target as string) || (options["target"] as string);
   const writeAudit = !!options.writeAudit || !!options["write-audit"];
+  const allowImpactPlan = !!options.allowImpactPlan || !!options["allow-impact-plan"];
+  const reason = (options.reason as string) || (options["reason"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
   try {
     switch (command) {
       case "init-task": {
-        if (!taskId) {
-          throw new Error("Missing required option: --taskId");
-        }
-        if (!branchName) {
-          throw new Error("Missing required option: --branchName");
-        }
-        manager.initTask({
-          taskId,
-          baseBranch,
-          branchName,
-          dryRun,
-          bypassCleanCheck
-        });
+        if (!taskId) throw new Error("Missing required option: --taskId");
+        if (!branchName) throw new Error("Missing required option: --branchName");
+        manager.initTask({ taskId, baseBranch, branchName, dryRun, bypassCleanCheck });
         break;
       }
       case "status": {
-        if (!taskId) {
-          throw new Error("Missing required option: --taskId");
-        }
+        if (!taskId) throw new Error("Missing required option: --taskId");
         manager.status(taskId);
         break;
       }
       case "clean-task": {
-        if (!taskId) {
-          throw new Error("Missing required option: --taskId");
-        }
+        if (!taskId) throw new Error("Missing required option: --taskId");
         manager.cleanTask(taskId, force);
         break;
       }
@@ -170,12 +166,7 @@ async function main(): Promise<void> {
       }
       case "finalize-report": {
         const { finalizeReport } = await import("./metadata-finalizer.ts");
-        finalizeReport({
-          repositoryPath,
-          reportPath: report,
-          verdict,
-          nextTask
-        });
+        finalizeReport({ repositoryPath, reportPath: report, verdict, nextTask });
         break;
       }
       case "maintenance-plan": {
@@ -195,39 +186,23 @@ async function main(): Promise<void> {
         const actions = applySafeMaintenancePlan(plan, { maxActions, dryRun, only });
         console.log(formatMaintenancePlan({ ...plan, mode: "SAFE_APPLY" }));
         console.log(`Applied reversible maintenance actions: ${actions.length}`);
-        for (const action of actions) {
-          const dryRunLabel = action.dryRun ? " [dry-run]" : "";
-          console.log(`${action.actionId}: ${action.action}${dryRunLabel} ${action.from} -> ${action.to}`);
+        for (const actionEntry of actions) {
+          const dryRunLabel = actionEntry.dryRun ? " [dry-run]" : "";
+          console.log(`${actionEntry.actionId}: ${actionEntry.action}${dryRunLabel} ${actionEntry.from} -> ${actionEntry.to}`);
         }
         break;
       }
       case "maintenance-restore": {
-        if (!actionId) {
-          throw new Error("maintenance-restore requires --actionId");
-        }
+        if (!actionId) throw new Error("maintenance-restore requires --actionId");
         const { restoreMaintenanceAction } = await import("./maintenance.ts");
         const restored = restoreMaintenanceAction(workspaceRoot, actionId);
         console.log(`Restored ${restored.from} -> ${restored.to}`);
         break;
       }
       case "lifecycle-finalize": {
-        if (!taskId) {
-          throw new Error("lifecycle-finalize requires --taskId");
-        }
+        if (!taskId) throw new Error("lifecycle-finalize requires --taskId");
         const { finalizeLifecycle, formatLifecycleResult } = await import("./lifecycle-finalizer.ts");
-        const result = finalizeLifecycle({
-          workspaceRoot,
-          taskId,
-          prNumber,
-          prUrl,
-          prState,
-          branch,
-          head,
-          baseBranch,
-          reportPath: report,
-          mergedAt,
-          dryRun
-        });
+        const result = finalizeLifecycle({ workspaceRoot, taskId, prNumber, prUrl, prState, branch, head, baseBranch, reportPath: report, mergedAt, dryRun });
         console.log(formatLifecycleResult(result));
         break;
       }
@@ -245,25 +220,44 @@ async function main(): Promise<void> {
         break;
       }
       case "guardian-check": {
-        if (!taskId) {
-          throw new Error("guardian-check requires --taskId");
-        }
-        if (!actor) {
-          throw new Error("guardian-check requires --actor");
-        }
-        if (!action) {
-          throw new Error("guardian-check requires --action");
-        }
-        if (!target) {
-          throw new Error("guardian-check requires --target");
-        }
+        if (!taskId) throw new Error("guardian-check requires --taskId");
+        if (!actor) throw new Error("guardian-check requires --actor");
+        if (!action) throw new Error("guardian-check requires --action");
+        if (!target) throw new Error("guardian-check requires --target");
         const { checkGuardianAccess, formatGuardianCheck, writeGuardianAuditEvent } = await import("./guardian-acl.ts");
         const result = checkGuardianAccess({ workspaceRoot, taskId, actor, action, target, dryRun, actionCount: maxActions, writeAudit: false });
         const auditPath = writeAudit ? writeGuardianAuditEvent(workspaceRoot, result) : undefined;
         console.log(formatGuardianCheck(result, auditPath));
-        if (!result.allowed) {
-          process.exitCode = 2;
+        if (!result.allowed) process.exitCode = 2;
+        break;
+      }
+      case "dependency-init": {
+        const { initializeDependencyGuard } = await import("./dependency-guard.ts");
+        const initialized = initializeDependencyGuard(workspaceRoot);
+        console.log(`Dependency guard initialized: ${initialized.assets} assets`);
+        console.log(`Asset registry: ${initialized.assetPath}`);
+        console.log(`Lease ledger: ${initialized.leasesPath}`);
+        console.log(`Dependency graph: ${initialized.graphPath}`);
+        console.log(`Impact ledger: ${initialized.ledgerPath}`);
+        break;
+      }
+      case "dependency-check": {
+        if (!taskId) throw new Error("dependency-check requires --taskId");
+        if (!actor) throw new Error("dependency-check requires --actor");
+        if (!action) throw new Error("dependency-check requires --action");
+        if (!target) throw new Error("dependency-check requires --target");
+        const { dependencyCheck, writeImpactLedger } = await import("./dependency-guard.ts");
+        const result = dependencyCheck({ workspaceRoot, taskId, actor, action: action as DependencyAction, target, allowImpactPlan, reason });
+        if (writeAudit && !dryRun && result.decision === "ALLOW_WITH_IMPACT_PLAN") {
+          const entry = writeImpactLedger(workspaceRoot, { workspaceRoot, taskId, actor, action: action as DependencyAction, target }, result);
+          console.log(`Impact ledger entry: ${entry.entryId}`);
+        } else if (writeAudit && result.decision !== "ALLOW_WITH_IMPACT_PLAN") {
+          console.log("Impact ledger entry skipped: decision is not ALLOW_WITH_IMPACT_PLAN.");
+        } else if (writeAudit && dryRun) {
+          console.log("Impact ledger entry skipped: dry-run mode.");
         }
+        console.log(JSON.stringify(result, null, 2));
+        if (result.decision !== "ALLOW" && result.decision !== "ALLOW_WITH_IMPACT_PLAN") process.exitCode = 2;
         break;
       }
       default: {
@@ -280,5 +274,3 @@ async function main(): Promise<void> {
 }
 
 main();
-
-
