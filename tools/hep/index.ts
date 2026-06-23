@@ -1,4 +1,4 @@
-import { verifyNodeEnvironmentSync } from "./preflight.ts";
+﻿import { verifyNodeEnvironmentSync } from "./preflight.ts";
 
 function printUsage(): void {
   console.log(`
@@ -16,6 +16,7 @@ Commands:
   maintenance-plan    Scan Hermes workspace and write a reversible maintenance plan.
   maintenance-apply   Apply only low/medium risk reversible archive/quarantine moves.
   maintenance-restore Restore one archived/quarantined maintenance action by actionId.
+  lifecycle-finalize Finalize task/PR lifecycle registries after review or merge.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -34,6 +35,12 @@ Options:
   --max-actions <n>   Limit maintenance-apply batch size.
   --only <scope>      Limit maintenance commands to scopes like reports,temp,legacy_report.
   --actionId <id>     Action ID to restore for maintenance-restore.
+  --pr <number>       Pull request number for lifecycle-finalize.
+  --pr-url <url>      Pull request URL for lifecycle-finalize.
+  --pr-state <state>  PR state for lifecycle-finalize (default: MERGED).
+  --branch <branch>   Task branch for lifecycle-finalize.
+  --head <sha>        Task head SHA for lifecycle-finalize.
+  --merged-at <iso>   Merge timestamp for lifecycle-finalize.
 `);
 }
 
@@ -98,6 +105,16 @@ async function main(): Promise<void> {
   }
   const onlyRaw = (options.only as string) || (options["only"] as string);
   const only = onlyRaw ? onlyRaw.split(",").map((item) => item.trim()).filter(Boolean) : undefined;
+  const prRaw = (options.pr as string) || (options["pr"] as string);
+  const prNumber = prRaw ? Number.parseInt(prRaw, 10) : undefined;
+  if (prRaw && (!Number.isFinite(prNumber) || (prNumber ?? 0) <= 0)) {
+    throw new Error("--pr must be a positive integer");
+  }
+  const prUrl = (options.prUrl as string) || (options["pr-url"] as string);
+  const prState = (options.prState as string) || (options["pr-state"] as string);
+  const branch = (options.branch as string) || (options["branch"] as string) || branchName;
+  const head = (options.head as string) || (options["head"] as string);
+  const mergedAt = (options.mergedAt as string) || (options["merged-at"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -184,6 +201,27 @@ async function main(): Promise<void> {
         console.log(`Restored ${restored.from} -> ${restored.to}`);
         break;
       }
+      case "lifecycle-finalize": {
+        if (!taskId) {
+          throw new Error("lifecycle-finalize requires --taskId");
+        }
+        const { finalizeLifecycle, formatLifecycleResult } = await import("./lifecycle-finalizer.ts");
+        const result = finalizeLifecycle({
+          workspaceRoot,
+          taskId,
+          prNumber,
+          prUrl,
+          prState,
+          branch,
+          head,
+          baseBranch,
+          reportPath: report,
+          mergedAt,
+          dryRun
+        });
+        console.log(formatLifecycleResult(result));
+        break;
+      }
       default: {
         console.error(`Unknown command: ${command}`);
         printUsage();
@@ -198,3 +236,4 @@ async function main(): Promise<void> {
 }
 
 main();
+
