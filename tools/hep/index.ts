@@ -17,6 +17,7 @@ Commands:
   maintenance-plan    Scan Hermes workspace and write a reversible maintenance plan.
   maintenance-apply   Apply only low/medium risk reversible archive/quarantine moves.
   maintenance-restore Restore one archived/quarantined maintenance action by actionId.
+  maintenance-autopilot Run dry-run-only guarded maintenance autopilot.
   lifecycle-finalize  Finalize task/PR lifecycle registries after review or merge.
   reports-index       Build a durable report index for project/workspace reports.
   guardian-init       Create default Guardian ACL manifest if missing.
@@ -197,6 +198,32 @@ async function main(): Promise<void> {
         const { restoreMaintenanceAction } = await import("./maintenance.ts");
         const restored = restoreMaintenanceAction(workspaceRoot, actionId);
         console.log(`Restored ${restored.from} -> ${restored.to}`);
+        break;
+      }
+      case "maintenance-autopilot": {
+        if (!taskId) throw new Error("maintenance-autopilot requires --taskId");
+        const { runMaintenanceAutopilot } = await import("./maintenance-autopilot.ts");
+        const result = runMaintenanceAutopilot({
+          workspaceRoot,
+          projectPath: repositoryPath,
+          taskId,
+          only,
+          maxActions,
+          dryRun: true,
+          actor
+        });
+        console.log(JSON.stringify({
+          ok: result.ok,
+          dryRun: result.dryRun,
+          plannedActionsCount: result.plannedActionsCount,
+          blockedCount: result.blockedCount,
+          guardianDecision: result.guardianDecision,
+          dependencyDecisionCounts: result.dependencyDecisionCounts,
+          logPath: result.logPath,
+          warnings: result.warnings,
+          result: result.result
+        }, null, 2));
+        if (!result.ok) process.exitCode = 2;
         break;
       }
       case "lifecycle-finalize": {
