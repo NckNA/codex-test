@@ -17,6 +17,7 @@ Commands:
   maintenance-apply   Apply only low/medium risk reversible archive/quarantine moves.
   maintenance-restore Restore one archived/quarantined maintenance action by actionId.
   lifecycle-finalize Finalize task/PR lifecycle registries after review or merge.
+  reports-index      Build a durable report index for project/workspace reports.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -41,6 +42,7 @@ Options:
   --branch <branch>   Task branch for lifecycle-finalize.
   --head <sha>        Task head SHA for lifecycle-finalize.
   --merged-at <iso>   Merge timestamp for lifecycle-finalize.
+  --output <path>     Output path for reports-index.
 `);
 }
 
@@ -115,6 +117,7 @@ async function main(): Promise<void> {
   const branch = (options.branch as string) || (options["branch"] as string) || branchName;
   const head = (options.head as string) || (options["head"] as string);
   const mergedAt = (options.mergedAt as string) || (options["merged-at"] as string);
+  const output = (options.output as string) || (options["output"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -220,6 +223,13 @@ async function main(): Promise<void> {
           dryRun
         });
         console.log(formatLifecycleResult(result));
+        break;
+      }
+      case "reports-index": {
+        const { buildReportIndex, writeReportIndex, formatReportIndex } = await import("./report-indexer.ts");
+        const index = buildReportIndex({ workspaceRoot, projectPath: repositoryPath, outputPath: output });
+        const outputPath = dryRun ? undefined : writeReportIndex(index, output);
+        console.log(formatReportIndex(index, outputPath));
         break;
       }
       default: {
