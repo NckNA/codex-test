@@ -16,11 +16,11 @@ No UI, React hooks, migrations, SQL edits, cloud Supabase, seed data, generated 
 
 ## 3. PR URL
 
-- PR URL: Pending until PR creation. This report will be updated with the final PR URL after the branch is pushed and the PR exists.
+- PR URL: https://github.com/NckNA/codex-test/pull/328
 
 ## 4. PR Head Reviewed Before Final Report Update
 
-- PR head reviewed before final report update: Pending until PR creation.
+- PR head reviewed before final report update: b8280f8f891391f194f558f6edff2c3c6b8477b2
 
 ## 5. Report Update Commit
 
@@ -265,3 +265,4 @@ PAYMENTS DEBTS RPC CLIENT IMPLEMENTED AND VERIFIED
 ## 19. Recommended Next Task
 
 PATIENT-FINANCE-UI-001
+
