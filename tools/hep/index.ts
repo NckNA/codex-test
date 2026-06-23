@@ -13,6 +13,9 @@ Commands:
   clean-task          Clean/remove a task worktree.
   test-db             Run connection test on SQLite database.
   finalize-report     Finalize metadata in a task report file using Git/GitHub CLI.
+  maintenance-plan    Scan Hermes workspace and write a reversible maintenance plan.
+  maintenance-apply   Apply only low/medium risk reversible archive/quarantine moves.
+  maintenance-restore Restore one archived/quarantined maintenance action by actionId.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -26,6 +29,11 @@ Options:
   --report <path>     Path to the report file (default: auto-detect latest modified report)
   --verdict <str>     Optional final verdict text to update in report
   --next-task <str>   Optional next task ID to update in report
+  --workspaceRoot <p> Hermes workspace root for maintenance commands (default: D:/hermes)
+  --safe              Required for maintenance-apply; destructive cleanup stays disabled.
+  --max-actions <n>   Limit maintenance-apply batch size.
+  --only <scope>      Limit maintenance commands to scopes like reports,temp,legacy_report.
+  --actionId <id>     Action ID to restore for maintenance-restore.
 `);
 }
 
@@ -48,7 +56,6 @@ function parseArgs(args: string[]): Record<string, string | boolean> {
 }
 
 async function main(): Promise<void> {
-  // 1. Run Preflight Check first before any other modules are loaded
   try {
     verifyNodeEnvironmentSync();
   } catch (err) {
@@ -57,7 +64,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // 2. Load dependencies dynamically to ensure they evaluate AFTER preflight checks
   const { WorktreeManager } = await import("./worktree-manager.ts");
   const { TaskMemoryManager } = await import("./task-memory.ts");
 
@@ -79,10 +85,19 @@ async function main(): Promise<void> {
   const dryRun = !!options.dryRun || !!options["dry-run"];
   const force = !!options.force;
   const bypassCleanCheck = !!options.bypassCleanCheck || !!options["bypass-clean-check"];
-  
   const report = (options.report as string) || (options["report"] as string);
   const nextTask = (options.nextTask as string) || (options["next-task"] as string);
   const verdict = options.verdict as string;
+  const workspaceRoot = (options.workspaceRoot as string) || (options["workspace-root"] as string) || "D:/hermes";
+  const safe = !!options.safe;
+  const actionId = (options.actionId as string) || (options["action-id"] as string);
+  const maxActionsRaw = (options.maxActions as string) || (options["max-actions"] as string);
+  const maxActions = maxActionsRaw ? Number.parseInt(maxActionsRaw, 10) : undefined;
+  if (maxActionsRaw && (!Number.isFinite(maxActions) || (maxActions ?? 0) < 0)) {
+    throw new Error("--max-actions must be a non-negative integer");
+  }
+  const onlyRaw = (options.only as string) || (options["only"] as string);
+  const only = onlyRaw ? onlyRaw.split(",").map((item) => item.trim()).filter(Boolean) : undefined;
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -135,6 +150,38 @@ async function main(): Promise<void> {
           verdict,
           nextTask
         });
+        break;
+      }
+      case "maintenance-plan": {
+        const { createMaintenancePlan, formatMaintenancePlan, writeMaintenancePlan } = await import("./maintenance.ts");
+        const plan = createMaintenancePlan({ workspaceRoot, taskId, only });
+        const registryPath = writeMaintenancePlan(plan);
+        console.log(formatMaintenancePlan(plan));
+        console.log(`Maintenance registry written to: ${registryPath}`);
+        break;
+      }
+      case "maintenance-apply": {
+        if (!safe) {
+          throw new Error("maintenance-apply requires --safe. Only reversible archive/quarantine moves are supported in HEP v1.");
+        }
+        const { applySafeMaintenancePlan, createMaintenancePlan, formatMaintenancePlan } = await import("./maintenance.ts");
+        const plan = createMaintenancePlan({ workspaceRoot, taskId, only });
+        const actions = applySafeMaintenancePlan(plan, { maxActions, dryRun, only });
+        console.log(formatMaintenancePlan({ ...plan, mode: "SAFE_APPLY" }));
+        console.log(`Applied reversible maintenance actions: ${actions.length}`);
+        for (const action of actions) {
+          const dryRunLabel = action.dryRun ? " [dry-run]" : "";
+          console.log(`${action.actionId}: ${action.action}${dryRunLabel} ${action.from} -> ${action.to}`);
+        }
+        break;
+      }
+      case "maintenance-restore": {
+        if (!actionId) {
+          throw new Error("maintenance-restore requires --actionId");
+        }
+        const { restoreMaintenanceAction } = await import("./maintenance.ts");
+        const restored = restoreMaintenanceAction(workspaceRoot, actionId);
+        console.log(`Restored ${restored.from} -> ${restored.to}`);
         break;
       }
       default: {

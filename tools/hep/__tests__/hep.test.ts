@@ -5,6 +5,7 @@ import * as childProcess from "node:child_process";
 import { verifyNodeEnvironment, redactSecrets, TaskMemoryManager } from "../task-memory.ts";
 import { validateWorktreePath, checkWorkspaceClean, WorktreeManager, gitExecutor } from "../worktree-manager.ts";
 import { finalizeReport, detectLatestReport } from "../metadata-finalizer.ts";
+import { applySafeMaintenancePlan, createMaintenancePlan, restoreMaintenanceAction } from "../maintenance.ts";
 
 describe("HEP Tooling Validation Test Suite", () => {
   const tempDir = path.resolve("./_ai_work/scratch/temp-hep-tests");
@@ -228,7 +229,72 @@ describe("HEP Tooling Validation Test Suite", () => {
     });
   });
 
-  // 8. Report Metadata Finalizer
+  // 8. Maintenance Trio
+  describe("Maintenance Trio", () => {
+    function createWorkspaceFixture(): string {
+      const workspace = path.join(tempDir, "hermes-workspace");
+      fs.mkdirSync(path.join(workspace, "memory"), { recursive: true });
+      fs.mkdirSync(path.join(workspace, "reports"), { recursive: true });
+      fs.mkdirSync(path.join(workspace, "codex-test", ".git"), { recursive: true });
+      fs.mkdirSync(path.join(workspace, "temp"), { recursive: true });
+      fs.writeFileSync(path.join(workspace, "reports", "old-report.md"), "legacy report", "utf8");
+      fs.writeFileSync(path.join(workspace, "temp", "scratch.txt"), "scratch", "utf8");
+      fs.writeFileSync(path.join(workspace, "super-hermes-policy.json"), "{}", "utf8");
+      return workspace;
+    }
+
+    it("should keep protected assets and escalate git checkouts instead of moving engines", () => {
+      const workspace = createWorkspaceFixture();
+      const plan = createMaintenancePlan({ workspaceRoot: workspace, taskId: "MAINT-TEST-001" });
+
+      const policy = plan.findings.find(item => item.relativePath === "super-hermes-policy.json");
+      expect(policy?.quartermasterDecision).toBe("KEEP");
+      expect(policy?.risk).toBe("CRITICAL");
+
+      const checkout = plan.findings.find(item => item.relativePath === "codex-test");
+      expect(checkout?.quartermasterDecision).toBe("KEEP");
+      expect(checkout?.risk).toBe("CRITICAL");
+
+      expect(plan.deleteEnabled).toBe(false);
+      expect(plan.summary.deleteBlocked).toBe(0);
+    });
+
+    it("should archive legacy report root entries and quarantine temp entries with reversible actions", () => {
+      const workspace = createWorkspaceFixture();
+      const plan = createMaintenancePlan({ workspaceRoot: workspace, taskId: "MAINT-TEST-002" });
+
+      const oldReport = plan.findings.find(item => item.relativePath === "reports/old-report.md");
+      expect(oldReport?.quartermasterDecision).toBe("ARCHIVE");
+      expect(oldReport?.risk).toBe("LOW");
+      expect(oldReport?.suggestedTarget).toContain("reports");
+      expect(oldReport?.suggestedTarget).toContain("archived");
+
+      const scratch = plan.findings.find(item => item.relativePath === "temp/scratch.txt");
+      expect(scratch?.quartermasterDecision).toBe("QUARANTINE");
+      expect(scratch?.risk).toBe("LOW");
+
+      const actions = applySafeMaintenancePlan(plan, new Date("2026-06-23T00:00:00.000Z"));
+      expect(actions.length).toBe(2);
+      expect(fs.existsSync(path.join(workspace, "reports", "old-report.md"))).toBe(false);
+      expect(fs.existsSync(path.join(workspace, "temp", "scratch.txt"))).toBe(false);
+      expect(fs.existsSync(actions[0].to || "")).toBe(true);
+      expect(fs.existsSync(path.join(workspace, "memory", "maintenance-actions.jsonl"))).toBe(true);
+    });
+
+    it("should restore a reversible maintenance action by actionId", () => {
+      const workspace = createWorkspaceFixture();
+      const plan = createMaintenancePlan({ workspaceRoot: workspace, taskId: "MAINT-TEST-003" });
+      const actions = applySafeMaintenancePlan(plan, new Date("2026-06-23T00:00:00.000Z"));
+      const reportAction = actions.find(action => action.from.endsWith("old-report.md"));
+      expect(reportAction).toBeDefined();
+
+      const restored = restoreMaintenanceAction(workspace, reportAction?.actionId || "missing");
+      expect(restored.to).toBe(path.join(workspace, "reports", "old-report.md"));
+      expect(fs.existsSync(path.join(workspace, "reports", "old-report.md"))).toBe(true);
+    });
+  });
+
+  // 9. Report Metadata Finalizer
   describe("Report Metadata Finalizer", () => {
     const mockReportsDir = path.join(tempDir, "_ai_work/REPORTS");
 
@@ -601,6 +667,54 @@ This task has some TODO notes and the implementation is PARTIAL.
       expect(() => {
         detectLatestReport(emptyDir);
       }).toThrow(/No report markdown files \(\.md\) found/);
+    });
+  });
+
+  describe("Maintenance Trio v2 controls", () => {
+    it("should build a reports index and keep protected assets out of safe apply", () => {
+      const workspace = path.join(tempDir, "maintenance-v2-index");
+      fs.mkdirSync(path.join(workspace, "reports"), { recursive: true });
+      fs.mkdirSync(path.join(workspace, "codex-test", ".git"), { recursive: true });
+      fs.writeFileSync(path.join(workspace, "reports", "legacy.md"), "legacy", "utf8");
+
+      const plan = createMaintenancePlan({ workspaceRoot: workspace, taskId: "HERMES-MAINTENANCE-TRIO-002" });
+      const protectedFinding = plan.findings.find((finding) => finding.relativePath === "codex-test");
+      const reportFinding = plan.findings.find((finding) => finding.relativePath === "reports/legacy.md");
+
+      expect(protectedFinding?.decision).toBe("KEEP");
+      expect(reportFinding?.decision).toBe("ARCHIVE");
+      expect(fs.existsSync(path.join(workspace, "reports", "indexes", "report-index.json"))).toBe(true);
+    });
+
+    it("should limit safe apply batches with maxActions", () => {
+      const workspace = path.join(tempDir, "maintenance-v2-max-actions");
+      fs.mkdirSync(path.join(workspace, "reports"), { recursive: true });
+      fs.writeFileSync(path.join(workspace, "reports", "a.md"), "a", "utf8");
+      fs.writeFileSync(path.join(workspace, "reports", "b.md"), "b", "utf8");
+
+      const plan = createMaintenancePlan({ workspaceRoot: workspace, taskId: "HERMES-MAINTENANCE-TRIO-002" });
+      const actions = applySafeMaintenancePlan(plan, { maxActions: 1, only: ["reports"] });
+
+      expect(actions).toHaveLength(1);
+      expect(fs.existsSync(actions[0].to)).toBe(true);
+      const remainingLegacyReports = ["a.md", "b.md"].filter((name) => fs.existsSync(path.join(workspace, "reports", name)));
+      expect(remainingLegacyReports).toHaveLength(1);
+    });
+
+    it("should support dry-run safe apply without moving files", () => {
+      const workspace = path.join(tempDir, "maintenance-v2-dry-run");
+      const reportPath = path.join(workspace, "reports", "dry.md");
+      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+      fs.writeFileSync(reportPath, "dry", "utf8");
+
+      const plan = createMaintenancePlan({ workspaceRoot: workspace, taskId: "HERMES-MAINTENANCE-TRIO-002", only: ["reports"] });
+      const actions = applySafeMaintenancePlan(plan, { dryRun: true, maxActions: 1, only: ["reports"] });
+
+      expect(actions).toHaveLength(1);
+      expect(actions[0].dryRun).toBe(true);
+      expect(fs.existsSync(reportPath)).toBe(true);
+      expect(fs.existsSync(actions[0].to)).toBe(false);
+      expect(() => restoreMaintenanceAction(workspace, actions[0].actionId)).toThrow(/Cannot restore dry-run action/);
     });
   });
 });
