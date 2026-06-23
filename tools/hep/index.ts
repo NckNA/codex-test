@@ -1,4 +1,4 @@
-﻿import { verifyNodeEnvironmentSync } from "./preflight.ts";
+import { verifyNodeEnvironmentSync } from "./preflight.ts";
 
 function printUsage(): void {
   console.log(`
@@ -18,6 +18,8 @@ Commands:
   maintenance-restore Restore one archived/quarantined maintenance action by actionId.
   lifecycle-finalize Finalize task/PR lifecycle registries after review or merge.
   reports-index      Build a durable report index for project/workspace reports.
+  guardian-init      Create default Guardian ACL manifest if missing.
+  guardian-check     Evaluate one actor/action/target access decision.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -118,6 +120,10 @@ async function main(): Promise<void> {
   const head = (options.head as string) || (options["head"] as string);
   const mergedAt = (options.mergedAt as string) || (options["merged-at"] as string);
   const output = (options.output as string) || (options["output"] as string);
+  const actor = (options.actor as string) || (options["actor"] as string);
+  const action = (options.action as string) || (options["action"] as string);
+  const target = (options.target as string) || (options["target"] as string);
+  const writeAudit = !!options.writeAudit || !!options["write-audit"];
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -230,6 +236,34 @@ async function main(): Promise<void> {
         const index = buildReportIndex({ workspaceRoot, projectPath: repositoryPath, outputPath: output });
         const outputPath = dryRun ? undefined : writeReportIndex(index, output);
         console.log(formatReportIndex(index, outputPath));
+        break;
+      }
+      case "guardian-init": {
+        const { writeDefaultGuardianPolicies } = await import("./guardian-acl.ts");
+        const policyPath = writeDefaultGuardianPolicies(workspaceRoot);
+        console.log(`Guardian ACL manifest ready: ${policyPath}`);
+        break;
+      }
+      case "guardian-check": {
+        if (!taskId) {
+          throw new Error("guardian-check requires --taskId");
+        }
+        if (!actor) {
+          throw new Error("guardian-check requires --actor");
+        }
+        if (!action) {
+          throw new Error("guardian-check requires --action");
+        }
+        if (!target) {
+          throw new Error("guardian-check requires --target");
+        }
+        const { checkGuardianAccess, formatGuardianCheck, writeGuardianAuditEvent } = await import("./guardian-acl.ts");
+        const result = checkGuardianAccess({ workspaceRoot, taskId, actor, action, target, dryRun, actionCount: maxActions, writeAudit: false });
+        const auditPath = writeAudit ? writeGuardianAuditEvent(workspaceRoot, result) : undefined;
+        console.log(formatGuardianCheck(result, auditPath));
+        if (!result.allowed) {
+          process.exitCode = 2;
+        }
         break;
       }
       default: {
