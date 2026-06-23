@@ -118,7 +118,7 @@ export interface CreateFinanceRpcClientOptions {
   client?: SupabaseClient;
 }
 
-const FINANCE_RPC_OPERATION_FAILED_MESSAGE = 'РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ С„РёРЅР°РЅСЃРѕРІСѓСЋ РѕРїРµСЂР°С†РёСЋ.';
+const FINANCE_RPC_OPERATION_FAILED_MESSAGE = 'Не удалось выполнить финансовую операцию.';
 const PAYMENT_METHODS: readonly PaymentMethod[] = [
   'cash',
   'kaspi',
@@ -143,7 +143,7 @@ function requireNonEmptyString(value: string | null | undefined, message: string
 }
 
 function requireTenantId(tenantId: string | null | undefined): string {
-  return requireNonEmptyString(tenantId, 'РќРµ РІС‹Р±СЂР°РЅР° РєР»РёРЅРёРєР°.');
+  return requireNonEmptyString(tenantId, 'Не выбрана клиника.');
 }
 
 function requirePositiveNumber(value: number | null | undefined, message: string): number {
@@ -162,7 +162,7 @@ function requireNonNegativeNumber(value: number | null | undefined, message: str
 
 function validateMetadata(metadata?: Record<string, unknown> | null) {
   if (metadata !== undefined && !isPlainObject(metadata)) {
-    throw new FinanceRpcClientError({ operation: 'validation', message: 'РњРµС‚Р°РґР°РЅРЅС‹Рµ РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РѕР±СЉРµРєС‚РѕРј.' });
+    throw new FinanceRpcClientError({ operation: 'validation', message: 'Метаданные должны быть объектом.' });
   }
 }
 
@@ -208,9 +208,9 @@ async function callRpc(
 }
 
 function validatePaymentMethod(paymentMethod: PaymentMethod | null | undefined): PaymentMethod {
-  const method = requireNonEmptyString(paymentMethod, 'РЎРїРѕСЃРѕР± РѕРїР»Р°С‚С‹ РѕР±СЏР·Р°С‚РµР»РµРЅ.') as PaymentMethod;
+  const method = requireNonEmptyString(paymentMethod, 'Способ оплаты обязателен.') as PaymentMethod;
   if (!PAYMENT_METHODS.includes(method)) {
-    throw new FinanceRpcClientError({ operation: 'validation', message: 'РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ СЃРїРѕСЃРѕР± РѕРїР»Р°С‚С‹.' });
+    throw new FinanceRpcClientError({ operation: 'validation', message: 'Некорректный способ оплаты.' });
   }
   return method;
 }
@@ -225,7 +225,7 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
     const operation = 'createInvoice';
     const tenantId = requireTenantId(input.tenantId);
-    const patientId = requireNonEmptyString(input.patientId, 'РџР°С†РёРµРЅС‚ РЅРµ РІС‹Р±СЂР°РЅ.');
+    const patientId = requireNonEmptyString(input.patientId, 'Пациент не выбран.');
     const row = await callRpc(this.client, operation, 'create_invoice', {
       p_tenant_id: tenantId,
       p_patient_id: patientId,
@@ -240,12 +240,12 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async addInvoiceItem(input: AddInvoiceItemInput): Promise<InvoiceItem> {
     const operation = 'addInvoiceItem';
     const tenantId = requireTenantId(input.tenantId);
-    const invoiceId = requireNonEmptyString(input.invoiceId, 'РЎС‡С‘С‚ РЅРµ РІС‹Р±СЂР°РЅ.');
-    const serviceName = requireNonEmptyString(input.serviceName, 'РќР°Р·РІР°РЅРёРµ СѓСЃР»СѓРіРё РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ.');
-    const quantity = input.quantity === undefined ? 1 : requirePositiveNumber(input.quantity, 'РљРѕР»РёС‡РµСЃС‚РІРѕ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
-    const unitPrice = input.unitPrice === undefined ? 0 : requireNonNegativeNumber(input.unitPrice, 'Р¦РµРЅР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚СЂРёС†Р°С‚РµР»СЊРЅРѕР№.');
-    const discountAmount = input.discountAmount === undefined ? 0 : requireNonNegativeNumber(input.discountAmount, 'РЎРєРёРґРєР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚СЂРёС†Р°С‚РµР»СЊРЅРѕР№.');
-    const adjustmentAmount = input.adjustmentAmount === undefined ? 0 : requireNonNegativeNumber(input.adjustmentAmount, 'РљРѕСЂСЂРµРєС‚РёСЂРѕРІРєР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚СЂРёС†Р°С‚РµР»СЊРЅРѕР№.');
+    const invoiceId = requireNonEmptyString(input.invoiceId, 'Счёт не выбран.');
+    const serviceName = requireNonEmptyString(input.serviceName, 'Название услуги обязательно.');
+    const quantity = input.quantity === undefined ? 1 : requirePositiveNumber(input.quantity, 'Количество должно быть больше 0.');
+    const unitPrice = input.unitPrice === undefined ? 0 : requireNonNegativeNumber(input.unitPrice, 'Цена не может быть отрицательной.');
+    const discountAmount = input.discountAmount === undefined ? 0 : requireNonNegativeNumber(input.discountAmount, 'Скидка не может быть отрицательной.');
+    const adjustmentAmount = input.adjustmentAmount === undefined ? 0 : requireNonNegativeNumber(input.adjustmentAmount, 'Корректировка не может быть отрицательной.');
 
     const row = await callRpc(this.client, operation, 'add_invoice_item', {
       p_tenant_id: tenantId,
@@ -268,7 +268,7 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async issueInvoice(input: IssueInvoiceInput): Promise<Invoice> {
     const operation = 'issueInvoice';
     const tenantId = requireTenantId(input.tenantId);
-    const invoiceId = requireNonEmptyString(input.invoiceId, 'РЎС‡С‘С‚ РЅРµ РІС‹Р±СЂР°РЅ.');
+    const invoiceId = requireNonEmptyString(input.invoiceId, 'Счёт не выбран.');
     const row = await callRpc(this.client, operation, 'issue_invoice', {
       p_tenant_id: tenantId,
       p_invoice_id: invoiceId,
@@ -279,8 +279,8 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async voidInvoice(input: VoidInvoiceInput): Promise<Invoice> {
     const operation = 'voidInvoice';
     const tenantId = requireTenantId(input.tenantId);
-    const invoiceId = requireNonEmptyString(input.invoiceId, 'РЎС‡С‘С‚ РЅРµ РІС‹Р±СЂР°РЅ.');
-    const reason = requireNonEmptyString(input.reason, 'РџСЂРёС‡РёРЅР° РѕР±СЏР·Р°С‚РµР»СЊРЅР°.');
+    const invoiceId = requireNonEmptyString(input.invoiceId, 'Счёт не выбран.');
+    const reason = requireNonEmptyString(input.reason, 'Причина обязательна.');
     const row = await callRpc(this.client, operation, 'void_invoice', {
       p_tenant_id: tenantId,
       p_invoice_id: invoiceId,
@@ -292,8 +292,8 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async recordPayment(input: RecordPaymentInput): Promise<Payment> {
     const operation = 'recordPayment';
     const tenantId = requireTenantId(input.tenantId);
-    const patientId = requireNonEmptyString(input.patientId, 'РџР°С†РёРµРЅС‚ РЅРµ РІС‹Р±СЂР°РЅ.');
-    const amount = requirePositiveNumber(input.amount, 'РЎСѓРјРјР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
+    const patientId = requireNonEmptyString(input.patientId, 'Пациент не выбран.');
+    const amount = requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.');
     const paymentMethod = validatePaymentMethod(input.paymentMethod);
     const row = await callRpc(this.client, operation, 'record_payment', {
       p_tenant_id: tenantId,
@@ -313,10 +313,10 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation> {
     const operation = 'allocatePayment';
     const tenantId = requireTenantId(input.tenantId);
-    const paymentId = requireNonEmptyString(input.paymentId, 'РџР»Р°С‚С‘Р¶ РЅРµ РІС‹Р±СЂР°РЅ.');
-    const amount = requirePositiveNumber(input.amount, 'РЎСѓРјРјР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
+    const paymentId = requireNonEmptyString(input.paymentId, 'Платёж не выбран.');
+    const amount = requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.');
     if (!input.invoiceId && !input.invoiceItemId) {
-      throw new FinanceRpcClientError({ operation: 'validation', message: 'РќСѓР¶РЅРѕ РІС‹Р±СЂР°С‚СЊ СЃС‡С‘С‚ РёР»Рё РїРѕР·РёС†РёСЋ СЃС‡С‘С‚Р°.' });
+      throw new FinanceRpcClientError({ operation: 'validation', message: 'Нужно выбрать счёт или позицию счёта.' });
     }
     const row = await callRpc(this.client, operation, 'allocate_payment', {
       p_tenant_id: tenantId,
@@ -332,8 +332,8 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async voidPaymentAllocation(input: VoidPaymentAllocationInput): Promise<PaymentAllocation> {
     const operation = 'voidPaymentAllocation';
     const tenantId = requireTenantId(input.tenantId);
-    const allocationId = requireNonEmptyString(input.allocationId, 'Р Р°СЃРїСЂРµРґРµР»РµРЅРёРµ РїР»Р°С‚РµР¶Р° РЅРµ РІС‹Р±СЂР°РЅРѕ.');
-    const reason = requireNonEmptyString(input.reason, 'РџСЂРёС‡РёРЅР° РѕР±СЏР·Р°С‚РµР»СЊРЅР°.');
+    const allocationId = requireNonEmptyString(input.allocationId, 'Распределение платежа не выбрано.');
+    const reason = requireNonEmptyString(input.reason, 'Причина обязательна.');
     const row = await callRpc(this.client, operation, 'void_payment_allocation', {
       p_tenant_id: tenantId,
       p_allocation_id: allocationId,
@@ -345,8 +345,8 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
   async voidPayment(input: VoidPaymentInput): Promise<Payment> {
     const operation = 'voidPayment';
     const tenantId = requireTenantId(input.tenantId);
-    const paymentId = requireNonEmptyString(input.paymentId, 'РџР»Р°С‚С‘Р¶ РЅРµ РІС‹Р±СЂР°РЅ.');
-    const reason = requireNonEmptyString(input.reason, 'РџСЂРёС‡РёРЅР° РѕР±СЏР·Р°С‚РµР»СЊРЅР°.');
+    const paymentId = requireNonEmptyString(input.paymentId, 'Платёж не выбран.');
+    const reason = requireNonEmptyString(input.reason, 'Причина обязательна.');
     const row = await callRpc(this.client, operation, 'void_payment', {
       p_tenant_id: tenantId,
       p_payment_id: paymentId,

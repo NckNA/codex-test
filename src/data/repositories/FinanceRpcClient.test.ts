@@ -40,8 +40,19 @@ function createClientMock(rpcResult: RpcResult) {
   return { rpcClient, client, rpcCalls };
 }
 
-function expectFinanceClientError(promise: Promise<unknown>, message: string) {
-  return expect(promise).rejects.toMatchObject({ name: 'FinanceRpcClientError', message });
+const MOJIBAKE_FRAGMENTS = ['Рќ', 'Рџ', 'СЃ', 'С‚'];
+
+async function expectFinanceClientError(promise: Promise<unknown>, message: string) {
+  try {
+    await promise;
+    throw new Error('Expected FinanceRpcClientError to be thrown');
+  } catch (error) {
+    expect(error).toMatchObject({ name: 'FinanceRpcClientError', message });
+    const actualMessage = error instanceof Error ? error.message : String(error);
+    for (const fragment of MOJIBAKE_FRAGMENTS) {
+      expect(actualMessage).not.toContain(fragment);
+    }
+  }
 }
 
 function expectNoDirectWriteCalls(client: ClientMock) {
@@ -328,93 +339,93 @@ describe('FinanceRpcClient RPC mapping', () => {
 describe('FinanceRpcClient validation', () => {
   it('createInvoice rejects missing tenantId', async () => {
     const { rpcClient } = createClientMock({ data: invoiceRow, error: null });
-    await expectFinanceClientError(rpcClient.createInvoice({ tenantId: '', patientId }), 'РќРµ РІС‹Р±СЂР°РЅР° РєР»РёРЅРёРєР°.');
+    await expectFinanceClientError(rpcClient.createInvoice({ tenantId: '', patientId }), 'Не выбрана клиника.');
   });
 
   it('createInvoice rejects missing patientId', async () => {
     const { rpcClient } = createClientMock({ data: invoiceRow, error: null });
-    await expectFinanceClientError(rpcClient.createInvoice({ tenantId, patientId: '  ' }), 'РџР°С†РёРµРЅС‚ РЅРµ РІС‹Р±СЂР°РЅ.');
+    await expectFinanceClientError(rpcClient.createInvoice({ tenantId, patientId: '  ' }), 'Пациент не выбран.');
   });
 
   it('addInvoiceItem rejects empty serviceName', async () => {
     const { rpcClient } = createClientMock({ data: invoiceItemRow, error: null });
-    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: '' }), 'РќР°Р·РІР°РЅРёРµ СѓСЃР»СѓРіРё РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ.');
+    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: '' }), 'Название услуги обязательно.');
   });
 
   it('addInvoiceItem rejects quantity <= 0', async () => {
     const { rpcClient } = createClientMock({ data: invoiceItemRow, error: null });
-    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', quantity: 0 }), 'РљРѕР»РёС‡РµСЃС‚РІРѕ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
-    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', quantity: -1 }), 'РљРѕР»РёС‡РµСЃС‚РІРѕ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
+    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', quantity: 0 }), 'Количество должно быть больше 0.');
+    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', quantity: -1 }), 'Количество должно быть больше 0.');
   });
 
   it('addInvoiceItem rejects negative unitPrice', async () => {
     const { rpcClient } = createClientMock({ data: invoiceItemRow, error: null });
-    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', unitPrice: -1 }), 'Р¦РµРЅР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚СЂРёС†Р°С‚РµР»СЊРЅРѕР№.');
+    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', unitPrice: -1 }), 'Цена не может быть отрицательной.');
   });
 
   it('addInvoiceItem rejects negative discountAmount', async () => {
     const { rpcClient } = createClientMock({ data: invoiceItemRow, error: null });
-    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', discountAmount: -1 }), 'РЎРєРёРґРєР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚СЂРёС†Р°С‚РµР»СЊРЅРѕР№.');
+    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', discountAmount: -1 }), 'Скидка не может быть отрицательной.');
   });
 
   it('addInvoiceItem rejects negative adjustmentAmount', async () => {
     const { rpcClient } = createClientMock({ data: invoiceItemRow, error: null });
-    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', adjustmentAmount: -1 }), 'РљРѕСЂСЂРµРєС‚РёСЂРѕРІРєР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚СЂРёС†Р°С‚РµР»СЊРЅРѕР№.');
+    await expectFinanceClientError(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Test', adjustmentAmount: -1 }), 'Корректировка не может быть отрицательной.');
   });
 
   it('recordPayment rejects amount <= 0', async () => {
     const { rpcClient } = createClientMock({ data: paymentRow, error: null });
-    await expectFinanceClientError(rpcClient.recordPayment({ tenantId, patientId, amount: 0, paymentMethod: 'cash' }), 'РЎСѓРјРјР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
+    await expectFinanceClientError(rpcClient.recordPayment({ tenantId, patientId, amount: 0, paymentMethod: 'cash' }), 'Сумма должна быть больше 0.');
   });
 
   it('recordPayment rejects invalid paymentMethod', async () => {
     const { rpcClient } = createClientMock({ data: paymentRow, error: null });
     await expectFinanceClientError(
       rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'crypto' as PaymentMethod }),
-      'РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ СЃРїРѕСЃРѕР± РѕРїР»Р°С‚С‹.',
+      'Некорректный способ оплаты.',
     );
   });
 
   it('allocatePayment rejects amount <= 0', async () => {
     const { rpcClient } = createClientMock({ data: paymentAllocationRow, error: null });
-    await expectFinanceClientError(rpcClient.allocatePayment({ tenantId, paymentId, amount: -1, invoiceId }), 'РЎСѓРјРјР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0.');
+    await expectFinanceClientError(rpcClient.allocatePayment({ tenantId, paymentId, amount: -1, invoiceId }), 'Сумма должна быть больше 0.');
   });
 
   it('allocatePayment rejects missing invoiceId and invoiceItemId', async () => {
     const { rpcClient } = createClientMock({ data: paymentAllocationRow, error: null });
-    await expectFinanceClientError(rpcClient.allocatePayment({ tenantId, paymentId, amount: 100 }), 'РќСѓР¶РЅРѕ РІС‹Р±СЂР°С‚СЊ СЃС‡С‘С‚ РёР»Рё РїРѕР·РёС†РёСЋ СЃС‡С‘С‚Р°.');
+    await expectFinanceClientError(rpcClient.allocatePayment({ tenantId, paymentId, amount: 100 }), 'Нужно выбрать счёт или позицию счёта.');
   });
 
   it('invoice operations reject missing invoiceId', async () => {
     const { rpcClient } = createClientMock({ data: invoiceRow, error: null });
-    await expectFinanceClientError(rpcClient.issueInvoice({ tenantId, invoiceId: '' } as IssueInvoiceInput), 'РЎС‡С‘С‚ РЅРµ РІС‹Р±СЂР°РЅ.');
-    await expectFinanceClientError(rpcClient.voidInvoice({ tenantId, invoiceId: ' ', reason: 'Void' } as VoidInvoiceInput), 'РЎС‡С‘С‚ РЅРµ РІС‹Р±СЂР°РЅ.');
+    await expectFinanceClientError(rpcClient.issueInvoice({ tenantId, invoiceId: '' } as IssueInvoiceInput), 'Счёт не выбран.');
+    await expectFinanceClientError(rpcClient.voidInvoice({ tenantId, invoiceId: ' ', reason: 'Void' } as VoidInvoiceInput), 'Счёт не выбран.');
   });
 
   it('voidInvoice requires reason', async () => {
     const { rpcClient } = createClientMock({ data: invoiceRow, error: null });
-    await expectFinanceClientError(rpcClient.voidInvoice({ tenantId, invoiceId, reason: ' ' }), 'РџСЂРёС‡РёРЅР° РѕР±СЏР·Р°С‚РµР»СЊРЅР°.');
+    await expectFinanceClientError(rpcClient.voidInvoice({ tenantId, invoiceId, reason: ' ' }), 'Причина обязательна.');
   });
 
   it('voidPaymentAllocation requires reason', async () => {
     const { rpcClient } = createClientMock({ data: paymentAllocationRow, error: null });
-    await expectFinanceClientError(rpcClient.voidPaymentAllocation({ tenantId, allocationId, reason: '' }), 'РџСЂРёС‡РёРЅР° РѕР±СЏР·Р°С‚РµР»СЊРЅР°.');
+    await expectFinanceClientError(rpcClient.voidPaymentAllocation({ tenantId, allocationId, reason: '' }), 'Причина обязательна.');
   });
 
   it('voidPayment requires reason', async () => {
     const { rpcClient } = createClientMock({ data: paymentRow, error: null });
-    await expectFinanceClientError(rpcClient.voidPayment({ tenantId, paymentId, reason: '' }), 'РџСЂРёС‡РёРЅР° РѕР±СЏР·Р°С‚РµР»СЊРЅР°.');
+    await expectFinanceClientError(rpcClient.voidPayment({ tenantId, paymentId, reason: '' }), 'Причина обязательна.');
   });
 
   it('metadata must be a plain object if provided', async () => {
     const { rpcClient } = createClientMock({ data: invoiceRow, error: null });
     await expectFinanceClientError(
       rpcClient.createInvoice({ tenantId, patientId, metadata: null as unknown as Record<string, unknown> }),
-      'РњРµС‚Р°РґР°РЅРЅС‹Рµ РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РѕР±СЉРµРєС‚РѕРј.',
+      'Метаданные должны быть объектом.',
     );
     await expectFinanceClientError(
       rpcClient.createInvoice({ tenantId, patientId, metadata: ['bad'] as unknown as Record<string, unknown> }),
-      'РњРµС‚Р°РґР°РЅРЅС‹Рµ РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РѕР±СЉРµРєС‚РѕРј.',
+      'Метаданные должны быть объектом.',
     );
   });
 });
@@ -479,7 +490,7 @@ describe('FinanceRpcClient error behavior', () => {
       name: 'FinanceRpcClientError',
       operation: 'createInvoice',
       code: '42501',
-      message: 'РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ С„РёРЅР°РЅСЃРѕРІСѓСЋ РѕРїРµСЂР°С†РёСЋ. Access denied',
+      message: 'Не удалось выполнить финансовую операцию. Access denied',
     });
   });
 
@@ -488,7 +499,7 @@ describe('FinanceRpcClient error behavior', () => {
     await expect(rpcClient.createInvoice({ tenantId, patientId })).rejects.toMatchObject({
       name: 'FinanceRpcClientError',
       operation: 'createInvoice',
-      message: 'РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ С„РёРЅР°РЅСЃРѕРІСѓСЋ РѕРїРµСЂР°С†РёСЋ.',
+      message: 'Не удалось выполнить финансовую операцию.',
     });
   });
 });
