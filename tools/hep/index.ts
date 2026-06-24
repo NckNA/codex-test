@@ -57,6 +57,7 @@ Commands:
   dependency-init     Create baseline dependency registry and graph.
   dependency-check    Evaluate dependency risk and impact waiver route.
   guardrail-blocker-write Write a structured guardrail blocker report.
+  blocker-diagnose    Classify why a blocker fired and what safe fix is required.
   decision-check      Evaluate one request through the HEP Decision Gateway.
   decision-explain    Print a human-readable Decision Gateway explanation.
   decision-policy-check Evaluate a request and return policy-focused output (matchedRules, reasons, next steps).
@@ -463,6 +464,28 @@ async function main(): Promise<void> {
           markdown: report.outputs.markdown,
           redactionApplied: report.redactionApplied
         }, null, 2));
+        break;
+      }
+      case "blocker-diagnose": {
+        const { diagnoseBlocker, formatBlockerDiagnosis } = await import("./blocker-root-cause.ts");
+        const result = diagnoseBlocker({
+          taskId,
+          activeTaskId: activePolicyTaskId,
+          actor,
+          action,
+          target,
+          tool: attemptedTool,
+          operation: blockedOperation,
+          reason,
+          policyMode: gitMode,
+          appCodeChanges: options.appCodeChanges === "true" ? true : options.appCodeChanges === "false" ? false : undefined,
+          gitCodeChanges: options.gitCodeChanges === "true" ? true : options.gitCodeChanges === "false" ? false : undefined,
+          migrations: options.migrations === "true" ? true : options.migrations === "false" ? false : undefined,
+          cloudSupabase: options.cloudSupabase === "true" ? true : options.cloudSupabase === "false" ? false : undefined,
+          expectedCapability
+        });
+        console.log(formatBlockerDiagnosis(result));
+        console.log(JSON.stringify(result, null, 2));
         break;
       }
       case "decision-check": {
