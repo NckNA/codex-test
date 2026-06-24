@@ -143,6 +143,12 @@ async function main(): Promise<void> {
   const writeAudit = !!options.writeAudit || !!options["write-audit"];
   const allowImpactPlan = !!options.allowImpactPlan || !!options["allow-impact-plan"];
   const reason = (options.reason as string) || (options["reason"] as string);
+  const actorType = (options.actorType as string) || (options["actor-type"] as string) || "script";
+  const targetType = (options.targetType as string) || (options["target-type"] as string) || "unknown";
+  const decision = ((options.decision as string) || (options["decision"] as string) || "INFO").toUpperCase();
+  const eventResult = (options.result as string) || (options["result"] as string) || (options.outcome as string) || "observed";
+  const severity = (options.severity as string) || (options["severity"] as string) || "info";
+  const message = (options.message as string) || (options["message"] as string);
   const maxEventsRaw = (options.maxEvents as string) || (options["max-events"] as string);
   const maxEvents = maxEventsRaw ? Number.parseInt(maxEventsRaw, 10) : undefined;
   if (maxEventsRaw && (!Number.isFinite(maxEvents) || (maxEvents ?? 0) <= 0)) {
@@ -311,6 +317,27 @@ async function main(): Promise<void> {
         console.log(`Hermes event log ready: ${logPath}`);
         break;
       }
+      case "event-log-write": {
+        if (!actor) throw new Error("event-log-write requires --actor");
+        if (!action) throw new Error("event-log-write requires --action");
+        if (!message) throw new Error("event-log-write requires --message");
+        const { appendHermesEvent } = await import("./event-log.ts");
+        const event = appendHermesEvent({
+          taskId: taskId || null,
+          actor,
+          actorType: actorType as never,
+          action,
+          target: target || null,
+          targetType: targetType as never,
+          decision: decision as never,
+          result: eventResult as never,
+          severity: severity as never,
+          message,
+          commandName: command
+        }, { hermesRoot: workspaceRoot });
+        console.log(JSON.stringify(event, null, 2));
+        break;
+      }
       case "event-log-tail": {
         const { tailHermesEvents } = await import("./event-log.ts");
         const limit = maxEvents ?? 20;
@@ -354,6 +381,8 @@ async function main(): Promise<void> {
 }
 
 main();
+
+
 
 
 
