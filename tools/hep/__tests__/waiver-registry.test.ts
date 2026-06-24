@@ -222,3 +222,32 @@ describe("Waiver Registry", () => {
     }
   });
 });
+
+
+describe("Waiver Registry rollback reference", () => {
+  it("stores rollbackRef on added waivers", () => {
+    const workspace = makeWorkspace();
+    try {
+      initializeWaiverRegistry({ workspaceRoot: workspace });
+      const record = addOrUpdateWaiver({
+        workspaceRoot: workspace,
+        taskId: "TASK-RB-REF-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        riskLevel: "low",
+        reason: "Valid reason for linking rollback evidence",
+        rollbackPlan: "legacy text plan remains supported",
+        rollbackRef: "contract.test.ref",
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+        createdBy: "tester",
+        reviewLevel: "none"
+      });
+
+      expect(record.rollbackRef).toBe("contract.test.ref");
+      const loaded = loadWaiverRegistry({ workspaceRoot: workspace }).find(w => w.waiverId === record.waiverId);
+      expect(loaded?.rollbackRef).toBe("contract.test.ref");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+});

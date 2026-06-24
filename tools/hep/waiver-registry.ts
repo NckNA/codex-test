@@ -1,5 +1,5 @@
-/**
- * Hermes Execution Platform (HEP) — Waiver Registry
+﻿/**
+ * Hermes Execution Platform (HEP) вЂ” Waiver Registry
  *
  * Purpose:
  *   The Waiver Registry allows exceptional risky actions only under strict,
@@ -12,11 +12,11 @@
  *   - A waiver is a NARROW, EXPIRING, AUDITABLE exception.
  *
  * Allowed waiver effects (v1):
- *   REQUIRE_PLAN → ALLOW   for low/medium risk, non-destructive, valid waiver
- *   ESCALATE     → REQUIRE_PLAN  for high risk, non-destructive, valid waiver
+ *   REQUIRE_PLAN в†’ ALLOW   for low/medium risk, non-destructive, valid waiver
+ *   ESCALATE     в†’ REQUIRE_PLAN  for high risk, non-destructive, valid waiver
  *
  * Forbidden waiver effects (v1):
- *   DENY → ALLOW                          (absolute)
+ *   DENY в†’ ALLOW                          (absolute)
  *   Critical/protected destructive DENY   (absolute)
  *   Guardian hard deny                    (absolute)
  *   Dependency outside-root deny          (absolute)
@@ -29,7 +29,7 @@
 import { existsSync, writeFileSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 
-// ─── Public types ─────────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ Public types в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 export type WaiverStatus = "active" | "expired" | "revoked" | "used" | "rejected";
 
@@ -60,6 +60,7 @@ export interface WaiverRecord {
   riskLevel: WaiverRiskLevel;
   reason: string;
   rollbackPlan?: string;
+  rollbackRef?: string;
   expiresAt: string; // ISO 8601
   createdAt: string;
   updatedAt?: string;
@@ -100,14 +101,14 @@ export interface WaiverSignal {
   riskLevel?: WaiverRiskLevel;
   /** Whether this waiver CAN relax a non-DENY decision per v1 rules. */
   canRelaxDecision: boolean;
-  /** Always false in v1 — waivers cannot bypass critical/protected destructive DENY. */
+  /** Always false in v1 вЂ” waivers cannot bypass critical/protected destructive DENY. */
   canBypassCriticalDeny: boolean;
   reasons: string[];
   warnings: string[];
   matchedWaiverIds: string[];
 }
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ Schema в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 const SCHEMA_VERSION = 1;
 
@@ -119,16 +120,16 @@ const EXAMPLE_DISABLED_WAIVER: WaiverRecord = {
   action: "inspect",
   scopeType: "action",
   riskLevel: "low",
-  reason: "Example only — not active. See waiver-add to create real waivers.",
+  reason: "Example only вЂ” not active. See waiver-add to create real waivers.",
   expiresAt: "2020-01-01T00:00:00Z",
   createdAt: "2020-01-01T00:00:00Z",
   createdBy: "system",
   reviewLevel: "none",
   revokedAt: "2020-01-01T00:00:01Z",
-  revokeReason: "Disabled example waiver — never active"
+  revokeReason: "Disabled example waiver вЂ” never active"
 };
 
-// ─── I/O helpers ──────────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ I/O helpers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 function waiverRegistryPath(workspaceRoot: string): string {
   return join(resolve(workspaceRoot), "memory", "waivers", "waiver-registry.json");
@@ -197,7 +198,7 @@ export function listWaivers(options: {
   });
 }
 
-// ─── Waiver validation ────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ Waiver validation в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 /** Maximum allowed TTL per risk level */
 const MAX_TTL_MS: Record<WaiverRiskLevel, number> = {
@@ -215,6 +216,7 @@ export interface WaiverAddOptions {
   riskLevel: WaiverRiskLevel;
   reason: string;
   rollbackPlan?: string;
+  rollbackRef?: string;
   expiresAt: string;
   createdBy: string;
   approvedBy?: string;
@@ -307,6 +309,7 @@ export function addOrUpdateWaiver(options: WaiverAddOptions): WaiverRecord {
     riskLevel: options.riskLevel,
     reason: options.reason.trim(),
     rollbackPlan: options.rollbackPlan?.trim(),
+    rollbackRef: options.rollbackRef?.trim(),
     expiresAt: options.expiresAt,
     createdAt: now,
     updatedAt: now,
@@ -411,7 +414,7 @@ export function writeWaiverEvent(options: { workspaceRoot: string; event: Record
   appendFileSync(ledgerPath, `${JSON.stringify(entry)}\n`, "utf8");
 }
 
-// ─── Core match logic ──────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ Core match logic в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 function isWaiverActive(waiver: WaiverRecord): boolean {
   if (waiver.status !== "active") return false;
@@ -455,7 +458,7 @@ function matchesScope(waiver: WaiverRecord, options: {
   } else if (waiver.scopeType === "action") {
     scopeMatched = actionMatched; // scope is the action itself
   } else if (waiver.scopeType === "hazard" && waiver.hazardId) {
-    // hazard scope — will be further matched later if hazardId is provided
+    // hazard scope вЂ” will be further matched later if hazardId is provided
     scopeMatched = true;
   }
 
@@ -494,8 +497,8 @@ export function findMatchingWaivers(options: {
  * Evaluate the waiver signal for a given request.
  *
  * Conservative design:
- *   - Missing registry → warning, not crash
- *   - Multiple matches → pick lowest risk active waiver
+ *   - Missing registry в†’ warning, not crash
+ *   - Multiple matches в†’ pick lowest risk active waiver
  *   - canBypassCriticalDeny is always false in v1
  */
 export function evaluateWaiver(options: {
@@ -668,9 +671,9 @@ export function evaluateWaiver(options: {
     !hasForbiddenAction &&
     reasons.length === 0;
 
-  // Warn for destructive actions — canRelaxDecision may be true but Policy will still apply DENY rules
+  // Warn for destructive actions вЂ” canRelaxDecision may be true but Policy will still apply DENY rules
   if (destructive && canRelaxDecision) {
-    warnings.push(`Waiver '${waiver.waiverId}' matches a destructive action '${options.action}'. Policy DENY rules still apply — waiver cannot bypass DENY.`);
+    warnings.push(`Waiver '${waiver.waiverId}' matches a destructive action '${options.action}'. Policy DENY rules still apply вЂ” waiver cannot bypass DENY.`);
   }
 
   return {
@@ -700,7 +703,7 @@ export function evaluateWaiver(options: {
   };
 }
 
-// ─── Formatting ───────────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ Formatting в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 export function formatWaiverCheck(signal: WaiverSignal): string {
   const lines = [
