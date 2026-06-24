@@ -1,4 +1,4 @@
-﻿import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { appendHermesEvent, redactEventSecrets, type HermesDecision, type HermesTargetType } from "./event-log.ts";
 import { checkGuardianAccess, type GuardianCheckResult } from "./guardian-acl.ts";
@@ -497,7 +497,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     assetSignal,
     ownershipSignal,
     waiverSignal,
-    context: { rollbackSignal },
+    rollback: rollbackSignal,
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel

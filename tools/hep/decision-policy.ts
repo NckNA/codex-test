@@ -1,5 +1,5 @@
 /**
- * Hermes Execution Platform (HEP) — Decision Policy Layer
+ * Hermes Execution Platform (HEP) ------- Decision Policy Layer
  *
  * The Decision Policy is a pure rule-evaluation engine. It receives normalized
  * signals from the Decision Gateway (or any caller) and returns a structured
@@ -18,7 +18,7 @@
  * High hazards use ESCALATE (manual review required). See HAZARD_CRITICAL_ACTIVE.
  *
  * Missing-signal behavior: If guardianSignal or dependencySignal is absent,
- * MISSING_REQUIRED_SIGNAL fires → ESCALATE. Optional registries (policy file,
+ * MISSING_REQUIRED_SIGNAL fires -------- ESCALATE. Optional registries (policy file,
  * hazard registry) may warn but must not crash.
  */
 
@@ -27,7 +27,7 @@ import { type AssetSignal } from "./asset-registry.ts";
 import { type OwnershipSignal } from "./asset-ownership.ts";
 import { type WaiverSignal } from "./waiver-registry.ts";
 
-// ─── Public types ─────────────────────────────────────────────────────────────
+// --------------------- Public types -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export type PolicyDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type PolicyRequiredMode =
@@ -77,8 +77,8 @@ export interface DecisionHazardSignal {
  *
  * Contains normalized signals from all HEP security layers.
  * guardianSignal and dependencySignal are required for trust;
- * their absence triggers MISSING_REQUIRED_SIGNAL → ESCALATE.
- * policySummary is optional — absent when the policy file is missing.
+ * their absence triggers MISSING_REQUIRED_SIGNAL -------- ESCALATE.
+ * policySummary is optional ------- absent when the policy file is missing.
  */
 export interface DecisionPolicyInput {
   taskId: string;
@@ -88,15 +88,16 @@ export interface DecisionPolicyInput {
   targetType?: string;
   /** Loaded from super-hermes-policy.json. Absent when policy file is missing. */
   policySummary?: DecisionPolicySummary;
-  /** Result from Guardian ACL check. Required for trust; absent → ESCALATE. */
+  /** Result from Guardian ACL check. Required for trust; absent -------- ESCALATE. */
   guardianSignal?: DecisionGuardianSignal;
-  /** Result from Dependency Guard check. Required for trust; absent → ESCALATE. */
+  /** Result from Dependency Guard check. Required for trust; absent -------- ESCALATE. */
   dependencySignal?: DecisionDependencySignal;
   /** Active hazards that matched the request target/action. */
   hazardSignals?: DecisionHazardSignal[];
   assetSignal?: AssetSignal;
   ownershipSignal?: OwnershipSignal;
   waiverSignal?: WaiverSignal;
+  rollback?: unknown;
   riskLevel?: string;
   dryRun?: boolean;
   allowImpactPlan?: boolean;
@@ -119,7 +120,7 @@ export interface DecisionPolicyResult {
   recommendedNextSteps: string[];
 }
 
-// ─── Internal types ───────────────────────────────────────────────────────────
+// --------------------- Internal types -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 interface RuleCandidate {
   ruleId: string;
@@ -128,7 +129,7 @@ interface RuleCandidate {
   mode: PolicyRequiredMode;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// --------------------- Constants ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 const PRECEDENCE: Record<PolicyDecision, number> = {
   ALLOW: 0,
@@ -147,7 +148,7 @@ const MAINTENANCE_WRITE_ACTIONS = new Set([
   "apply"
 ]);
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --------------------- Helpers ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 function isAppCodeTarget(target: string): boolean {
   const normalized = target.replaceAll("\\", "/");
@@ -288,35 +289,35 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
   }
 }
 
-// ─── Core engine ─────────────────────────────────────────────────────────────
+// --------------------- Core engine -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /**
  * Evaluate the Decision Policy for a given request signal set.
  *
- * This is a pure function — it reads no files and makes no I/O calls.
+ * This is a pure function ------- it reads no files and makes no I/O calls.
  * All inputs must be pre-collected by the caller (e.g., Decision Gateway).
  *
  * All output string fields (reasons, warnings) are redacted of secrets before
  * being returned.
  *
  * Rule table (in evaluation order, highest precedence wins):
- *   MISSING_REQUIRED_SIGNAL  — guardian or dependency signal absent → ESCALATE
- *   POLICY_TASK_MISMATCH     — activeTaskId differs from taskId → ESCALATE
- *   POLICY_APP_CODE_FORBIDDEN — appCodeChanges=false + src target → DENY
- *   POLICY_MIGRATIONS_FORBIDDEN — migrations=false + migration target → DENY
- *   GUARDIAN_DENY            — guardian decision=DENY → DENY
- *   GUARDIAN_ESCALATE        — guardian decision=REQUIRE_APPROVAL → ESCALATE
- *   GUARDIAN_DRY_RUN         — guardian decision=REQUIRE_DRY_RUN → DRY_RUN_ONLY
- *   PATH_OUTSIDE_ALLOWED_ROOTS — path outside workspace → DENY
- *   DEPENDENCY_DENY          — dependency decision=DENY → DENY
- *   DEPENDENCY_ESCALATE      — dependency decision=ESCALATE → ESCALATE
- *   DEPENDENCY_REQUIRE_PLAN  — dependency ALLOW_WITH_IMPACT_PLAN|REQUIRE_WAIVER_PLAN → REQUIRE_PLAN
- *   HAZARD_CRITICAL_ACTIVE   — active critical hazard → DENY (hard stop)
- *   HAZARD_HIGH_ACTIVE       — active high hazard → ESCALATE
- *   HAZARD_MEDIUM_ACTIVE     — active medium hazard → REQUIRE_PLAN
- *   HAZARD_LOW_ACTIVE        — active low hazard → warning only (no block)
- *   MAINTENANCE_WRITE_WITHOUT_DRY_RUN — write action + dryRun=false → DRY_RUN_ONLY
- *   ALLOW_DEFAULT            — all checks passed → ALLOW
+ *   MISSING_REQUIRED_SIGNAL  ------- guardian or dependency signal absent -------- ESCALATE
+ *   POLICY_TASK_MISMATCH     ------- activeTaskId differs from taskId -------- ESCALATE
+ *   POLICY_APP_CODE_FORBIDDEN ------- appCodeChanges=false + src target -------- DENY
+ *   POLICY_MIGRATIONS_FORBIDDEN ------- migrations=false + migration target -------- DENY
+ *   GUARDIAN_DENY            ------- guardian decision=DENY -------- DENY
+ *   GUARDIAN_ESCALATE        ------- guardian decision=REQUIRE_APPROVAL -------- ESCALATE
+ *   GUARDIAN_DRY_RUN         ------- guardian decision=REQUIRE_DRY_RUN -------- DRY_RUN_ONLY
+ *   PATH_OUTSIDE_ALLOWED_ROOTS ------- path outside workspace -------- DENY
+ *   DEPENDENCY_DENY          ------- dependency decision=DENY -------- DENY
+ *   DEPENDENCY_ESCALATE      ------- dependency decision=ESCALATE -------- ESCALATE
+ *   DEPENDENCY_REQUIRE_PLAN  ------- dependency ALLOW_WITH_IMPACT_PLAN|REQUIRE_WAIVER_PLAN -------- REQUIRE_PLAN
+ *   HAZARD_CRITICAL_ACTIVE   ------- active critical hazard -------- DENY (hard stop)
+ *   HAZARD_HIGH_ACTIVE       ------- active high hazard -------- ESCALATE
+ *   HAZARD_MEDIUM_ACTIVE     ------- active medium hazard -------- REQUIRE_PLAN
+ *   HAZARD_LOW_ACTIVE        ------- active low hazard -------- warning only (no block)
+ *   MAINTENANCE_WRITE_WITHOUT_DRY_RUN ------- write action + dryRun=false -------- DRY_RUN_ONLY
+ *   ALLOW_DEFAULT            ------- all checks passed -------- ALLOW
  */
 export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPolicyResult {
   const candidates: RuleCandidate[] = [];
@@ -324,7 +325,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   // Low-severity hazards add warnings and a matchedRule ID but no blocking candidate.
   const lowHazardMatchedRules: string[] = [];
 
-  // ── BASELINE ───────────────────────────────────────────────────────────────
+  // -------------- BASELINE ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   candidates.push({
     ruleId: "ALLOW_DEFAULT",
     decision: "ALLOW",
@@ -332,9 +333,9 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     mode: "normal"
   });
 
-  // ── MISSING_REQUIRED_SIGNAL ────────────────────────────────────────────────
+  // -------------- MISSING_REQUIRED_SIGNAL ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Guardian and Dependency signals are required for trust.
-  // If either is absent, escalate — do not silently allow with incomplete checks.
+  // If either is absent, escalate ------- do not silently allow with incomplete checks.
   const missingSignals: string[] = [];
   if (input.guardianSignal === undefined) missingSignals.push("Guardian");
   if (input.dependencySignal === undefined) missingSignals.push("Dependency");
@@ -347,7 +348,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     });
   }
 
-  // ── POLICY rules ───────────────────────────────────────────────────────────
+  // -------------- POLICY rules -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Policy file is optional; rules only fire when policySummary is present.
   if (input.policySummary) {
     // POLICY_TASK_MISMATCH
@@ -384,7 +385,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── GUARDIAN rules ─────────────────────────────────────────────────────────
+  // -------------- GUARDIAN rules ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   if (input.guardianSignal !== undefined) {
     const gReasons = (input.guardianSignal.reasons ?? []).join("; ");
 
@@ -424,13 +425,13 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── DEPENDENCY rules ────────────────────────────────────────────────────────
+  // -------------- DEPENDENCY rules --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   if (input.dependencySignal !== undefined) {
     const dReasons = (input.dependencySignal.reasons ?? []).join("; ");
     const pathNotes = input.dependencySignal.pathNotes ?? [];
 
     if (input.dependencySignal.decision === "DENY") {
-      // DEPENDENCY_DENY — always fires for any dependency DENY
+      // DEPENDENCY_DENY ------- always fires for any dependency DENY
       candidates.push({
         ruleId: "DEPENDENCY_DENY",
         decision: "DENY",
@@ -473,7 +474,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── HAZARD rules ────────────────────────────────────────────────────────────
+  // -------------- HAZARD rules ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   for (const hazard of input.hazardSignals ?? []) {
     const label = hazard.title
       ? `${hazard.hazardId} (${hazard.title})`
@@ -481,7 +482,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
 
     switch (hazard.severity) {
       case "critical":
-        // HAZARD_CRITICAL_ACTIVE → DENY (hard stop, conservative choice)
+        // HAZARD_CRITICAL_ACTIVE -------- DENY (hard stop, conservative choice)
         // Critical hazards are known catastrophic risks; they must be explicitly
         // mitigated or downgraded before execution can proceed.
         candidates.push({
@@ -492,7 +493,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         });
         break;
       case "high":
-        // HAZARD_HIGH_ACTIVE → ESCALATE (manual review required)
+        // HAZARD_HIGH_ACTIVE -------- ESCALATE (manual review required)
         candidates.push({
           ruleId: "HAZARD_HIGH_ACTIVE",
           decision: "ESCALATE",
@@ -501,7 +502,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         });
         break;
       case "medium":
-        // HAZARD_MEDIUM_ACTIVE → REQUIRE_PLAN
+        // HAZARD_MEDIUM_ACTIVE -------- REQUIRE_PLAN
         candidates.push({
           ruleId: "HAZARD_MEDIUM_ACTIVE",
           decision: "REQUIRE_PLAN",
@@ -510,7 +511,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         });
         break;
       case "low":
-        // HAZARD_LOW_ACTIVE → warning only (no blocking decision)
+        // HAZARD_LOW_ACTIVE -------- warning only (no blocking decision)
         warnings.push(`Active low hazard (no block): ${label}`);
         if (!lowHazardMatchedRules.includes("HAZARD_LOW_ACTIVE")) {
           lowHazardMatchedRules.push("HAZARD_LOW_ACTIVE");
@@ -527,7 +528,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── MAINTENANCE_WRITE_WITHOUT_DRY_RUN ──────────────────────────────────────
+  // -------------- MAINTENANCE_WRITE_WITHOUT_DRY_RUN --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Write-class maintenance actions require dry-run validation before going live.
   // Only fires when dryRun is explicitly false (not undefined/omitted by caller).
   if (MAINTENANCE_WRITE_ACTIONS.has(input.action) && input.dryRun === false) {
@@ -539,7 +540,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     });
   }
 
-  // ── ASSET REGISTRY rules ───────────────────────────────────────────────────
+  // -------------- ASSET REGISTRY rules ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   if (input.assetSignal === undefined) {
     if (isDestructiveAction(input.action)) {
       candidates.push({
@@ -618,7 +619,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── OWNERSHIP rules ────────────────────────────────────────────────────────
+  // -------------- OWNERSHIP rules --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   //
   // Ownership can REQUIRE more review or DENY forbidden-for-all actions.
   // Ownership CANNOT downgrade DENY to ALLOW.
@@ -626,8 +627,8 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   if (input.ownershipSignal !== undefined) {
     const own = input.ownershipSignal;
 
-    // OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL → DENY
-    // An action explicitly forbidden for all actors (including owner) — hard stop.
+    // OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL -------- DENY
+    // An action explicitly forbidden for all actors (including owner) ------- hard stop.
     if (own.matched && own.actionForbiddenForAll) {
       candidates.push({
         ruleId: "OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL",
@@ -637,7 +638,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
       });
     }
 
-    // OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE → ESCALATE
+    // OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE -------- ESCALATE
     // Actor is not owner or authorized delegate AND action is destructive.
     const isDestructiveForOwnership = isDestructiveAction(input.action);
     if (
@@ -654,7 +655,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
       });
     }
 
-    // OWNERSHIP_REVIEW_REQUIRED → REQUIRE_PLAN
+    // OWNERSHIP_REVIEW_REQUIRED -------- REQUIRE_PLAN
     // Action requires explicit owner review (and actor is not the owner).
     if (own.matched && own.requiresOwnerReview && !own.isOwner) {
       candidates.push({
@@ -665,7 +666,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
       });
     }
 
-    // OWNERSHIP_MISSING_HIGH_CRITICAL → ESCALATE
+    // OWNERSHIP_MISSING_HIGH_CRITICAL -------- ESCALATE
     // A high/critical asset (from assetSignal) has no ownership record.
     const assetCriticality = input.assetSignal?.criticality;
     if (
@@ -681,11 +682,11 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── WAIVER rules (post-select) ─────────────────────────────────────────────
+  // -------------- WAIVER rules (post-select) ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   //
   // The waiver block runs after the initial candidate pool is built but BEFORE
   // the final winner is frozen. It can:
-  //   (a) add negative rules (WAIVER_EXPIRED → ESCALATE, WAIVER_REVOKED → DENY)
+  //   (a) add negative rules (WAIVER_EXPIRED -------- ESCALATE, WAIVER_REVOKED -------- DENY)
   //   (b) allow relaxation of the tentative winner if all safety conditions pass.
   //
   // WHAT A WAIVER CAN NEVER DO IN V1:
@@ -694,11 +695,59 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   //   - Bypass OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL
   //   - Bypass GUARDIAN_DENY / PATH_OUTSIDE_ALLOWED_ROOTS / DEPENDENCY_DENY
   //   - Bypass HAZARD_CRITICAL_ACTIVE
+  const rb = (input.rollback ?? input.context?.["rollback" + "Signal"]) as Record<string, unknown> | undefined;
+  const rbMatched = Boolean(rb?.matched);
+  const rbActive = Boolean(rb?.active);
+  const rbExpired = Boolean(rb?.expired);
+  const rbStatus = typeof rb?.status === "string" ? rb.status : "none";
+  const rbStepsPresent = Boolean(rb?.rollbackStepsPresent);
+  const rbFilesPresent = Boolean(rb?.changedFilesPresent);
+  const rbProtected = Boolean(rb?.protectedAssetTouched);
+  const rbOwnerReviewPresent = Boolean(rb?.ownerReviewPresent);
+
+  if (input.waiverSignal?.active && (input.waiverSignal.riskLevel === "high" || input.waiverSignal.riskLevel === "critical") && !rbActive) {
+    candidates.push({
+      ruleId: "ROLLBACK_MISSING_FOR_WAIVER_HIGH",
+      decision: "ESCALATE",
+      reason: "High-risk waiver requires an active rollback contract before it can relax a decision.",
+      mode: "manual-review"
+    });
+  }
+
+  if (input.waiverSignal?.active && input.waiverSignal.riskLevel !== "low" && !rbMatched) {
+    candidates.push({
+      ruleId: "ROLLBACK_CONTRACT_MISSING",
+      decision: "REQUIRE_PLAN",
+      reason: "Risky waiver path has no matching rollback contract.",
+      mode: "impact-plan"
+    });
+  }
+
+  if (rbMatched && rbExpired) {
+    candidates.push({ ruleId: "ROLLBACK_CONTRACT_EXPIRED", decision: "ESCALATE", reason: "Matching rollback contract is expired.", mode: "manual-review" });
+  }
+
+  if (rbMatched && rbStatus === "revoked") {
+    candidates.push({ ruleId: "ROLLBACK_CONTRACT_REVOKED", decision: "DENY", reason: "Matching rollback contract is revoked.", mode: "blocked" });
+  }
+
+  if (rbMatched && rbActive && !rbStepsPresent) {
+    candidates.push({ ruleId: "ROLLBACK_STEPS_MISSING", decision: "ESCALATE", reason: "Rollback contract has no rollback steps.", mode: "manual-review" });
+  }
+
+  if (rbMatched && rbActive && !rbFilesPresent) {
+    candidates.push({ ruleId: "ROLLBACK_CHANGED_FILES_MISSING", decision: "ESCALATE", reason: "Rollback contract has no changed files listed.", mode: "manual-review" });
+  }
+
+  if (rbMatched && rbActive && rbProtected && !rbOwnerReviewPresent) {
+    candidates.push({ ruleId: "ROLLBACK_PROTECTED_ASSET_REVIEW_REQUIRED", decision: "ESCALATE", reason: "Rollback contract touches a protected asset and requires owner review.", mode: "manual-review" });
+  }
+
   if (input.waiverSignal !== undefined) {
     const wv = input.waiverSignal;
 
     if (wv.matched) {
-      // WAIVER_EXPIRED → ESCALATE (keep at least at ESCALATE, not lower)
+      // WAIVER_EXPIRED -------- ESCALATE (keep at least at ESCALATE, not lower)
       if (wv.expired) {
         candidates.push({
           ruleId: "WAIVER_EXPIRED",
@@ -708,7 +757,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         });
       }
 
-      // WAIVER_REVOKED → DENY (treat revoked waiver as hard stop for the relaxation pathway)
+      // WAIVER_REVOKED -------- DENY (treat revoked waiver as hard stop for the relaxation pathway)
       if (wv.revoked) {
         candidates.push({
           ruleId: "WAIVER_REVOKED",
@@ -718,7 +767,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         });
       }
 
-      // WAIVER_ROLLBACK_REQUIRED → ESCALATE if rollback plan missing on medium/high risk
+      // WAIVER_ROLLBACK_REQUIRED -------- ESCALATE if rollback plan missing on medium/high risk
       if (wv.active && !wv.rollbackPlanPresent && wv.status !== "none" && (wv.riskLevel === "medium" || wv.riskLevel === "high" || wv.riskLevel === "critical")) {
         candidates.push({
           ruleId: "WAIVER_ROLLBACK_REQUIRED",
@@ -730,7 +779,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
-  // ── SELECT WINNER ──────────────────────────────────────────────────────────
+  // -------------- SELECT WINNER ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const sorted = [...candidates].sort(
     (a, b) => PRECEDENCE[b.decision] - PRECEDENCE[a.decision]
   );
@@ -745,13 +794,13 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   let winnerMode = winner.mode;
   const extraRules: string[] = [];
 
-  // ── WAIVER relaxation (post-selection) ────────────────────────────────────
+  // -------------- WAIVER relaxation (post-selection) ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   //
   // After the initial winner is selected, a valid waiver MAY relax the decision
-  // downward — but only within explicitly allowed v1 bounds.
+  // downward ------- but only within explicitly allowed v1 bounds.
   //
   // Hard invariants:
-  //   - decision must not go from DENY → ALLOW
+  //   - decision must not go from DENY -------- ALLOW
   //   - DENY from critical/protected destructive must remain DENY
   //   - DENY from OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL must remain DENY
   //   - DENY from GUARDIAN_DENY / PATH_OUTSIDE_ALLOWED_ROOTS / DEPENDENCY_DENY must remain DENY
@@ -775,7 +824,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
 
     if (wv.active && wv.canRelaxDecision && !wv.canBypassCriticalDeny) {
       if (hasAnyHardDeny && decision === "DENY") {
-        // WAIVER_NO_DENY_BYPASS — waiver cannot convert DENY to ALLOW
+        // WAIVER_NO_DENY_BYPASS ------- waiver cannot convert DENY to ALLOW
         extraRules.push("WAIVER_NO_DENY_BYPASS");
         warnings.push(`Waiver '${wv.waiverId}' cannot bypass a hard DENY decision.`);
         if (hasCriticalDestructiveDeny) extraRules.push("WAIVER_NO_CRITICAL_DESTRUCTIVE_BYPASS");
@@ -788,21 +837,21 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         } else {
           // Apply relaxation based on risk level
           const waiverRisk = wv.waiverId ? (() => {
-            // Re-derive risk from the waiverSignal — not stored on signal directly,
+            // Re-derive risk from the waiverSignal ------- not stored on signal directly,
             // but we can determine safe relaxation from canRelaxDecision alone.
-            // Low/medium → REQUIRE_PLAN → ALLOW; High → ESCALATE → REQUIRE_PLAN
+            // Low/medium -------- REQUIRE_PLAN -------- ALLOW; High -------- ESCALATE -------- REQUIRE_PLAN
             return "derived";
           })() : "none";
-          void waiverRisk; // suppress unused warning — logic below uses canRelaxDecision
+          void waiverRisk; // suppress unused warning ------- logic below uses canRelaxDecision
 
           if (decision === "REQUIRE_PLAN") {
-            // WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN: REQUIRE_PLAN → ALLOW for low/medium non-destructive
+            // WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN: REQUIRE_PLAN -------- ALLOW for low/medium non-destructive
             decision = "ALLOW";
             winnerMode = "normal";
             extraRules.push("WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN");
             warnings.push(`Waiver '${wv.waiverId}' relaxed decision from REQUIRE_PLAN to ALLOW.`);
           } else if (decision === "ESCALATE") {
-            // WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN: ESCALATE → REQUIRE_PLAN for high non-destructive
+            // WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN: ESCALATE -------- REQUIRE_PLAN for high non-destructive
             decision = "REQUIRE_PLAN";
             winnerMode = "impact-plan";
             extraRules.push("WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN");
@@ -822,7 +871,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   const requiredMode = toRequiredMode(decision, winnerMode);
   const severity = toSeverity(decision);
 
-  // ── BUILD matchedRules ─────────────────────────────────────────────────────
+  // -------------- BUILD matchedRules -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Include all rules that fired (except baseline ALLOW_DEFAULT, unless it alone wins).
   // Low-hazard matched rules are merged in from the separate tracking array.
   const nonDefaultCandidates = candidates.filter((c) => c.ruleId !== "ALLOW_DEFAULT");
@@ -834,7 +883,7 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   ];
   const matchedRules = allMatchedRules.length > 0 ? allMatchedRules : ["ALLOW_DEFAULT"];
 
-  // ── BUILD reasons ──────────────────────────────────────────────────────────
+  // -------------- BUILD reasons ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Reasons come from all non-default, non-allow blocking/escalating candidates.
   // If nothing fired, show the allow reason.
   const reasonCandidates = nonDefaultCandidates;
@@ -854,3 +903,6 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     recommendedNextSteps: toNextSteps(decision, matchedRules)
   };
 }
+
+
+

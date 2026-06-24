@@ -1101,3 +1101,113 @@ describe("Decision Policy", () => {
   });
 });
 
+
+
+describe("Decision Policy rollback rules", () => {
+  const activeWaiver = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "archive",
+    target: "tools/hep/index.ts",
+    assetId: "hep.cli.index",
+    matched: true,
+    waiverId: "waiver.test",
+    status: "active" as const,
+    active: true,
+    expired: false,
+    revoked: false,
+    scopeMatched: true,
+    actionMatched: true,
+    targetMatched: true,
+    hazardMatched: false,
+    rollbackPlanPresent: true,
+    reviewerMatched: true,
+    riskLevel: "high" as const,
+    canRelaxDecision: true,
+    canBypassCriticalDeny: false,
+    reasons: [],
+    warnings: [],
+    matchedWaiverIds: ["waiver.test"]
+  };
+
+  const activeRollback = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "archive",
+    target: "tools/hep/index.ts",
+    assetId: "hep.cli.index",
+    matched: true,
+    contractId: "rollback.test",
+    status: "active",
+    active: true,
+    verified: false,
+    expired: false,
+    validationStatus: "not_checked",
+    rollbackPlanPresent: true,
+    rollbackStepsPresent: true,
+    changedFilesPresent: true,
+    protectedAssetTouched: false,
+    requiresOwnerReview: false,
+    ownerReviewPresent: false,
+    canSupportWaiver: true,
+    canSupportRiskReduction: true,
+    reasons: [],
+    warnings: [],
+    matchedContractIds: ["rollback.test"]
+  };
+
+  it("escalates when a high-risk waiver has no active rollback contract", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: activeWaiver,
+      rollback: { ...activeRollback, matched: false, active: false }
+    }));
+
+    expect(result.matchedRules).toContain("ROLLBACK_MISSING_FOR_WAIVER_HIGH");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("denies revoked rollback contracts", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: activeWaiver,
+      rollback: { ...activeRollback, status: "revoked", active: false }
+    }));
+
+    expect(result.matchedRules).toContain("ROLLBACK_CONTRACT_REVOKED");
+    expect(result.decision).toBe("DENY");
+  });
+
+  it("escalates when rollback steps are missing", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: activeWaiver,
+      rollback: { ...activeRollback, rollbackStepsPresent: false }
+    }));
+
+    expect(result.matchedRules).toContain("ROLLBACK_STEPS_MISSING");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires plan when rollback changed files are missing", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: activeWaiver,
+      rollback: { ...activeRollback, changedFilesPresent: false }
+    }));
+
+    expect(result.matchedRules).toContain("ROLLBACK_CHANGED_FILES_MISSING");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("escalates protected rollback contracts without owner review", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: activeWaiver,
+      rollback: { ...activeRollback, protectedAssetTouched: true, ownerReviewPresent: false }
+    }));
+
+    expect(result.matchedRules).toContain("ROLLBACK_PROTECTED_ASSET_REVIEW_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+});
