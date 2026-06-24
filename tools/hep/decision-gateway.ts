@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+﻿import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { appendHermesEvent, redactEventSecrets, type HermesDecision, type HermesTargetType } from "./event-log.ts";
 import { checkGuardianAccess, type GuardianCheckResult } from "./guardian-acl.ts";
@@ -19,6 +19,7 @@ import {
 import { checkAssetAction, writeAssetEvent, type AssetSignal } from "./asset-registry.ts";
 import { checkOwnership, type OwnershipSignal } from "./asset-ownership.ts";
 import { evaluateWaiver, type WaiverSignal } from "./waiver-registry.ts";
+import { evaluateRollbackContract, type RollbackSignal } from "./rollback-contract.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -75,6 +76,7 @@ export interface DecisionGatewaySignals {
   hazards: HazardSignal;
   ownership?: OwnershipSignal;
   waiver?: WaiverSignal;
+  rollback?: RollbackSignal;
 }
 
 export interface DecisionGatewayResult {
@@ -102,6 +104,7 @@ export interface DecisionGatewayResult {
   assetSignal?: AssetSignal;
   ownershipSignal?: OwnershipSignal;
   waiverSignal?: WaiverSignal;
+  rollbackSignal?: RollbackSignal;
 }
 
 interface SuperHermesPolicy {
@@ -437,7 +440,25 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     warnings.push(`Waiver check failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // ── Delegate rule evaluation to Decision Policy ───────────────────────────
+  let rollbackSignal: RollbackSignal | undefined = undefined;
+  try {
+    rollbackSignal = evaluateRollbackContract({
+      workspaceRoot,
+      taskId,
+      actor,
+      action,
+      target,
+      assetId: assetSignal?.assetId,
+      waiverId: waiverSignal?.waiverId
+    });
+    if (rollbackSignal.warnings) {
+      warnings.push(...rollbackSignal.warnings);
+    }
+  } catch (error) {
+    warnings.push(`Rollback contract check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // в”Ђв”Ђ Delegate rule evaluation to Decision Policy в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
   // Gateway collects signals; Policy evaluates rules and resolves precedence.
   const policyInput: DecisionPolicyInput = {
     taskId,
@@ -476,6 +497,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     assetSignal,
     ownershipSignal,
     waiverSignal,
+    context: { rollbackSignal },
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel
@@ -483,7 +505,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
 
   const policyResult = evaluateDecisionPolicy(policyInput);
   const decision = policyResult.decision;
-  // Map "blocked" (policy) → "manual-review" (gateway) for backward compatibility.
+  // Map "blocked" (policy) в†’ "manual-review" (gateway) for backward compatibility.
   const requiredMode: DecisionRequiredMode =
     policyResult.requiredMode === "blocked" ? "manual-review" : policyResult.requiredMode;
   const reasons = policyResult.reasons;
@@ -508,7 +530,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     },
     hazards: hazardSignal,
     ownership: ownershipSignal,
-    waiver: waiverSignal
+    waiver: waiverSignal,
+    rollback: rollbackSignal
   };
 
   const baseResult: DecisionGatewayResult = {

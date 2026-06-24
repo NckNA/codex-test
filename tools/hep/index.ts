@@ -82,6 +82,13 @@ Commands:
   waiver-add        Add or update one waiver record.
   waiver-revoke     Revoke a waiver record by --waiver-id.
   waiver-check      Check evaluation of waiver for actor/action/target/assetId.
+  rollback-init     Initialize the Hermes Rollback Contract registry.
+  rollback-list     List rollback contracts.
+  rollback-see      Show one rollback contract by --contract-id.
+  rollback-add      Add or update one rollback contract.
+  rollback-revoke   Revoke one rollback contract by --contract-id.
+  rollback-verify   Mark one rollback contract as verified.
+  rollback-check    Check rollback contract support for actor/action/target/assetId.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -139,6 +146,15 @@ Options:
   --forbidden-actions <a;b> Semicolon-separated forbidden actions for waiver.
   --allowed-targets <a;b> Semicolon-separated allowed target paths/prefixes.
   --revoked-by <usr>  Waiver revoker.
+  --contract-id <id>  Rollback contract ID.
+  --changed-files <a;b> Semicolon-separated changed files for rollback-add.
+  --affected-assets <a;b> Semicolon-separated affected asset IDs.
+  --rollback-step <t> Rollback step command for rollback-add.
+  --dry-run-command <t> Dry-run command evidence for rollback-add.
+  --validation-evidence <a;b> Semicolon-separated rollback validation notes.
+  --protected-asset-touched <true|false> Whether rollback touches a protected asset.
+  --owner-review-by <usr> Owner reviewer for protected asset rollback contracts.
+  --verified-by <usr> Rollback verifier.
 
 `);
 }
@@ -284,6 +300,18 @@ async function main(): Promise<void> {
   const allowedTargets = parseListOption((options.allowedTargets as string) || (options["allowed-targets"] as string));
   const waiverId = (options.waiverId as string) || (options["waiver-id"] as string);
   const revokedBy = (options.revokedBy as string) || (options["revoked-by"] as string);
+
+  // Rollback contract options
+  const contractId = (options.contractId as string) || (options["contract-id"] as string);
+  const changedFiles = parseListOption((options.changedFiles as string) || (options["changed-files"] as string)) ?? [];
+  const affectedAssets = parseListOption((options.affectedAssets as string) || (options["affected-assets"] as string));
+  const rollbackStep = (options.rollbackStep as string) || (options["rollback-step"] as string);
+  const dryRunCommand = (options.dryRunCommand as string) || (options["dry-run-command"] as string);
+  const validationEvidence = parseListOption((options.validationEvidence as string) || (options["validation-evidence"] as string));
+  const protectedAssetTouchedRaw = (options.protectedAssetTouched as string) || (options["protected-asset-touched"] as string) || "false";
+  const protectedAssetTouched = protectedAssetTouchedRaw === "true";
+  const ownerReviewBy = (options.ownerReviewBy as string) || (options["owner-review-by"] as string);
+  const verifiedBy = (options.verifiedBy as string) || (options["verified-by"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -764,6 +792,83 @@ async function main(): Promise<void> {
           assetId
         });
         console.log(formatWaiverCheck(signal));
+        break;
+      }
+      case "rollback-init": {
+        const { initializeRollbackRegistry } = await import("./rollback-contract.ts");
+        initializeRollbackRegistry({ workspaceRoot });
+        console.log(`Rollback Contract registry initialized at: ${workspaceRoot}/memory/rollback/rollback-contracts.json`);
+        break;
+      }
+      case "rollback-list": {
+        const { listRollbackContracts } = await import("./rollback-contract.ts");
+        console.log(JSON.stringify(listRollbackContracts({ workspaceRoot }), null, 2));
+        break;
+      }
+      case "rollback-see": {
+        if (!contractId) throw new Error("rollback-see requires --contract-id");
+        const { listRollbackContracts } = await import("./rollback-contract.ts");
+        const contract = listRollbackContracts({ workspaceRoot }).find((item) => item.contractId === contractId);
+        if (!contract) {
+          console.error(`Rollback contract not found: ${contractId}`);
+          process.exitCode = 1;
+        } else {
+          console.log(JSON.stringify(contract, null, 2));
+        }
+        break;
+      }
+      case "rollback-add": {
+        if (!taskId) throw new Error("rollback-add requires --taskId");
+        if (!actor) throw new Error("rollback-add requires --actor");
+        if (!action) throw new Error("rollback-add requires --action");
+        if (!reason) throw new Error("rollback-add requires --reason");
+        if (changedFiles.length === 0) throw new Error("rollback-add requires --changed-files");
+        if (!rollbackStep) throw new Error("rollback-add requires --rollback-step");
+        const { addOrUpdateRollbackContract, parseRollbackStepInput } = await import("./rollback-contract.ts");
+        const record = addOrUpdateRollbackContract({
+          workspaceRoot,
+          contractId,
+          taskId,
+          actor,
+          action,
+          target,
+          assetId,
+          riskLevel: riskLevel as never,
+          reason,
+          changedFiles,
+          affectedAssets,
+          rollbackSteps: [parseRollbackStepInput(rollbackStep, riskLevel as never, dryRunCommand)],
+          validationEvidence,
+          protectedAssetTouched,
+          createdBy,
+          approvedBy,
+          ownerReviewBy,
+          notes: tags
+        });
+        console.log(JSON.stringify(record, null, 2));
+        break;
+      }
+      case "rollback-revoke": {
+        if (!contractId) throw new Error("rollback-revoke requires --contract-id");
+        if (!reason) throw new Error("rollback-revoke requires --reason");
+        const { revokeRollbackContract } = await import("./rollback-contract.ts");
+        console.log(JSON.stringify(revokeRollbackContract({ workspaceRoot, contractId, reason, revokedBy }), null, 2));
+        break;
+      }
+      case "rollback-verify": {
+        if (!contractId) throw new Error("rollback-verify requires --contract-id");
+        if (!verifiedBy) throw new Error("rollback-verify requires --verified-by");
+        const { markRollbackVerified } = await import("./rollback-contract.ts");
+        console.log(JSON.stringify(markRollbackVerified({ workspaceRoot, contractId, verifiedBy, evidence: reason }), null, 2));
+        break;
+      }
+      case "rollback-check": {
+        if (!taskId) throw new Error("rollback-check requires --taskId");
+        if (!actor) throw new Error("rollback-check requires --actor");
+        if (!action) throw new Error("rollback-check requires --action");
+        const { evaluateRollbackContract, formatRollbackCheck } = await import("./rollback-contract.ts");
+        const signal = evaluateRollbackContract({ workspaceRoot, taskId, actor, action, target, assetId, waiverId });
+        console.log(formatRollbackCheck(signal));
         break;
       }
       case "event-log-init": {
