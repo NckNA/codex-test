@@ -61,6 +61,8 @@ Commands:
   decision-check      Evaluate one request through the HEP Decision Gateway.
   decision-explain    Print a human-readable Decision Gateway explanation.
   decision-policy-check Evaluate a request and return policy-focused output (matchedRules, reasons, next steps).
+  policy-simulate     Simulate a decision without writing events or ledger entries.
+  decision-simulate   Alias for policy-simulate.
   observability-snapshot Write Hermes observability JSON and Markdown snapshots.
   observability-report Print a Hermes observability Markdown snapshot.
   hazard-init       Create default Hermes hazard registry.
@@ -566,6 +568,29 @@ async function main(): Promise<void> {
         if (!result.allowed) process.exitCode = 2;
         break;
       }
+      case "policy-simulate":
+      case "decision-simulate": {
+        if (!taskId) throw new Error("policy-simulate requires --taskId");
+        if (!actor) throw new Error("policy-simulate requires --actor");
+        if (!action) throw new Error("policy-simulate requires --action");
+        if (!target) throw new Error("policy-simulate requires --target");
+        const { simulateDecisionGateway } = await import("./decision-gateway.ts");
+        const simulation = simulateDecisionGateway({
+          workspaceRoot,
+          repositoryPath,
+          taskId,
+          actor,
+          action,
+          target,
+          targetType: targetType as never,
+          reason,
+          dryRun,
+          allowImpactPlan
+        });
+        console.log(JSON.stringify(simulation, null, 2));
+        break;
+      }
+
       case "decision-policy-check": {
         if (!taskId) throw new Error("decision-policy-check requires --taskId");
         if (!actor) throw new Error("decision-policy-check requires --actor");

@@ -625,6 +625,66 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
   };
 }
 
+export interface DecisionSimulationResult {
+  simulation: true;
+  decision: DecisionGatewayDecision;
+  allowed: boolean;
+  requiredMode?: DecisionRequiredMode;
+  taskId: string;
+  actor: string;
+  action: string;
+  target: string;
+  normalizedTarget?: string;
+  matchedRules: string[];
+  blockers: string[];
+  missingEvidence: string[];
+  warnings: string[];
+  recommendedNextSteps: string[];
+  eventWritten: false;
+  decisionLedgerWritten: false;
+  signals: DecisionGatewaySignals;
+}
+
+function classifySimulationEvidence(result: DecisionGatewayResult): string[] {
+  const missing: string[] = [];
+  if (result.signals.policy.status !== "loaded") missing.push("active policy");
+  if (!result.signals.waiver?.active && result.matchedRules.some((rule) => rule.includes("WAIVER"))) missing.push("active waiver");
+  const needsRollback = result.matchedRules.some((rule) => rule.includes("ROLLBACK"));
+  if (needsRollback && !result.signals.rollback?.matched) missing.push("rollback contract");
+  if (needsRollback && result.signals.rollback?.matched && !result.signals.rollback?.verified) missing.push("verified rollback");
+  if (result.matchedRules.includes("ROLLBACK_CHANGED_FILES_MISSING")) missing.push("rollback changed files");
+  if (result.matchedRules.includes("ROLLBACK_STEPS_MISSING")) missing.push("rollback steps");
+  if (result.matchedRules.some((rule) => rule.includes("OWNER") || rule.includes("OWNERSHIP"))) missing.push("owner review or ownership permission");
+  return Array.from(new Set(missing));
+}
+
+export function simulateDecisionGateway(request: DecisionGatewayRequest): DecisionSimulationResult {
+  const result = evaluateDecisionGateway({
+    ...request,
+    writeEvent: false,
+    writeDecisionLedger: false
+  });
+  return {
+    simulation: true,
+    decision: result.decision,
+    allowed: result.allowed,
+    requiredMode: result.requiredMode,
+    taskId: result.taskId,
+    actor: result.actor,
+    action: result.action,
+    target: result.target,
+    normalizedTarget: result.normalizedTarget,
+    matchedRules: result.matchedRules,
+    blockers: result.allowed ? [] : result.reasons,
+    missingEvidence: classifySimulationEvidence(result),
+    warnings: result.warnings,
+    recommendedNextSteps: result.decisionPolicyResult?.recommendedNextSteps ?? [],
+    eventWritten: false,
+    decisionLedgerWritten: false,
+    signals: result.signals
+  };
+}
+
 export function formatDecisionGatewayMarkdown(result: DecisionGatewayResult): string {
   const lines = [
     `# Decision Gateway: ${result.decision}`,

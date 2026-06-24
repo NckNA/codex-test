@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { addHazard } from "../hazard-registry.ts";
 import { buildAssetRecord, upsertAssetRegistry } from "../dependency-guard.ts";
-import { evaluateDecisionGateway } from "../decision-gateway.ts";
+import { evaluateDecisionGateway, simulateDecisionGateway } from "../decision-gateway.ts";
 import { initializeAssetRegistry } from "../asset-registry.ts";
 import { initializeOwnershipRegistry, loadOwnershipRegistry, saveOwnershipRegistry } from "../asset-ownership.ts";
 import { initializeWaiverRegistry, addOrUpdateWaiver } from "../waiver-registry.ts";
@@ -623,6 +623,43 @@ describe("Decision Gateway", () => {
       expect(result.decision).toBe("DENY");
       expect(result.matchedRules).toContain("WAIVER_NO_DENY_BYPASS");
       expect(result.matchedRules).toContain("ASSET_CRITICAL_DESTRUCTIVE_DENY");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+});
+
+
+describe("Decision Gateway simulation", () => {
+  it("returns a compact simulation without writing event or ledger", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      const result = simulateDecisionGateway(request(workspace, project, { writeEvent: true, writeDecisionLedger: true }));
+
+      expect(result.simulation).toBe(true);
+      expect(result.decision).toBe("ALLOW");
+      expect(result.eventWritten).toBe(false);
+      expect(result.decisionLedgerWritten).toBe(false);
+      expect(result.matchedRules).toContain("ALLOW_DEFAULT");
+      expect(existsSync(join(workspace, "logs", "decisions"))).toBe(false);
+      expect(existsSync(join(workspace, "logs", "events", "hermes-events.jsonl"))).toBe(false);
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("summarizes blockers and missing evidence for blocked simulation", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace, { activeTaskId: "OTHER-TASK" });
+      const result = simulateDecisionGateway(request(workspace, project));
+
+      expect(result.simulation).toBe(true);
+      expect(result.allowed).toBe(false);
+      expect(result.blockers.length).toBeGreaterThan(0);
+      expect(result.matchedRules).toContain("POLICY_TASK_MISMATCH");
+      expect(result.recommendedNextSteps.length).toBeGreaterThan(0);
     } finally {
       cleanupWorkspace(workspace);
     }
