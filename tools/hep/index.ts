@@ -91,6 +91,12 @@ Commands:
   rollback-revoke   Revoke one rollback contract by --contract-id.
   rollback-verify   Mark one rollback contract as verified.
   rollback-check    Check rollback contract support for actor/action/target/assetId.
+  change-plan-init  Initialize the Hermes Change Plan registry.
+  change-plan-list  List change plans.
+  change-plan-add   Add or update one change plan.
+  change-plan-check Check change plan support for actor/action/target.
+  change-plan-approve Approve one change plan by --plan-id.
+  change-plan-revoke Revoke one change plan by --plan-id.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -158,6 +164,12 @@ Options:
   --protected-asset-touched <true|false> Whether rollback touches a protected asset.
   --owner-review-by <usr> Owner reviewer for protected asset rollback contracts.
   --verified-by <usr> Rollback verifier.
+  --plan-id <id>     Change plan ID.
+  --summary <text>   Change plan summary.
+  --expected-file <p|type|reason> Change plan expected file entry.
+  --check <cmd|required|expected> Change plan validation check entry.
+  --simulation-decision <d> Decision from prior policy simulation.
+  --simulation-rules <a;b> Matched rules from prior policy simulation.
 
 `);
 }
@@ -316,6 +328,14 @@ async function main(): Promise<void> {
   const protectedAssetTouched = protectedAssetTouchedRaw === "true";
   const ownerReviewBy = (options.ownerReviewBy as string) || (options["owner-review-by"] as string);
   const verifiedBy = (options.verifiedBy as string) || (options["verified-by"] as string);
+
+  // Change plan options
+  const planId = (options.planId as string) || (options["plan-id"] as string);
+  const summary = (options.summary as string) || (options["summary"] as string);
+  const expectedFile = (options.expectedFile as string) || (options["expected-file"] as string);
+  const check = (options.check as string) || (options["check"] as string);
+  const simulationDecision = (options.simulationDecision as string) || (options["simulation-decision"] as string);
+  const simulationRules = parseListOption((options.simulationRules as string) || (options["simulation-rules"] as string));
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -897,6 +917,74 @@ async function main(): Promise<void> {
         const { evaluateRollbackContract, formatRollbackCheck } = await import("./rollback-contract.ts");
         const signal = evaluateRollbackContract({ workspaceRoot, taskId, actor, action, target, assetId, waiverId });
         console.log(formatRollbackCheck(signal));
+        break;
+      }
+      case "change-plan-init": {
+        const { initializeChangePlanRegistry } = await import("./change-plan.ts");
+        initializeChangePlanRegistry({ workspaceRoot });
+        console.log(`Change Plan registry initialized at: ${workspaceRoot}/memory/change-plans/change-plan-registry.json`);
+        break;
+      }
+      case "change-plan-list": {
+        const { listChangePlans } = await import("./change-plan.ts");
+        console.log(JSON.stringify(listChangePlans({ workspaceRoot }), null, 2));
+        break;
+      }
+      case "change-plan-add": {
+        if (!taskId) throw new Error("change-plan-add requires --taskId");
+        if (!actor) throw new Error("change-plan-add requires --actor");
+        if (!action) throw new Error("change-plan-add requires --action");
+        if (!reason) throw new Error("change-plan-add requires --reason");
+        if (!summary) throw new Error("change-plan-add requires --summary");
+        if (!expectedFile) throw new Error("change-plan-add requires --expected-file");
+        if (!check) throw new Error("change-plan-add requires --check");
+        const { addOrUpdateChangePlan, parseChangePlanFileInput, parseChangePlanCheckInput } = await import("./change-plan.ts");
+        const plan = addOrUpdateChangePlan({
+          workspaceRoot,
+          taskId,
+          actor,
+          action,
+          target,
+          riskLevel: riskLevel as never,
+          createdBy,
+          approvedBy,
+          reason,
+          summary,
+          expectedFiles: [parseChangePlanFileInput(expectedFile)],
+          checks: [parseChangePlanCheckInput(check)],
+          rollbackRef: rbRef,
+          waiverId,
+          requiresOwnerReview: Boolean(ownerReviewBy),
+          ownerReviewBy,
+          simulationDecision,
+          simulationMatchedRules: simulationRules,
+          expiresAt,
+          notes: tags
+        });
+        console.log(JSON.stringify(plan, null, 2));
+        break;
+      }
+      case "change-plan-check": {
+        if (!taskId) throw new Error("change-plan-check requires --taskId");
+        if (!actor) throw new Error("change-plan-check requires --actor");
+        if (!action) throw new Error("change-plan-check requires --action");
+        const { evaluateChangePlan, formatChangePlanCheck } = await import("./change-plan.ts");
+        const signal = evaluateChangePlan({ workspaceRoot, taskId, actor, action, target });
+        console.log(formatChangePlanCheck(signal));
+        break;
+      }
+      case "change-plan-approve": {
+        if (!planId) throw new Error("change-plan-approve requires --plan-id");
+        if (!approvedBy) throw new Error("change-plan-approve requires --approved-by");
+        const { approveChangePlan } = await import("./change-plan.ts");
+        console.log(JSON.stringify(approveChangePlan({ workspaceRoot, planId, approvedBy }), null, 2));
+        break;
+      }
+      case "change-plan-revoke": {
+        if (!planId) throw new Error("change-plan-revoke requires --plan-id");
+        if (!reason) throw new Error("change-plan-revoke requires --reason");
+        const { revokeChangePlan } = await import("./change-plan.ts");
+        console.log(JSON.stringify(revokeChangePlan({ workspaceRoot, planId, reason, revokedBy }), null, 2));
         break;
       }
       case "event-log-init": {
