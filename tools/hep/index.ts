@@ -136,6 +136,7 @@ Options:
   --waiver-id <id>    Waiver ID for waiver see/revoke commands.
   --risk-level <lvl>  Risk level for waiver-add (low/medium/high/critical).
   --rollback-plan <t> Rollback plan for waiver-add.
+  --rb-ref <id>       Rollback reference ID for waiver-add.
   --expires-at <iso>  Expiration ISO timestamp for waiver-add.
   --created-by <usr>  Waiver creator.
   --approved-by <usr> Waiver approver.
@@ -289,6 +290,7 @@ async function main(): Promise<void> {
   // Waiver options
   const riskLevel = (options.riskLevel as string) || (options["risk-level"] as string) || "low";
   const rollbackPlan = (options.rollbackPlan as string) || (options["rollback-plan"] as string);
+  const rbRef = (options.rbRef as string) || (options["rb-ref"] as string);
   const expiresAt = (options.expiresAt as string) || (options["expires-at"] as string);
   const createdBy = (options.createdBy as string) || (options["created-by"] as string) || actor || "system";
   const approvedBy = (options.approvedBy as string) || (options["approved-by"] as string);
@@ -751,6 +753,7 @@ async function main(): Promise<void> {
           riskLevel: riskLevel as WaiverRiskLevel,
           reason,
           rollbackPlan,
+          rollbackRef: rbRef,
           expiresAt,
           createdBy,
           approvedBy,
