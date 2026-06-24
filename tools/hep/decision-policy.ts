@@ -25,6 +25,7 @@
 import { redactGuardrailText } from "./guardrail-blocker.ts";
 import { type AssetSignal } from "./asset-registry.ts";
 import { type OwnershipSignal } from "./asset-ownership.ts";
+import { type WaiverSignal } from "./waiver-registry.ts";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ export interface DecisionPolicyInput {
   hazardSignals?: DecisionHazardSignal[];
   assetSignal?: AssetSignal;
   ownershipSignal?: OwnershipSignal;
+  waiverSignal?: WaiverSignal;
   riskLevel?: string;
   dryRun?: boolean;
   allowImpactPlan?: boolean;
@@ -201,6 +203,10 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
     case "ALLOW":
       return ["Proceed with the action."];
     case "DENY":
+      if (matchedRules.includes("WAIVER_REVOKED"))
+        return ["Matching waiver has been revoked. Request a new waiver or proceed through normal approval."];
+      if (matchedRules.includes("WAIVER_ROLLBACK_REQUIRED"))
+        return ["Waiver requires a rollback plan for medium/high risk actions. Add rollbackPlan to the waiver."];
       if (matchedRules.includes("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL"))
         return ["This action is forbidden for all actors on this asset, including the owner. You must change the action or target."];
       if (matchedRules.includes("ASSET_CRITICAL_DESTRUCTIVE_DENY"))
@@ -224,6 +230,10 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
         return ["Request access elevation from the Guardian ACL administrator."];
       return ["Review denial reasons and contact Hermes administrator."];
     case "ESCALATE":
+      if (matchedRules.includes("WAIVER_EXPIRED"))
+        return ["Matching waiver has expired. Request a new waiver using: node tools/hep/index.ts waiver-add"];
+      if (matchedRules.includes("WAIVER_ROLLBACK_REQUIRED"))
+        return ["Waiver requires a rollback plan for medium/high risk actions."];
       if (matchedRules.includes("OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE"))
         return [
           "Actor is not authorized to perform destructive actions on this asset.",
@@ -248,6 +258,11 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
         "Use: node tools/hep/index.ts decision-explain for detailed breakdown."
       ];
     case "REQUIRE_PLAN":
+      if (matchedRules.includes("WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN"))
+        return [
+          "Action has a valid high-risk waiver. Decision relaxed from ESCALATE to REQUIRE_PLAN.",
+          "Ensure rollback plan is executed if action fails."
+        ];
       if (matchedRules.includes("OWNERSHIP_REVIEW_REQUIRED"))
         return [
           "This action requires explicit owner review before execution.",
@@ -666,6 +681,55 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     }
   }
 
+  // ── WAIVER rules (post-select) ─────────────────────────────────────────────
+  //
+  // The waiver block runs after the initial candidate pool is built but BEFORE
+  // the final winner is frozen. It can:
+  //   (a) add negative rules (WAIVER_EXPIRED → ESCALATE, WAIVER_REVOKED → DENY)
+  //   (b) allow relaxation of the tentative winner if all safety conditions pass.
+  //
+  // WHAT A WAIVER CAN NEVER DO IN V1:
+  //   - Convert DENY to ALLOW
+  //   - Bypass ASSET_CRITICAL_DESTRUCTIVE_DENY / ASSET_PROTECTED_DESTRUCTIVE_DENY
+  //   - Bypass OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL
+  //   - Bypass GUARDIAN_DENY / PATH_OUTSIDE_ALLOWED_ROOTS / DEPENDENCY_DENY
+  //   - Bypass HAZARD_CRITICAL_ACTIVE
+  if (input.waiverSignal !== undefined) {
+    const wv = input.waiverSignal;
+
+    if (wv.matched) {
+      // WAIVER_EXPIRED → ESCALATE (keep at least at ESCALATE, not lower)
+      if (wv.expired) {
+        candidates.push({
+          ruleId: "WAIVER_EXPIRED",
+          decision: "ESCALATE",
+          reason: `Matching waiver '${wv.waiverId || "unknown"}' has expired. Request a new waiver.`,
+          mode: "manual-review"
+        });
+      }
+
+      // WAIVER_REVOKED → DENY (treat revoked waiver as hard stop for the relaxation pathway)
+      if (wv.revoked) {
+        candidates.push({
+          ruleId: "WAIVER_REVOKED",
+          decision: "DENY",
+          reason: `Matching waiver '${wv.waiverId || "unknown"}' has been revoked. No valid exception exists.`,
+          mode: "blocked"
+        });
+      }
+
+      // WAIVER_ROLLBACK_REQUIRED → ESCALATE if rollback plan missing on medium/high risk
+      if (wv.active && !wv.rollbackPlanPresent && wv.status !== "none" && (wv.riskLevel === "medium" || wv.riskLevel === "high" || wv.riskLevel === "critical")) {
+        candidates.push({
+          ruleId: "WAIVER_ROLLBACK_REQUIRED",
+          decision: "ESCALATE",
+          reason: `Active waiver '${wv.waiverId || "unknown"}' has medium/high risk but no rollback plan. Waiver cannot relax decision.`,
+          mode: "manual-review"
+        });
+      }
+    }
+  }
+
   // ── SELECT WINNER ──────────────────────────────────────────────────────────
   const sorted = [...candidates].sort(
     (a, b) => PRECEDENCE[b.decision] - PRECEDENCE[a.decision]
@@ -677,8 +741,85 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
     mode: "normal" as PolicyRequiredMode
   };
 
-  const decision = winner.decision;
-  const requiredMode = toRequiredMode(decision, winner.mode);
+  let decision = winner.decision;
+  let winnerMode = winner.mode;
+  const extraRules: string[] = [];
+
+  // ── WAIVER relaxation (post-selection) ────────────────────────────────────
+  //
+  // After the initial winner is selected, a valid waiver MAY relax the decision
+  // downward — but only within explicitly allowed v1 bounds.
+  //
+  // Hard invariants:
+  //   - decision must not go from DENY → ALLOW
+  //   - DENY from critical/protected destructive must remain DENY
+  //   - DENY from OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL must remain DENY
+  //   - DENY from GUARDIAN_DENY / PATH_OUTSIDE_ALLOWED_ROOTS / DEPENDENCY_DENY must remain DENY
+  //   - canBypassCriticalDeny is always false in v1
+
+  if (input.waiverSignal !== undefined && input.waiverSignal.matched) {
+    const wv = input.waiverSignal;
+
+    // Detect hard-deny rule IDs that prevent any relaxation
+    const currentCandidateRuleIds = new Set(candidates.map(c => c.ruleId));
+    const hasCriticalDestructiveDeny =
+      currentCandidateRuleIds.has("ASSET_CRITICAL_DESTRUCTIVE_DENY") ||
+      currentCandidateRuleIds.has("ASSET_PROTECTED_DESTRUCTIVE_DENY");
+    const hasForbiddenForAllDeny = currentCandidateRuleIds.has("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL");
+    const hasGuardianDeny = currentCandidateRuleIds.has("GUARDIAN_DENY") ||
+      currentCandidateRuleIds.has("PATH_OUTSIDE_ALLOWED_ROOTS");
+    const hasDependencyHardDeny = currentCandidateRuleIds.has("DEPENDENCY_DENY");
+    const hasHazardCriticalDeny = currentCandidateRuleIds.has("HAZARD_CRITICAL_ACTIVE");
+    const hasAnyHardDeny =
+      hasCriticalDestructiveDeny || hasForbiddenForAllDeny || hasGuardianDeny || hasDependencyHardDeny || hasHazardCriticalDeny;
+
+    if (wv.active && wv.canRelaxDecision && !wv.canBypassCriticalDeny) {
+      if (hasAnyHardDeny && decision === "DENY") {
+        // WAIVER_NO_DENY_BYPASS — waiver cannot convert DENY to ALLOW
+        extraRules.push("WAIVER_NO_DENY_BYPASS");
+        warnings.push(`Waiver '${wv.waiverId}' cannot bypass a hard DENY decision.`);
+        if (hasCriticalDestructiveDeny) extraRules.push("WAIVER_NO_CRITICAL_DESTRUCTIVE_BYPASS");
+        if (hasForbiddenForAllDeny) extraRules.push("WAIVER_NO_FORBIDDEN_FOR_ALL_BYPASS");
+      } else if (decision !== "DENY") {
+        // Check scope match validity
+        if (!wv.scopeMatched || !wv.actionMatched) {
+          extraRules.push("WAIVER_SCOPE_MISMATCH");
+          warnings.push(`Waiver '${wv.waiverId}' scope or action does not exactly match this request. Waiver not applied.`);
+        } else {
+          // Apply relaxation based on risk level
+          const waiverRisk = wv.waiverId ? (() => {
+            // Re-derive risk from the waiverSignal — not stored on signal directly,
+            // but we can determine safe relaxation from canRelaxDecision alone.
+            // Low/medium → REQUIRE_PLAN → ALLOW; High → ESCALATE → REQUIRE_PLAN
+            return "derived";
+          })() : "none";
+          void waiverRisk; // suppress unused warning — logic below uses canRelaxDecision
+
+          if (decision === "REQUIRE_PLAN") {
+            // WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN: REQUIRE_PLAN → ALLOW for low/medium non-destructive
+            decision = "ALLOW";
+            winnerMode = "normal";
+            extraRules.push("WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN");
+            warnings.push(`Waiver '${wv.waiverId}' relaxed decision from REQUIRE_PLAN to ALLOW.`);
+          } else if (decision === "ESCALATE") {
+            // WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN: ESCALATE → REQUIRE_PLAN for high non-destructive
+            decision = "REQUIRE_PLAN";
+            winnerMode = "impact-plan";
+            extraRules.push("WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN");
+            warnings.push(`Waiver '${wv.waiverId}' relaxed decision from ESCALATE to REQUIRE_PLAN.`);
+          }
+          // DRY_RUN_ONLY and ALLOW: no change needed
+        }
+      }
+    } else if (decision === "DENY") {
+      // Waiver exists but cannot bypass DENY
+      extraRules.push("WAIVER_NO_DENY_BYPASS");
+      if (hasCriticalDestructiveDeny) extraRules.push("WAIVER_NO_CRITICAL_DESTRUCTIVE_BYPASS");
+      if (hasForbiddenForAllDeny) extraRules.push("WAIVER_NO_FORBIDDEN_FOR_ALL_BYPASS");
+    }
+  }
+
+  const requiredMode = toRequiredMode(decision, winnerMode);
   const severity = toSeverity(decision);
 
   // ── BUILD matchedRules ─────────────────────────────────────────────────────
@@ -688,7 +829,8 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   const candidateRuleIds = [...new Set(nonDefaultCandidates.map((c) => c.ruleId))];
   const allMatchedRules = [
     ...candidateRuleIds,
-    ...lowHazardMatchedRules.filter((r) => !candidateRuleIds.includes(r))
+    ...lowHazardMatchedRules.filter((r) => !candidateRuleIds.includes(r)),
+    ...extraRules.filter((r) => !candidateRuleIds.includes(r))
   ];
   const matchedRules = allMatchedRules.length > 0 ? allMatchedRules : ["ALLOW_DEFAULT"];
 

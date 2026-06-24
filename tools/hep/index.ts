@@ -18,7 +18,17 @@ import {
   formatOwnershipCheck,
   type OwnershipRole
 } from "./asset-ownership.ts";
-
+import {
+  initializeWaiverRegistry,
+  loadWaiverRegistry,
+  addOrUpdateWaiver,
+  revokeWaiver,
+  evaluateWaiver,
+  formatWaiverCheck,
+  type WaiverRiskLevel,
+  type WaiverReviewLevel,
+  type WaiverScopeType
+} from "./waiver-registry.ts";
 function printUsage(): void {
   console.log(`
 Hermes Execution Platform (HEP) Task Runner CLI v1.0
@@ -65,6 +75,12 @@ Commands:
   ownership-list    List ownership entries (optionally filter by --owner or --role).
   ownership-see     Show one ownership entry by --asset-id.
   ownership-check   Check ownership for an actor/action/asset-id tuple.
+  waiver-init       Initialize the Hermes Waiver Registry.
+  waiver-list       List waiver registry records.
+  waiver-see        Show one waiver record by --waiver-id.
+  waiver-add        Add or update one waiver record.
+  waiver-revoke     Revoke a waiver record by --waiver-id.
+  waiver-check      Check evaluation of waiver for actor/action/target/assetId.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -109,6 +125,20 @@ Options:
   --next-safe-steps <a;b> Semicolon-separated safe next steps.
   --owner <name>      Filter or specify ownership by owner name.
   --role <role>       Filter or specify ownership role (owner/approver/inspector/maintainer/guardian).
+  --waiver-id <id>    Waiver ID for waiver see/revoke commands.
+  --risk-level <lvl>  Risk level for waiver-add (low/medium/high/critical).
+  --rollback-plan <t> Rollback plan for waiver-add.
+  --expires-at <iso>  Expiration ISO timestamp for waiver-add.
+  --created-by <usr>  Waiver creator.
+  --approved-by <usr> Waiver approver.
+  --review-level <l>  Waiver review level (none/owner/guardian/multi_reviewer).
+  --scope-type <type> Waiver scope type (asset/path/path_prefix/task/action/hazard/policy).
+  --path-prefix <p>   Path prefix for path_prefix scoped waivers.
+  --allowed-actions <a;b> Semicolon-separated allowed actions for waiver.
+  --forbidden-actions <a;b> Semicolon-separated forbidden actions for waiver.
+  --allowed-targets <a;b> Semicolon-separated allowed target paths/prefixes.
+  --revoked-by <usr>  Waiver revoker.
+
 `);
 }
 
@@ -238,6 +268,21 @@ async function main(): Promise<void> {
   const nextSafeSteps = parseListOption((options.nextSafeSteps as string) || (options["next-safe-steps"] as string));
   const ownerFilter = (options.owner as string) || (options["owner"] as string);
   const roleFilter = (options.role as string) || (options["role"] as string);
+
+  // Waiver options
+  const riskLevel = (options.riskLevel as string) || (options["risk-level"] as string) || "low";
+  const rollbackPlan = (options.rollbackPlan as string) || (options["rollback-plan"] as string);
+  const expiresAt = (options.expiresAt as string) || (options["expires-at"] as string);
+  const createdBy = (options.createdBy as string) || (options["created-by"] as string) || actor || "system";
+  const approvedBy = (options.approvedBy as string) || (options["approved-by"] as string);
+  const reviewLevel = (options.reviewLevel as string) || (options["review-level"] as string) || "none";
+  const scopeType = (options.scopeType as string) || (options["scope-type"] as string);
+  const pathPrefix = (options.pathPrefix as string) || (options["path-prefix"] as string);
+  const allowedActions = parseListOption((options.allowedActions as string) || (options["allowed-actions"] as string));
+  const forbiddenActions = parseListOption((options.forbiddenActions as string) || (options["forbidden-actions"] as string));
+  const allowedTargets = parseListOption((options.allowedTargets as string) || (options["allowed-targets"] as string));
+  const waiverId = (options.waiverId as string) || (options["waiver-id"] as string);
+  const revokedBy = (options.revokedBy as string) || (options["revoked-by"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -617,6 +662,85 @@ async function main(): Promise<void> {
         const checkAction = action || "read";
         const ownershipResult = checkOwnership({ workspaceRoot, actor, action: checkAction, assetId });
         console.log(formatOwnershipCheck(ownershipResult));
+        break;
+      }
+      case "waiver-init": {
+        initializeWaiverRegistry({ workspaceRoot });
+        console.log(`Waiver Registry initialized at: ${workspaceRoot}/memory/waivers/waiver-registry.json`);
+        break;
+      }
+      case "waiver-list": {
+        const waivers = loadWaiverRegistry({ workspaceRoot });
+        console.log(JSON.stringify(waivers, null, 2));
+        break;
+      }
+      case "waiver-see": {
+        if (!waiverId) throw new Error("waiver-see requires --waiver-id");
+        const waivers = loadWaiverRegistry({ workspaceRoot });
+        const waiver = waivers.find(w => w.waiverId === waiverId);
+        if (!waiver) {
+          console.error(`Waiver not found: ${waiverId}`);
+          process.exitCode = 1;
+        } else {
+          console.log(JSON.stringify(waiver, null, 2));
+        }
+        break;
+      }
+      case "waiver-add": {
+        if (!taskId) throw new Error("waiver-add requires --taskId");
+        if (!actor) throw new Error("waiver-add requires --actor");
+        if (!action) throw new Error("waiver-add requires --action");
+        if (!expiresAt) throw new Error("waiver-add requires --expires-at");
+        if (!reason) throw new Error("waiver-add requires --reason");
+        const record = addOrUpdateWaiver({
+          workspaceRoot,
+          taskId,
+          actor,
+          action,
+          riskLevel: riskLevel as WaiverRiskLevel,
+          reason,
+          rollbackPlan,
+          expiresAt,
+          createdBy,
+          approvedBy,
+          reviewLevel: reviewLevel as WaiverReviewLevel,
+          scopeType: scopeType as WaiverScopeType,
+          assetId,
+          target,
+          pathPrefix,
+          allowedActions,
+          forbiddenActions,
+          allowedTargets,
+          notes: tags
+        });
+        console.log(JSON.stringify(record, null, 2));
+        break;
+      }
+      case "waiver-revoke": {
+        if (!waiverId) throw new Error("waiver-revoke requires --waiver-id");
+        if (!reason) throw new Error("waiver-revoke requires --reason");
+        const record = revokeWaiver({
+          workspaceRoot,
+          waiverId,
+          reason,
+          revokedBy
+        });
+        console.log(JSON.stringify(record, null, 2));
+        break;
+      }
+      case "waiver-check": {
+        if (!taskId) throw new Error("waiver-check requires --taskId");
+        if (!actor) throw new Error("waiver-check requires --actor");
+        if (!action) throw new Error("waiver-check requires --action");
+        const signal = evaluateWaiver({
+          workspaceRoot,
+          taskId,
+          actor,
+          action,
+          target,
+          assetId
+        });
+        console.log(formatWaiverCheck(signal));
         break;
       }
       case "event-log-init": {

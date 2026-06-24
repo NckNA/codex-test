@@ -18,6 +18,7 @@ import {
 } from "./decision-policy.ts";
 import { checkAssetAction, writeAssetEvent, type AssetSignal } from "./asset-registry.ts";
 import { checkOwnership, type OwnershipSignal } from "./asset-ownership.ts";
+import { evaluateWaiver, type WaiverSignal } from "./waiver-registry.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -73,6 +74,7 @@ export interface DecisionGatewaySignals {
   };
   hazards: HazardSignal;
   ownership?: OwnershipSignal;
+  waiver?: WaiverSignal;
 }
 
 export interface DecisionGatewayResult {
@@ -99,6 +101,7 @@ export interface DecisionGatewayResult {
   decisionPolicyResult?: DecisionPolicyResult;
   assetSignal?: AssetSignal;
   ownershipSignal?: OwnershipSignal;
+  waiverSignal?: WaiverSignal;
 }
 
 interface SuperHermesPolicy {
@@ -417,6 +420,23 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     warnings.push(`Ownership check failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
+  let waiverSignal: WaiverSignal | undefined = undefined;
+  try {
+    waiverSignal = evaluateWaiver({
+      workspaceRoot,
+      taskId,
+      actor,
+      action,
+      target,
+      assetId: assetSignal?.assetId
+    });
+    if (waiverSignal.warnings) {
+      warnings.push(...waiverSignal.warnings);
+    }
+  } catch (error) {
+    warnings.push(`Waiver check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // ── Delegate rule evaluation to Decision Policy ───────────────────────────
   // Gateway collects signals; Policy evaluates rules and resolves precedence.
   const policyInput: DecisionPolicyInput = {
@@ -455,6 +475,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     })),
     assetSignal,
     ownershipSignal,
+    waiverSignal,
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel
@@ -486,7 +507,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
       pathNotes: dependencyResult.targetAsset.notes
     },
     hazards: hazardSignal,
-    ownership: ownershipSignal
+    ownership: ownershipSignal,
+    waiver: waiverSignal
   };
 
   const baseResult: DecisionGatewayResult = {
@@ -509,7 +531,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     matchedRules: policyResult.matchedRules,
     decisionPolicyResult: policyResult,
     assetSignal,
-    ownershipSignal
+    ownershipSignal,
+    waiverSignal
   };
 
   if (assetSignal && request.writeEvent !== false) {
@@ -616,6 +639,7 @@ export function formatDecisionGatewayMarkdown(result: DecisionGatewayResult): st
     `- Hazards: highOrCritical=${result.signals.hazards.highOrCritical}, medium=${result.signals.hazards.medium}, low=${result.signals.hazards.low}`,
     `- Asset: matched=${result.assetSignal?.matched || false} id=${result.assetSignal?.assetId || "n/a"} type=${result.assetSignal?.type || "unknown"} criticality=${result.assetSignal?.criticality || "low"} lifecycle=${result.assetSignal?.lifecycle || "unknown"}`,
     `- Ownership: matched=${result.ownershipSignal?.matched || false} owner=${result.ownershipSignal?.owner || "n/a"} role=${result.ownershipSignal?.role || "n/a"} scope=${result.ownershipSignal?.scope || "n/a"} isOwner=${result.ownershipSignal?.isOwner || false} actorAuthorized=${result.ownershipSignal?.actorAuthorized || false} forbiddenForAll=${result.ownershipSignal?.actionForbiddenForAll || false} requiresOwnerReview=${result.ownershipSignal?.requiresOwnerReview || false}`,
+    `- Waiver: matched=${result.waiverSignal?.matched || false} active=${result.waiverSignal?.active || false} waiverId=${result.waiverSignal?.waiverId || "n/a"} canRelax=${result.waiverSignal?.canRelaxDecision || false} canBypassCriticalDeny=${result.waiverSignal?.canBypassCriticalDeny || false}`,
     ""
   ];
   return lines.join("\n");

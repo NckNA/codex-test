@@ -1,12 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { addHazard } from "../hazard-registry.ts";
 import { buildAssetRecord, upsertAssetRegistry } from "../dependency-guard.ts";
 import { evaluateDecisionGateway } from "../decision-gateway.ts";
 import { initializeAssetRegistry } from "../asset-registry.ts";
-import { initializeOwnershipRegistry } from "../asset-ownership.ts";
+import { initializeOwnershipRegistry, loadOwnershipRegistry, saveOwnershipRegistry } from "../asset-ownership.ts";
+import { initializeWaiverRegistry, addOrUpdateWaiver } from "../waiver-registry.ts";
 
 const TASK_ID = "HERMES-DECISION-GATEWAY-001";
 
@@ -512,6 +513,116 @@ describe("Decision Gateway", () => {
       // Both asset rules and ownership rule should fire
       expect(result.matchedRules).toContain("ASSET_CRITICAL_DESTRUCTIVE_DENY");
       expect(result.matchedRules).toContain("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("gateway includes waiverSignal", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+      initializeWaiverRegistry({ workspaceRoot: workspace });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        target: "tools/hep/index.ts",
+        action: "inspect"
+      }));
+
+      expect(result.waiverSignal).toBeDefined();
+      expect(result.waiverSignal?.matched).toBe(false);
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("waiver relaxes high asset move from REQUIRE_PLAN to ALLOW", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+      initializeWaiverRegistry({ workspaceRoot: workspace });
+      initializeOwnershipRegistry({ workspaceRoot: workspace });
+
+      // Change owner to human.approved.dangerous so ownership checks don't escalate/deny
+      const entries = loadOwnershipRegistry({ workspaceRoot: workspace });
+      const entry = entries.find(e => e.assetId === "worktree.event_log_old");
+      if (entry) {
+        entry.owner = "human.approved.dangerous";
+        // Also allow human.approved.dangerous to archive it (already allowed but to be safe)
+        entry.ownerMayApprove = ["archive", "read", "inspect"];
+      }
+      saveOwnershipRegistry({ workspaceRoot: workspace, entries });
+
+      // Create target directory on disk so it is resolved correctly
+      mkdirSync(join(workspace, "hermes-event-log-001-work"), { recursive: true });
+
+      // Add to Dependency Guard registry so it is not treated as unknown/escalate
+      const depAsset = buildAssetRecord(workspace, resolve(workspace, "hermes-event-log-001-work"), { projectPath: project });
+      depAsset.movable = true;
+      depAsset.protected = false;
+      upsertAssetRegistry(workspace, [depAsset]);
+
+      // Add a valid waiver for low-risk relaxation
+      addOrUpdateWaiver({
+        workspaceRoot: workspace,
+        taskId: TASK_ID,
+        actor: "human.approved.dangerous",
+        action: "archive",
+        riskLevel: "low",
+        reason: "Allow archive of event log work for tests",
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        createdBy: "tester",
+        reviewLevel: "none",
+        assetId: "worktree.event_log_old"
+      });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        actor: "human.approved.dangerous",
+        target: resolve(workspace, "hermes-event-log-001-work"),
+        action: "archive"
+      }));
+
+      // Archive candidate without waiver would be REQUIRE_PLAN.
+      // With waiver, it becomes ALLOW.
+      expect(result.matchedRules).toContain("WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN");
+      expect(result.decision).toBe("ALLOW");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("waiver cannot bypass critical media delete (WAIVER_NO_DENY_BYPASS)", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+      initializeWaiverRegistry({ workspaceRoot: workspace });
+      initializeOwnershipRegistry({ workspaceRoot: workspace });
+
+      // Add a waiver
+      addOrUpdateWaiver({
+        workspaceRoot: workspace,
+        taskId: TASK_ID,
+        actor: "maintenance.autopilot",
+        action: "delete",
+        riskLevel: "low",
+        reason: "Attempt to bypass critical deny",
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+        createdBy: "tester",
+        reviewLevel: "none",
+        assetId: "host.media_rescue"
+      });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+        action: "delete"
+      }));
+
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("WAIVER_NO_DENY_BYPASS");
+      expect(result.matchedRules).toContain("ASSET_CRITICAL_DESTRUCTIVE_DENY");
     } finally {
       cleanupWorkspace(workspace);
     }

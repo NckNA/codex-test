@@ -866,5 +866,238 @@ describe("Decision Policy", () => {
       expect(result.decision).toBe("DENY");
     });
   });
+
+  describe("Waiver Rules in Decision Policy", () => {
+    it("WAIVER_EXPIRED: matched but expired waiver = ESCALATE", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "edit",
+        waiverSignal: {
+          taskId: "HERMES-WAIVER-REGISTRY-001",
+          actor: "maintenance.autopilot",
+          action: "edit",
+          matched: true,
+          waiverId: "waiver.test",
+          status: "expired",
+          active: false,
+          expired: true,
+          revoked: false,
+          scopeMatched: true,
+          actionMatched: true,
+          targetMatched: true,
+          hazardMatched: true,
+          rollbackPlanPresent: true,
+          reviewerMatched: true,
+          canRelaxDecision: false,
+          canBypassCriticalDeny: false,
+          reasons: ["Waiver has expired"],
+          warnings: [],
+          matchedWaiverIds: ["waiver.test"]
+        }
+      }));
+      expect(result.decision).toBe("ESCALATE");
+      expect(result.matchedRules).toContain("WAIVER_EXPIRED");
+    });
+
+    it("WAIVER_REVOKED: matched but revoked waiver = DENY", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "edit",
+        waiverSignal: {
+          taskId: "HERMES-WAIVER-REGISTRY-001",
+          actor: "maintenance.autopilot",
+          action: "edit",
+          matched: true,
+          waiverId: "waiver.test",
+          status: "revoked",
+          active: false,
+          expired: false,
+          revoked: true,
+          scopeMatched: true,
+          actionMatched: true,
+          targetMatched: true,
+          hazardMatched: true,
+          rollbackPlanPresent: true,
+          reviewerMatched: true,
+          canRelaxDecision: false,
+          canBypassCriticalDeny: false,
+          reasons: ["Waiver has been revoked"],
+          warnings: [],
+          matchedWaiverIds: ["waiver.test"]
+        }
+      }));
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("WAIVER_REVOKED");
+    });
+
+    it("WAIVER_ROLLBACK_REQUIRED: rollback plan missing for medium/high risk waiver = ESCALATE", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "edit",
+        waiverSignal: {
+          taskId: "HERMES-WAIVER-REGISTRY-001",
+          actor: "maintenance.autopilot",
+          action: "edit",
+          matched: true,
+          waiverId: "waiver.test",
+          status: "active",
+          active: true,
+          expired: false,
+          revoked: false,
+          scopeMatched: true,
+          actionMatched: true,
+          targetMatched: true,
+          hazardMatched: true,
+          rollbackPlanPresent: false, // missing
+          reviewerMatched: true,
+          riskLevel: "medium",
+          canRelaxDecision: false,
+          canBypassCriticalDeny: false,
+          reasons: ["Waiver has medium/high risk but no rollback plan"],
+          warnings: [],
+          matchedWaiverIds: ["waiver.test"]
+        }
+      }));
+      expect(result.decision).toBe("ESCALATE");
+      expect(result.matchedRules).toContain("WAIVER_ROLLBACK_REQUIRED");
+    });
+
+    it("WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN: REQUIRE_PLAN → ALLOW", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "move",
+        // Default rule is REQUIRE_PLAN due to high move
+        assetSignal: {
+          target: "tools/hep/index.ts",
+          normalizedTarget: "codex-test/tools/hep/index.ts",
+          assetId: "hep.cli.index",
+          matched: true,
+          exists: true,
+          type: "hep_tooling",
+          owner: "Hermes HEP",
+          criticality: "high",
+          lifecycle: "active",
+          actionAllowed: true,
+          actionForbidden: false,
+          requiresPlan: true,
+          reasons: [],
+          warnings: []
+        },
+        waiverSignal: {
+          taskId: "HERMES-WAIVER-REGISTRY-001",
+          actor: "maintenance.autopilot",
+          action: "move",
+          matched: true,
+          waiverId: "waiver.test",
+          status: "active",
+          active: true,
+          expired: false,
+          revoked: false,
+          scopeMatched: true,
+          actionMatched: true,
+          targetMatched: true,
+          hazardMatched: true,
+          rollbackPlanPresent: true,
+          reviewerMatched: true,
+          canRelaxDecision: true,
+          canBypassCriticalDeny: false,
+          reasons: [],
+          warnings: [],
+          matchedWaiverIds: ["waiver.test"]
+        }
+      }));
+      expect(result.decision).toBe("ALLOW");
+      expect(result.matchedRules).toContain("WAIVER_VALID_LOW_MEDIUM_RELAX_PLAN");
+    });
+
+    it("WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN: ESCALATE → REQUIRE_PLAN", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "read",
+        // Default rule is ESCALATE due to missing owner on high/critical asset
+        assetSignal: {
+          target: "tools/hep/decision-gateway.ts",
+          normalizedTarget: "codex-test/tools/hep/decision-gateway.ts",
+          assetId: "hep.decision.gateway",
+          matched: true,
+          exists: true,
+          type: "hep_tooling",
+          criticality: "high",
+          lifecycle: "active",
+          actionAllowed: true,
+          actionForbidden: false,
+          requiresPlan: false,
+          reasons: [],
+          warnings: []
+        },
+        waiverSignal: {
+          taskId: "HERMES-WAIVER-REGISTRY-001",
+          actor: "maintenance.autopilot",
+          action: "read",
+          matched: true,
+          waiverId: "waiver.test",
+          status: "active",
+          active: true,
+          expired: false,
+          revoked: false,
+          scopeMatched: true,
+          actionMatched: true,
+          targetMatched: true,
+          hazardMatched: true,
+          rollbackPlanPresent: true,
+          reviewerMatched: true,
+          canRelaxDecision: true,
+          canBypassCriticalDeny: false,
+          reasons: [],
+          warnings: [],
+          matchedWaiverIds: ["waiver.test"]
+        }
+      }));
+      expect(result.decision).toBe("REQUIRE_PLAN");
+      expect(result.matchedRules).toContain("WAIVER_VALID_HIGH_REDUCE_ESCALATE_TO_PLAN");
+    });
+
+    it("WAIVER_NO_DENY_BYPASS: waiver cannot bypass hard DENY", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "delete",
+        // Default rule is DENY due to critical asset destructive action
+        assetSignal: {
+          target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+          normalizedTarget: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+          assetId: "host.media_rescue",
+          matched: true,
+          exists: true,
+          type: "media_archive",
+          owner: "Nick",
+          criticality: "critical",
+          lifecycle: "protected",
+          actionAllowed: false,
+          actionForbidden: true,
+          requiresPlan: false,
+          reasons: [],
+          warnings: []
+        },
+        waiverSignal: {
+          taskId: "HERMES-WAIVER-REGISTRY-001",
+          actor: "maintenance.autopilot",
+          action: "delete",
+          matched: true,
+          waiverId: "waiver.test",
+          status: "active",
+          active: true,
+          expired: false,
+          revoked: false,
+          scopeMatched: true,
+          actionMatched: true,
+          targetMatched: true,
+          hazardMatched: true,
+          rollbackPlanPresent: true,
+          reviewerMatched: true,
+          canRelaxDecision: true,
+          canBypassCriticalDeny: false,
+          reasons: [],
+          warnings: [],
+          matchedWaiverIds: ["waiver.test"]
+        }
+      }));
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("WAIVER_NO_DENY_BYPASS");
+    });
+  });
 });
 
