@@ -30,6 +30,11 @@ Commands:
   dependency-check    Evaluate dependency risk and impact waiver route.
   observability-snapshot Write Hermes observability JSON and Markdown snapshots.
   observability-report Print a Hermes observability Markdown snapshot.
+  hazard-init       Create default Hermes hazard registry.
+  hazard-list       List known hazards.
+  hazard-add        Add or update one hazard.
+  hazard-see        Show one hazard.
+  hazard-mitigate   Mark one hazard as mitigated.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -149,6 +154,17 @@ async function main(): Promise<void> {
   const eventResult = (options.result as string) || (options["result"] as string) || (options.outcome as string) || "observed";
   const severity = (options.severity as string) || (options["severity"] as string) || "info";
   const message = (options.message as string) || (options["message"] as string);
+  const hazardId = (options.hazardId as string) || (options["hazard-id"] as string);
+  const title = (options.title as string) || (options["title"] as string);
+  const area = (options.area as string) || (options["area"] as string);
+  const status = (options.status as string) || (options["status"] as string);
+  const hazardSeverity = (options.hazardSeverity as string) || (options["hazard-severity"] as string);
+  const symptom = (options.symptom as string) || (options["symptom"] as string);
+  const workaround = (options.workaround as string) || (options["workaround"] as string);
+  const prevention = (options.prevention as string) || (options["prevention"] as string);
+  const note = (options.note as string) || (options["note"] as string);
+  const tagsRaw = (options.tags as string) || (options["tags"] as string);
+  const tags = tagsRaw ? tagsRaw.split(",").map((item) => item.trim()).filter(Boolean) : undefined;
   const maxEventsRaw = (options.maxEvents as string) || (options["max-events"] as string);
   const maxEvents = maxEventsRaw ? Number.parseInt(maxEventsRaw, 10) : undefined;
   if (maxEventsRaw && (!Number.isFinite(maxEvents) || (maxEvents ?? 0) <= 0)) {
@@ -311,6 +327,58 @@ async function main(): Promise<void> {
         if (result.decision !== "ALLOW" && result.decision !== "ALLOW_WITH_IMPACT_PLAN") process.exitCode = 2;
         break;
       }
+      case "hazard-init": {
+        const { initHazardRegistry, formatHazardList } = await import("./hazard-registry.ts");
+        const registry = initHazardRegistry({ hermesRoot: workspaceRoot });
+        console.log(`Hazard registry initialized: ${registry.hazards.length} hazards`);
+        console.log(formatHazardList(registry.hazards));
+        break;
+      }
+      case "hazard-list": {
+        const { listHazards, formatHazardList } = await import("./hazard-registry.ts");
+        const hazards = listHazards({ status: status as never, area: area as never, severity: hazardSeverity as never }, { hermesRoot: workspaceRoot });
+        console.log(formatHazardList(hazards));
+        break;
+      }
+      case "hazard-see": {
+        if (!hazardId) throw new Error("hazard-see requires --hazard-id");
+        const { getHazard } = await import("./hazard-registry.ts");
+        const hazard = getHazard(hazardId, { hermesRoot: workspaceRoot });
+        if (!hazard) throw new Error(`Hazard not found: ${hazardId}`);
+        console.log(JSON.stringify(hazard, null, 2));
+        break;
+      }
+      case "hazard-add": {
+        if (!hazardId) throw new Error("hazard-add requires --hazard-id");
+        if (!title) throw new Error("hazard-add requires --title");
+        if (!area) throw new Error("hazard-add requires --area");
+        if (!symptom) throw new Error("hazard-add requires --symptom");
+        if (!workaround) throw new Error("hazard-add requires --workaround");
+        if (!prevention) throw new Error("hazard-add requires --prevention");
+        const { addHazard } = await import("./hazard-registry.ts");
+        const hazard = addHazard({
+          hazardId,
+          title,
+          area: area as never,
+          severity: (hazardSeverity || "medium") as never,
+          status: status as never,
+          symptom,
+          cause: reason,
+          workaround,
+          prevention,
+          linkedTasks: taskId ? [taskId] : undefined,
+          tags
+        }, { hermesRoot: workspaceRoot, actor, taskId });
+        console.log(JSON.stringify(hazard, null, 2));
+        break;
+      }
+      case "hazard-mitigate": {
+        if (!hazardId) throw new Error("hazard-mitigate requires --hazard-id");
+        const { mitigateHazard } = await import("./hazard-registry.ts");
+        const hazard = mitigateHazard(hazardId, note || "mitigated", { hermesRoot: workspaceRoot, actor, taskId });
+        console.log(JSON.stringify(hazard, null, 2));
+        break;
+      }
       case "event-log-init": {
         const { initEventLog } = await import("./event-log.ts");
         const logPath = initEventLog({ hermesRoot: workspaceRoot });
@@ -381,6 +449,8 @@ async function main(): Promise<void> {
 }
 
 main();
+
+
 
 
 
