@@ -704,12 +704,22 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
   const rbFilesPresent = Boolean(rb?.changedFilesPresent);
   const rbProtected = Boolean(rb?.protectedAssetTouched);
   const rbOwnerReviewPresent = Boolean(rb?.ownerReviewPresent);
+  const rbVerified = Boolean(rb?.verified) || rbStatus === "verified" || rb?.validationStatus === "dry_run_passed" || rb?.validationStatus === "manually_verified";
 
   if (input.waiverSignal?.active && (input.waiverSignal.riskLevel === "high" || input.waiverSignal.riskLevel === "critical") && !rbActive) {
     candidates.push({
       ruleId: "ROLLBACK_MISSING_FOR_WAIVER_HIGH",
       decision: "ESCALATE",
       reason: "High-risk waiver requires an active rollback contract before it can relax a decision.",
+      mode: "manual-review"
+    });
+  }
+
+  if (input.waiverSignal?.active && (input.waiverSignal.riskLevel === "high" || input.waiverSignal.riskLevel === "critical") && rbActive && !rbVerified) {
+    candidates.push({
+      ruleId: "ROLLBACK_VERIFY_REQUIRED_FOR_WAIVER_HIGH",
+      decision: "ESCALATE",
+      reason: "High-risk waiver requires a verified rollback contract before it can relax a decision.",
       mode: "manual-review"
     });
   }

@@ -1211,3 +1211,79 @@ describe("Decision Policy rollback rules", () => {
     expect(result.decision).not.toBe("ALLOW");
   });
 });
+
+
+describe("Decision Policy verified rollback gate", () => {
+  const highWaiver = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "archive",
+    target: "tools/hep/index.ts",
+    assetId: "hep.cli.index",
+    matched: true,
+    waiverId: "waiver.high",
+    status: "active" as const,
+    active: true,
+    expired: false,
+    revoked: false,
+    scopeMatched: true,
+    actionMatched: true,
+    targetMatched: true,
+    hazardMatched: false,
+    rollbackPlanPresent: true,
+    reviewerMatched: true,
+    riskLevel: "high" as const,
+    canRelaxDecision: true,
+    canBypassCriticalDeny: false,
+    reasons: [],
+    warnings: [],
+    matchedWaiverIds: ["waiver.high"]
+  };
+
+  const unverifiedRollback = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "archive",
+    target: "tools/hep/index.ts",
+    assetId: "hep.cli.index",
+    matched: true,
+    contractId: "rollback.high",
+    status: "active",
+    active: true,
+    verified: false,
+    expired: false,
+    validationStatus: "not_checked",
+    rollbackPlanPresent: true,
+    rollbackStepsPresent: true,
+    changedFilesPresent: true,
+    protectedAssetTouched: false,
+    requiresOwnerReview: false,
+    ownerReviewPresent: false,
+    canSupportWaiver: true,
+    canSupportRiskReduction: true,
+    reasons: [],
+    warnings: [],
+    matchedContractIds: ["rollback.high"]
+  };
+
+  it("requires verified rollback for high-risk waiver relaxation", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: highWaiver,
+      rollback: unverifiedRollback
+    }));
+
+    expect(result.matchedRules).toContain("ROLLBACK_VERIFY_REQUIRED_FOR_WAIVER_HIGH");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("does not trigger verified rollback gate when dry-run evidence passed", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "archive",
+      waiverSignal: highWaiver,
+      rollback: { ...unverifiedRollback, status: "verified", verified: true, validationStatus: "dry_run_passed" }
+    }));
+
+    expect(result.matchedRules).not.toContain("ROLLBACK_VERIFY_REQUIRED_FOR_WAIVER_HIGH");
+  });
+});
