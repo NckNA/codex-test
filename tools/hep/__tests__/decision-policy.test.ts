@@ -695,5 +695,176 @@ describe("Decision Policy", () => {
       expect(result.matchedRules).toContain("ASSET_OWNER_REQUIRED");
     });
   });
+
+  describe("Ownership Rules in Decision Policy", () => {
+    const mediaRescueAsset = {
+      target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+      normalizedTarget: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+      assetId: "host.media_rescue",
+      matched: true,
+      exists: true,
+      type: "media_archive" as const,
+      owner: "Nick",
+      criticality: "critical" as const,
+      lifecycle: "protected" as const,
+      actionAllowed: false,
+      actionForbidden: true,
+      requiresPlan: false,
+      reasons: [],
+      warnings: []
+    };
+
+    it("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL: delete on media_rescue (forbiddenForAll) = DENY", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "delete",
+        assetSignal: mediaRescueAsset,
+        ownershipSignal: {
+          assetId: "host.media_rescue",
+          matched: true,
+          owner: "Nick",
+          role: "owner",
+          scope: "exclusive",
+          isOwner: false, // actor is maintenance.autopilot, not Nick
+          isDelegate: false,
+          actionForbiddenForAll: true, // delete is in forbiddenForAll
+          requiresOwnerReview: true,
+          actorAuthorized: false,
+          isUnowned: false,
+          reasons: ["Action 'delete' is forbidden for all actors on asset 'host.media_rescue'"],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL");
+    });
+
+    it("OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE: unauthorized actor + archive = ESCALATE", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "archive",
+        assetSignal: {
+          ...mediaRescueAsset,
+          criticality: "critical" as const,
+          lifecycle: "active" as const // not protected so ASSET_PROTECTED_DESTRUCTIVE_DENY won't fire
+        },
+        ownershipSignal: {
+          assetId: "host.media_rescue",
+          matched: true,
+          owner: "Nick",
+          role: "owner",
+          scope: "exclusive",
+          isOwner: false,
+          isDelegate: false,
+          actionForbiddenForAll: false,
+          requiresOwnerReview: true,
+          actorAuthorized: false, // unauthorized
+          isUnowned: false,
+          reasons: ["Actor 'maintenance.autopilot' is not authorized."],
+          warnings: []
+        }
+      }));
+      // ASSET_CRITICAL_DESTRUCTIVE_DENY (DENY) wins over OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE (ESCALATE)
+      // but both rules should fire
+      expect(result.matchedRules).toContain("OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE");
+    });
+
+    it("OWNERSHIP_REVIEW_REQUIRED: non-owner + requiresOwnerReview + non-destructive = REQUIRE_PLAN", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "rename",
+        assetSignal: {
+          target: "tools/hep/index.ts",
+          normalizedTarget: "codex-test/tools/hep/index.ts",
+          assetId: "hep.cli.index",
+          matched: true,
+          exists: true,
+          type: "hep_tooling" as const,
+          owner: "Hermes HEP",
+          criticality: "high" as const,
+          lifecycle: "active" as const,
+          actionAllowed: false,
+          actionForbidden: false,
+          requiresPlan: true,
+          reasons: [],
+          warnings: []
+        },
+        ownershipSignal: {
+          assetId: "hep.cli.index",
+          matched: true,
+          owner: "Hermes HEP",
+          role: "owner",
+          scope: "exclusive",
+          isOwner: false, // actor is not Hermes HEP
+          isDelegate: true,
+          delegateRole: "approver",
+          actionForbiddenForAll: false,
+          requiresOwnerReview: true, // rename is in requiresOwnerReview
+          actorAuthorized: true,
+          isUnowned: false,
+          reasons: ["Action 'rename' requires explicit owner review."],
+          warnings: []
+        }
+      }));
+      // ASSET_HIGH_MOVE_REQUIRE_PLAN fires (rename on high), OWNERSHIP_REVIEW_REQUIRED also fires
+      expect(result.decision).toBe("REQUIRE_PLAN");
+      expect(result.matchedRules).toContain("OWNERSHIP_REVIEW_REQUIRED");
+    });
+
+    it("OWNERSHIP_MISSING_HIGH_CRITICAL: high asset with no ownership record = ESCALATE", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "read",
+        assetSignal: {
+          target: "tools/hep/new-module.ts",
+          normalizedTarget: "codex-test/tools/hep/new-module.ts",
+          assetId: "hep.new.module",
+          matched: true,
+          exists: true,
+          type: "hep_tooling" as const,
+          owner: "Hermes HEP",
+          criticality: "high" as const,
+          lifecycle: "active" as const,
+          actionAllowed: true,
+          actionForbidden: false,
+          requiresPlan: false,
+          reasons: [],
+          warnings: []
+        },
+        ownershipSignal: {
+          matched: false, // no ownership record found
+          isOwner: false,
+          isDelegate: false,
+          actionForbiddenForAll: false,
+          requiresOwnerReview: false,
+          actorAuthorized: false,
+          isUnowned: true,
+          reasons: ["No ownership entry found for asset 'hep.new.module'."],
+          warnings: ["Asset has no ownership record."]
+        }
+      }));
+      expect(result.decision).toBe("ESCALATE");
+      expect(result.matchedRules).toContain("OWNERSHIP_MISSING_HIGH_CRITICAL");
+    });
+
+    it("Ownership DENY does not downgrade existing DENY to ALLOW", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "delete",
+        assetSignal: mediaRescueAsset,
+        ownershipSignal: {
+          assetId: "host.media_rescue",
+          matched: true,
+          owner: "Nick",
+          role: "owner",
+          scope: "exclusive",
+          isOwner: true, // even the owner cannot override
+          isDelegate: false,
+          actionForbiddenForAll: true,
+          requiresOwnerReview: false,
+          actorAuthorized: false,
+          isUnowned: false,
+          reasons: ["delete forbidden for all"],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("DENY");
+    });
+  });
 });
 

@@ -17,6 +17,7 @@ import {
   type DecisionPolicyResult
 } from "./decision-policy.ts";
 import { checkAssetAction, writeAssetEvent, type AssetSignal } from "./asset-registry.ts";
+import { checkOwnership, type OwnershipSignal } from "./asset-ownership.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -71,6 +72,7 @@ export interface DecisionGatewaySignals {
     pathNotes?: string[];
   };
   hazards: HazardSignal;
+  ownership?: OwnershipSignal;
 }
 
 export interface DecisionGatewayResult {
@@ -96,6 +98,7 @@ export interface DecisionGatewayResult {
   /** Full Decision Policy result for detailed policy analysis. */
   decisionPolicyResult?: DecisionPolicyResult;
   assetSignal?: AssetSignal;
+  ownershipSignal?: OwnershipSignal;
 }
 
 interface SuperHermesPolicy {
@@ -399,6 +402,21 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     warnings.push(`Asset check failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
+  let ownershipSignal: OwnershipSignal | undefined = undefined;
+  try {
+    ownershipSignal = checkOwnership({
+      workspaceRoot,
+      actor,
+      action,
+      assetId: assetSignal?.assetId
+    });
+    if (ownershipSignal.warnings) {
+      warnings.push(...ownershipSignal.warnings);
+    }
+  } catch (error) {
+    warnings.push(`Ownership check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // ── Delegate rule evaluation to Decision Policy ───────────────────────────
   // Gateway collects signals; Policy evaluates rules and resolves precedence.
   const policyInput: DecisionPolicyInput = {
@@ -436,6 +454,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
       title: h.title
     })),
     assetSignal,
+    ownershipSignal,
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel
@@ -466,7 +485,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
       risk: dependencyResult.risk,
       pathNotes: dependencyResult.targetAsset.notes
     },
-    hazards: hazardSignal
+    hazards: hazardSignal,
+    ownership: ownershipSignal
   };
 
   const baseResult: DecisionGatewayResult = {
@@ -488,7 +508,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     generatedAt,
     matchedRules: policyResult.matchedRules,
     decisionPolicyResult: policyResult,
-    assetSignal
+    assetSignal,
+    ownershipSignal
   };
 
   if (assetSignal && request.writeEvent !== false) {
@@ -594,6 +615,7 @@ export function formatDecisionGatewayMarkdown(result: DecisionGatewayResult): st
     `- Dependency: ${result.signals.dependency.decision || "n/a"} notes=${(result.signals.dependency.pathNotes || []).join(",") || "none"}`,
     `- Hazards: highOrCritical=${result.signals.hazards.highOrCritical}, medium=${result.signals.hazards.medium}, low=${result.signals.hazards.low}`,
     `- Asset: matched=${result.assetSignal?.matched || false} id=${result.assetSignal?.assetId || "n/a"} type=${result.assetSignal?.type || "unknown"} criticality=${result.assetSignal?.criticality || "low"} lifecycle=${result.assetSignal?.lifecycle || "unknown"}`,
+    `- Ownership: matched=${result.ownershipSignal?.matched || false} owner=${result.ownershipSignal?.owner || "n/a"} role=${result.ownershipSignal?.role || "n/a"} scope=${result.ownershipSignal?.scope || "n/a"} isOwner=${result.ownershipSignal?.isOwner || false} actorAuthorized=${result.ownershipSignal?.actorAuthorized || false} forbiddenForAll=${result.ownershipSignal?.actionForbiddenForAll || false} requiresOwnerReview=${result.ownershipSignal?.requiresOwnerReview || false}`,
     ""
   ];
   return lines.join("\n");

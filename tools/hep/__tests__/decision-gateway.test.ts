@@ -6,6 +6,7 @@ import { addHazard } from "../hazard-registry.ts";
 import { buildAssetRecord, upsertAssetRegistry } from "../dependency-guard.ts";
 import { evaluateDecisionGateway } from "../decision-gateway.ts";
 import { initializeAssetRegistry } from "../asset-registry.ts";
+import { initializeOwnershipRegistry } from "../asset-ownership.ts";
 
 const TASK_ID = "HERMES-DECISION-GATEWAY-001";
 
@@ -435,11 +436,12 @@ describe("Decision Gateway", () => {
     }
   });
 
-  it("asset high HEP move requires plan", () => {
+  it("asset high HEP move requires plan rule fires", () => {
     const { workspace, project } = makeWorkspace();
     try {
       writePolicy(workspace);
       initializeAssetRegistry({ workspaceRoot: workspace });
+      initializeOwnershipRegistry({ workspaceRoot: workspace });
 
       const result = evaluateDecisionGateway(request(workspace, project, {
         actor: "human.approved.dangerous",
@@ -447,8 +449,10 @@ describe("Decision Gateway", () => {
         action: "archive"
       }));
 
-      expect(result.decision).toBe("REQUIRE_PLAN");
+      // ASSET_HIGH_MOVE_REQUIRE_PLAN must always fire for archive on high asset.
+      // Final decision may be REQUIRE_PLAN or higher (e.g., ESCALATE from ownership review required).
       expect(result.matchedRules).toContain("ASSET_HIGH_MOVE_REQUIRE_PLAN");
+      expect(result.decision).not.toBe("ALLOW");
     } finally {
       cleanupWorkspace(workspace);
     }
@@ -467,6 +471,47 @@ describe("Decision Gateway", () => {
 
       expect(result.decision).toBe("ALLOW");
       expect(result.warnings.some(w => w.includes("missing") || w.includes("not initialized"))).toBe(true);
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("ownershipSignal is present in result when asset registry is initialized", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+      initializeOwnershipRegistry({ workspaceRoot: workspace });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        target: "tools/hep/index.ts",
+        action: "read"
+      }));
+
+      // ownershipSignal should be present (matched or not, it is attempted)
+      expect(result.ownershipSignal).toBeDefined();
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("ownership DENY for forbiddenForAll: delete media_rescue includes OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+      initializeOwnershipRegistry({ workspaceRoot: workspace });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        actor: "maintenance.autopilot",
+        target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+        action: "delete"
+      }));
+
+      expect(result.decision).toBe("DENY");
+      // Both asset rules and ownership rule should fire
+      expect(result.matchedRules).toContain("ASSET_CRITICAL_DESTRUCTIVE_DENY");
+      expect(result.matchedRules).toContain("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL");
     } finally {
       cleanupWorkspace(workspace);
     }

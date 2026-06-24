@@ -24,6 +24,7 @@
 
 import { redactGuardrailText } from "./guardrail-blocker.ts";
 import { type AssetSignal } from "./asset-registry.ts";
+import { type OwnershipSignal } from "./asset-ownership.ts";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -93,6 +94,7 @@ export interface DecisionPolicyInput {
   /** Active hazards that matched the request target/action. */
   hazardSignals?: DecisionHazardSignal[];
   assetSignal?: AssetSignal;
+  ownershipSignal?: OwnershipSignal;
   riskLevel?: string;
   dryRun?: boolean;
   allowImpactPlan?: boolean;
@@ -199,6 +201,8 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
     case "ALLOW":
       return ["Proceed with the action."];
     case "DENY":
+      if (matchedRules.includes("OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL"))
+        return ["This action is forbidden for all actors on this asset, including the owner. You must change the action or target."];
       if (matchedRules.includes("ASSET_CRITICAL_DESTRUCTIVE_DENY"))
         return ["Destructive actions on critical assets are strictly forbidden. You must modify the target or action to proceed."];
       if (matchedRules.includes("ASSET_PROTECTED_DESTRUCTIVE_DENY"))
@@ -220,6 +224,13 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
         return ["Request access elevation from the Guardian ACL administrator."];
       return ["Review denial reasons and contact Hermes administrator."];
     case "ESCALATE":
+      if (matchedRules.includes("OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE"))
+        return [
+          "Actor is not authorized to perform destructive actions on this asset.",
+          "Contact the asset owner or an authorized approver to proceed."
+        ];
+      if (matchedRules.includes("OWNERSHIP_MISSING_HIGH_CRITICAL"))
+        return ["High/critical asset has no ownership record. Add an ownership entry before proceeding."];
       if (matchedRules.includes("ASSET_OWNER_REQUIRED"))
         return ["Provide an owner for high/critical assets in the asset registry before proceeding."];
       if (matchedRules.includes("POLICY_TASK_MISMATCH"))
@@ -237,6 +248,11 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
         "Use: node tools/hep/index.ts decision-explain for detailed breakdown."
       ];
     case "REQUIRE_PLAN":
+      if (matchedRules.includes("OWNERSHIP_REVIEW_REQUIRED"))
+        return [
+          "This action requires explicit owner review before execution.",
+          "Contact the asset owner or an authorized approver to get review approval."
+        ];
       if (matchedRules.includes("ASSET_HIGH_MOVE_REQUIRE_PLAN"))
         return ["Move, rename, or archive operations on high-criticality assets require an approved impact plan."];
       if (matchedRules.includes("ASSET_UNKNOWN_DESTRUCTIVE_REQUIRE_PLAN"))
@@ -583,6 +599,69 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
         decision: "REQUIRE_PLAN",
         reason: `Archive/move/delete action '${input.action}' on archive candidate asset requires approved plan.`,
         mode: "impact-plan"
+      });
+    }
+  }
+
+  // ── OWNERSHIP rules ────────────────────────────────────────────────────────
+  //
+  // Ownership can REQUIRE more review or DENY forbidden-for-all actions.
+  // Ownership CANNOT downgrade DENY to ALLOW.
+  // Rule precedence: DENY > ESCALATE > REQUIRE_PLAN (same global precedence).
+  if (input.ownershipSignal !== undefined) {
+    const own = input.ownershipSignal;
+
+    // OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL → DENY
+    // An action explicitly forbidden for all actors (including owner) — hard stop.
+    if (own.matched && own.actionForbiddenForAll) {
+      candidates.push({
+        ruleId: "OWNERSHIP_ACTION_FORBIDDEN_FOR_ALL",
+        decision: "DENY",
+        reason: `Action '${input.action}' is forbidden for all actors on asset '${own.assetId || input.target}' (including owner '${own.owner || "unknown"}').`,
+        mode: "blocked"
+      });
+    }
+
+    // OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE → ESCALATE
+    // Actor is not owner or authorized delegate AND action is destructive.
+    const isDestructiveForOwnership = isDestructiveAction(input.action);
+    if (
+      own.matched &&
+      !own.actionForbiddenForAll && // already handled above as DENY
+      !own.actorAuthorized &&
+      isDestructiveForOwnership
+    ) {
+      candidates.push({
+        ruleId: "OWNERSHIP_ACTOR_UNAUTHORIZED_DESTRUCTIVE",
+        decision: "ESCALATE",
+        reason: `Actor '${input.actor}' is not authorized to perform destructive action '${input.action}' on asset '${own.assetId || input.target}'. Owner: '${own.owner || "unknown"}'.`,
+        mode: "manual-review"
+      });
+    }
+
+    // OWNERSHIP_REVIEW_REQUIRED → REQUIRE_PLAN
+    // Action requires explicit owner review (and actor is not the owner).
+    if (own.matched && own.requiresOwnerReview && !own.isOwner) {
+      candidates.push({
+        ruleId: "OWNERSHIP_REVIEW_REQUIRED",
+        decision: "REQUIRE_PLAN",
+        reason: `Action '${input.action}' on asset '${own.assetId || input.target}' requires explicit owner review from '${own.owner || "unknown"}'.`,
+        mode: "impact-plan"
+      });
+    }
+
+    // OWNERSHIP_MISSING_HIGH_CRITICAL → ESCALATE
+    // A high/critical asset (from assetSignal) has no ownership record.
+    const assetCriticality = input.assetSignal?.criticality;
+    if (
+      !own.matched &&
+      (assetCriticality === "high" || assetCriticality === "critical")
+    ) {
+      candidates.push({
+        ruleId: "OWNERSHIP_MISSING_HIGH_CRITICAL",
+        decision: "ESCALATE",
+        reason: `High/critical asset '${input.assetSignal?.assetId || input.target}' has no ownership record. Ownership must be established before proceeding.`,
+        mode: "manual-review"
       });
     }
   }

@@ -10,6 +10,14 @@ import {
   type AssetType,
   type AssetCriticality
 } from "./asset-registry.ts";
+import {
+  initializeOwnershipRegistry,
+  loadOwnershipRegistry,
+  findOwnershipEntry,
+  checkOwnership,
+  formatOwnershipCheck,
+  type OwnershipRole
+} from "./asset-ownership.ts";
 
 function printUsage(): void {
   console.log(`
@@ -53,6 +61,10 @@ Commands:
   asset-list        List registered assets.
   asset-see         Show a registered asset by assetId.
   asset-check       Check an action on a target against the Asset Registry.
+  ownership-init    Initialize the Hermes Ownership Registry with default seed entries.
+  ownership-list    List ownership entries (optionally filter by --owner or --role).
+  ownership-see     Show one ownership entry by --asset-id.
+  ownership-check   Check ownership for an actor/action/asset-id tuple.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -95,6 +107,8 @@ Options:
   --completed <a;b>   Semicolon-separated completed blocker-report items.
   --remaining <a;b>   Semicolon-separated remaining blocker-report items.
   --next-safe-steps <a;b> Semicolon-separated safe next steps.
+  --owner <name>      Filter or specify ownership by owner name.
+  --role <role>       Filter or specify ownership role (owner/approver/inspector/maintainer/guardian).
 `);
 }
 
@@ -222,6 +236,8 @@ async function main(): Promise<void> {
   const completed = parseListOption((options.completed as string) || (options["completed"] as string));
   const remaining = parseListOption((options.remaining as string) || (options["remaining"] as string));
   const nextSafeSteps = parseListOption((options.nextSafeSteps as string) || (options["next-safe-steps"] as string));
+  const ownerFilter = (options.owner as string) || (options["owner"] as string);
+  const roleFilter = (options.role as string) || (options["role"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -567,6 +583,40 @@ async function main(): Promise<void> {
         const checkAction = action || "read";
         const result = checkAssetAction({ workspaceRoot, repositoryPath, target, action: checkAction });
         console.log(formatAssetCheck(result));
+        break;
+      }
+      case "ownership-init": {
+        initializeOwnershipRegistry({ workspaceRoot });
+        console.log(`Hermes Ownership Registry initialized at: ${workspaceRoot}/memory/ownership/ownership-registry.json`);
+        break;
+      }
+      case "ownership-list": {
+        const entries = loadOwnershipRegistry({ workspaceRoot });
+        const filtered = entries.filter(e => {
+          if (ownerFilter && e.owner !== ownerFilter) return false;
+          if (roleFilter && e.role !== (roleFilter as OwnershipRole)) return false;
+          return true;
+        });
+        console.log(JSON.stringify(filtered, null, 2));
+        break;
+      }
+      case "ownership-see": {
+        if (!assetId) throw new Error("ownership-see requires --asset-id");
+        const entry = findOwnershipEntry({ workspaceRoot, assetId });
+        if (!entry) {
+          console.error(`Ownership entry not found for asset: ${assetId}`);
+          process.exitCode = 1;
+        } else {
+          console.log(JSON.stringify(entry, null, 2));
+        }
+        break;
+      }
+      case "ownership-check": {
+        if (!actor) throw new Error("ownership-check requires --actor");
+        if (!assetId) throw new Error("ownership-check requires --asset-id");
+        const checkAction = action || "read";
+        const ownershipResult = checkOwnership({ workspaceRoot, actor, action: checkAction, assetId });
+        console.log(formatOwnershipCheck(ownershipResult));
         break;
       }
       case "event-log-init": {
