@@ -11,6 +11,11 @@ import {
 } from "./dependency-guard.ts";
 import { listHazards, type Hazard } from "./hazard-registry.ts";
 import { redactGuardrailText } from "./guardrail-blocker.ts";
+import {
+  evaluateDecisionPolicy,
+  type DecisionPolicyInput,
+  type DecisionPolicyResult
+} from "./decision-policy.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -85,6 +90,10 @@ export interface DecisionGatewayResult {
   eventWritten: boolean;
   decisionLedgerPath?: string;
   generatedAt: string;
+  /** Rule IDs matched by Decision Policy for this request. */
+  matchedRules: string[];
+  /** Full Decision Policy result for detailed policy analysis. */
+  decisionPolicyResult?: DecisionPolicyResult;
 }
 
 interface SuperHermesPolicy {
@@ -96,19 +105,7 @@ interface SuperHermesPolicy {
   };
 }
 
-interface CandidateDecision {
-  decision: DecisionGatewayDecision;
-  reason: string;
-  mode?: DecisionRequiredMode;
-}
-
-const PRECEDENCE: Record<DecisionGatewayDecision, number> = {
-  ALLOW: 0,
-  DRY_RUN_ONLY: 1,
-  REQUIRE_PLAN: 2,
-  ESCALATE: 3,
-  DENY: 4
-};
+// CandidateDecision and PRECEDENCE are now owned by decision-policy.ts.
 
 function assertRequired(name: string, value: string | undefined): string {
   if (!value || value.trim().length === 0) throw new Error(`Decision Gateway requires ${name}`);
@@ -288,18 +285,7 @@ function loadHazardMatches(request: DecisionGatewayRequest, normalizedTarget?: s
   }
 }
 
-function chooseDecision(candidates: CandidateDecision[]): { decision: DecisionGatewayDecision; requiredMode: DecisionRequiredMode } {
-  const selected = [...candidates].sort((a, b) => PRECEDENCE[b.decision] - PRECEDENCE[a.decision])[0] || { decision: "ALLOW", reason: "All checks passed." };
-  const requiredMode = selected.mode
-    || (selected.decision === "DENY" || selected.decision === "ESCALATE"
-      ? "manual-review"
-      : selected.decision === "REQUIRE_PLAN"
-        ? "impact-plan"
-        : selected.decision === "DRY_RUN_ONLY"
-          ? "dry-run"
-          : "normal");
-  return { decision: selected.decision, requiredMode };
-}
+// chooseDecision moved to decision-policy.ts (evaluateDecisionPolicy).
 
 function eventDecision(decision: DecisionGatewayDecision): HermesDecision {
   if (decision === "ALLOW") return "ALLOW";
@@ -360,19 +346,11 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
   const target = assertRequired("target", request.target);
   const generatedAt = new Date().toISOString();
   const warnings: string[] = [];
-  const candidates: CandidateDecision[] = [{ decision: "ALLOW", reason: "All checks passed.", mode: "normal" }];
 
   const resolvedTarget = resolveDependencyTarget(workspaceRoot, target, { projectPath: repositoryPath, repositoryPath });
   const normalizedTarget = resolvedTarget.relativePath;
   const policy = readPolicy(workspaceRoot, taskId, normalizedTarget);
   warnings.push(...policy.warnings);
-  for (const reason of policy.reasons) {
-    if (reason.includes("app code") || reason.includes("migration")) {
-      candidates.push({ decision: "DENY", reason, mode: "manual-review" });
-    } else {
-      candidates.push({ decision: "ESCALATE", reason, mode: "manual-review" });
-    }
-  }
 
   const guardianInput = guardianTarget(request, normalizedTarget);
   const guardianResult = checkGuardianAccess({
@@ -384,13 +362,6 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     dryRun: request.dryRun || isReadOnlyAction(action),
     writeAudit: false
   });
-  if (guardianResult.decision === "DENY") {
-    candidates.push({ decision: "DENY", reason: `Guardian ACL denied: ${guardianResult.reasons.join("; ") || "denied"}`, mode: "manual-review" });
-  } else if (guardianResult.decision === "REQUIRE_APPROVAL") {
-    candidates.push({ decision: "ESCALATE", reason: `Guardian ACL requires approval: ${guardianResult.reasons.join("; ") || "approval required"}`, mode: "manual-review" });
-  } else if (guardianResult.decision === "REQUIRE_DRY_RUN") {
-    candidates.push({ decision: "DRY_RUN_ONLY", reason: "Guardian ACL requires dry-run mode.", mode: "dry-run" });
-  }
 
   const dependencyResult = dependencyCheck({
     workspaceRoot,
@@ -404,31 +375,63 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     allowImpactPlan: request.allowImpactPlan,
     dryRun: request.dryRun
   });
-  if (dependencyResult.decision === "DENY") {
-    candidates.push({ decision: "DENY", reason: `Dependency Guard denied: ${dependencyResult.reasons.join("; ")}`, mode: "manual-review" });
-  } else if (dependencyResult.decision === "ESCALATE") {
-    candidates.push({ decision: "ESCALATE", reason: `Dependency Guard escalated: ${dependencyResult.reasons.join("; ")}`, mode: "manual-review" });
-  } else if (dependencyResult.decision === "REQUIRE_WAIVER_PLAN" || dependencyResult.decision === "ALLOW_WITH_IMPACT_PLAN") {
-    candidates.push({ decision: "REQUIRE_PLAN", reason: `Dependency Guard requires impact/waiver plan: ${dependencyResult.reasons.join("; ")}`, mode: "impact-plan" });
-  }
 
-  const { signal: hazardSignal, matches: hazardMatches } = loadHazardMatches(request, dependencyResult.targetAsset.path || normalizedTarget);
+  const { signal: hazardSignal, matches: hazardMatches } = loadHazardMatches(
+    request,
+    dependencyResult.targetAsset.path || normalizedTarget
+  );
   warnings.push(...hazardSignal.warnings);
-  for (const hazard of hazardMatches) {
-    if (hazard.severity === "critical" || hazard.severity === "high") {
-      candidates.push({ decision: "ESCALATE", reason: `Active ${hazard.severity} hazard matched: ${hazard.hazardId}`, mode: "manual-review" });
-    } else if (hazard.severity === "medium") {
-      candidates.push({ decision: "REQUIRE_PLAN", reason: `Active medium hazard matched: ${hazard.hazardId}`, mode: "impact-plan" });
-    } else {
-      warnings.push(`Active low hazard matched: ${hazard.hazardId}`);
-    }
-  }
 
-  const { decision, requiredMode } = chooseDecision(candidates);
-  const reasons = candidates
-    .filter((candidate) => candidate.decision !== "ALLOW" || decision === "ALLOW")
-    .map((candidate) => candidate.reason)
-    .filter((item, index, all) => all.indexOf(item) === index);
+  // ── Delegate rule evaluation to Decision Policy ───────────────────────────
+  // Gateway collects signals; Policy evaluates rules and resolves precedence.
+  const policyInput: DecisionPolicyInput = {
+    taskId,
+    actor,
+    action,
+    target: dependencyResult.targetAsset.path || normalizedTarget || target,
+    policySummary:
+      policy.status !== "missing"
+        ? {
+            activeTaskId: policy.activeTaskId,
+            appCodeChanges: policy.appCodeChanges,
+            migrations: policy.migrations,
+            status: policy.status as "loaded" | "invalid"
+          }
+        : undefined,
+    guardianSignal: {
+      decision: guardianResult.decision,
+      allowed: guardianResult.allowed,
+      zone: guardianResult.zone,
+      risk: guardianResult.risk,
+      reasons: guardianResult.reasons
+    },
+    dependencySignal: {
+      decision: dependencyResult.decision,
+      allowed: dependencyResult.allowed,
+      risk: dependencyResult.risk,
+      pathNotes: dependencyResult.targetAsset.notes,
+      reasons: dependencyResult.reasons
+    },
+    hazardSignals: hazardMatches.map((h) => ({
+      hazardId: h.hazardId,
+      severity: h.severity,
+      area: h.area,
+      title: h.title
+    })),
+    dryRun: request.dryRun,
+    allowImpactPlan: request.allowImpactPlan,
+    riskLevel: request.riskLevel
+  };
+
+  const policyResult = evaluateDecisionPolicy(policyInput);
+  const decision = policyResult.decision;
+  // Map "blocked" (policy) → "manual-review" (gateway) for backward compatibility.
+  const requiredMode: DecisionRequiredMode =
+    policyResult.requiredMode === "blocked" ? "manual-review" : policyResult.requiredMode;
+  const reasons = policyResult.reasons;
+  for (const w of policyResult.warnings) {
+    if (!warnings.includes(w)) warnings.push(w);
+  }
 
   let eventWritten = false;
   const signals: DecisionGatewaySignals = {
@@ -464,7 +467,9 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     dependencyResult,
     hazardMatches,
     eventWritten,
-    generatedAt
+    generatedAt,
+    matchedRules: policyResult.matchedRules,
+    decisionPolicyResult: policyResult
   };
 
   let decisionLedger: string | undefined;
@@ -526,6 +531,12 @@ export function formatDecisionGatewayMarkdown(result: DecisionGatewayResult): st
     `- **Generated at**: ${result.generatedAt}`,
     `- **Event written**: ${result.eventWritten}`,
     `- **Decision ledger**: ${result.decisionLedgerPath || "not written"}`,
+    "",
+    "## Matched Rules",
+    "",
+    ...(result.matchedRules.length > 0
+      ? result.matchedRules.map((rule) => `- ${rule}`)
+      : ["- none"]),
     "",
     "## Reasons",
     "",

@@ -331,4 +331,68 @@ describe("Decision Gateway", () => {
       cleanupWorkspace(workspace);
     }
   });
+
+  // ── Decision Policy integration ───────────────────────────────────────────
+
+  it("gateway result includes matchedRules from Decision Policy", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+
+      const result = evaluateDecisionGateway(request(workspace, project));
+
+      expect(Array.isArray(result.matchedRules)).toBe(true);
+      expect(result.matchedRules.length).toBeGreaterThan(0);
+      // Clean ALLOW run: only ALLOW_DEFAULT should fire
+      expect(result.matchedRules).toContain("ALLOW_DEFAULT");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("gateway result includes decisionPolicyResult from Decision Policy", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+
+      const result = evaluateDecisionGateway(request(workspace, project));
+
+      expect(result.decisionPolicyResult).toBeDefined();
+      expect(result.decisionPolicyResult?.decision).toBe("ALLOW");
+      expect(result.decisionPolicyResult?.severity).toBe("info");
+      expect(result.decisionPolicyResult?.recommendedNextSteps.length).toBeGreaterThan(0);
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("matchedRules includes POLICY_TASK_MISMATCH when activeTaskId differs", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace, { activeTaskId: "OTHER-TASK-MISMATCH" });
+
+      const result = evaluateDecisionGateway(request(workspace, project));
+
+      expect(result.decision).toBe("ESCALATE");
+      expect(result.matchedRules).toContain("POLICY_TASK_MISMATCH");
+      expect(result.decisionPolicyResult?.matchedRules).toContain("POLICY_TASK_MISMATCH");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("matchedRules includes PATH_OUTSIDE_ALLOWED_ROOTS for traversal target", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+
+      const result = evaluateDecisionGateway(request(workspace, project, { target: "../outside.txt" }));
+
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("DEPENDENCY_DENY");
+      expect(result.matchedRules).toContain("PATH_OUTSIDE_ALLOWED_ROOTS");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
 });

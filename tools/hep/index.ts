@@ -1,4 +1,4 @@
-﻿import type { DependencyAction } from "./dependency-guard.ts";
+import type { DependencyAction } from "./dependency-guard.ts";
 import type { GuardrailBlockType } from "./guardrail-blocker.ts";
 import { verifyNodeEnvironmentSync } from "./preflight.ts";
 
@@ -32,6 +32,7 @@ Commands:
   guardrail-blocker-write Write a structured guardrail blocker report.
   decision-check      Evaluate one request through the HEP Decision Gateway.
   decision-explain    Print a human-readable Decision Gateway explanation.
+  decision-policy-check Evaluate a request and return policy-focused output (matchedRules, reasons, next steps).
   observability-snapshot Write Hermes observability JSON and Markdown snapshots.
   observability-report Print a Hermes observability Markdown snapshot.
   hazard-init       Create default Hermes hazard registry.
@@ -433,6 +434,38 @@ async function main(): Promise<void> {
         });
         console.log(formatDecisionGatewayMarkdown(result));
         if (!result.allowed) process.exitCode = 2;
+        break;
+      }
+      case "decision-policy-check": {
+        if (!taskId) throw new Error("decision-policy-check requires --taskId");
+        if (!actor) throw new Error("decision-policy-check requires --actor");
+        if (!action) throw new Error("decision-policy-check requires --action");
+        if (!target) throw new Error("decision-policy-check requires --target");
+        const { evaluateDecisionGateway: gatewayForPolicy } = await import("./decision-gateway.ts");
+        const policyCheckResult = gatewayForPolicy({
+          workspaceRoot,
+          repositoryPath,
+          taskId,
+          actor,
+          action,
+          target,
+          targetType: targetType as never,
+          reason,
+          dryRun,
+          allowImpactPlan,
+          writeEvent: !options["no-write-event"],
+          writeDecisionLedger: !options["no-write-ledger"]
+        });
+        // Output only policy-focused fields
+        console.log(JSON.stringify({
+          decision: policyCheckResult.decision,
+          allowed: policyCheckResult.allowed,
+          matchedRules: policyCheckResult.matchedRules,
+          reasons: policyCheckResult.reasons,
+          warnings: policyCheckResult.warnings,
+          recommendedNextSteps: policyCheckResult.decisionPolicyResult?.recommendedNextSteps ?? []
+        }, null, 2));
+        if (!policyCheckResult.allowed) process.exitCode = 2;
         break;
       }
       case "hazard-init": {
