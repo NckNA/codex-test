@@ -1,4 +1,4 @@
-import type { DependencyAction } from "./dependency-guard.ts";
+﻿import type { DependencyAction } from "./dependency-guard.ts";
 import { verifyNodeEnvironmentSync } from "./preflight.ts";
 
 function printUsage(): void {
@@ -24,6 +24,8 @@ Commands:
   guardian-check      Evaluate one actor/action/target access decision.
   dependency-init     Create baseline dependency registry and graph.
   dependency-check    Evaluate dependency risk and impact waiver route.
+  observability-snapshot Write Hermes observability JSON and Markdown snapshots.
+  observability-report Print a Hermes observability Markdown snapshot.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -54,6 +56,8 @@ Options:
   --target <path>     Target path for guardian/dependency checks.
   --allow-impact-plan Permit dependency-check to return ALLOW_WITH_IMPACT_PLAN.
   --write-audit       Write guardian/dependency audit ledger entry.
+  --max-events <n>    Limit observability events read.
+  --max-reports <n>   Limit observability reports listed.
 `);
 }
 
@@ -135,6 +139,16 @@ async function main(): Promise<void> {
   const writeAudit = !!options.writeAudit || !!options["write-audit"];
   const allowImpactPlan = !!options.allowImpactPlan || !!options["allow-impact-plan"];
   const reason = (options.reason as string) || (options["reason"] as string);
+  const maxEventsRaw = (options.maxEvents as string) || (options["max-events"] as string);
+  const maxEvents = maxEventsRaw ? Number.parseInt(maxEventsRaw, 10) : undefined;
+  if (maxEventsRaw && (!Number.isFinite(maxEvents) || (maxEvents ?? 0) <= 0)) {
+    throw new Error("--max-events must be a positive integer");
+  }
+  const maxReportsRaw = (options.maxReports as string) || (options["max-reports"] as string);
+  const maxReports = maxReportsRaw ? Number.parseInt(maxReportsRaw, 10) : undefined;
+  if (maxReportsRaw && (!Number.isFinite(maxReports) || (maxReports ?? 0) <= 0)) {
+    throw new Error("--max-reports must be a positive integer");
+  }
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -287,6 +301,23 @@ async function main(): Promise<void> {
         if (result.decision !== "ALLOW" && result.decision !== "ALLOW_WITH_IMPACT_PLAN") process.exitCode = 2;
         break;
       }
+      case "observability-snapshot": {
+        const { writeObservabilitySnapshot } = await import("./observability.ts");
+        const snapshot = writeObservabilitySnapshot({ workspaceRoot, projectPath: repositoryPath, maxEvents, maxReports });
+        console.log(JSON.stringify({
+          overall: snapshot.overall,
+          counts: snapshot.counts,
+          outputs: snapshot.outputs,
+          recommendations: snapshot.recommendations
+        }, null, 2));
+        break;
+      }
+      case "observability-report": {
+        const { createObservabilitySnapshot, formatObservabilityMarkdown } = await import("./observability.ts");
+        const snapshot = createObservabilitySnapshot({ workspaceRoot, projectPath: repositoryPath, maxEvents, maxReports });
+        console.log(formatObservabilityMarkdown(snapshot));
+        break;
+      }
       default: {
         console.error(`Unknown command: ${command}`);
         printUsage();
@@ -301,3 +332,4 @@ async function main(): Promise<void> {
 }
 
 main();
+
