@@ -14,6 +14,10 @@ Commands:
   clean-task          Clean/remove a task worktree.
   test-db             Run connection test on SQLite database.
   finalize-report     Finalize metadata in a task report file using Git/GitHub CLI.
+  event-log-init      Create the local Hermes JSONL event log files.
+  event-log-write     Append one sanitized event to the Hermes event log.
+  event-log-tail      Print the last N Hermes events.
+  event-log-query     Print Hermes events filtered by taskId.
   maintenance-plan    Scan Hermes workspace and write a reversible maintenance plan.
   maintenance-apply   Apply only low/medium risk reversible archive/quarantine moves.
   maintenance-restore Restore one archived/quarantined maintenance action by actionId.
@@ -301,6 +305,24 @@ async function main(): Promise<void> {
         if (result.decision !== "ALLOW" && result.decision !== "ALLOW_WITH_IMPACT_PLAN") process.exitCode = 2;
         break;
       }
+      case "event-log-init": {
+        const { initEventLog } = await import("./event-log.ts");
+        const logPath = initEventLog({ hermesRoot: workspaceRoot });
+        console.log(`Hermes event log ready: ${logPath}`);
+        break;
+      }
+      case "event-log-tail": {
+        const { tailHermesEvents } = await import("./event-log.ts");
+        const limit = maxEvents ?? 20;
+        console.log(JSON.stringify(tailHermesEvents(limit, { hermesRoot: workspaceRoot }), null, 2));
+        break;
+      }
+      case "event-log-query": {
+        if (!taskId) throw new Error("event-log-query requires --taskId");
+        const { queryHermesEvents } = await import("./event-log.ts");
+        console.log(JSON.stringify(queryHermesEvents({ taskId }, { hermesRoot: workspaceRoot }), null, 2));
+        break;
+      }
       case "observability-snapshot": {
         const { writeObservabilitySnapshot } = await import("./observability.ts");
         const snapshot = writeObservabilitySnapshot({ workspaceRoot, projectPath: repositoryPath, maxEvents, maxReports });
@@ -332,4 +354,6 @@ async function main(): Promise<void> {
 }
 
 main();
+
+
 
