@@ -861,8 +861,8 @@ async function main(): Promise<void> {
       case "rollback-verify": {
         if (!contractId) throw new Error("rollback-verify requires --contract-id");
         if (!verifiedBy) throw new Error("rollback-verify requires --verified-by");
-        const { markRollbackVerified } = await import("./rollback-contract.ts");
-        console.log(JSON.stringify(markRollbackVerified({ workspaceRoot, contractId, verifiedBy, evidence: reason }), null, 2));
+        const { verifyRollbackContract } = await import("./rollback-contract.ts");
+        console.log(JSON.stringify(verifyRollbackContract({ workspaceRoot, contractId, verifiedBy, repositoryPath }), null, 2));
         break;
       }
       case "rollback-check": {

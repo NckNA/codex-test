@@ -10,6 +10,7 @@ import {
   listRollbackContracts,
   markRollbackVerified,
   parseRollbackStepInput,
+  verifyRollbackContract,
   revokeRollbackContract
 } from "../rollback-contract.ts";
 
@@ -222,6 +223,55 @@ describe("rollback-contract", () => {
       const formatted = formatRollbackCheck(signal);
       expect(formatted).toContain("Rollback Contract Check Result");
       expect(formatted).toContain("Can support waiver: true");
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+
+describe("rollback-contract dry-run verification", () => {
+  it("marks a contract verified when safe dry-run commands pass", () => {
+    const root = workspace();
+    try {
+      const contract = addOrUpdateRollbackContract({
+        ...baseAdd(root),
+        rollbackSteps: [parseRollbackStepInput("git restore -- tools/hep/index.ts", "medium", "git status --short")],
+        validationEvidence: []
+      });
+      const verified = verifyRollbackContract({
+        workspaceRoot: root,
+        contractId: contract.contractId,
+        verifiedBy: "Nick",
+        repositoryPath: process.cwd()
+      });
+
+      expect(verified.status).toBe("verified");
+      expect(verified.validationStatus).toBe("dry_run_passed");
+      expect(verified.validationEvidence.some((item) => item.includes("dry-run passed"))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("marks a contract failed when dry-run command is unsafe", () => {
+    const root = workspace();
+    try {
+      const contract = addOrUpdateRollbackContract({
+        ...baseAdd(root),
+        rollbackSteps: [parseRollbackStepInput("git restore -- tools/hep/index.ts", "medium", "git reset --hard")],
+        validationEvidence: []
+      });
+      const verified = verifyRollbackContract({
+        workspaceRoot: root,
+        contractId: contract.contractId,
+        verifiedBy: "Nick",
+        repositoryPath: process.cwd()
+      });
+
+      expect(verified.status).toBe("failed");
+      expect(verified.validationStatus).toBe("dry_run_failed");
+      expect(verified.validationEvidence.some((item) => item.includes("dry-run failed"))).toBe(true);
     } finally {
       cleanup(root);
     }

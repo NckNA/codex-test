@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactGuardrailText } from "./guardrail-blocker.ts";
@@ -171,6 +172,33 @@ function requiresApproval(risk: RollbackRiskLevel): boolean {
 
 function hasDryRunOrEvidence(steps: RollbackStep[], evidence: string[]): boolean {
   return steps.some((step) => Boolean(step.dryRunCommand?.trim())) || evidence.length > 0;
+}
+
+function splitCommand(command: string): string[] {
+  return command.trim().split(/\s+/).filter(Boolean);
+}
+
+function isSafeDryRunCommand(command: string): boolean {
+  const parts = splitCommand(command.toLowerCase());
+  if (parts.length < 2 || parts[0] !== "git") return false;
+  const sub = parts[1];
+  const allowedSubs = new Set(["diff", "status", "rev-parse", "ls-files"]);
+  if (!allowedSubs.has(sub)) return false;
+  const forbiddenTokens = [";", "&&", "||", "|", ">", "<", "`", "$(", "rm", "del", "remove", "restore", "reset", "clean", "checkout", "revert", "commit", "push", "pull", "fetch"];
+  const lowered = command.toLowerCase();
+  return !forbiddenTokens.some((token) => lowered.includes(token));
+}
+
+function runSafeDryRun(command: string, cwd: string): string {
+  if (!isSafeDryRunCommand(command)) throw new Error(`Unsafe dry-run command rejected: ${sanitize(command)}`);
+  const parts = splitCommand(command);
+  const output = execFileSync(parts[0], parts.slice(1), {
+    cwd,
+    encoding: "utf8",
+    timeout: 15000,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  return sanitize(output.toString().slice(0, 2000));
 }
 
 function createStepFromText(command: string, riskLevel: RollbackRiskLevel): RollbackStep {
@@ -433,6 +461,42 @@ export function revokeRollbackContract(options: RollbackOptions & { contractId: 
   contract.revokedBy = options.revokedBy ? sanitize(options.revokedBy) : undefined;
   saveRollbackRegistry(options, registry);
   writeRollbackEvent(options, { event: "rollback-revoke", taskId: contract.taskId, contractId: contract.contractId });
+  return contract;
+}
+
+export function verifyRollbackContract(options: RollbackOptions & { contractId: string; verifiedBy: string; repositoryPath?: string }): RollbackContract {
+  const registry = loadRollbackRegistry(options);
+  const contract = registry.contracts.find((item) => item.contractId === options.contractId);
+  if (!contract) throw new Error(`Rollback contract not found: ${options.contractId}`);
+  if (contract.status === "revoked") throw new Error(`Rollback contract is revoked: ${options.contractId}`);
+  if (contract.protectedAssetTouched && !contract.ownerReviewBy) throw new Error("Owner review is required before verification for protected assets");
+  const cwd = resolve(options.repositoryPath ?? process.cwd());
+  const evidence: string[] = [];
+  const commands = contract.rollbackSteps
+    .map((step) => step.dryRunCommand?.trim())
+    .filter((command): command is string => Boolean(command));
+  if (commands.length === 0) throw new Error("No dry-run commands available for rollback verification");
+
+  try {
+    for (const command of commands) {
+      const output = runSafeDryRun(command, cwd);
+      evidence.push(`dry-run passed: ${sanitize(command)}${output ? ` | output: ${output}` : ""}`);
+    }
+    contract.status = "verified";
+    contract.validationStatus = "dry_run_passed";
+    contract.verifiedBy = sanitize(options.verifiedBy);
+  } catch (error) {
+    contract.status = "failed";
+    contract.validationStatus = "dry_run_failed";
+    contract.verifiedBy = sanitize(options.verifiedBy);
+    evidence.push(`dry-run failed: ${error instanceof Error ? sanitize(error.message) : sanitize(String(error))}`);
+  }
+
+  contract.updatedAt = nowIso();
+  contract.verifiedAt = contract.updatedAt;
+  contract.validationEvidence.push(...evidence);
+  saveRollbackRegistry(options, registry);
+  writeRollbackEvent(options, { event: "rollback-dry-run-verify", taskId: contract.taskId, contractId: contract.contractId, status: contract.validationStatus });
   return contract;
 }
 
