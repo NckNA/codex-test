@@ -30,6 +30,8 @@ Commands:
   dependency-init     Create baseline dependency registry and graph.
   dependency-check    Evaluate dependency risk and impact waiver route.
   guardrail-blocker-write Write a structured guardrail blocker report.
+  decision-check      Evaluate one request through the HEP Decision Gateway.
+  decision-explain    Print a human-readable Decision Gateway explanation.
   observability-snapshot Write Hermes observability JSON and Markdown snapshots.
   observability-report Print a Hermes observability Markdown snapshot.
   hazard-init       Create default Hermes hazard registry.
@@ -66,8 +68,11 @@ Options:
   --action <name>     Action for guardian/dependency checks.
   --target <path>     Target path for guardian/dependency checks.
                     Path formats: repo-relative tools/hep/index.ts; workspace-relative codex-test/tools/hep/index.ts; absolute only inside configured roots.
+  --target-type <type> Event target type for decision/event commands.
   --allow-impact-plan Permit dependency-check to return ALLOW_WITH_IMPACT_PLAN.
   --write-audit       Write guardian/dependency audit ledger entry.
+  --no-write-event    Disable Decision Gateway event-log write.
+  --no-write-ledger   Disable Decision Gateway decision-ledger write.
   --max-events <n>    Limit observability events read.
   --max-reports <n>   Limit observability reports listed.
   --blocked-operation <text> Operation blocked by policy/tooling.
@@ -380,6 +385,54 @@ async function main(): Promise<void> {
           markdown: report.outputs.markdown,
           redactionApplied: report.redactionApplied
         }, null, 2));
+        break;
+      }
+      case "decision-check": {
+        if (!taskId) throw new Error("decision-check requires --taskId");
+        if (!actor) throw new Error("decision-check requires --actor");
+        if (!action) throw new Error("decision-check requires --action");
+        if (!target) throw new Error("decision-check requires --target");
+        const { evaluateDecisionGateway } = await import("./decision-gateway.ts");
+        const result = evaluateDecisionGateway({
+          workspaceRoot,
+          repositoryPath,
+          taskId,
+          actor,
+          action,
+          target,
+          targetType: targetType as never,
+          reason,
+          dryRun,
+          allowImpactPlan,
+          writeEvent: !options["no-write-event"],
+          writeDecisionLedger: !options["no-write-ledger"]
+        });
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.allowed) process.exitCode = 2;
+        break;
+      }
+      case "decision-explain": {
+        if (!taskId) throw new Error("decision-explain requires --taskId");
+        if (!actor) throw new Error("decision-explain requires --actor");
+        if (!action) throw new Error("decision-explain requires --action");
+        if (!target) throw new Error("decision-explain requires --target");
+        const { evaluateDecisionGateway, formatDecisionGatewayMarkdown } = await import("./decision-gateway.ts");
+        const result = evaluateDecisionGateway({
+          workspaceRoot,
+          repositoryPath,
+          taskId,
+          actor,
+          action,
+          target,
+          targetType: targetType as never,
+          reason,
+          dryRun,
+          allowImpactPlan,
+          writeEvent: !options["no-write-event"],
+          writeDecisionLedger: !options["no-write-ledger"]
+        });
+        console.log(formatDecisionGatewayMarkdown(result));
+        if (!result.allowed) process.exitCode = 2;
         break;
       }
       case "hazard-init": {

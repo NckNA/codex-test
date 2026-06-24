@@ -63,7 +63,7 @@ const DEFAULT_POLICIES: GuardianRolePolicy[] = [
     level: 0,
     allowedZones: ["*"],
     forbiddenZones: ["secrets"],
-    allowedActions: ["read", "scan", "map", "plan"],
+    allowedActions: ["read", "inspect", "scan", "map", "plan"],
     forbiddenActions: ["write", "move", "delete", "edit_policy", "edit_git", "mutate_registry"]
   },
   {
@@ -78,9 +78,9 @@ const DEFAULT_POLICIES: GuardianRolePolicy[] = [
   {
     actor: "maintenance.autopilot",
     level: 1,
-    allowedZones: ["reports", "reports/indexes", "temp", "logs", "memory/maintenance"],
+    allowedZones: ["reports", "reports/indexes", "temp", "logs", "memory/maintenance", "tools/hep"],
     forbiddenZones: [".git", "policies", "projects", "worktrees", "agents", "core", "memory/registries", "secrets"],
-    allowedActions: ["read", "scan", "plan", "dry_run", "write_index", "write_log"],
+    allowedActions: ["read", "inspect", "scan", "plan", "dry_run", "write_index", "write_log"],
     forbiddenActions: ["delete", "move", "edit_policy", "mutate_registry", "move_git_root"],
     maxActions: 10,
     requiresDryRunFirst: true,
