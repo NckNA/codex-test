@@ -1,6 +1,15 @@
 import type { DependencyAction } from "./dependency-guard.ts";
 import type { GuardrailBlockType } from "./guardrail-blocker.ts";
 import { verifyNodeEnvironmentSync } from "./preflight.ts";
+import {
+  initializeAssetRegistry,
+  loadAssetRegistry,
+  checkAssetAction,
+  listAssets,
+  formatAssetCheck,
+  type AssetType,
+  type AssetCriticality
+} from "./asset-registry.ts";
 
 function printUsage(): void {
   console.log(`
@@ -40,6 +49,10 @@ Commands:
   hazard-add        Add or update one hazard.
   hazard-see        Show one hazard.
   hazard-mitigate   Mark one hazard as mitigated.
+  asset-init        Initialize the Hermes Asset Registry with default seed assets.
+  asset-list        List registered assets.
+  asset-see         Show a registered asset by assetId.
+  asset-check       Check an action on a target against the Asset Registry.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -198,6 +211,9 @@ async function main(): Promise<void> {
   }
   const blockedOperation = (options.blockedOperation as string) || (options["blocked-operation"] as string);
   const blockType = (options.blockType as string) || (options["block-type"] as string) || "unknown";
+  const assetId = (options.assetId as string) || (options["asset-id"] as string);
+  const assetTypeOption = (options.type as string) || (options["type"] as string);
+  const assetCriticalityOption = (options.criticality as string) || (options["criticality"] as string);
   const activePolicyTaskId = (options.activePolicyTaskId as string) || (options["active-policy-task-id"] as string);
   const gitMode = (options.gitMode as string) || (options["git-mode"] as string);
   const expectedCapability = (options.expectedCapability as string) || (options["expected-capability"] as string);
@@ -518,6 +534,39 @@ async function main(): Promise<void> {
         const { mitigateHazard } = await import("./hazard-registry.ts");
         const hazard = mitigateHazard(hazardId, note || "mitigated", { hermesRoot: workspaceRoot, actor, taskId });
         console.log(JSON.stringify(hazard, null, 2));
+        break;
+      }
+      case "asset-init": {
+        initializeAssetRegistry({ workspaceRoot });
+        console.log(`Initialized Asset Registry with seed assets under ${workspaceRoot}/memory/assets/asset-registry.json`);
+        break;
+      }
+      case "asset-list": {
+        const assets = listAssets({
+          workspaceRoot,
+          type: assetTypeOption as unknown as AssetType,
+          criticality: assetCriticalityOption as unknown as AssetCriticality
+        });
+        console.log(JSON.stringify(assets, null, 2));
+        break;
+      }
+      case "asset-see": {
+        if (!assetId) throw new Error("asset-see requires --asset-id");
+        const assets = loadAssetRegistry({ workspaceRoot });
+        const asset = assets.find(a => a.assetId === assetId);
+        if (!asset) {
+          console.error(`Asset not found: ${assetId}`);
+          process.exitCode = 1;
+        } else {
+          console.log(JSON.stringify(asset, null, 2));
+        }
+        break;
+      }
+      case "asset-check": {
+        if (!target) throw new Error("asset-check requires --target");
+        const checkAction = action || "read";
+        const result = checkAssetAction({ workspaceRoot, repositoryPath, target, action: checkAction });
+        console.log(formatAssetCheck(result));
         break;
       }
       case "event-log-init": {

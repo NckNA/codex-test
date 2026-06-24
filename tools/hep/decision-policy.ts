@@ -23,6 +23,7 @@
  */
 
 import { redactGuardrailText } from "./guardrail-blocker.ts";
+import { type AssetSignal } from "./asset-registry.ts";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export interface DecisionPolicyInput {
   dependencySignal?: DecisionDependencySignal;
   /** Active hazards that matched the request target/action. */
   hazardSignals?: DecisionHazardSignal[];
+  assetSignal?: AssetSignal;
   riskLevel?: string;
   dryRun?: boolean;
   allowImpactPlan?: boolean;
@@ -156,6 +158,10 @@ function isMigrationTarget(target: string): boolean {
   return target.replaceAll("\\", "/").includes("supabase/migrations/");
 }
 
+function isDestructiveAction(action: string): boolean {
+  return ["delete", "archive", "move", "rename", "quarantine", "destructive"].includes(action.toLowerCase());
+}
+
 function sanitizeString(value: string): string {
   return redactGuardrailText(value).value;
 }
@@ -193,6 +199,10 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
     case "ALLOW":
       return ["Proceed with the action."];
     case "DENY":
+      if (matchedRules.includes("ASSET_CRITICAL_DESTRUCTIVE_DENY"))
+        return ["Destructive actions on critical assets are strictly forbidden. You must modify the target or action to proceed."];
+      if (matchedRules.includes("ASSET_PROTECTED_DESTRUCTIVE_DENY"))
+        return ["Destructive actions on protected assets are strictly forbidden. You must modify the target or action to proceed."];
       if (matchedRules.includes("POLICY_APP_CODE_FORBIDDEN"))
         return ["Request a policy update to allow app code changes for this task."];
       if (matchedRules.includes("POLICY_MIGRATIONS_FORBIDDEN"))
@@ -210,6 +220,8 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
         return ["Request access elevation from the Guardian ACL administrator."];
       return ["Review denial reasons and contact Hermes administrator."];
     case "ESCALATE":
+      if (matchedRules.includes("ASSET_OWNER_REQUIRED"))
+        return ["Provide an owner for high/critical assets in the asset registry before proceeding."];
       if (matchedRules.includes("POLICY_TASK_MISMATCH"))
         return [
           "Update super-hermes-policy.json activeTaskId to match the current task.",
@@ -225,6 +237,12 @@ function toNextSteps(decision: PolicyDecision, matchedRules: string[]): string[]
         "Use: node tools/hep/index.ts decision-explain for detailed breakdown."
       ];
     case "REQUIRE_PLAN":
+      if (matchedRules.includes("ASSET_HIGH_MOVE_REQUIRE_PLAN"))
+        return ["Move, rename, or archive operations on high-criticality assets require an approved impact plan."];
+      if (matchedRules.includes("ASSET_UNKNOWN_DESTRUCTIVE_REQUIRE_PLAN"))
+        return ["Destructive actions on unknown assets require an approved impact plan."];
+      if (matchedRules.includes("ASSET_ARCHIVE_CANDIDATE_REQUIRE_PLAN"))
+        return ["Operations on archive candidate assets require an approved impact plan."];
       return [
         "Create an impact plan documenting affected assets and rollback steps.",
         "Re-run with --allow-impact-plan after the plan has been approved."
@@ -488,6 +506,85 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
       reason: `Maintenance write action '${input.action}' requires dry-run validation before live execution.`,
       mode: "dry-run"
     });
+  }
+
+  // ── ASSET REGISTRY rules ───────────────────────────────────────────────────
+  if (input.assetSignal === undefined) {
+    if (isDestructiveAction(input.action)) {
+      candidates.push({
+        ruleId: "ASSET_REGISTRY_MISSING",
+        decision: "REQUIRE_PLAN",
+        reason: "Asset registry is missing or not provided, and the action is destructive.",
+        mode: "impact-plan"
+      });
+    }
+  } else {
+    const isDestructive = isDestructiveAction(input.action);
+    const criticality = input.assetSignal.criticality;
+    const lifecycle = input.assetSignal.lifecycle;
+    const matched = input.assetSignal.matched;
+    const type = input.assetSignal.type;
+    const owner = input.assetSignal.owner;
+    
+    // ASSET_CRITICAL_DESTRUCTIVE_DENY
+    if (criticality === "critical" && isDestructive) {
+      candidates.push({
+        ruleId: "ASSET_CRITICAL_DESTRUCTIVE_DENY",
+        decision: "DENY",
+        reason: `Destructive action '${input.action}' is strictly forbidden on critical asset '${input.assetSignal.assetId || input.target}'.`,
+        mode: "blocked"
+      });
+    }
+    
+    // ASSET_PROTECTED_DESTRUCTIVE_DENY
+    if (lifecycle === "protected" && isDestructive) {
+      candidates.push({
+        ruleId: "ASSET_PROTECTED_DESTRUCTIVE_DENY",
+        decision: "DENY",
+        reason: `Destructive action '${input.action}' is strictly forbidden on protected asset '${input.assetSignal.assetId || input.target}'.`,
+        mode: "blocked"
+      });
+    }
+    
+    // ASSET_OWNER_REQUIRED
+    if ((criticality === "high" || criticality === "critical") && !owner) {
+      candidates.push({
+        ruleId: "ASSET_OWNER_REQUIRED",
+        decision: "ESCALATE",
+        reason: `Asset '${input.assetSignal.assetId || input.target}' has high/critical criticality but is missing an owner in the registry.`,
+        mode: "manual-review"
+      });
+    }
+    
+    // ASSET_HIGH_MOVE_REQUIRE_PLAN
+    if (criticality === "high" && ["move", "rename", "archive"].includes(input.action.toLowerCase())) {
+      candidates.push({
+        ruleId: "ASSET_HIGH_MOVE_REQUIRE_PLAN",
+        decision: "REQUIRE_PLAN",
+        reason: `Move/rename/archive action '${input.action}' on high criticality asset requires approved plan.`,
+        mode: "impact-plan"
+      });
+    }
+    
+    // ASSET_UNKNOWN_DESTRUCTIVE_REQUIRE_PLAN
+    if ((!matched || type === "unknown") && isDestructive) {
+      candidates.push({
+        ruleId: "ASSET_UNKNOWN_DESTRUCTIVE_REQUIRE_PLAN",
+        decision: "REQUIRE_PLAN",
+        reason: `Destructive action '${input.action}' on unknown asset requires approved plan.`,
+        mode: "impact-plan"
+      });
+    }
+    
+    // ASSET_ARCHIVE_CANDIDATE_REQUIRE_PLAN
+    if (lifecycle === "archive_candidate" && ["archive", "move", "delete"].includes(input.action.toLowerCase())) {
+      candidates.push({
+        ruleId: "ASSET_ARCHIVE_CANDIDATE_REQUIRE_PLAN",
+        decision: "REQUIRE_PLAN",
+        reason: `Archive/move/delete action '${input.action}' on archive candidate asset requires approved plan.`,
+        mode: "impact-plan"
+      });
+    }
   }
 
   // ── SELECT WINNER ──────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { addHazard } from "../hazard-registry.ts";
 import { buildAssetRecord, upsertAssetRegistry } from "../dependency-guard.ts";
 import { evaluateDecisionGateway } from "../decision-gateway.ts";
+import { initializeAssetRegistry } from "../asset-registry.ts";
 
 const TASK_ID = "HERMES-DECISION-GATEWAY-001";
 
@@ -391,6 +392,81 @@ describe("Decision Gateway", () => {
       expect(result.decision).toBe("DENY");
       expect(result.matchedRules).toContain("DEPENDENCY_DENY");
       expect(result.matchedRules).toContain("PATH_OUTSIDE_ALLOWED_ROOTS");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("gateway includes assetSignal", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        target: "tools/hep/index.ts",
+        action: "inspect"
+      }));
+
+      expect(result.assetSignal).toBeDefined();
+      expect(result.assetSignal?.matched).toBe(true);
+      expect(result.assetSignal?.assetId).toBe("hep.cli.index");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("asset protected media delete denied", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+        action: "delete"
+      }));
+
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("ASSET_CRITICAL_DESTRUCTIVE_DENY");
+      expect(result.matchedRules).toContain("ASSET_PROTECTED_DESTRUCTIVE_DENY");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("asset high HEP move requires plan", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      initializeAssetRegistry({ workspaceRoot: workspace });
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        actor: "human.approved.dangerous",
+        target: "tools/hep/index.ts",
+        action: "archive"
+      }));
+
+      expect(result.decision).toBe("REQUIRE_PLAN");
+      expect(result.matchedRules).toContain("ASSET_HIGH_MOVE_REQUIRE_PLAN");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("missing asset registry warns but does not crash", () => {
+    const { workspace, project } = makeWorkspace();
+    try {
+      writePolicy(workspace);
+      // Do not call initializeAssetRegistry
+
+      const result = evaluateDecisionGateway(request(workspace, project, {
+        target: "tools/hep/index.ts",
+        action: "inspect"
+      }));
+
+      expect(result.decision).toBe("ALLOW");
+      expect(result.warnings.some(w => w.includes("missing") || w.includes("not initialized"))).toBe(true);
     } finally {
       cleanupWorkspace(workspace);
     }

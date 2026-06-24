@@ -16,6 +16,7 @@ import {
   type DecisionPolicyInput,
   type DecisionPolicyResult
 } from "./decision-policy.ts";
+import { checkAssetAction, writeAssetEvent, type AssetSignal } from "./asset-registry.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -94,6 +95,7 @@ export interface DecisionGatewayResult {
   matchedRules: string[];
   /** Full Decision Policy result for detailed policy analysis. */
   decisionPolicyResult?: DecisionPolicyResult;
+  assetSignal?: AssetSignal;
 }
 
 interface SuperHermesPolicy {
@@ -382,6 +384,21 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
   );
   warnings.push(...hazardSignal.warnings);
 
+  let assetSignal: AssetSignal | undefined = undefined;
+  try {
+    assetSignal = checkAssetAction({
+      workspaceRoot,
+      repositoryPath,
+      target,
+      action
+    });
+    if (assetSignal.warnings) {
+      warnings.push(...assetSignal.warnings);
+    }
+  } catch (error) {
+    warnings.push(`Asset check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // ── Delegate rule evaluation to Decision Policy ───────────────────────────
   // Gateway collects signals; Policy evaluates rules and resolves precedence.
   const policyInput: DecisionPolicyInput = {
@@ -418,6 +435,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
       area: h.area,
       title: h.title
     })),
+    assetSignal,
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel
@@ -469,8 +487,31 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     eventWritten,
     generatedAt,
     matchedRules: policyResult.matchedRules,
-    decisionPolicyResult: policyResult
+    decisionPolicyResult: policyResult,
+    assetSignal
   };
+
+  if (assetSignal && request.writeEvent !== false) {
+    try {
+      writeAssetEvent({
+        workspaceRoot,
+        event: {
+          taskId,
+          actor,
+          action,
+          target,
+          assetId: assetSignal.assetId,
+          matched: assetSignal.matched,
+          decision,
+          allowed: baseResult.allowed,
+          reasons: assetSignal.reasons,
+          warnings: assetSignal.warnings
+        }
+      });
+    } catch (err) {
+      warnings.push(`Asset event write failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   let decisionLedger: string | undefined;
   if (request.writeDecisionLedger !== false) {
@@ -552,6 +593,7 @@ export function formatDecisionGatewayMarkdown(result: DecisionGatewayResult): st
     `- Guardian: ${result.signals.guardian.decision || "n/a"} zone=${result.signals.guardian.zone || "n/a"}`,
     `- Dependency: ${result.signals.dependency.decision || "n/a"} notes=${(result.signals.dependency.pathNotes || []).join(",") || "none"}`,
     `- Hazards: highOrCritical=${result.signals.hazards.highOrCritical}, medium=${result.signals.hazards.medium}, low=${result.signals.hazards.low}`,
+    `- Asset: matched=${result.assetSignal?.matched || false} id=${result.assetSignal?.assetId || "n/a"} type=${result.assetSignal?.type || "unknown"} criticality=${result.assetSignal?.criticality || "low"} lifecycle=${result.assetSignal?.lifecycle || "unknown"}`,
     ""
   ];
   return lines.join("\n");

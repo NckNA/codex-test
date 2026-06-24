@@ -54,6 +54,22 @@ function cleanInput(overrides: Partial<DecisionPolicyInput> = {}): DecisionPolic
       reasons: []
     },
     hazardSignals: [],
+    assetSignal: {
+      target: "tools/hep/index.ts",
+      normalizedTarget: "codex-test/tools/hep/index.ts",
+      assetId: "hep.cli.index",
+      matched: true,
+      exists: true,
+      type: "hep_tooling",
+      owner: "Hermes HEP",
+      criticality: "medium",
+      lifecycle: "active",
+      actionAllowed: true,
+      actionForbidden: false,
+      requiresPlan: false,
+      reasons: [],
+      warnings: []
+    },
     dryRun: true,
     ...overrides
   };
@@ -560,4 +576,124 @@ describe("Decision Policy", () => {
       expect(result.recommendedNextSteps.length).toBeGreaterThan(0);
     }
   });
+
+  describe("Asset Registry Rules in Decision Policy", () => {
+    it("ASSET_CRITICAL_DESTRUCTIVE_DENY: critical asset destructive action = DENY", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "delete",
+        assetSignal: {
+          target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+          normalizedTarget: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+          assetId: "host.media_rescue",
+          matched: true,
+          exists: true,
+          type: "media_archive",
+          owner: "Nick",
+          criticality: "critical",
+          lifecycle: "protected",
+          actionAllowed: false,
+          actionForbidden: true,
+          requiresPlan: false,
+          reasons: [],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("ASSET_CRITICAL_DESTRUCTIVE_DENY");
+    });
+
+    it("ASSET_PROTECTED_DESTRUCTIVE_DENY: protected asset destructive action = DENY", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "archive",
+        assetSignal: {
+          target: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+          normalizedTarget: "D:\\MEDIA_RESCUE_FROM_TOSHIBA",
+          assetId: "host.media_rescue",
+          matched: true,
+          exists: true,
+          type: "media_archive",
+          owner: "Nick",
+          criticality: "critical",
+          lifecycle: "protected",
+          actionAllowed: false,
+          actionForbidden: true,
+          requiresPlan: false,
+          reasons: [],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("DENY");
+      expect(result.matchedRules).toContain("ASSET_PROTECTED_DESTRUCTIVE_DENY");
+    });
+
+    it("ASSET_HIGH_MOVE_REQUIRE_PLAN: high asset move/archive = REQUIRE_PLAN", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "move",
+        assetSignal: {
+          target: "tools/hep/index.ts",
+          normalizedTarget: "codex-test/tools/hep/index.ts",
+          assetId: "hep.cli.index",
+          matched: true,
+          exists: true,
+          type: "hep_tooling",
+          owner: "Hermes HEP",
+          criticality: "high",
+          lifecycle: "active",
+          actionAllowed: true,
+          actionForbidden: false,
+          requiresPlan: true,
+          reasons: [],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("REQUIRE_PLAN");
+      expect(result.matchedRules).toContain("ASSET_HIGH_MOVE_REQUIRE_PLAN");
+    });
+
+    it("ASSET_UNKNOWN_DESTRUCTIVE_REQUIRE_PLAN: unknown destructive action = REQUIRE_PLAN", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "delete",
+        assetSignal: {
+          target: "some/unknown/file.txt",
+          normalizedTarget: "codex-test/some/unknown/file.txt",
+          matched: false,
+          exists: false,
+          type: "unknown",
+          criticality: "low",
+          lifecycle: "unknown",
+          actionAllowed: true,
+          actionForbidden: false,
+          requiresPlan: true,
+          reasons: [],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("REQUIRE_PLAN");
+      expect(result.matchedRules).toContain("ASSET_UNKNOWN_DESTRUCTIVE_REQUIRE_PLAN");
+    });
+
+    it("ASSET_OWNER_REQUIRED: owner missing on high/critical = ESCALATE", () => {
+      const result = evaluateDecisionPolicy(cleanInput({
+        action: "read",
+        assetSignal: {
+          target: "tools/hep/decision-gateway.ts",
+          normalizedTarget: "codex-test/tools/hep/decision-gateway.ts",
+          assetId: "hep.decision.gateway",
+          matched: true,
+          exists: true,
+          type: "hep_tooling",
+          criticality: "high",
+          lifecycle: "active",
+          actionAllowed: true,
+          actionForbidden: false,
+          requiresPlan: false,
+          reasons: [],
+          warnings: []
+        }
+      }));
+      expect(result.decision).toBe("ESCALATE");
+      expect(result.matchedRules).toContain("ASSET_OWNER_REQUIRED");
+    });
+  });
 });
+
