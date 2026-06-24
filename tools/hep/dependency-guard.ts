@@ -1,8 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, normalize, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 
 export type DependencyAction =
   | "read"
+  | "inspect"
   | "index"
   | "archive"
   | "quarantine"
@@ -76,6 +77,8 @@ export interface ImpactPlan {
 
 export interface DependencyCheckRequest {
   workspaceRoot: string;
+  projectPath?: string;
+  repositoryPath?: string;
   taskId: string;
   actor: string;
   action: DependencyAction;
@@ -132,6 +135,34 @@ const ASSETS_PATH = join("memory", "dependency-assets.json");
 const LEASES_PATH = join("memory", "dependency-leases.jsonl");
 const GRAPH_PATH = join("memory", "dependency-graph.json");
 const LEDGER_PATH = join("logs", "dependency-impact-ledger.jsonl");
+const WORKSPACE_RELATIVE_ROOTS = new Set([
+  "agents",
+  "backups",
+  "core",
+  "logs",
+  "memory",
+  "policies",
+  "projects",
+  "quarantine",
+  "reports",
+  "temp",
+  "worktrees"
+]);
+
+export interface DependencyPathContractOptions {
+  projectPath?: string;
+  repositoryPath?: string;
+}
+
+export interface ResolvedDependencyTarget {
+  input: string;
+  absolutePath: string;
+  relativePath: string;
+  pathFormat: "absolute" | "workspace-relative" | "repo-relative";
+  baseRoot: string;
+  allowed: boolean;
+  violation?: string;
+}
 
 function ensureParent(path: string): void {
   mkdirSync(dirname(path), { recursive: true });
@@ -147,12 +178,74 @@ function isInside(parent: string, child: string): boolean {
   return normalizedChild === normalizedParent || normalizedChild.startsWith(normalizedParent.endsWith(sep) ? normalizedParent : `${normalizedParent}${sep}`);
 }
 
-function workspaceRelative(workspaceRoot: string, target: string): string {
+function hasTraversal(target: string): boolean {
+  return target.split(/[\\/]+/).some((segment) => segment === "..");
+}
+
+function projectRootFor(workspaceRoot: string, options: DependencyPathContractOptions = {}): string {
+  return resolve(options.projectPath || options.repositoryPath || join(workspaceRoot, "codex-test"));
+}
+
+function firstPathSegment(target: string): string {
+  return target.replaceAll("\\", "/").split("/").filter(Boolean)[0] || "";
+}
+
+function isWorkspaceRelativeTarget(target: string, projectRoot: string): boolean {
+  const first = firstPathSegment(target);
+  return first === basename(projectRoot) || WORKSPACE_RELATIVE_ROOTS.has(first);
+}
+
+export function resolveDependencyTarget(
+  workspaceRoot: string,
+  target: string,
+  options: DependencyPathContractOptions = {}
+): ResolvedDependencyTarget {
   const root = resolve(workspaceRoot);
-  const absolute = resolve(root, target);
-  if (!isInside(root, absolute)) return toPosixPath(normalize(target));
-  const rel = relative(root, absolute);
-  return toPosixPath(rel || ".");
+  const projectRoot = projectRootFor(root, options);
+  const allowedRoots = [root, projectRoot];
+
+  if (isAbsolute(target)) {
+    const absolutePath = resolve(target);
+    const insideAllowedRoot = allowedRoots.some((allowedRoot) => isInside(allowedRoot, absolutePath));
+    const relativePath = isInside(root, absolutePath)
+      ? toPosixPath(relative(root, absolutePath) || ".")
+      : toPosixPath(relative(projectRoot, absolutePath) || ".");
+    return {
+      input: target,
+      absolutePath,
+      relativePath,
+      pathFormat: "absolute",
+      baseRoot: insideAllowedRoot && isInside(projectRoot, absolutePath) ? projectRoot : root,
+      allowed: insideAllowedRoot,
+      violation: insideAllowedRoot ? undefined : "absolute target is outside allowed roots"
+    };
+  }
+
+  const pathFormat = isWorkspaceRelativeTarget(target, projectRoot) ? "workspace-relative" : "repo-relative";
+  const baseRoot = pathFormat === "workspace-relative" ? root : projectRoot;
+  const absolutePath = resolve(baseRoot, target);
+  const escapedBaseRoot = !isInside(baseRoot, absolutePath);
+  const insideAllowedRoot = allowedRoots.some((allowedRoot) => isInside(allowedRoot, absolutePath));
+  const allowed = !hasTraversal(target) && !escapedBaseRoot && insideAllowedRoot;
+  const relativePath = isInside(root, absolutePath)
+    ? toPosixPath(relative(root, absolutePath) || ".")
+    : toPosixPath(relative(projectRoot, absolutePath) || ".");
+
+  return {
+    input: target,
+    absolutePath,
+    relativePath,
+    pathFormat,
+    baseRoot,
+    allowed,
+    violation: allowed
+      ? undefined
+      : hasTraversal(target)
+        ? "relative target contains traversal"
+        : escapedBaseRoot
+          ? "relative target escapes its base root"
+          : "target is outside allowed roots"
+  };
 }
 
 function stableId(input: string): string {
@@ -234,7 +327,7 @@ function isRiskyMutation(action: DependencyAction): boolean {
 }
 
 function isLowRiskRead(action: DependencyAction): boolean {
-  return ["read", "index", "scan"].includes(canonicalAction(action));
+  return ["read", "inspect", "index", "scan"].includes(canonicalAction(action));
 }
 
 function emptyImpactPlan(): ImpactPlan {
@@ -250,7 +343,7 @@ function buildGeneratedImpactPlan(request: DependencyCheckRequest, impactedAsset
     impactedAssets,
     compensatingTasks: dependencies.map((dependency) => `Repair or update dependency link: ${dependency}`),
     requiredValidations: ["npm run lint", "npm test", "npm run build"],
-    rollbackPlan: [`Restore ${workspaceRelative(request.workspaceRoot, request.target)} from backup or reversible maintenance action`, "Rebuild dependency/report indexes"],
+    rollbackPlan: [`Restore ${resolveDependencyTarget(request.workspaceRoot, request.target, request).relativePath} from backup or reversible maintenance action`, "Rebuild dependency/report indexes"],
     reason: request.reason || "Generated impact plan for controlled dependency change.",
   };
 }
@@ -286,13 +379,17 @@ function makeResult(input: {
   };
 }
 
-export function buildAssetRecord(workspaceRoot: string, target: string): AssetRecord {
-  const rel = workspaceRelative(workspaceRoot, target);
+export function buildAssetRecord(workspaceRoot: string, target: string, options: DependencyPathContractOptions = {}): AssetRecord {
+  const resolvedTarget = resolveDependencyTarget(workspaceRoot, target, options);
+  const rel = resolvedTarget.relativePath;
   const type = detectAssetType(rel);
-  const criticality = criticalityFor(type, rel);
-  const absolute = resolve(workspaceRoot, rel);
+  const criticality = resolvedTarget.allowed ? criticalityFor(type, rel) : "high";
+  const absolute = resolvedTarget.absolutePath;
   const notes: string[] = [];
-  if (existsSync(absolute)) {
+  notes.push(`path-format:${resolvedTarget.pathFormat}`);
+  if (!resolvedTarget.allowed) {
+    notes.push(`path-contract-blocked:${resolvedTarget.violation || "unknown"}`);
+  } else if (existsSync(absolute)) {
     const stats = statSync(absolute);
     notes.push(stats.isDirectory() ? "exists:directory" : "exists:file");
     if (stats.isDirectory() && existsSync(join(absolute, ".git"))) notes.push("contains-git-metadata");
@@ -300,7 +397,7 @@ export function buildAssetRecord(workspaceRoot: string, target: string): AssetRe
     notes.push("missing-on-disk");
   }
 
-  const protectedAsset = criticality === "critical" || type === "worktree" || type === "policy";
+  const protectedAsset = !resolvedTarget.allowed || criticality === "critical" || type === "worktree" || type === "policy";
   const ownerTaskId = inferOwnerTask(rel);
   return {
     assetId: stableId(rel),
@@ -315,7 +412,7 @@ export function buildAssetRecord(workspaceRoot: string, target: string): AssetRe
     status: "unknown",
     criticality,
     protected: protectedAsset,
-    movable: !protectedAsset && type !== "unknown",
+    movable: resolvedTarget.allowed && !protectedAsset && type !== "unknown",
     deleteAllowed: false,
     restoreRequired: true,
     notes,
@@ -374,8 +471,8 @@ export function buildDependencyGraph(workspaceRoot: string): { generatedAt: stri
   return graph;
 }
 
-function mergeRegisteredAsset(workspaceRoot: string, target: string, now: Date): AssetRecord {
-  const detected = buildAssetRecord(workspaceRoot, target);
+function mergeRegisteredAsset(workspaceRoot: string, target: string, now: Date, options: DependencyPathContractOptions = {}): AssetRecord {
+  const detected = buildAssetRecord(workspaceRoot, target, options);
   const registered = loadDependencyGuardState(workspaceRoot, now).assets.find((asset) => asset.assetId === detected.assetId || asset.path === detected.path);
   if (!registered) return detected;
   return {
@@ -412,10 +509,24 @@ export function dependencyCheck(request: DependencyCheckRequest): DependencyChec
   const action = canonicalAction(request.action);
   const now = request.now ?? new Date();
   const state = loadDependencyGuardState(request.workspaceRoot, now);
-  const asset = mergeRegisteredAsset(request.workspaceRoot, request.target, now);
+  const asset = mergeRegisteredAsset(request.workspaceRoot, request.target, now, request);
   const leases = activeExternalLeases(state, asset, request);
   const blockers = dependencyBlockers(state, asset, leases, request);
   const impactedAssets = [asset.path, ...blockers].filter((item, index, all) => all.indexOf(item) === index);
+
+  const pathContractBlock = asset.notes.find((note) => note.startsWith("path-contract-blocked:"));
+  if (pathContractBlock) {
+    return makeResult({
+      decision: "DENY",
+      risk: asset.criticality,
+      asset,
+      blockers,
+      leases,
+      requiredActions: ["Use a repo-relative, workspace-relative, or absolute path inside configured roots."],
+      safeAlternative: "inspect a path inside workspaceRoot or repositoryPath",
+      reasons: [`Dependency Guard path contract rejected target: ${pathContractBlock.replace("path-contract-blocked:", "")}`],
+    });
+  }
 
   if (action === "delete") {
     return makeResult({

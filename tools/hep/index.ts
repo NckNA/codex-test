@@ -1,4 +1,5 @@
 ﻿import type { DependencyAction } from "./dependency-guard.ts";
+import type { GuardrailBlockType } from "./guardrail-blocker.ts";
 import { verifyNodeEnvironmentSync } from "./preflight.ts";
 
 function printUsage(): void {
@@ -28,6 +29,7 @@ Commands:
   guardian-check      Evaluate one actor/action/target access decision.
   dependency-init     Create baseline dependency registry and graph.
   dependency-check    Evaluate dependency risk and impact waiver route.
+  guardrail-blocker-write Write a structured guardrail blocker report.
   observability-snapshot Write Hermes observability JSON and Markdown snapshots.
   observability-report Print a Hermes observability Markdown snapshot.
   hazard-init       Create default Hermes hazard registry.
@@ -63,10 +65,17 @@ Options:
   --actor <id>        Actor ID for guardian/dependency checks.
   --action <name>     Action for guardian/dependency checks.
   --target <path>     Target path for guardian/dependency checks.
+                    Path formats: repo-relative tools/hep/index.ts; workspace-relative codex-test/tools/hep/index.ts; absolute only inside configured roots.
   --allow-impact-plan Permit dependency-check to return ALLOW_WITH_IMPACT_PLAN.
   --write-audit       Write guardian/dependency audit ledger entry.
   --max-events <n>    Limit observability events read.
   --max-reports <n>   Limit observability reports listed.
+  --blocked-operation <text> Operation blocked by policy/tooling.
+  --block-type <type> Guardrail block type.
+  --expected-capability <text> Capability expected by the task.
+  --completed <a;b>   Semicolon-separated completed blocker-report items.
+  --remaining <a;b>   Semicolon-separated remaining blocker-report items.
+  --next-safe-steps <a;b> Semicolon-separated safe next steps.
 `);
 }
 
@@ -86,6 +95,12 @@ function parseArgs(args: string[]): Record<string, string | boolean> {
     }
   }
   return result;
+}
+
+function parseListOption(value: string | undefined): string[] | undefined {
+  return value
+    ? value.split(";").map((item) => item.trim()).filter(Boolean)
+    : undefined;
 }
 
 async function main(): Promise<void> {
@@ -175,6 +190,16 @@ async function main(): Promise<void> {
   if (maxReportsRaw && (!Number.isFinite(maxReports) || (maxReports ?? 0) <= 0)) {
     throw new Error("--max-reports must be a positive integer");
   }
+  const blockedOperation = (options.blockedOperation as string) || (options["blocked-operation"] as string);
+  const blockType = (options.blockType as string) || (options["block-type"] as string) || "unknown";
+  const activePolicyTaskId = (options.activePolicyTaskId as string) || (options["active-policy-task-id"] as string);
+  const gitMode = (options.gitMode as string) || (options["git-mode"] as string);
+  const expectedCapability = (options.expectedCapability as string) || (options["expected-capability"] as string);
+  const attemptedTool = (options.attemptedTool as string) || (options["attempted-tool"] as string);
+  const attemptedPath = (options.attemptedPath as string) || (options["attempted-path"] as string);
+  const completed = parseListOption((options.completed as string) || (options["completed"] as string));
+  const remaining = parseListOption((options.remaining as string) || (options["remaining"] as string));
+  const nextSafeSteps = parseListOption((options.nextSafeSteps as string) || (options["next-safe-steps"] as string));
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -314,9 +339,9 @@ async function main(): Promise<void> {
         if (!action) throw new Error("dependency-check requires --action");
         if (!target) throw new Error("dependency-check requires --target");
         const { dependencyCheck, writeImpactLedger } = await import("./dependency-guard.ts");
-        const result = dependencyCheck({ workspaceRoot, taskId, actor, action: action as DependencyAction, target, allowImpactPlan, reason });
+        const result = dependencyCheck({ workspaceRoot, projectPath: repositoryPath, taskId, actor, action: action as DependencyAction, target, allowImpactPlan, reason });
         if (writeAudit && !dryRun && result.decision === "ALLOW_WITH_IMPACT_PLAN") {
-          const entry = writeImpactLedger(workspaceRoot, { workspaceRoot, taskId, actor, action: action as DependencyAction, target }, result);
+          const entry = writeImpactLedger(workspaceRoot, { workspaceRoot, projectPath: repositoryPath, taskId, actor, action: action as DependencyAction, target }, result);
           console.log(`Impact ledger entry: ${entry.entryId}`);
         } else if (writeAudit && result.decision !== "ALLOW_WITH_IMPACT_PLAN") {
           console.log("Impact ledger entry skipped: decision is not ALLOW_WITH_IMPACT_PLAN.");
@@ -325,6 +350,36 @@ async function main(): Promise<void> {
         }
         console.log(JSON.stringify(result, null, 2));
         if (result.decision !== "ALLOW" && result.decision !== "ALLOW_WITH_IMPACT_PLAN") process.exitCode = 2;
+        break;
+      }
+      case "guardrail-blocker-write": {
+        if (!taskId) throw new Error("guardrail-blocker-write requires --taskId");
+        if (!blockedOperation) throw new Error("guardrail-blocker-write requires --blocked-operation");
+        if (!expectedCapability) throw new Error("guardrail-blocker-write requires --expected-capability");
+        const { writeGuardrailBlockerReport } = await import("./guardrail-blocker.ts");
+        const report = writeGuardrailBlockerReport({
+          workspaceRoot,
+          taskId,
+          blockedOperation,
+          blockType: blockType as GuardrailBlockType,
+          activePolicyTaskId,
+          gitMode,
+          expectedCapability,
+          attemptedTool,
+          attemptedPath: attemptedPath || target,
+          target,
+          completed,
+          remaining,
+          nextSafeSteps,
+          cloudTouched: false
+        });
+        console.log(JSON.stringify({
+          taskId: report.taskId,
+          blockType: report.blockType,
+          json: report.outputs.json,
+          markdown: report.outputs.markdown,
+          redactionApplied: report.redactionApplied
+        }, null, 2));
         break;
       }
       case "hazard-init": {

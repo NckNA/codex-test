@@ -28,6 +28,16 @@ function writeReport(workspace: string, relativePath: string): void {
   writeFileSync(absolute, "# report\n", "utf8");
 }
 
+function makeProjectWorkspace(): { workspace: string; project: string; hepIndex: string } {
+  const workspace = makeWorkspace();
+  const project = join(workspace, "codex-test");
+  const hepDir = join(project, "tools", "hep");
+  const hepIndex = join(hepDir, "index.ts");
+  mkdirSync(hepDir, { recursive: true });
+  writeFileSync(hepIndex, "export {}\n", "utf8");
+  return { workspace, project, hepIndex };
+}
+
 function validImpactPlan(target = "reports/old.md"): ImpactPlan {
   return {
     impactedAssets: [target, "reports/indexes/report-index.json"],
@@ -241,6 +251,136 @@ describe("dependency guard", () => {
       expect(readFileSync(customAssetPath, "utf8")).toContain("manual");
       expect(existsSync(join(workspace, "logs", "dependency-impact-ledger.jsonl"))).toBe(true);
     } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("resolves repo-relative HEP target against projectPath", () => {
+    const { workspace, project } = makeProjectWorkspace();
+    try {
+      const result = dependencyCheck({
+        workspaceRoot: workspace,
+        projectPath: project,
+        taskId: "HERMES-FOUNDATION-GUARDRAIL-AND-PATH-CONTRACT-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        target: "tools/hep/index.ts",
+      });
+
+      expect(result.decision).toBe("ALLOW");
+      expect(result.targetAsset.path).toBe("codex-test/tools/hep/index.ts");
+      expect(result.targetAsset.notes).toContain("path-format:repo-relative");
+      expect(result.targetAsset.notes).toContain("exists:file");
+      expect(result.targetAsset.notes).not.toContain("missing-on-disk");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("resolves workspace-relative HEP target against workspaceRoot", () => {
+    const { workspace, project } = makeProjectWorkspace();
+    try {
+      const result = dependencyCheck({
+        workspaceRoot: workspace,
+        projectPath: project,
+        taskId: "HERMES-FOUNDATION-GUARDRAIL-AND-PATH-CONTRACT-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        target: "codex-test/tools/hep/index.ts",
+      });
+
+      expect(result.decision).toBe("ALLOW");
+      expect(result.targetAsset.path).toBe("codex-test/tools/hep/index.ts");
+      expect(result.targetAsset.notes).toContain("path-format:workspace-relative");
+      expect(result.targetAsset.notes).toContain("exists:file");
+      expect(result.targetAsset.notes).not.toContain("missing-on-disk");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("keeps missing-on-disk for missing repo-relative target", () => {
+    const { workspace, project } = makeProjectWorkspace();
+    try {
+      const result = dependencyCheck({
+        workspaceRoot: workspace,
+        projectPath: project,
+        taskId: "HERMES-FOUNDATION-GUARDRAIL-AND-PATH-CONTRACT-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        target: "tools/hep/not-real.ts",
+      });
+
+      expect(result.decision).toBe("ALLOW");
+      expect(result.targetAsset.path).toBe("codex-test/tools/hep/not-real.ts");
+      expect(result.targetAsset.notes).toContain("missing-on-disk");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("blocks traversal targets before disk inspection", () => {
+    const { workspace, project } = makeProjectWorkspace();
+    try {
+      const result = dependencyCheck({
+        workspaceRoot: workspace,
+        projectPath: project,
+        taskId: "HERMES-FOUNDATION-GUARDRAIL-AND-PATH-CONTRACT-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        target: "../outside.txt",
+      });
+
+      expect(result.decision).toBe("DENY");
+      expect(result.allowed).toBe(false);
+      expect(result.targetAsset.notes.join("\n")).toContain("path-contract-blocked");
+      expect(result.reasons.join("\n")).toContain("path contract rejected");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("allows absolute target inside project root", () => {
+    const { workspace, project, hepIndex } = makeProjectWorkspace();
+    try {
+      const result = dependencyCheck({
+        workspaceRoot: workspace,
+        projectPath: project,
+        taskId: "HERMES-FOUNDATION-GUARDRAIL-AND-PATH-CONTRACT-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        target: hepIndex,
+      });
+
+      expect(result.decision).toBe("ALLOW");
+      expect(result.targetAsset.path).toBe("codex-test/tools/hep/index.ts");
+      expect(result.targetAsset.notes).toContain("path-format:absolute");
+      expect(result.targetAsset.notes).toContain("exists:file");
+      expect(result.targetAsset.notes).not.toContain("missing-on-disk");
+    } finally {
+      cleanupWorkspace(workspace);
+    }
+  });
+
+  it("blocks absolute target outside allowed roots", () => {
+    const { workspace, project } = makeProjectWorkspace();
+    const outside = join(workspace, "..", "outside.txt");
+    try {
+      writeFileSync(outside, "outside", "utf8");
+      const result = dependencyCheck({
+        workspaceRoot: workspace,
+        projectPath: project,
+        taskId: "HERMES-FOUNDATION-GUARDRAIL-AND-PATH-CONTRACT-001",
+        actor: "maintenance.autopilot",
+        action: "inspect",
+        target: outside,
+      });
+
+      expect(result.decision).toBe("DENY");
+      expect(result.allowed).toBe(false);
+      expect(result.targetAsset.notes.join("\n")).toContain("path-contract-blocked");
+    } finally {
+      rmSync(outside, { force: true });
       cleanupWorkspace(workspace);
     }
   });
