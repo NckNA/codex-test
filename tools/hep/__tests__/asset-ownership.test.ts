@@ -22,15 +22,18 @@ import { join } from "node:path";
 import {
   evaluateOwnership,
   checkOwnership,
+  checkOwnershipForTarget,
   initializeOwnershipRegistry,
   loadOwnershipRegistry,
   type OwnershipEntry
 } from "../asset-ownership.ts";
+import { initializeAssetRegistry } from "../asset-registry.ts";
 
 const TEST_WORKSPACE = join(process.cwd(), "_test_ownership_tmp_" + Date.now());
 
 beforeAll(() => {
   mkdirSync(TEST_WORKSPACE, { recursive: true });
+  initializeAssetRegistry({ workspaceRoot: TEST_WORKSPACE });
   initializeOwnershipRegistry({ workspaceRoot: TEST_WORKSPACE });
 });
 
@@ -179,5 +182,37 @@ describe("checkOwnership", () => {
   it("Registry file exists after init", () => {
     const registryPath = join(TEST_WORKSPACE, "memory", "ownership", "ownership-registry.json");
     expect(existsSync(registryPath)).toBe(true);
+  });
+});
+
+
+describe("checkOwnershipForTarget", () => {
+  it("resolves a registered target to asset ownership", () => {
+    const signal = checkOwnershipForTarget({
+      workspaceRoot: TEST_WORKSPACE,
+      repositoryPath: join(TEST_WORKSPACE, "codex-test"),
+      actor: "Hermes HEP",
+      action: "edit",
+      target: "tools/hep/index.ts"
+    });
+
+    expect(signal.matched).toBe(true);
+    expect(signal.assetId).toBe("hep.cli.index");
+    expect(signal.isOwner).toBe(true);
+    expect(signal.actorAuthorized).toBe(true);
+  });
+
+  it("returns unowned signal when target is not registered as an asset", () => {
+    const signal = checkOwnershipForTarget({
+      workspaceRoot: TEST_WORKSPACE,
+      repositoryPath: join(TEST_WORKSPACE, "codex-test"),
+      actor: "Hermes HEP",
+      action: "read",
+      target: "unknown/file.ts"
+    });
+
+    expect(signal.matched).toBe(false);
+    expect(signal.isUnowned).toBe(true);
+    expect(signal.warnings.some(w => w.includes("asset"))).toBe(true);
   });
 });

@@ -15,6 +15,7 @@ import {
   loadOwnershipRegistry,
   findOwnershipEntry,
   checkOwnership,
+  checkOwnershipForTarget,
   formatOwnershipCheck,
   type OwnershipRole
 } from "./asset-ownership.ts";
@@ -79,6 +80,8 @@ Commands:
   ownership-list    List ownership entries (optionally filter by --owner or --role).
   ownership-see     Show one ownership entry by --asset-id.
   ownership-check   Check ownership for an actor/action/asset-id tuple.
+  ownership-target-check Check ownership by resolving --target to an assetId.
+  ownership-check-target Alias for ownership-target-check.
   waiver-init       Initialize the Hermes Waiver Registry.
   waiver-list       List waiver registry records.
   waiver-see        Show one waiver record by --waiver-id.
@@ -817,6 +820,15 @@ async function main(): Promise<void> {
         if (!assetId) throw new Error("ownership-check requires --asset-id");
         const checkAction = action || "read";
         const ownershipResult = checkOwnership({ workspaceRoot, actor, action: checkAction, assetId });
+        console.log(formatOwnershipCheck(ownershipResult));
+        break;
+      }
+      case "ownership-target-check":
+      case "ownership-check-target": {
+        if (!actor) throw new Error("ownership-target-check requires --actor");
+        if (!target) throw new Error("ownership-target-check requires --target");
+        const checkAction = action || "read";
+        const ownershipResult = checkOwnershipForTarget({ workspaceRoot, repositoryPath, actor, action: checkAction, target });
         console.log(formatOwnershipCheck(ownershipResult));
         break;
       }

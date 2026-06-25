@@ -19,6 +19,7 @@
 
 import { existsSync, writeFileSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
+import { findAssetForTarget } from "./asset-registry.ts";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -541,6 +542,30 @@ export function checkOwnership(options: {
 
   const entry = findOwnershipEntry({ workspaceRoot, assetId });
   return evaluateOwnership({ entry, actor, action, assetId });
+}
+
+export function checkOwnershipForTarget(options: {
+  workspaceRoot: string;
+  repositoryPath?: string;
+  actor: string;
+  action: string;
+  target: string;
+}): OwnershipSignal {
+  const asset = findAssetForTarget({ workspaceRoot: options.workspaceRoot, repositoryPath: options.repositoryPath, target: options.target });
+  if (!asset) {
+    return {
+      matched: false,
+      isOwner: false,
+      isDelegate: false,
+      actionForbiddenForAll: false,
+      requiresOwnerReview: false,
+      actorAuthorized: false,
+      isUnowned: true,
+      reasons: [`No registered asset found for target '${options.target}'.`],
+      warnings: ["Use --asset-id or register the target asset."]
+    };
+  }
+  return checkOwnership({ workspaceRoot: options.workspaceRoot, actor: options.actor, action: options.action, assetId: asset.assetId });
 }
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
