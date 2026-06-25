@@ -97,6 +97,11 @@ Commands:
   change-plan-check Check change plan support for actor/action/target.
   change-plan-approve Approve one change plan by --plan-id.
   change-plan-revoke Revoke one change plan by --plan-id.
+  changeset-init    Initialize the Hermes Changeset registry.
+  changeset-list    List changesets.
+  changeset-add     Add or update one changeset record.
+  changeset-check   Check changeset status for task/plan.
+  changeset-revoke  Revoke one changeset by --changeset-id.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -170,6 +175,12 @@ Options:
   --check <cmd|required|expected> Change plan validation check entry.
   --simulation-decision <d> Decision from prior policy simulation.
   --simulation-rules <a;b> Matched rules from prior policy simulation.
+  --changeset-id <id> Changeset record ID.
+  --actual-file <p|status|reason> Actual changed file entry.
+  --planned-files <a;b> Planned file paths from change plan.
+  --check-result <name|cmd|status|evidence> Changeset check result.
+  --commit <sha>      Commit hash for changeset.
+  --base-commit <sha> Base commit for changeset.
 
 `);
 }
@@ -336,6 +347,14 @@ async function main(): Promise<void> {
   const check = (options.check as string) || (options["check"] as string);
   const simulationDecision = (options.simulationDecision as string) || (options["simulation-decision"] as string);
   const simulationRules = parseListOption((options.simulationRules as string) || (options["simulation-rules"] as string));
+
+  // Changeset options
+  const changesetId = (options.changesetId as string) || (options["changeset-id"] as string);
+  const actualFile = (options.actualFile as string) || (options["actual-file"] as string);
+  const plannedFiles = parseListOption((options.plannedFiles as string) || (options["planned-files"] as string)) ?? [];
+  const checkResult = (options.checkResult as string) || (options["check-result"] as string);
+  const commitHash = (options.commit as string) || (options["commit"] as string);
+  const baseCommit = (options.baseCommit as string) || (options["base-commit"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -985,6 +1004,57 @@ async function main(): Promise<void> {
         if (!reason) throw new Error("change-plan-revoke requires --reason");
         const { revokeChangePlan } = await import("./change-plan.ts");
         console.log(JSON.stringify(revokeChangePlan({ workspaceRoot, planId, reason, revokedBy }), null, 2));
+        break;
+      }
+      case "changeset-init": {
+        const { initializeChangesetRegistry } = await import("./changeset-registry.ts");
+        initializeChangesetRegistry({ workspaceRoot });
+        console.log(`Changeset registry initialized at: ${workspaceRoot}/memory/changesets/changeset-registry.json`);
+        break;
+      }
+      case "changeset-list": {
+        const { listChangesets } = await import("./changeset-registry.ts");
+        console.log(JSON.stringify(listChangesets({ workspaceRoot }), null, 2));
+        break;
+      }
+      case "changeset-add": {
+        if (!taskId) throw new Error("changeset-add requires --taskId");
+        if (!actor) throw new Error("changeset-add requires --actor");
+        if (!summary) throw new Error("changeset-add requires --summary");
+        if (!actualFile) throw new Error("changeset-add requires --actual-file");
+        const { addOrUpdateChangeset, parseChangesetFileInput, parseChangesetCheckInput } = await import("./changeset-registry.ts");
+        const record = addOrUpdateChangeset({
+          workspaceRoot,
+          taskId,
+          planId,
+          actor,
+          riskLevel: riskLevel as never,
+          summary,
+          plannedFiles,
+          actualFiles: [parseChangesetFileInput(actualFile, plannedFiles)],
+          checks: checkResult ? [parseChangesetCheckInput(checkResult)] : [],
+          rollbackRef: rbRef,
+          commitHash,
+          baseCommit,
+          branch,
+          reportPath: report,
+          notes: tags
+        });
+        console.log(JSON.stringify(record, null, 2));
+        break;
+      }
+      case "changeset-check": {
+        if (!taskId) throw new Error("changeset-check requires --taskId");
+        const { evaluateChangeset, formatChangesetCheck } = await import("./changeset-registry.ts");
+        const signal = evaluateChangeset({ workspaceRoot, taskId, planId });
+        console.log(formatChangesetCheck(signal));
+        break;
+      }
+      case "changeset-revoke": {
+        if (!changesetId) throw new Error("changeset-revoke requires --changeset-id");
+        if (!reason) throw new Error("changeset-revoke requires --reason");
+        const { revokeChangeset } = await import("./changeset-registry.ts");
+        console.log(JSON.stringify(revokeChangeset({ workspaceRoot, changesetId, reason, revokedBy }), null, 2));
         break;
       }
       case "event-log-init": {
