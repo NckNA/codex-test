@@ -63,6 +63,7 @@ Commands:
   decision-policy-check Evaluate a request and return policy-focused output (matchedRules, reasons, next steps).
   policy-simulate     Simulate a decision without writing events or ledger entries.
   decision-simulate   Alias for policy-simulate.
+  mission-control     Print one Mission Control snapshot for the current task/action.
   observability-snapshot Write Hermes observability JSON and Markdown snapshots.
   observability-report Print a Hermes observability Markdown snapshot.
   hazard-init       Create default Hermes hazard registry.
@@ -627,6 +628,28 @@ async function main(): Promise<void> {
           riskLevel
         });
         console.log(JSON.stringify(simulation, null, 2));
+        break;
+      }
+
+      case "mission-control": {
+        if (!taskId) throw new Error("mission-control requires --taskId");
+        if (!actor) throw new Error("mission-control requires --actor");
+        if (!action) throw new Error("mission-control requires --action");
+        if (!target) throw new Error("mission-control requires --target");
+        const { buildMissionControlSnapshot, formatMissionControl } = await import("./mission-control.ts");
+        const snapshot = buildMissionControlSnapshot({
+          workspaceRoot,
+          repositoryPath,
+          taskId,
+          actor,
+          action,
+          target,
+          targetType: targetType as never,
+          riskLevel,
+          includeSimulation: !options["no-simulation"]
+        });
+        if (options.json) console.log(JSON.stringify(snapshot, null, 2));
+        else console.log(formatMissionControl(snapshot));
         break;
       }
 
