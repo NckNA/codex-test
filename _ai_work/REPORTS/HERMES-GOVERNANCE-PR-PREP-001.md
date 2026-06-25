@@ -1,95 +1,209 @@
 # HERMES-GOVERNANCE-PR-PREP-001
 
+Status: PR preparation report
+Type: report-only
+Generated: 2026-06-25 Asia/Almaty
+Repository: NckNA/codex-test
+Local repo: D:\hermes\codex-test
+Branch: feature/hermes-maintenance-trio-002-finalize
+HEAD: a628a05c4a8b6892cf8f0afae39ba7ad3734f6fd
+Base branch: main
+Remote base after fetch: origin/main = 0290188666c2450392edbb9cb806b7a7b0e70f92
+Merge base: 258e3174ea7c22a0e7f8f5c35089fde9225a84df
+
 ## Verdict
-PASS
 
-## Purpose
-Prepare a compact PR package for the HEP governance branch.
+READY_FOR_DRAFT_PR_DECISION.
 
-## Branch state
-- Branch: `feature/hermes-maintenance-trio-002-finalize`
-- Reviewed HEAD: `03799a1bbc96f73929b2cc14b02e9f3b2d0904d4`
-- Working tree before report: clean
-- Active policy: `HERMES-GOVERNANCE-PR-PREP-001`
-- Mode: report-only
-- App/UI changes: none
-- Migrations: none
-- Cloud Supabase: not touched
-- PR attached: none
+The HEP governance branch is clean and validated locally, but no GitHub PR exists for this branch. The branch is also not present on GitHub as a remote branch, so the next publishing step would be to push it and open a draft PR.
 
-## Validation basis
-Latest full validation from the governance finalize checkpoint:
-- `npm run lint`: PASS
-- `npm test`: PASS, 81 files / 867 tests
-- `npm run build`: PASS
+## Current facts
 
-## Suggested PR title
-`feat(hep): add governance gates and mission control`
+- Local branch is clean.
+- Current branch has no open PR on GitHub.
+- GitHub API does not find a remote branch named feature/hermes-maintenance-trio-002-finalize.
+- GitHub CLI is authenticated as NckNA with repo/workflow scopes.
+- Repository: NckNA/codex-test.
+- Default branch: main.
+- Local origin/main was refreshed with git fetch origin --prune.
+- After fetch, comparison against origin/main is 1 behind / 40 ahead.
+- Diff against current origin/main is 78 files, 18,838 insertions, 28 deletions.
+- No cloud Supabase was touched.
+- No migrations were touched.
+- No app code was changed by this PR-prep task.
 
-## Suggested PR summary
-This branch adds HEP governance tooling for safer agent work:
-- policy simulation
-- rollback contracts and verification
-- waiver rollback references
-- change plans
-- changeset records
-- changeset gates
-- mission-control snapshots
-- self-improvement proposals
-- ownership target checks
+## Open PR context
 
-## Suggested PR validation section
-- `npm run lint`: PASS
-- `npm test`: PASS, 81 files / 867 tests
-- `npm run build`: PASS
+Existing open PRs are unrelated to the current HEP branch:
 
-## Suggested PR safety notes
-- No production cloud access in this work.
-- No migrations in this task.
-- Report-only PR prep task.
-- Runtime registry state remains local workspace state.
-- Governance gates require explicit evidence instead of relying on agent claims.
+- #320 draft, report/supabase-cloud-auth-connect-001, mergeable, CI success.
+- #319 draft, cloud/supabase-apply-encounter-visit-001-retry, conflicting, CI success.
+- #318 draft, report/test-report-only-publish, mergeable, CI success.
+- #309 non-draft, smoke/admin-audit-viewer-001, mergeability unknown, CI success.
+- #291 non-draft, recon/open-source-dental-crm-architecture-001, mergeable, CI success.
 
-## Reviewer checklist
-- Review `tools/hep/decision-policy.ts` first.
-- Review `tools/hep/decision-gateway.ts` second.
-- Review CLI routes in `tools/hep/index.ts`.
-- Review registry modules:
-  - `rollback-contract.ts`
-  - `waiver-registry.ts`
-  - `change-plan.ts`
-  - `changeset-registry.ts`
-  - `self-improvement-gate.ts`
-- Review status/report module:
-  - `mission-control.ts`
-- Confirm reports under `_ai_work/REPORTS` should stay in branch.
-- Run CI after PR creation.
+## Diff scope
 
-## Main completed commits in this final governance run
-- `dff880c` rollback contract layer
-- `a041b9c` rollback policy rules
-- `ab6a10d` waiver rollback reference storage
-- `fe2b75d` waiver rb-ref CLI
-- `da3b00b` rollback verification evidence
-- `3783245` verified rollback gate
-- `014db5a` policy simulator
-- `39af446` change plan registry
-- `34075ba` changeset registry
-- `40a2421` changeset gate
-- `77937f0` mission control snapshot
-- `cad98be` proposal gate
-- `e2ed8a6` target check route
-- `03799a1` governance checkpoint
+Major file families in the current HEP branch diff:
 
-## Recommended PR command sequence
-```powershell
-git status
-npm run lint
-npm test -- --run
-npm run build
-```
+- HEP reports under _ai_work/REPORTS/HERMES-*.md.
+- HEP modules under tools/hep/*.ts.
+- HEP tests under tools/hep/__tests__/*.test.ts.
+- Modified HEP CLI/index files:
+  - tools/hep/index.ts
+  - tools/hep/__tests__/hep.test.ts
 
-## Next task
-`HERMES-GOVERNANCE-PR-OPEN-001`
+Main HEP capability groups included:
 
-Purpose: open or update a draft PR with this prepared title/body and wait for CI if a PR exists.
+- maintenance trio and lifecycle finalizer
+- report indexer
+- guardian ACL
+- dependency guard
+- event log
+- observability
+- hazard registry
+- foundation guardrail/path contract
+- decision gateway
+- decision policy
+- asset registry
+- asset ownership
+- waiver registry
+- rollback contract
+- policy simulator
+- change plan
+- changeset registry
+- mission control
+- self-improvement gate
+
+## Validation
+
+NPM quality checks passed:
+
+- npm run lint: PASS
+- npm test -- --run: PASS, 81 test files and 867 tests passed
+- npm run build: PASS
+
+Notes:
+
+- Test output includes known React/Vitest act(...) environment warnings, but the test run passes.
+- Build output includes Vite large chunk warning, but build passes.
+- Browser smoke was not run because this is HEP tooling/report governance, not a visible DentalFlow UI flow.
+
+## Risks
+
+### 1. Local-only branch
+
+Risk: HEP governance exists locally but is invisible to GitHub PR review and CI.
+
+Mitigation: push branch and open a draft PR.
+
+### 2. Branch is behind origin/main by one commit
+
+Risk: GitHub may report mergeability issues after PR creation.
+
+Mitigation: do not rebase automatically. Open draft PR first, then handle conflicts only if GitHub reports them.
+
+### 3. Large PR size
+
+Risk: 78 files and 18k+ insertions is hard to review.
+
+Mitigation: keep PR draft, group PR body by HEP capability groups, and only mark ready after CI and mergeability are known.
+
+### 4. Stale open PR clutter
+
+Risk: old open PRs may confuse automation.
+
+Mitigation: create a separate GitHub PR triage task. Do not mix stale PR cleanup with HEP governance publication.
+
+## Options
+
+### Option A: Push current branch and open draft PR
+
+Recommended.
+
+Why:
+
+- Local validation passes.
+- Branch is clean.
+- No current PR exists.
+- Remote branch does not exist.
+- GitHub cannot review or calculate PR mergeability until branch is pushed.
+- Draft PR is safer than ready-for-review.
+
+Suggested next task: HERMES-GOVERNANCE-DRAFT-PR-001.
+
+### Option B: Rebase or merge origin/main before PR
+
+Not recommended first.
+
+Why:
+
+- Branch is only one commit behind but 40 commits ahead.
+- Rebase changes history and increases risk before there is a GitHub checkpoint.
+- Use this only if draft PR reports conflicts or CI fails due to stale base.
+
+### Option C: Split HEP stack into smaller PRs
+
+Possible but expensive.
+
+Why:
+
+- Smaller PRs are easier to review.
+- But this branch is already an integrated governance stack.
+- Splitting now may create dependency disorder unless done as a planned stacked-PR task.
+
+### Option D: Pause HEP and move to DentalFlow UI
+
+Not recommended yet.
+
+Why:
+
+- DentalFlow UI still needs controlled app-code policy permission.
+- The governance branch is not published.
+- Moving product work ahead now repeats the same context-loss problem.
+
+## Recommended next sequence
+
+1. HERMES-GOVERNANCE-DRAFT-PR-001
+   - push feature/hermes-maintenance-trio-002-finalize
+   - open draft PR into main
+   - wait for CI and mergeability
+   - update report metadata
+
+2. If PR is clean:
+   - HERMES-TASK-POLICY-APP-CODE-PERMISSION-001
+   - unlock explicit UI/app tasks with appCodeChanges=true and strict allowlists
+
+3. If PR has conflicts or failing CI:
+   - HERMES-GOVERNANCE-PR-FIX-001
+   - fix only HEP PR blockers
+   - do not mix DentalFlow UI into that branch
+
+4. Then product path:
+   - PATIENT-FINANCE-UI-001
+   - CASHIER-PAYMENT-FLOW-001
+   - completed-services finance integration
+
+## Final status
+
+Verdict: READY_FOR_DRAFT_PR_DECISION
+
+Commit reviewed: a628a05c4a8b6892cf8f0afae39ba7ad3734f6fd
+
+Changed file for this report task:
+
+- _ai_work/REPORTS/HERMES-GOVERNANCE-PR-PREP-001.md
+
+Checks:
+
+- lint: PASS
+- test: PASS
+- build: PASS
+
+Smoke:
+
+- not applicable for report-only HEP PR prep
+
+Required next decision:
+
+- approve push + draft PR creation, or choose rebase/split/hold path.
