@@ -623,7 +623,8 @@ async function main(): Promise<void> {
           targetType: targetType as never,
           reason,
           dryRun,
-          allowImpactPlan
+          allowImpactPlan,
+          riskLevel
         });
         console.log(JSON.stringify(simulation, null, 2));
         break;

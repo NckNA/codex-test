@@ -1287,3 +1287,94 @@ describe("Decision Policy verified rollback gate", () => {
     expect(result.matchedRules).not.toContain("ROLLBACK_VERIFY_REQUIRED_FOR_WAIVER_HIGH");
   });
 });
+
+
+describe("Decision Policy changeset gate", () => {
+  const validatedChangeset = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "modify",
+    target: "tools/hep/index.ts",
+    matched: true,
+    changesetId: "changeset.validated",
+    status: "validated",
+    recorded: true,
+    validated: true,
+    hasCommit: true,
+    plannedFilesPresent: true,
+    actualFilesPresent: true,
+    unplannedFilesPresent: false,
+    missingPlannedFilesPresent: false,
+    checksPassing: true,
+    reasons: [],
+    warnings: [],
+    matchedChangesetIds: ["changeset.validated"]
+  };
+
+  it("requires a recorded changeset for high-risk actions", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "modify",
+      riskLevel: "high",
+      changeset: { ...validatedChangeset, matched: false, recorded: false, validated: false }
+    }));
+
+    expect(result.matchedRules).toContain("CHANGESET_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("escalates recorded but unvalidated changesets", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "modify",
+      riskLevel: "high",
+      changeset: { ...validatedChangeset, status: "recorded", validated: false }
+    }));
+
+    expect(result.matchedRules).toContain("CHANGESET_VALIDATION_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("escalates changesets with unplanned files", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "modify",
+      riskLevel: "high",
+      changeset: { ...validatedChangeset, validated: false, unplannedFilesPresent: true }
+    }));
+
+    expect(result.matchedRules).toContain("CHANGESET_UNPLANNED_FILES");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires plan update when planned files are missing", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "modify",
+      riskLevel: "high",
+      changeset: { ...validatedChangeset, validated: false, missingPlannedFilesPresent: true }
+    }));
+
+    expect(result.matchedRules).toContain("CHANGESET_MISSING_PLANNED_FILES");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires commit hash for high-risk changesets", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "modify",
+      riskLevel: "high",
+      changeset: { ...validatedChangeset, hasCommit: false }
+    }));
+
+    expect(result.matchedRules).toContain("CHANGESET_COMMIT_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("allows high-risk path when changeset is validated and committed", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "modify",
+      riskLevel: "high",
+      changeset: validatedChangeset
+    }));
+
+    expect(result.matchedRules).not.toContain("CHANGESET_REQUIRED");
+    expect(result.matchedRules).not.toContain("CHANGESET_VALIDATION_REQUIRED");
+    expect(result.decision).toBe("ALLOW");
+  });
+});

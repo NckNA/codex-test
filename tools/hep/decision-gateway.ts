@@ -20,6 +20,7 @@ import { checkAssetAction, writeAssetEvent, type AssetSignal } from "./asset-reg
 import { checkOwnership, type OwnershipSignal } from "./asset-ownership.ts";
 import { evaluateWaiver, type WaiverSignal } from "./waiver-registry.ts";
 import { evaluateRollbackContract, type RollbackSignal } from "./rollback-contract.ts";
+import { evaluateChangeset, type ChangesetSignal } from "./changeset-registry.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -77,6 +78,7 @@ export interface DecisionGatewaySignals {
   ownership?: OwnershipSignal;
   waiver?: WaiverSignal;
   rollback?: RollbackSignal;
+  changeset?: ChangesetSignal;
 }
 
 export interface DecisionGatewayResult {
@@ -105,6 +107,7 @@ export interface DecisionGatewayResult {
   ownershipSignal?: OwnershipSignal;
   waiverSignal?: WaiverSignal;
   rollbackSignal?: RollbackSignal;
+  changesetSignal?: ChangesetSignal;
 }
 
 interface SuperHermesPolicy {
@@ -458,7 +461,23 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     warnings.push(`Rollback contract check failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // в”Ђв”Ђ Delegate rule evaluation to Decision Policy в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  let changesetSignal: ChangesetSignal | undefined = undefined;
+  try {
+    changesetSignal = evaluateChangeset({
+      workspaceRoot,
+      taskId,
+      actor,
+      action,
+      target
+    });
+    if (changesetSignal.warnings) {
+      warnings.push(...changesetSignal.warnings);
+    }
+  } catch (error) {
+    warnings.push(`Changeset check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // Delegate rule evaluation to Decision Policy
   // Gateway collects signals; Policy evaluates rules and resolves precedence.
   const policyInput: DecisionPolicyInput = {
     taskId,
@@ -498,6 +517,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     ownershipSignal,
     waiverSignal,
     rollback: rollbackSignal,
+    changeset: changesetSignal,
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel
@@ -531,7 +551,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     hazards: hazardSignal,
     ownership: ownershipSignal,
     waiver: waiverSignal,
-    rollback: rollbackSignal
+    rollback: rollbackSignal,
+    changeset: changesetSignal
   };
 
   const baseResult: DecisionGatewayResult = {
@@ -555,7 +576,9 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     decisionPolicyResult: policyResult,
     assetSignal,
     ownershipSignal,
-    waiverSignal
+    waiverSignal,
+    rollbackSignal,
+    changesetSignal
   };
 
   if (assetSignal && request.writeEvent !== false) {
@@ -654,6 +677,10 @@ function classifySimulationEvidence(result: DecisionGatewayResult): string[] {
   if (needsRollback && result.signals.rollback?.matched && !result.signals.rollback?.verified) missing.push("verified rollback");
   if (result.matchedRules.includes("ROLLBACK_CHANGED_FILES_MISSING")) missing.push("rollback changed files");
   if (result.matchedRules.includes("ROLLBACK_STEPS_MISSING")) missing.push("rollback steps");
+  const needsChangeset = result.matchedRules.some((rule) => rule.includes("CHANGESET"));
+  if (needsChangeset && !result.signals.changeset?.recorded) missing.push("recorded changeset");
+  if (needsChangeset && result.signals.changeset?.recorded && !result.signals.changeset?.validated) missing.push("validated changeset");
+  if (result.matchedRules.includes("CHANGESET_COMMIT_REQUIRED")) missing.push("changeset commit hash");
   if (result.matchedRules.some((rule) => rule.includes("OWNER") || rule.includes("OWNERSHIP"))) missing.push("owner review or ownership permission");
   return Array.from(new Set(missing));
 }

@@ -98,6 +98,7 @@ export interface DecisionPolicyInput {
   ownershipSignal?: OwnershipSignal;
   waiverSignal?: WaiverSignal;
   rollback?: unknown;
+  changeset?: unknown;
   riskLevel?: string;
   dryRun?: boolean;
   allowImpactPlan?: boolean;
@@ -751,6 +752,41 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
 
   if (rbMatched && rbActive && rbProtected && !rbOwnerReviewPresent) {
     candidates.push({ ruleId: "ROLLBACK_PROTECTED_ASSET_REVIEW_REQUIRED", decision: "ESCALATE", reason: "Rollback contract touches a protected asset and requires owner review.", mode: "manual-review" });
+  }
+
+  const cs = (input.changeset ?? input.context?.["changeset" + "Signal"]) as Record<string, unknown> | undefined;
+  const csMatched = Boolean(cs?.matched);
+  const csRecorded = Boolean(cs?.recorded);
+  const csValidated = Boolean(cs?.validated);
+  const csHasCommit = Boolean(cs?.hasCommit);
+  const csUnplanned = Boolean(cs?.unplannedFilesPresent);
+  const csMissingPlanned = Boolean(cs?.missingPlannedFilesPresent);
+  const csChecksPassing = Boolean(cs?.checksPassing);
+  const highRiskAction = input.riskLevel === "high" || input.riskLevel === "critical" || input.waiverSignal?.riskLevel === "high" || input.waiverSignal?.riskLevel === "critical";
+  const finalizingAction = ["finalize", "complete", "commit", "publish", "merge"].includes(input.action);
+
+  if ((highRiskAction || finalizingAction) && !csRecorded) {
+    candidates.push({ ruleId: "CHANGESET_REQUIRED", decision: "REQUIRE_PLAN", reason: "High-risk or finalizing actions require a recorded changeset.", mode: "impact-plan" });
+  }
+
+  if (csMatched && csRecorded && !csValidated) {
+    candidates.push({ ruleId: "CHANGESET_VALIDATION_REQUIRED", decision: "ESCALATE", reason: "Recorded changeset is not validated.", mode: "manual-review" });
+  }
+
+  if (csMatched && csUnplanned) {
+    candidates.push({ ruleId: "CHANGESET_UNPLANNED_FILES", decision: "ESCALATE", reason: "Changeset contains files that were not in the plan.", mode: "manual-review" });
+  }
+
+  if (csMatched && csMissingPlanned) {
+    candidates.push({ ruleId: "CHANGESET_MISSING_PLANNED_FILES", decision: "REQUIRE_PLAN", reason: "Changeset is missing planned files.", mode: "impact-plan" });
+  }
+
+  if (csMatched && !csChecksPassing) {
+    candidates.push({ ruleId: "CHANGESET_CHECKS_NOT_PASSING", decision: "ESCALATE", reason: "Changeset checks are not all passing or skipped.", mode: "manual-review" });
+  }
+
+  if ((highRiskAction || finalizingAction) && csMatched && !csHasCommit) {
+    candidates.push({ ruleId: "CHANGESET_COMMIT_REQUIRED", decision: "REQUIRE_PLAN", reason: "High-risk or finalizing changeset requires a commit hash.", mode: "impact-plan" });
   }
 
   if (input.waiverSignal !== undefined) {
