@@ -21,6 +21,7 @@ import { checkOwnership, type OwnershipSignal } from "./asset-ownership.ts";
 import { evaluateWaiver, type WaiverSignal } from "./waiver-registry.ts";
 import { evaluateRollbackContract, type RollbackSignal } from "./rollback-contract.ts";
 import { evaluateChangeset, type ChangesetSignal } from "./changeset-registry.ts";
+import { evaluateSelfImprovementProposal, type SelfImprovementSignal } from "./self-improvement-gate.ts";
 
 export type DecisionGatewayDecision = "ALLOW" | "DENY" | "DRY_RUN_ONLY" | "REQUIRE_PLAN" | "ESCALATE";
 export type DecisionRequiredMode = "normal" | "dry-run" | "impact-plan" | "manual-review";
@@ -79,6 +80,7 @@ export interface DecisionGatewaySignals {
   waiver?: WaiverSignal;
   rollback?: RollbackSignal;
   changeset?: ChangesetSignal;
+  selfImprovement?: SelfImprovementSignal;
 }
 
 export interface DecisionGatewayResult {
@@ -108,6 +110,7 @@ export interface DecisionGatewayResult {
   waiverSignal?: WaiverSignal;
   rollbackSignal?: RollbackSignal;
   changesetSignal?: ChangesetSignal;
+  selfImprovementSignal?: SelfImprovementSignal;
 }
 
 interface SuperHermesPolicy {
@@ -477,6 +480,14 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     warnings.push(`Changeset check failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
+  let siSignal: SelfImprovementSignal | undefined = undefined;
+  try {
+    siSignal = evaluateSelfImprovementProposal({ workspaceRoot, taskId, actor, action, target });
+    if (siSignal.warnings) warnings.push(...siSignal.warnings);
+  } catch (error) {
+    warnings.push(`SI check failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   // Delegate rule evaluation to Decision Policy
   // Gateway collects signals; Policy evaluates rules and resolves precedence.
   const policyInput: DecisionPolicyInput = {
@@ -518,6 +529,7 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     waiverSignal,
     rollback: rollbackSignal,
     changeset: changesetSignal,
+    selfImprovement: siSignal,
     dryRun: request.dryRun,
     allowImpactPlan: request.allowImpactPlan,
     riskLevel: request.riskLevel
@@ -552,7 +564,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     ownership: ownershipSignal,
     waiver: waiverSignal,
     rollback: rollbackSignal,
-    changeset: changesetSignal
+    changeset: changesetSignal,
+    selfImprovement: siSignal
   };
 
   const baseResult: DecisionGatewayResult = {
@@ -578,7 +591,8 @@ export function evaluateDecisionGateway(request: DecisionGatewayRequest): Decisi
     ownershipSignal,
     waiverSignal,
     rollbackSignal,
-    changesetSignal
+    changesetSignal,
+    selfImprovementSignal: siSignal
   };
 
   if (assetSignal && request.writeEvent !== false) {
@@ -681,6 +695,13 @@ function classifySimulationEvidence(result: DecisionGatewayResult): string[] {
   if (needsChangeset && !result.signals.changeset?.recorded) missing.push("recorded changeset");
   if (needsChangeset && result.signals.changeset?.recorded && !result.signals.changeset?.validated) missing.push("validated changeset");
   if (result.matchedRules.includes("CHANGESET_COMMIT_REQUIRED")) missing.push("changeset commit hash");
+  const needsSelfImprovement = result.matchedRules.some((rule) => rule.includes("SELF_IMPROVEMENT"));
+  if (needsSelfImprovement && !result.signals.selfImprovement?.matched) missing.push("self-improvement proposal");
+  if (needsSelfImprovement && result.signals.selfImprovement?.matched && !result.signals.selfImprovement?.approved) missing.push("approved self-improvement proposal");
+  if (result.matchedRules.includes("SELF_IMPROVEMENT_EVIDENCE_REQUIRED")) missing.push("self-improvement evidence");
+  if (result.matchedRules.includes("SELF_IMPROVEMENT_SCOPE_REQUIRED")) missing.push("self-improvement scope");
+  if (result.matchedRules.includes("SELF_IMPROVEMENT_SAFETY_CHECKS_REQUIRED")) missing.push("self-improvement safety checks");
+  if (result.matchedRules.includes("SELF_IMPROVEMENT_ROLLBACK_REQUIRED")) missing.push("self-improvement rollbackRef");
   if (result.matchedRules.some((rule) => rule.includes("OWNER") || rule.includes("OWNERSHIP"))) missing.push("owner review or ownership permission");
   return Array.from(new Set(missing));
 }

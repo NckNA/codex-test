@@ -1378,3 +1378,153 @@ describe("Decision Policy changeset gate", () => {
     expect(result.decision).toBe("ALLOW");
   });
 });
+
+
+describe("Decision Policy self-improvement gate", () => {
+  const approvedSelfImprovement = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "self-improve",
+    target: "tools/hep/index.ts",
+    matched: true,
+    proposalId: "si.approved",
+    status: "approved",
+    active: true,
+    approved: true,
+    expired: false,
+    proposedTaskId: "HERMES-SELF-IMPROVEMENT-GATE-001",
+    rootCause: "tooling_false_positive",
+    riskLevel: "medium",
+    evidencePresent: true,
+    scopePresent: true,
+    safetyChecksPresent: true,
+    rollbackRefPresent: false,
+    canProceed: true,
+    reasons: [],
+    warnings: [],
+    matchedProposalIds: ["si.approved"]
+  };
+
+  it("requires proposal for self-improvement actions", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfImprovement, matched: false, approved: false, canProceed: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_PROPOSAL_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires approval before self-improvement proceeds", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfImprovement, status: "proposed", approved: false, canProceed: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_APPROVAL_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires evidence, scope, and safety checks", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfImprovement, evidencePresent: false, scopePresent: false, safetyChecksPresent: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_EVIDENCE_REQUIRED");
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_SCOPE_REQUIRED");
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_SAFETY_CHECKS_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires rollbackRef for high-risk self-improvement", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfImprovement, riskLevel: "high", rollbackRefPresent: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_ROLLBACK_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("allows approved low or medium self-improvement with evidence and checks", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: approvedSelfImprovement
+    }));
+
+    expect(result.matchedRules).not.toContain("SELF_IMPROVEMENT_PROPOSAL_REQUIRED");
+    expect(result.matchedRules).not.toContain("SELF_IMPROVEMENT_APPROVAL_REQUIRED");
+    expect(result.decision).toBe("ALLOW");
+  });
+});
+
+
+describe("Decision Policy self-improvement gate", () => {
+  const approvedSelfGate = {
+    taskId: TASK_ID,
+    actor: "maintenance.autopilot",
+    action: "self-improve",
+    target: "tools/hep/index.ts",
+    matched: true,
+    proposalId: "si.approved",
+    status: "approved",
+    active: true,
+    approved: true,
+    expired: false,
+    proposedTaskId: "HERMES-SELF-IMPROVEMENT-GATE-001",
+    rootCause: "tooling_false_positive",
+    riskLevel: "medium",
+    evidencePresent: true,
+    scopePresent: true,
+    safetyChecksPresent: true,
+    rollbackRefPresent: false,
+    canProceed: true,
+    reasons: [],
+    warnings: [],
+    matchedProposalIds: ["si.approved"]
+  };
+
+  it("requires a proposal for self-improvement actions", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfGate, matched: false, approved: false, canProceed: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_PROPOSAL_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires approval before self-improvement proceeds", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfGate, approved: false, canProceed: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_APPROVAL_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("requires evidence, scope, and safety checks", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: { ...approvedSelfGate, evidencePresent: false, scopePresent: false, safetyChecksPresent: false, canProceed: false }
+    }));
+
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_EVIDENCE_REQUIRED");
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_SCOPE_REQUIRED");
+    expect(result.matchedRules).toContain("SELF_IMPROVEMENT_SAFETY_CHECKS_REQUIRED");
+    expect(result.decision).not.toBe("ALLOW");
+  });
+
+  it("allows approved self-improvement with complete evidence", () => {
+    const result = evaluateDecisionPolicy(cleanInput({
+      action: "self-improve",
+      selfImprovement: approvedSelfGate
+    }));
+
+    expect(result.matchedRules).not.toContain("SELF_IMPROVEMENT_PROPOSAL_REQUIRED");
+    expect(result.matchedRules).not.toContain("SELF_IMPROVEMENT_APPROVAL_REQUIRED");
+    expect(result.decision).toBe("ALLOW");
+  });
+});

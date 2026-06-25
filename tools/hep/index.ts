@@ -103,6 +103,12 @@ Commands:
   changeset-add     Add or update one changeset record.
   changeset-check   Check changeset status for task/plan.
   changeset-revoke  Revoke one changeset by --changeset-id.
+  self-improvement-init Initialize the Hermes self-improvement registry.
+  self-improvement-list List self-improvement proposals.
+  self-improvement-add Add or update one self-improvement proposal.
+  self-improvement-check Check self-improvement gate for actor/action/target.
+  self-improvement-approve Approve one self-improvement proposal.
+  self-improvement-revoke Revoke one self-improvement proposal.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -355,6 +361,16 @@ async function main(): Promise<void> {
   const plannedFiles = parseListOption((options.plannedFiles as string) || (options["planned-files"] as string)) ?? [];
   const checkResult = (options.checkResult as string) || (options["check-result"] as string);
   const commitHash = (options.commit as string) || (options["commit"] as string);
+
+  // Self-improvement options
+  const proposalId = (options.proposalId as string) || (options["proposal-id"] as string);
+  const rootCause = (options.rootCause as string) || (options["root-cause"] as string) || "unknown";
+  const blockerSummary = (options.blockerSummary as string) || (options["blocker-summary"] as string);
+  const evidence = parseListOption((options.evidence as string) || (options["evidence"] as string)) ?? [];
+  const proposedTaskId = (options.proposedTaskId as string) || (options["proposed-task-id"] as string);
+  const proposedScope = parseListOption((options.proposedScope as string) || (options["proposed-scope"] as string)) ?? [];
+  const expectedBenefit = (options.expectedBenefit as string) || (options["expected-benefit"] as string);
+  const safetyChecks = parseListOption((options.safetyChecks as string) || (options["safety-checks"] as string)) ?? [];
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -1083,6 +1099,74 @@ async function main(): Promise<void> {
         if (!reason) throw new Error("changeset-revoke requires --reason");
         const { revokeChangeset } = await import("./changeset-registry.ts");
         console.log(JSON.stringify(revokeChangeset({ workspaceRoot, changesetId, reason, revokedBy }), null, 2));
+        break;
+      }
+      case "self-improvement-init": {
+        const { initializeSelfImprovementRegistry } = await import("./self-improvement-gate.ts");
+        initializeSelfImprovementRegistry({ workspaceRoot });
+        console.log(`Self-improvement registry initialized at: ${workspaceRoot}/memory/self-improvement/self-improvement-registry.json`);
+        break;
+      }
+      case "self-improvement-list": {
+        const { listSelfImprovementProposals } = await import("./self-improvement-gate.ts");
+        console.log(JSON.stringify(listSelfImprovementProposals({ workspaceRoot }), null, 2));
+        break;
+      }
+      case "self-improvement-add": {
+        if (!taskId) throw new Error("self-improvement-add requires --taskId");
+        if (!actor) throw new Error("self-improvement-add requires --actor");
+        if (!action) throw new Error("self-improvement-add requires --action");
+        if (!blockerSummary) throw new Error("self-improvement-add requires --blocker-summary");
+        if (!proposedTaskId) throw new Error("self-improvement-add requires --proposed-task-id");
+        if (!expectedBenefit) throw new Error("self-improvement-add requires --expected-benefit");
+        if (evidence.length === 0) throw new Error("self-improvement-add requires --evidence");
+        if (proposedScope.length === 0) throw new Error("self-improvement-add requires --proposed-scope");
+        if (safetyChecks.length === 0) throw new Error("self-improvement-add requires --safety-checks");
+        const { addOrUpdateSelfImprovementProposal } = await import("./self-improvement-gate.ts");
+        const proposal = addOrUpdateSelfImprovementProposal({
+          workspaceRoot,
+          taskId,
+          actor,
+          action,
+          target,
+          rootCause: rootCause as never,
+          riskLevel: riskLevel as never,
+          createdBy,
+          approvedBy,
+          blockerSummary,
+          evidence,
+          proposedTaskId,
+          proposedScope,
+          expectedBenefit,
+          safetyChecks,
+          rollbackRef: rbRef,
+          expiresAt,
+          notes: tags
+        });
+        console.log(JSON.stringify(proposal, null, 2));
+        break;
+      }
+      case "self-improvement-check": {
+        if (!taskId) throw new Error("self-improvement-check requires --taskId");
+        if (!actor) throw new Error("self-improvement-check requires --actor");
+        if (!action) throw new Error("self-improvement-check requires --action");
+        const { evaluateSelfImprovementProposal, formatSelfImprovementCheck } = await import("./self-improvement-gate.ts");
+        const signal = evaluateSelfImprovementProposal({ workspaceRoot, taskId, actor, action, target });
+        console.log(formatSelfImprovementCheck(signal));
+        break;
+      }
+      case "self-improvement-approve": {
+        if (!proposalId) throw new Error("self-improvement-approve requires --proposal-id");
+        if (!approvedBy) throw new Error("self-improvement-approve requires --approved-by");
+        const { approveSelfImprovementProposal } = await import("./self-improvement-gate.ts");
+        console.log(JSON.stringify(approveSelfImprovementProposal({ workspaceRoot, proposalId, approvedBy }), null, 2));
+        break;
+      }
+      case "self-improvement-revoke": {
+        if (!proposalId) throw new Error("self-improvement-revoke requires --proposal-id");
+        if (!reason) throw new Error("self-improvement-revoke requires --reason");
+        const { revokeSelfImprovementProposal } = await import("./self-improvement-gate.ts");
+        console.log(JSON.stringify(revokeSelfImprovementProposal({ workspaceRoot, proposalId, reason, revokedBy }), null, 2));
         break;
       }
       case "event-log-init": {

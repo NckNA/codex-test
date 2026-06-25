@@ -99,6 +99,7 @@ export interface DecisionPolicyInput {
   waiverSignal?: WaiverSignal;
   rollback?: unknown;
   changeset?: unknown;
+  selfImprovement?: unknown;
   riskLevel?: string;
   dryRun?: boolean;
   allowImpactPlan?: boolean;
@@ -787,6 +788,27 @@ export function evaluateDecisionPolicy(input: DecisionPolicyInput): DecisionPoli
 
   if ((highRiskAction || finalizingAction) && csMatched && !csHasCommit) {
     candidates.push({ ruleId: "CHANGESET_COMMIT_REQUIRED", decision: "REQUIRE_PLAN", reason: "High-risk or finalizing changeset requires a commit hash.", mode: "impact-plan" });
+  }
+
+  const si = input.selfImprovement as Record<string, unknown> | undefined;
+  const selfAction = ["self-improve", "improve-hermes", "resolve-blocker", "fix-tooling"].includes(input.action);
+  if (selfAction && !si?.matched) {
+    candidates.push({ ruleId: "SELF_IMPROVEMENT_PROPOSAL_REQUIRED", decision: "ESCALATE", reason: "Self-improvement actions require a matching proposal.", mode: "manual-review" });
+  }
+  if (selfAction && si?.matched && !si?.approved) {
+    candidates.push({ ruleId: "SELF_IMPROVEMENT_APPROVAL_REQUIRED", decision: "ESCALATE", reason: "Self-improvement proposal must be approved before proceeding.", mode: "manual-review" });
+  }
+  if (selfAction && si?.matched && !si?.evidencePresent) {
+    candidates.push({ ruleId: "SELF_IMPROVEMENT_EVIDENCE_REQUIRED", decision: "REQUIRE_PLAN", reason: "Self-improvement proposal requires blocker evidence.", mode: "impact-plan" });
+  }
+  if (selfAction && si?.matched && !si?.scopePresent) {
+    candidates.push({ ruleId: "SELF_IMPROVEMENT_SCOPE_REQUIRED", decision: "REQUIRE_PLAN", reason: "Self-improvement proposal requires explicit scope.", mode: "impact-plan" });
+  }
+  if (selfAction && si?.matched && !si?.safetyChecksPresent) {
+    candidates.push({ ruleId: "SELF_IMPROVEMENT_SAFETY_CHECKS_REQUIRED", decision: "ESCALATE", reason: "Self-improvement proposal requires safety checks.", mode: "manual-review" });
+  }
+  if (selfAction && si?.matched && (si?.riskLevel === "high" || si?.riskLevel === "critical") && !si?.rollbackRefPresent) {
+    candidates.push({ ruleId: "SELF_IMPROVEMENT_ROLLBACK_REQUIRED", decision: "ESCALATE", reason: "High-risk self-improvement requires rollbackRef.", mode: "manual-review" });
   }
 
   if (input.waiverSignal !== undefined) {
