@@ -1,83 +1,90 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { redactGuardrailText } from "./guardrail-blocker.ts";
 
-export type ChangesetStatus = "draft" | "recorded" | "verified" | "failed" | "revoked";
+export type ChangesetStatus = "draft" | "recorded" | "validated" | "failed" | "revoked";
 export type ChangesetRiskLevel = "low" | "medium" | "high" | "critical";
 
 export interface ChangesetFile {
   path: string;
   status: "added" | "modified" | "deleted" | "renamed" | "unknown";
-  planned: boolean;
-  reason?: string;
+  additions?: number;
+  deletions?: number;
 }
 
-export interface ChangesetCheckResult {
+export interface ChangesetCheck {
   name: string;
-  command: string;
-  status: "pass" | "fail" | "skipped";
+  status: "pass" | "fail" | "skipped" | "unknown";
+  command?: string;
   evidence?: string;
 }
 
 export interface ChangesetRecord {
   changesetId: string;
   taskId: string;
-  planId?: string;
   actor: string;
+  action: string;
+  target?: string;
   status: ChangesetStatus;
   riskLevel: ChangesetRiskLevel;
   createdAt: string;
   updatedAt: string;
+  createdBy: string;
+  planId?: string;
+  rollbackRef?: string;
   commitHash?: string;
-  baseCommit?: string;
   branch?: string;
-  summary: string;
   plannedFiles: string[];
   actualFiles: ChangesetFile[];
   unplannedFiles: string[];
-  checks: ChangesetCheckResult[];
-  rollbackRef?: string;
-  reportPath?: string;
+  missingPlannedFiles: string[];
+  checks: ChangesetCheck[];
+  diffSummary?: string;
   notes: string[];
 }
 
-export interface ChangesetAddOptions extends ChangesetOptions {
+export interface ChangesetSignal {
   taskId: string;
-  planId?: string;
   actor: string;
-  riskLevel: ChangesetRiskLevel;
-  summary: string;
-  plannedFiles: string[];
-  actualFiles: ChangesetFile[];
-  checks?: ChangesetCheckResult[];
-  rollbackRef?: string;
-  commitHash?: string;
-  baseCommit?: string;
-  branch?: string;
-  reportPath?: string;
-  notes?: string[];
+  action: string;
+  target?: string;
+  matched: boolean;
+  changesetId?: string;
+  status?: ChangesetStatus;
+  recorded: boolean;
+  validated: boolean;
+  hasCommit: boolean;
+  plannedFilesPresent: boolean;
+  actualFilesPresent: boolean;
+  unplannedFilesPresent: boolean;
+  missingPlannedFilesPresent: boolean;
+  checksPassing: boolean;
+  reasons: string[];
+  warnings: string[];
+  matchedChangesetIds: string[];
 }
 
 export interface ChangesetOptions {
   workspaceRoot: string;
 }
 
-export interface ChangesetSignal {
+export interface ChangesetAddOptions extends ChangesetOptions {
   taskId: string;
-  matched: boolean;
-  changesetId?: string;
-  status?: ChangesetStatus;
-  verified: boolean;
-  plannedFilesPresent: boolean;
-  actualFilesPresent: boolean;
-  unplannedFilesPresent: boolean;
-  checksPassed: boolean;
-  rollbackRefPresent: boolean;
-  reasons: string[];
-  warnings: string[];
-  matchedChangesetIds: string[];
+  actor: string;
+  action: string;
+  target?: string;
+  riskLevel: ChangesetRiskLevel;
+  createdBy: string;
+  planId?: string;
+  rollbackRef?: string;
+  commitHash?: string;
+  branch?: string;
+  plannedFiles: string[];
+  actualFiles: ChangesetFile[];
+  checks: ChangesetCheck[];
+  diffSummary?: string;
+  notes?: string[];
 }
 
 const REGISTRY_RELATIVE_PATH = join("memory", "changesets", "changeset-registry.json");
@@ -95,51 +102,61 @@ function eventPath(workspaceRoot: string): string {
   return join(resolve(workspaceRoot), EVENT_RELATIVE_PATH);
 }
 
-function sanitize(value: string): string {
-  return redactGuardrailText(value).value;
-}
-
 function ensureParent(path: string): void {
   mkdirSync(dirname(path), { recursive: true });
 }
 
-function normalizeList(values: string[]): string[] {
-  return values.map((value) => sanitize(value.trim())).filter(Boolean);
+function sanitize(value: string): string {
+  return redactGuardrailText(value).value.trim();
+}
+
+function sanitizeList(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => sanitize(value)).filter(Boolean)));
 }
 
 function normalizeFile(file: ChangesetFile): ChangesetFile {
   return {
-    path: sanitize(file.path.trim()),
+    path: sanitize(file.path),
     status: file.status || "unknown",
-    planned: Boolean(file.planned),
-    reason: file.reason ? sanitize(file.reason) : undefined
+    additions: typeof file.additions === "number" ? file.additions : undefined,
+    deletions: typeof file.deletions === "number" ? file.deletions : undefined
   };
 }
 
-function normalizeCheck(check: ChangesetCheckResult): ChangesetCheckResult {
+function normalizeCheck(check: ChangesetCheck): ChangesetCheck {
   return {
-    name: sanitize(check.name.trim()),
-    command: sanitize(check.command.trim()),
-    status: check.status,
+    name: sanitize(check.name),
+    status: check.status || "unknown",
+    command: check.command ? sanitize(check.command) : undefined,
     evidence: check.evidence ? sanitize(check.evidence) : undefined
   };
-}
-
-function comparePlanned(actualFiles: ChangesetFile[], plannedFiles: string[]): string[] {
-  const planned = new Set(plannedFiles.map((file) => file.replaceAll("\\", "/")));
-  return actualFiles
-    .map((file) => file.path.replaceAll("\\", "/"))
-    .filter((file) => !planned.has(file));
 }
 
 function validateChangeset(options: ChangesetAddOptions): void {
   if (!options.taskId.trim()) throw new Error("Changeset requires taskId");
   if (!options.actor.trim()) throw new Error("Changeset requires actor");
-  if (!options.summary.trim()) throw new Error("Changeset requires summary");
-  if (options.actualFiles.length === 0) throw new Error("Changeset requires actual files");
+  if (!options.action.trim()) throw new Error("Changeset requires action");
+  if (!options.createdBy.trim()) throw new Error("Changeset requires createdBy");
+  if (options.plannedFiles.length === 0) throw new Error("Changeset requires plannedFiles");
+  if (options.actualFiles.length === 0) throw new Error("Changeset requires actualFiles");
+  if (options.checks.length === 0) throw new Error("Changeset requires checks");
   if ((options.riskLevel === "high" || options.riskLevel === "critical") && !options.rollbackRef?.trim()) {
     throw new Error("High-risk changeset requires rollbackRef");
   }
+}
+
+function computeUnplanned(planned: string[], actual: ChangesetFile[]): string[] {
+  const plannedSet = new Set(planned.map((item) => sanitize(item)));
+  return actual.map((file) => sanitize(file.path)).filter((path) => !plannedSet.has(path));
+}
+
+function computeMissing(planned: string[], actual: ChangesetFile[]): string[] {
+  const actualSet = new Set(actual.map((file) => sanitize(file.path)));
+  return planned.map((path) => sanitize(path)).filter((path) => !actualSet.has(path));
+}
+
+function checksPassing(checks: ChangesetCheck[]): boolean {
+  return checks.length > 0 && checks.every((check) => check.status === "pass" || check.status === "skipped");
 }
 
 export function initializeChangesetRegistry(options: ChangesetOptions): ChangesetRecord[] {
@@ -175,33 +192,36 @@ export function listChangesets(options: ChangesetOptions): ChangesetRecord[] {
 export function addOrUpdateChangeset(options: ChangesetAddOptions): ChangesetRecord {
   validateChangeset(options);
   const records = loadChangesetRegistry(options);
-  const existingIndex = records.findIndex((record) => record.taskId === options.taskId && record.planId === options.planId && record.status !== "revoked");
-  const existing = existingIndex >= 0 ? records[existingIndex] : undefined;
+  const plannedFiles = sanitizeList(options.plannedFiles);
   const actualFiles = options.actualFiles.map(normalizeFile);
-  const plannedFiles = normalizeList(options.plannedFiles);
-  const unplannedFiles = comparePlanned(actualFiles, plannedFiles);
-  const checks = (options.checks ?? []).map(normalizeCheck);
-  const checksPassed = checks.length > 0 && checks.every((check) => check.status === "pass");
+  const unplannedFiles = computeUnplanned(plannedFiles, actualFiles);
+  const missingPlannedFiles = computeMissing(plannedFiles, actualFiles);
+  const normalizedChecks = options.checks.map(normalizeCheck);
+  const existingIndex = records.findIndex((record) => record.taskId === options.taskId && record.actor === options.actor && record.action === options.action && (record.target || "") === (options.target || "") && record.status !== "revoked");
+  const existing = existingIndex >= 0 ? records[existingIndex] : undefined;
+  const status: ChangesetStatus = checksPassing(normalizedChecks) && unplannedFiles.length === 0 && missingPlannedFiles.length === 0 ? "validated" : "recorded";
   const record: ChangesetRecord = {
     changesetId: existing?.changesetId ?? `changeset.${sanitize(options.taskId).toLowerCase()}.${randomUUID()}`,
     taskId: sanitize(options.taskId),
-    planId: options.planId ? sanitize(options.planId) : undefined,
     actor: sanitize(options.actor),
-    status: checksPassed && unplannedFiles.length === 0 ? "verified" : "recorded",
+    action: sanitize(options.action),
+    target: options.target ? sanitize(options.target) : undefined,
+    status,
     riskLevel: options.riskLevel,
     createdAt: existing?.createdAt ?? nowIso(),
     updatedAt: nowIso(),
+    createdBy: sanitize(options.createdBy),
+    planId: options.planId ? sanitize(options.planId) : undefined,
+    rollbackRef: options.rollbackRef ? sanitize(options.rollbackRef) : undefined,
     commitHash: options.commitHash ? sanitize(options.commitHash) : undefined,
-    baseCommit: options.baseCommit ? sanitize(options.baseCommit) : undefined,
     branch: options.branch ? sanitize(options.branch) : undefined,
-    summary: sanitize(options.summary),
     plannedFiles,
     actualFiles,
     unplannedFiles,
-    checks,
-    rollbackRef: options.rollbackRef ? sanitize(options.rollbackRef) : undefined,
-    reportPath: options.reportPath ? sanitize(options.reportPath) : undefined,
-    notes: normalizeList(options.notes ?? [])
+    missingPlannedFiles,
+    checks: normalizedChecks,
+    diffSummary: options.diffSummary ? sanitize(options.diffSummary) : undefined,
+    notes: sanitizeList(options.notes ?? [])
   };
   if (existingIndex >= 0) records[existingIndex] = record;
   else records.push(record);
@@ -210,29 +230,44 @@ export function addOrUpdateChangeset(options: ChangesetAddOptions): ChangesetRec
   return record;
 }
 
-export function evaluateChangeset(options: ChangesetOptions & { taskId: string; planId?: string }): ChangesetSignal {
-  const records = loadChangesetRegistry(options).filter((record) => record.taskId === options.taskId && (!options.planId || record.planId === options.planId));
-  const selected = records.find((record) => record.status === "verified") ?? records.find((record) => record.status !== "revoked");
+export function findChangesets(options: ChangesetOptions & { taskId: string; actor?: string; action?: string; target?: string }): ChangesetRecord[] {
+  return loadChangesetRegistry(options).filter((record) => {
+    if (record.taskId !== options.taskId) return false;
+    if (options.actor && record.actor !== options.actor) return false;
+    if (options.action && record.action !== options.action) return false;
+    if (options.target && record.target !== options.target) return false;
+    return true;
+  });
+}
+
+export function evaluateChangeset(options: ChangesetOptions & { taskId: string; actor: string; action: string; target?: string }): ChangesetSignal {
+  const matches = findChangesets(options);
+  const selected = matches.find((record) => record.status === "validated") ?? matches.find((record) => record.status !== "revoked");
   const reasons: string[] = [];
   const warnings: string[] = [];
   if (!selected) reasons.push("No matching changeset found.");
   if (selected && selected.unplannedFiles.length > 0) warnings.push("Changeset contains unplanned files.");
-  if (selected && selected.checks.length === 0) warnings.push("Changeset has no check results.");
-  if (selected && selected.checks.some((check) => check.status === "fail")) warnings.push("Changeset has failed checks.");
+  if (selected && selected.missingPlannedFiles.length > 0) warnings.push("Changeset is missing planned files.");
+  if (selected && !checksPassing(selected.checks)) warnings.push("Changeset checks are not all passing or skipped.");
   return {
     taskId: options.taskId,
+    actor: options.actor,
+    action: options.action,
+    target: options.target,
     matched: Boolean(selected),
     changesetId: selected?.changesetId,
     status: selected?.status,
-    verified: selected?.status === "verified",
+    recorded: Boolean(selected && selected.status !== "revoked"),
+    validated: selected?.status === "validated",
+    hasCommit: Boolean(selected?.commitHash),
     plannedFilesPresent: Boolean(selected && selected.plannedFiles.length > 0),
     actualFilesPresent: Boolean(selected && selected.actualFiles.length > 0),
     unplannedFilesPresent: Boolean(selected && selected.unplannedFiles.length > 0),
-    checksPassed: Boolean(selected && selected.checks.length > 0 && selected.checks.every((check) => check.status === "pass")),
-    rollbackRefPresent: Boolean(selected?.rollbackRef),
+    missingPlannedFilesPresent: Boolean(selected && selected.missingPlannedFiles.length > 0),
+    checksPassing: Boolean(selected && checksPassing(selected.checks)),
     reasons,
     warnings,
-    matchedChangesetIds: records.map((record) => record.changesetId)
+    matchedChangesetIds: matches.map((record) => record.changesetId)
   };
 }
 
@@ -248,59 +283,39 @@ export function revokeChangeset(options: ChangesetOptions & { changesetId: strin
   return record;
 }
 
-export function parseChangesetFileInput(input: string, plannedFiles: string[] = []): ChangesetFile {
+export function parseChangesetFileInput(input: string): ChangesetFile {
   const parts = input.split("|").map((part) => part.trim());
-  const path = parts[0] || "unknown";
-  const planned = plannedFiles.includes(path);
   return {
-    path,
+    path: parts[0] || "unknown",
     status: (parts[1] as ChangesetFile["status"]) || "unknown",
-    planned,
-    reason: parts[2] || undefined
+    additions: parts[2] ? Number.parseInt(parts[2], 10) : undefined,
+    deletions: parts[3] ? Number.parseInt(parts[3], 10) : undefined
   };
 }
 
-export function parseChangesetCheckInput(input: string): ChangesetCheckResult {
+export function parseChangesetCheckInput(input: string): ChangesetCheck {
   const parts = input.split("|").map((part) => part.trim());
   return {
     name: parts[0] || "check",
-    command: parts[1] || "unknown",
-    status: (parts[2] as ChangesetCheckResult["status"]) || "skipped",
+    status: (parts[1] as ChangesetCheck["status"]) || "unknown",
+    command: parts[2] || undefined,
     evidence: parts[3] || undefined
   };
-}
-
-export function readGitChangedFiles(repositoryPath: string): ChangesetFile[] {
-  const output = execFileSync("git", ["status", "--porcelain"], {
-    cwd: repositoryPath,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15000
-  });
-  return output
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const code = line.slice(0, 2).trim();
-      const path = line.slice(2).trim();
-      const status: ChangesetFile["status"] = code.includes("A") ? "added" : code.includes("D") ? "deleted" : code.includes("R") ? "renamed" : code ? "modified" : "unknown";
-      return { path, status, planned: false };
-    });
 }
 
 export function formatChangesetCheck(signal: ChangesetSignal): string {
   return [
     "Changeset Check Result:",
     `- Matched: ${signal.matched}`,
-    `- Verified: ${signal.verified}`,
-    `- Status: ${signal.status || "n/a"}`,
+    `- Recorded: ${signal.recorded}`,
+    `- Validated: ${signal.validated}`,
     `- Changeset ID: ${signal.changesetId || "n/a"}`,
+    `- Has commit: ${signal.hasCommit}`,
     `- Planned files present: ${signal.plannedFilesPresent}`,
     `- Actual files present: ${signal.actualFilesPresent}`,
     `- Unplanned files present: ${signal.unplannedFilesPresent}`,
-    `- Checks passed: ${signal.checksPassed}`,
-    `- Rollback ref present: ${signal.rollbackRefPresent}`,
+    `- Missing planned files present: ${signal.missingPlannedFilesPresent}`,
+    `- Checks passing: ${signal.checksPassing}`,
     "- Reasons:",
     ...(signal.reasons.length > 0 ? signal.reasons.map((reason) => `  * ${reason}`) : ["  * none"]),
     "- Warnings:",

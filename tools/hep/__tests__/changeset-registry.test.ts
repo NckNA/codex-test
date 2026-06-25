@@ -22,25 +22,28 @@ function cleanup(path: string): void {
 }
 
 function base(root: string) {
-  const plannedFiles = ["tools/hep/index.ts"];
   return {
     workspaceRoot: root,
     taskId: "HERMES-CHANGESET-REGISTRY-001",
-    planId: "change-plan.test",
     actor: "maintenance.autopilot",
+    action: "modify",
+    target: "tools/hep/index.ts",
     riskLevel: "medium" as const,
-    summary: "Record actual HEP changes",
-    plannedFiles,
-    actualFiles: [parseChangesetFileInput("tools/hep/index.ts|modified|CLI updated", plannedFiles)],
-    checks: [parseChangesetCheckInput("test|npm test -- --run|pass|827 tests")],
-    rollbackRef: "rb.test.ref",
+    createdBy: "Nick",
+    planId: "plan.test",
+    rollbackRef: "rb.test",
     commitHash: "abc123",
-    branch: "feature/test"
+    branch: "feature/test",
+    plannedFiles: ["tools/hep/index.ts"],
+    actualFiles: [parseChangesetFileInput("tools/hep/index.ts|modified|10|2")],
+    checks: [parseChangesetCheckInput("test|pass|npm test -- --run|tests pass")],
+    diffSummary: "1 file changed",
+    notes: ["test changeset"]
   };
 }
 
 describe("changeset registry", () => {
-  it("initializes empty registry", () => {
+  it("initializes an empty registry", () => {
     const root = workspace();
     try {
       expect(initializeChangesetRegistry({ workspaceRoot: root })).toEqual([]);
@@ -50,30 +53,23 @@ describe("changeset registry", () => {
     }
   });
 
-  it("adds and lists a verified changeset", () => {
+  it("adds and lists a validated changeset", () => {
     const root = workspace();
     try {
       const record = addOrUpdateChangeset(base(root));
-      expect(record.status).toBe("verified");
+      expect(record.status).toBe("validated");
       expect(record.unplannedFiles).toEqual([]);
+      expect(record.missingPlannedFiles).toEqual([]);
       expect(listChangesets({ workspaceRoot: root })).toHaveLength(1);
     } finally {
       cleanup(root);
     }
   });
 
-  it("detects unplanned files", () => {
+  it("requires planned files", () => {
     const root = workspace();
     try {
-      const record = addOrUpdateChangeset({
-        ...base(root),
-        actualFiles: [
-          parseChangesetFileInput("tools/hep/index.ts|modified|planned", ["tools/hep/index.ts"]),
-          parseChangesetFileInput("tools/hep/extra.ts|added|not planned", ["tools/hep/index.ts"])
-        ]
-      });
-      expect(record.status).toBe("recorded");
-      expect(record.unplannedFiles).toContain("tools/hep/extra.ts");
+      expect(() => addOrUpdateChangeset({ ...base(root), plannedFiles: [] })).toThrow(/plannedFiles/);
     } finally {
       cleanup(root);
     }
@@ -82,7 +78,7 @@ describe("changeset registry", () => {
   it("requires actual files", () => {
     const root = workspace();
     try {
-      expect(() => addOrUpdateChangeset({ ...base(root), actualFiles: [] })).toThrow(/actual files/);
+      expect(() => addOrUpdateChangeset({ ...base(root), actualFiles: [] })).toThrow(/actualFiles/);
     } finally {
       cleanup(root);
     }
@@ -97,24 +93,56 @@ describe("changeset registry", () => {
     }
   });
 
-  it("evaluates matching changeset", () => {
+  it("records unplanned files", () => {
     const root = workspace();
     try {
-      addOrUpdateChangeset(base(root));
-      const signal = evaluateChangeset({ workspaceRoot: root, taskId: "HERMES-CHANGESET-REGISTRY-001", planId: "change-plan.test" });
-      expect(signal.matched).toBe(true);
-      expect(signal.verified).toBe(true);
-      expect(signal.checksPassed).toBe(true);
+      const record = addOrUpdateChangeset({
+        ...base(root),
+        actualFiles: [
+          parseChangesetFileInput("tools/hep/index.ts|modified|10|2"),
+          parseChangesetFileInput("tools/hep/extra.ts|added|1|0")
+        ]
+      });
+      expect(record.status).toBe("recorded");
+      expect(record.unplannedFiles).toEqual(["tools/hep/extra.ts"]);
     } finally {
       cleanup(root);
     }
   });
 
-  it("revokes changeset", () => {
+  it("records missing planned files", () => {
+    const root = workspace();
+    try {
+      const record = addOrUpdateChangeset({
+        ...base(root),
+        plannedFiles: ["tools/hep/index.ts", "tools/hep/change-plan.ts"]
+      });
+      expect(record.status).toBe("recorded");
+      expect(record.missingPlannedFiles).toEqual(["tools/hep/change-plan.ts"]);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("evaluates matching changeset", () => {
+    const root = workspace();
+    try {
+      addOrUpdateChangeset(base(root));
+      const signal = evaluateChangeset({ workspaceRoot: root, taskId: "HERMES-CHANGESET-REGISTRY-001", actor: "maintenance.autopilot", action: "modify", target: "tools/hep/index.ts" });
+      expect(signal.matched).toBe(true);
+      expect(signal.validated).toBe(true);
+      expect(signal.hasCommit).toBe(true);
+      expect(signal.checksPassing).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("revokes changesets", () => {
     const root = workspace();
     try {
       const record = addOrUpdateChangeset(base(root));
-      const revoked = revokeChangeset({ workspaceRoot: root, changesetId: record.changesetId, reason: "cleanup", revokedBy: "Nick" });
+      const revoked = revokeChangeset({ workspaceRoot: root, changesetId: record.changesetId, reason: "test cleanup", revokedBy: "Nick" });
       expect(revoked.status).toBe("revoked");
     } finally {
       cleanup(root);
@@ -133,11 +161,11 @@ describe("changeset registry", () => {
     }
   });
 
-  it("formats a safe summary", () => {
+  it("formats safe check summary", () => {
     const root = workspace();
     try {
       addOrUpdateChangeset(base(root));
-      const signal = evaluateChangeset({ workspaceRoot: root, taskId: "HERMES-CHANGESET-REGISTRY-001" });
+      const signal = evaluateChangeset({ workspaceRoot: root, taskId: "HERMES-CHANGESET-REGISTRY-001", actor: "maintenance.autopilot", action: "modify", target: "tools/hep/index.ts" });
       expect(formatChangesetCheck(signal)).toContain("Changeset Check Result");
     } finally {
       cleanup(root);

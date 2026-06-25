@@ -354,7 +354,6 @@ async function main(): Promise<void> {
   const plannedFiles = parseListOption((options.plannedFiles as string) || (options["planned-files"] as string)) ?? [];
   const checkResult = (options.checkResult as string) || (options["check-result"] as string);
   const commitHash = (options.commit as string) || (options["commit"] as string);
-  const baseCommit = (options.baseCommit as string) || (options["base-commit"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
 
@@ -1020,24 +1019,27 @@ async function main(): Promise<void> {
       case "changeset-add": {
         if (!taskId) throw new Error("changeset-add requires --taskId");
         if (!actor) throw new Error("changeset-add requires --actor");
-        if (!summary) throw new Error("changeset-add requires --summary");
+        if (!action) throw new Error("changeset-add requires --action");
+        if (plannedFiles.length === 0) throw new Error("changeset-add requires --planned-files");
         if (!actualFile) throw new Error("changeset-add requires --actual-file");
+        if (!checkResult) throw new Error("changeset-add requires --check-result");
         const { addOrUpdateChangeset, parseChangesetFileInput, parseChangesetCheckInput } = await import("./changeset-registry.ts");
         const record = addOrUpdateChangeset({
           workspaceRoot,
           taskId,
-          planId,
           actor,
+          action,
+          target,
           riskLevel: riskLevel as never,
-          summary,
-          plannedFiles,
-          actualFiles: [parseChangesetFileInput(actualFile, plannedFiles)],
-          checks: checkResult ? [parseChangesetCheckInput(checkResult)] : [],
+          createdBy,
+          planId,
           rollbackRef: rbRef,
           commitHash,
-          baseCommit,
           branch,
-          reportPath: report,
+          plannedFiles,
+          actualFiles: [parseChangesetFileInput(actualFile)],
+          checks: [parseChangesetCheckInput(checkResult)],
+          diffSummary: summary,
           notes: tags
         });
         console.log(JSON.stringify(record, null, 2));
@@ -1045,8 +1047,10 @@ async function main(): Promise<void> {
       }
       case "changeset-check": {
         if (!taskId) throw new Error("changeset-check requires --taskId");
+        if (!actor) throw new Error("changeset-check requires --actor");
+        if (!action) throw new Error("changeset-check requires --action");
         const { evaluateChangeset, formatChangesetCheck } = await import("./changeset-registry.ts");
-        const signal = evaluateChangeset({ workspaceRoot, taskId, planId });
+        const signal = evaluateChangeset({ workspaceRoot, taskId, actor, action, target });
         console.log(formatChangesetCheck(signal));
         break;
       }

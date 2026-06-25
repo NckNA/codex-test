@@ -4,7 +4,7 @@
 PASS
 
 ## Summary
-Added Changeset Registry for recording actual changed files after work is completed.
+Added the Hermes Changeset Registry to record actual changes after work is performed.
 
 ## Changed files
 - `tools/hep/changeset-registry.ts`
@@ -21,11 +21,11 @@ Added Changeset Registry for recording actual changed files after work is comple
   - saveChangesetRegistry
   - listChangesets
   - addOrUpdateChangeset
+  - findChangesets
   - evaluateChangeset
   - revokeChangeset
   - parseChangesetFileInput
   - parseChangesetCheckInput
-  - readGitChangedFiles
   - formatChangesetCheck
 - Added CLI commands:
   - changeset-init
@@ -35,15 +35,16 @@ Added Changeset Registry for recording actual changed files after work is comple
   - changeset-revoke
 
 ## Safety behavior
-- Changeset requires actual changed files.
+- Changesets require planned files, actual files, checks, actor, action, and createdBy.
 - High-risk and critical changesets require rollbackRef.
-- Registry computes unplanned files by comparing actualFiles against plannedFiles.
-- Changeset is marked verified only when checks pass and no unplanned files are present.
+- The registry records unplanned files and missing planned files.
+- A changeset is validated only when checks pass and planned/actual files match.
+- Records are sanitized before persistence.
 
 ## Validation
-- targeted changeset-registry test: PASS, 9 tests
+- targeted changeset-registry test: PASS, 11 tests
 - lint: PASS
-- full test suite: PASS, 79 files / 836 tests
+- full test suite: PASS, 79 files / 838 tests
 - build: PASS
 
 ## Smoke
