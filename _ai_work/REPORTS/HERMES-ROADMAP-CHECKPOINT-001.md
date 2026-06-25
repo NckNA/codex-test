@@ -1,18 +1,137 @@
 # HERMES-ROADMAP-CHECKPOINT-001
 
-Status: checkpoint / roadmap capture  
-Type: report-only  
+Status: refreshed roadmap checkpoint  
+Type: report-only / architecture checkpoint  
+Refreshed: 2026-06-25 Asia/Almaty  
+Workspace root: `D:\hermes`  
 Repository context: `D:\hermes\codex-test`  
-Primary HEP branch: `feature/hermes-maintenance-trio-002-finalize`  
-Last confirmed HEP commit: `265d2ac feat(hep): add asset registry`  
+Primary HEP branch checked: `feature/hermes-maintenance-trio-002-finalize`  
+Pre-refresh HEAD observed: `750b9110c1f3ef3a9f6206e12ec3b837b59b53c4`  
+Policy used for this refresh: `HERMES-ROADMAP-CHECKPOINT-001`, report-only, local-only, no app code, no migrations, no cloud Supabase.
 
-This checkpoint records the current Hermes / DentalFlow roadmap so future task sessions do not lose the broader 40+ layer plan.
+This document is the long-memory checkpoint for Hermes / HEP / DentalFlow. It exists so future sessions do not rebuild the ship from scraps, screenshots, and human optimism.
 
 ---
 
-## 1. Current confirmed foundation
+## 0. Executive verdict
 
-The following HEP foundation layers have been completed or accepted in this session history:
+The earlier checkpoint was useful but stale. It captured the broad 40+ layer map, but its implementation status lagged behind the current HEP branch.
+
+Current reality:
+
+- Hermes bridge is reachable.
+- `D:\hermes` governance zones exist.
+- `D:\hermes\codex-test` is a clean Git repo on the active HEP branch before this report refresh.
+- Several layers previously marked as pending are now present locally as HEP modules and tests.
+- The roadmap still needs separation between implemented-local, active-next, and future strategic layers.
+- HEP safety/governance work and DentalFlow product/UI work must remain separate branches and policies.
+
+Main architectural correction:
+
+Hermes is not the brain by itself. Hermes is the ship, control panel, registries, safety systems, logs, gates, and mission discipline. Agents are the crew. Without gates, agents become chaos with keyboard access. Without agents, Hermes is a very organized empty hull.
+
+---
+
+## 1. Current observed workspace state
+
+### 1.1 Hermes bridge and workspace
+
+- Hermes CLI reachable.
+- Workspace root: `D:\hermes`.
+- All core governance zones are present:
+  - `core`
+  - `projects`
+  - `worktrees`
+  - `worktrees/active`
+  - `worktrees/archived`
+  - `reports`
+  - `reports/active`
+  - `reports/archived`
+  - `reports/indexes`
+  - `policies`
+  - `policies/active`
+  - `policies/archived`
+  - `memory`
+  - `backups`
+  - `temp`
+  - `logs`
+  - `agents`
+
+### 1.2 Current local Git / branch state before this report edit
+
+- Repo: `D:\hermes\codex-test`
+- Branch: `feature/hermes-maintenance-trio-002-finalize`
+- HEAD before refresh: `750b9110c1f3ef3a9f6206e12ec3b837b59b53c4`.
+- Working tree before refresh: clean.
+- `origin/main` observed at `258e3174ea7c22a0e7f8f5c35089fde9225a84df`.
+
+Important distinction:
+
+- Many HEP layers are implemented in the active local HEP branch.
+- That does not automatically mean every HEP layer is merged to `main`.
+- Future agents must state whether they mean `implemented locally`, `committed on HEP branch`, `pushed`, `PR opened`, or `merged to main`.
+
+### 1.3 Root workspace cleanup candidates
+
+The workspace audit found several non-zone root folders:
+
+- `D:\hermes\moltbook-hermes`
+- `D:\hermes\quarantine`
+- `D:\hermes\super-hermes-check`
+- `D:\hermes\tasks`
+
+Decision:
+
+- Do not delete.
+- Do not move automatically.
+- Classify later through an explicit cleanup/inventory task.
+- Human approval alone is not enough for protected or destructive cleanup.
+
+---
+
+## 2. Architecture model: Hermes as ship
+
+The correct model has these layers:
+
+1. Hull / workspace zones
+   - `core`, `projects`, `worktrees`, `reports`, `memory`, `policies`, `backups`, `logs`, `agents`.
+
+2. Navigation / mission
+   - Mission Control, Mission Queue, task order, stop conditions.
+
+3. Law / safety constitution
+   - Guardian ACL, Dependency Guard, Hazard Registry, Decision Gateway, Decision Policy.
+
+4. Property / asset governance
+   - Asset Registry, Asset Ownership, Owner Approval, Asset Lease, Asset Lifecycle.
+
+5. Change discipline
+   - Change Plan, Changeset Registry, Rollback Contract, Rollback Verify.
+
+6. Exceptions
+   - Waiver Registry, waiver verification, high-risk waiver gates.
+
+7. Crew management
+   - Agent capability matrix, agent reputation, worker scheduler, handoff protocol.
+
+8. Memory and knowledge
+   - Memory tiers, knowledge index, report index, lessons registry.
+
+9. Product work
+   - DentalFlow UI/backend/schema tasks, finance flows, timeline, stock, audit logs.
+
+10. Host safety
+   - Windows/storage/disk health/backup/restore/security triage.
+
+The key rule: do not put all of this into one giant task. That is not architecture. That is a ceremonial bonfire for future debugging.
+
+---
+
+## 3. Completed / implemented HEP foundation in active HEP branch
+
+These layers are treated as completed or locally implemented in the active HEP branch, based on current repo tree, reports, registries, and recent commit history.
+
+### 3.1 Foundation and maintenance spine
 
 1. `HERMES-MAINTENANCE-TRIO-001`
 2. `HERMES-MAINTENANCE-TRIO-002`
@@ -31,269 +150,195 @@ The following HEP foundation layers have been completed or accepted in this sess
 15. `HERMES-DECISION-POLICY-001`
 16. `HERMES-ASSET-REGISTRY-001`
 
-Current foundation meaning:
+Meaning:
 
-- Guardian ACL checks actor/action/target permission.
-- Dependency Guard checks paths, dependencies, and impact signals.
-- Hazard Registry stores known risks and prior blockers.
+- Guardian ACL checks actor/action/target permissions.
+- Dependency Guard checks impact and dependency signals.
+- Hazard Registry stores known hazards and blockers.
 - Event Log records task and decision events.
-- Observability summarizes failures, denied actions, escalations, reports, and missing modules.
-- Guardrail Blocker writes blocker reports when work cannot proceed safely.
-- Decision Gateway collects signals and produces decisions.
-- Decision Policy evaluates rules and precedence.
-- Asset Registry identifies what a target is, how critical it is, and how protected it is.
+- Observability summarizes denials, escalations, reports, failures, and missing modules.
+- Guardrail Blocker writes blocker reports when safe execution is impossible.
+- Decision Gateway aggregates safety signals.
+- Decision Policy applies rule precedence.
+- Asset Registry identifies assets, criticality, and protection.
+
+### 3.2 Asset / ownership / exception layers now present locally
+
+The previous checkpoint marked these as future or pending. Current local branch shows them as present as modules/tests or runtime registry structures:
+
+1. `HERMES-ASSET-OWNERSHIP-001`
+   - `tools/hep/asset-ownership.ts`
+   - `tools/hep/__tests__/asset-ownership.test.ts`
+   - runtime ownership registry exists under `D:\hermes\memory\ownership\ownership-registry.json`
+
+2. `HERMES-WAIVER-REGISTRY-001`
+   - `tools/hep/waiver-registry.ts`
+   - `tools/hep/__tests__/waiver-registry.test.ts`
+   - runtime waiver folder exists under `D:\hermes\memory\waivers`
+
+3. `HERMES-ROLLBACK-CONTRACT-001`
+   - `tools/hep/rollback-contract.ts`
+   - `tools/hep/__tests__/rollback-contract.test.ts`
+   - runtime rollback folder exists under `D:\hermes\memory\rollback`
+
+4. Waiver / rollback reference hardening
+   - waiver rollback reference CLI/task exists in reports
+   - rollback verification task exists in reports
+   - high-risk waiver verification behavior appears in recent HEP commit history
+
+Important correction:
+
+These are no longer just future ideas. They are implemented enough to be treated as part of the current local HEP spine, but they still need merge/PR status clarity and quality verification before being called production-stable.
+
+### 3.3 Change and policy layers now present locally
+
+1. `HERMES-BLOCKER-ROOT-CAUSE-001`
+2. `HERMES-POLICY-SIMULATOR-001`
+3. `HERMES-CHANGE-PLAN-001`
+4. `HERMES-CHANGESET-REGISTRY-001`
+5. Changeset-to-decision-gateway integration
+6. Task status snapshot / governance PR prep layers
+
+Observed files include:
+
+- `tools/hep/blocker-root-cause.ts`
+- `tools/hep/change-plan.ts`
+- `tools/hep/changeset-registry.ts`
+- matching test files under `tools/hep/__tests__`
+
+Status:
+
+- Treat as local implemented HEP layers.
+- Do not assume merged to `main` without checking PR/merge metadata.
+
+### 3.4 Mission / self-improvement modules now present locally
+
+Observed files include:
+
+- `tools/hep/mission-control.ts`
+- `tools/hep/__tests__/mission-control.test.ts`
+- `tools/hep/self-improvement-gate.ts`
+- `tools/hep/__tests__/self-improvement-gate.test.ts`
+- runtime self-improvement registry under `D:\hermes\memory\self-improvement\self-improvement-registry.json`
+
+Interpretation:
+
+- `HERMES-MISSION-CONTROL-001` has at least a local module/test foundation.
+- `HERMES-SELF-IMPROVEMENT-GATE-001` has at least a local module/test foundation.
+- Strategic self-improvement is still not “free autonomy”. It must remain gated by ownership, waiver, rollback, mission alignment, policy, tests, reports, and clean Git state.
 
 ---
 
-## 2. Active / nearest HEP tasks
+## 4. Active next HEP queue
 
-### 2.1 `HERMES-ASSET-OWNERSHIP-001`
+This is the practical next queue after the current local implementation state. These are not all new features; several are hardening, reconciliation, or merge-readiness tasks.
 
-Status: pending / not implemented  
-Priority: high  
-Type: HEP foundation / asset governance
+### 4.1 `HERMES-GOVERNANCE-PR-PREP-001`
 
 Purpose:
 
-Asset Registry answers: what is this target?  
-Asset Ownership must answer: who is responsible for it and who may approve or perform actions?
+Prepare the HEP governance branch for PR/merge review.
 
-Core principle:
+Required outputs:
 
-- Human approval is not root access.
-- Owner approval is not a universal override.
-- Critical/protected destructive actions remain `DENY` until a future Waiver Registry exists.
+- current branch and HEAD
+- PR status or draft PR status
+- changed file summary
+- verification report
+- CI status if available
+- explicit note whether HEP stack is merged to `main`
 
-Expected outputs:
+Why:
 
-- `tools/hep/asset-ownership.ts`
-- `tools/hep/__tests__/asset-ownership.test.ts`
-- Gateway integration with `ownershipSignal`
-- Decision Policy ownership rules
-- CLI commands: `ownership-init`, `ownership-list`, `ownership-see`, `ownership-check`
-- Runtime ownership registry: `D:\hermes\memory\assets\asset-ownership.json`
-- Runtime events: `D:\hermes\logs\assets\asset-ownership-events.jsonl`
+The local branch contains many HEP layers. Until merge/PR state is clean, future agents may confuse “exists locally” with “available on main”. Humans do this too, then blame the tooling. Charming tradition.
 
-Known issue:
-
-A local Hermes_S attempt was blocked by safety layer while writing/integrating the module. The partial changes were manually cleaned up. Repo returned to clean state.
-
-Recommended executor:
-
-- Google/Gemini or Codex when available.
-- Hermes_S may still hit write/integration guardrails.
-
----
-
-### 2.2 `HERMES-WAIVER-REGISTRY-001`
-
-Status: future after Ownership  
-Priority: high  
-Type: HEP safety / bounded exceptions
+### 4.2 `HERMES-ROADMAP-CHECKPOINT-001`
 
 Purpose:
 
-Create a strict, auditable exception mechanism for risky actions.
-
-Waiver must not mean simple human approval.
-
-Required waiver fields:
-
-- `taskId`
-- `assetId` or `hazardId`
-- `action`
-- `target`
-- `scope`
-- `reason`
-- `expiresAt`
-- `allowedFiles` / `allowedTargets`
-- `rollbackPlan`
-- `owner` / `reviewer`
-- explicit confirmation phrase
-- audit event id
+Keep this document current.
 
 Rules:
 
-- Waiver can narrow a permission, not disable safety globally.
-- Critical/protected destructive actions remain denied until this layer explicitly defines safe exception handling.
-- Waiver must expire.
-- Waiver must be task-bound.
+- Update after major HEP roadmap changes.
+- Separate local implementation, merged implementation, active next, and future layers.
+- Never mix DentalFlow product backlog with HEP safety backlog without labels.
 
----
+### 4.3 `HERMES-TASK-POLICY-APP-CODE-PERMISSION-001`
 
-### 2.3 `HERMES-ROLLBACK-CONTRACT-001`
-
-Status: future  
-Priority: high  
-Type: HEP safety / reversibility
-
-Purpose:
-
-Every non-trivial change must have an explicit rollback path.
-
-Required model:
-
-- changed files
-- expected changed files
-- rollback command or revert procedure
-- verification after rollback
-- backup/snapshot pointer if needed
-- no rollback of protected user data without explicit support
-
-Why:
-
-Safe self-improvement is impossible if the system can change itself but cannot reliably return to the previous safe state.
-
----
-
-### 2.4 `HERMES-MISSION-CONTROL-001`
-
-Status: future  
-Priority: high  
-Type: HEP coordination / goal control
-
-Purpose:
-
-Define the active mission before agents perform work.
-
-Mission must define:
-
-- current objective
-- allowed task families
-- forbidden task families
-- active constraints
-- task order
-- stop conditions
-- owner/reviewer
-
-Why:
-
-Without mission alignment, agents may improve random files just because they found them. That is not autonomy; it is wandering with admin rights.
-
----
-
-### 2.5 `HERMES-SELF-IMPROVEMENT-GATE-001`
-
-Status: strategic future  
-Priority: high but not now  
-Type: HEP self-modification gate
-
-Purpose:
-
-Create the final gate that decides whether Hermes may modify its own HEP systems.
-
-Prerequisites:
-
-- Asset Registry
-- Asset Ownership
-- Waiver Registry
-- Rollback Contract
-- Mission Control
-- Observability
-- CI/test gate
-- report gate
-
-Must check:
-
-- asset criticality
-- ownership
-- policy
-- waiver if needed
-- rollback plan
-- mission alignment
-- tests
-- report
-- clean git state
-
----
-
-## 3. Policy / permission infrastructure tasks
-
-### 3.1 `HERMES-TASK-POLICY-APP-CODE-PERMISSION-001`
-
-Status: discovered blocker  
-Priority: high for app/UI tasks  
-Type: HEP policy parser / permission model
-
-Discovered during attempt to prepare `PATIENT-FINANCE-UI-001`.
+Priority: very high for DentalFlow UI work.
 
 Problem:
 
-The UI task needed frontend/app changes, but active policy inference produced:
-
-- `gitMode: report_only`
-- `gitCodeChanges: false`
-- `appCodeChanges: false`
-- risk flags including code-change denial
-
-Even though the task itself was a UI implementation task.
+UI/product tasks currently hit policy risk when `appCodeChanges=false` or `gitMode=report_only` is inferred.
 
 Goal:
 
-Teach task policy layer to safely issue `appCodeChanges=true` for explicit app/UI tasks with strict file allowlists.
+Permit explicit UI/app tasks to set `appCodeChanges=true` only with strict allowlists.
 
 Requirements:
 
-- taskType must be `ui` or `app`
-- explicit allowed file paths or directories
-- migrations forbidden unless task is schema/cloud
+- task type must explicitly be `ui` or `app`
+- allowed file paths/directories must be explicit
 - HEP files forbidden unless HEP task
+- migrations forbidden unless schema/cloud task
 - generated types forbidden unless explicit
 - package files forbidden unless explicit
-- cloud Supabase forbidden unless cloud task
-- report must be allowed
+- cloud Supabase forbidden unless explicit cloud task
+- report path required
+- smoke/check profile required
 
-Why:
-
-Without this, Hermes can protect code but cannot safely change product UI. A locked toolbox is safe but not useful.
-
----
-
-### 3.2 `HERMES-POLICY-SIMULATOR-001`
-
-Status: future  
-Priority: medium-high  
-Type: policy tooling
+### 4.4 `HERMES-HUMAN-APPROVAL-CONSTRAINTS-001`
 
 Purpose:
 
-Simulate decisions before applying a task policy.
+Formalize the core rule:
 
-Input:
+- human approval confirms intent
+- human approval does not disable safety
+- human approval is not root override
+- critical/protected destructive actions remain `DENY` unless a bounded waiver/owner/rollback path allows safe exception handling
 
-- task spec
-- proposed changed files
-- actor
-- action
-- target
+This rule already exists conceptually and in ownership logic, but deserves a dedicated hardening layer because humans keep trying to solve safety with “ну я же разрешил”. No, that is not a security model. That is a confession.
 
-Output:
-
-- predicted allow/deny/escalate
-- reasons
-- matched policy rules
-- missing permissions
-- required task scope changes
-
-Why:
-
-Avoid starting a task only to discover halfway that the active policy cannot permit the required work.
-
----
-
-### 3.3 `HERMES-TASK-TEMPLATE-REGISTRY-001`
-
-Status: future  
-Priority: medium  
-Type: task policy standardization
+### 4.5 `HERMES-ROLLBACK-VERIFY-001`
 
 Purpose:
 
-Create standard templates for common task families:
+Prove rollback plans work.
+
+Required:
+
+- verify rollback procedure
+- record rollback evidence
+- connect rollback evidence to changeset
+- block high-risk changes when rollback is only theoretical
+
+### 4.6 `HERMES-REPORT-QUALITY-GATE-001`
+
+Purpose:
+
+Accept reports only if they contain:
+
+- taskId
+- branch
+- commit hash
+- changed files
+- checks
+- smoke or reason no smoke was run
+- blockers/limitations
+- clean/dirty Git state
+- recommended next task
+
+### 4.7 `HERMES-TASK-TEMPLATE-REGISTRY-001`
+
+Purpose:
+
+Standard task templates for:
 
 - HEP report-only
 - HEP tooling code
-- frontend UI
+- DentalFlow frontend UI
 - backend repository/client
 - schema/migration
 - cloud migration apply
@@ -301,247 +346,11 @@ Create standard templates for common task families:
 - finance workflow
 - host cleanup
 
-Each template should define:
-
-- allowed files
-- forbidden files
-- default policy
-- required checks
-- required report fields
-- smoke expectations
-
----
-
-## 4. Asset lifecycle / governance future layers
-
-### 4.1 `HERMES-ASSET-INVENTORY-001`
-
-Status: optional future  
-Priority: medium  
-Type: HEP asset discovery
+### 4.8 `HERMES-AGENT-HANDOFF-PROTOCOL-001`
 
 Purpose:
 
-Scan workspace/repo/runtime and propose missing asset records.
-
-Should discover:
-
-- HEP modules
-- runtime memory files
-- logs
-- report indexes
-- worktrees
-- protected external folders
-- app roots
-- cloud config references
-
-Important:
-
-Inventory proposes records only. No auto-delete, auto-archive, or auto-move.
-
----
-
-### 4.2 `HERMES-ASSET-LEASE-001`
-
-Status: future  
-Priority: medium  
-Type: asset concurrency control
-
-Purpose:
-
-Prevent multiple agents/tasks from modifying the same asset at the same time.
-
-Lease fields:
-
-- assetId
-- taskId
-- actor
-- leaseType: read/write/exclusive
-- expiresAt
-- reason
-- heartbeat
-
----
-
-### 4.3 `HERMES-ASSET-LIFECYCLE-001`
-
-Status: future  
-Priority: medium  
-Type: asset lifecycle management
-
-Purpose:
-
-Formalize lifecycle states:
-
-- active
-- protected
-- archive_candidate
-- archived
-- deprecated
-- quarantined
-- unknown
-
-No lifecycle transition should happen without policy, owner, and event log.
-
----
-
-### 4.4 `HERMES-OWNER-APPROVAL-FLOW-001`
-
-Status: future after Ownership  
-Priority: medium-high  
-Type: approval workflow
-
-Purpose:
-
-Turn ownership metadata into actual approval workflow.
-
-Owner approval should be scoped, logged, and limited. It must not override critical safety automatically.
-
----
-
-## 5. Change management future layers
-
-### 5.1 `HERMES-CHANGE-PLAN-001`
-
-Status: future  
-Priority: high  
-Type: planning gate
-
-Purpose:
-
-For non-trivial changes, require a structured change plan before implementation.
-
-Plan fields:
-
-- taskId
-- intent
-- affected assets
-- expected changed files
-- forbidden files
-- risks
-- rollback plan
-- validation plan
-- smoke plan
-
----
-
-### 5.2 `HERMES-CHANGESET-REGISTRY-001`
-
-Status: future  
-Priority: medium-high  
-Type: change tracking
-
-Purpose:
-
-Track each change set across implementation, tests, report, commit, and smoke.
-
-Fields:
-
-- taskId
-- branch
-- commit
-- changed files
-- tests run
-- smoke results
-- report path
-- rollback pointer
-- decision events
-
----
-
-### 5.3 `HERMES-ROLLBACK-VERIFY-001`
-
-Status: future after Rollback Contract  
-Priority: medium-high
-
-Purpose:
-
-Prove rollback actually works, not just that someone wrote a poetic rollback plan.
-
----
-
-## 6. Agent governance future layers
-
-### 6.1 `HERMES-AGENT-REPUTATION-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Track agent reliability.
-
-Subjects:
-
-- Codex
-- Google/Gemini
-- Hermes_S
-- manual human
-- future workers
-
-Metrics:
-
-- successful tasks
-- scope violations
-- dirty repo left behind
-- failed tests
-- blocked attempts
-- rollback required
-- hidden assumptions
-- report quality
-
-Rule:
-
-Repeated failures should reduce future permissions.
-
----
-
-### 6.2 `HERMES-AGENT-CAPABILITY-MATRIX-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Record what each agent can safely do.
-
-Examples:
-
-- Google/Gemini: broad implementation with detailed plan, must be verified
-- Codex: best for code work when available
-- Hermes_S: good for audit, read, report, controlled checks, but can hit safety write blocks
-- human: can approve intent but is not root override
-
----
-
-### 6.3 `HERMES-WORKER-SCHEDULER-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Route tasks to the right worker based on scope, risk, and availability.
-
-Inputs:
-
-- task type
-- risk
-- required permissions
-- active agent availability
-- reputation
-- expected runtime
-
----
-
-### 6.4 `HERMES-AGENT-HANDOFF-PROTOCOL-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Standardize how tasks pass from one agent to another.
+Make handoffs between ChatGPT, Hermes_S, Codex, Google/Gemini, and humans structured.
 
 Handoff must include:
 
@@ -557,295 +366,119 @@ Handoff must include:
 
 ---
 
-## 7. Memory / knowledge future layers
+## 5. Future HEP roadmap layers
 
-### 7.1 `HERMES-MEMORY-TIERS-001`
+### 5.1 Asset governance
 
-Status: future  
-Priority: medium-high
+- `HERMES-ASSET-INVENTORY-001`
+- `HERMES-ASSET-LEASE-001`
+- `HERMES-ASSET-LIFECYCLE-001`
+- `HERMES-OWNER-APPROVAL-FLOW-001`
 
 Purpose:
 
-Separate memory into tiers:
+Move from “we know some assets” to “we can discover, classify, lease, protect, and lifecycle assets without agents trampling each other”.
 
-- runtime facts
-- task reports
-- hazards
-- assets
-- policies
-- long-term knowledge
-- user/project preferences
+### 5.2 Mission / scheduling / workforce
+
+- `HERMES-MISSION-QUEUE-001`
+- `HERMES-WORKER-SCHEDULER-001`
+- `HERMES-AGENT-REPUTATION-001`
+- `HERMES-AGENT-CAPABILITY-MATRIX-001`
+
+Purpose:
+
+Route tasks to the right worker based on capability, risk, reputation, permissions, and availability.
+
+### 5.3 Memory / knowledge
+
+- `HERMES-MEMORY-TIERS-001`
+- `HERMES-KNOWLEDGE-INDEX-001`
+- `HERMES-LESSONS-REGISTRY-001`
+- `HERMES-MEMORY-COMPACTION-001`
+
+Purpose:
+
+Make Hermes remember facts in the right tier instead of relying on chat context, which is basically building a railway on fog.
+
+### 5.4 Risk and safety gates
+
+- `HERMES-RISK-SCORING-001`
+- `HERMES-FAILURE-BUDGET-001`
+- `HERMES-DRY-RUN-SANDBOX-001`
+- `HERMES-CI-GATEWAY-001`
+- `HERMES-PR-REVIEW-GATE-001`
+- `HERMES-SECURITY-SCAN-GATE-001`
+- `HERMES-SECRET-SCAN-GATE-001`
+- `HERMES-DATA-BOUNDARY-GATE-001`
+- `HERMES-BROWSER-QA-GATE-001`
+
+Purpose:
+
+Make risky work provably bounded before it touches code, patient data, secrets, cloud, storage, or browser automation.
+
+### 5.5 Host / Windows / storage
+
+- `HERMES-HOST-HEALTH-GATE-001`
+- `HERMES-DISK-SAFETY-GATE-001`
+- `HERMES-BACKUP-REGISTRY-001`
+- `HERMES-RESTORE-DRILL-001`
+
+Purpose:
+
+Use host condition as a safety signal.
+
+Known host facts:
+
+- `D:` is the main healthy Kingston SSD.
+- `E:` / `G:` are risky/disposable after media rescue.
+- `D:\MEDIA_RESCUE_FROM_TOSHIBA` is protected personal media.
+- Windows remains low-trust due to prior Defender/exclusion/suspicious-tool context.
+
+### 5.6 Observability / audit / reports
+
+- `HERMES-OBSERVABILITY-DASHBOARD-001`
+- `HERMES-AUDIT-TRAIL-HARDENING-001`
+- `HERMES-REPORT-QUALITY-GATE-001`
+
+Purpose:
+
+Make reports and events hard to fake, easy to inspect, and useful for future routing.
 
 ---
 
-### 7.2 `HERMES-KNOWLEDGE-INDEX-001`
+## 6. DentalFlow product roadmap
 
-Status: future  
-Priority: medium
+DentalFlow tasks are product work, not HEP governance work. They must not be mixed into HEP branches.
 
-Purpose:
+### 6.1 Immediate product queue
 
-Index reports, decisions, hazards, assets, and task history for retrieval.
+1. `PATIENT-FINANCE-UI-001`
+2. `CASHIER-PAYMENT-FLOW-001`
+3. `COMPLETED-SERVICES / performed works` finance integration
+4. `TIMELINE` integration
+5. `PAYMENTS-DEBTS` continuation
+6. `STOCK / materials` later
+7. `AUDIT-ACTIVITY-LOG` layers
+8. `ROLE-LABEL / permissions polish`
 
-Should answer:
+### 6.2 Finance rules that must not be broken
 
-- what has been done?
-- what failed?
-- what tasks are next?
-- what files are risky?
-- what rules apply?
+- Completed service is not payment.
+- Invoice is not payment.
+- Payment is not treatment completion.
+- Allocation explains where money went.
+- `patients.balance` is not finance source of truth.
+- Finance reads go through repository/client boundaries.
+- Finance writes go through controlled RPC client boundaries.
+- No direct table writes from finance UI components.
+- No raw RPC calls from finance UI components.
 
----
+### 6.3 `PATIENT-FINANCE-UI-001` strict scope
 
-### 7.3 `HERMES-MISSION-QUEUE-001`
+Allowed purpose:
 
-Status: future  
-Priority: medium
-
-Purpose:
-
-Maintain ordered mission tasks with dependencies.
-
----
-
-## 8. Risk / safety gate future layers
-
-### 8.1 `HERMES-RISK-SCORING-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Compute risk score from signals:
-
-- asset criticality
-- action type
-- actor reputation
-- dependency impact
-- hazards
-- policy mismatch
-- ownership
-- rollback availability
-
----
-
-### 8.2 `HERMES-FAILURE-BUDGET-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Limit how many failures/escalations/denies an agent or task can accumulate before permissions are reduced or work stops.
-
----
-
-### 8.3 `HERMES-DRY-RUN-SANDBOX-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Give agents a safe preview environment before real writes.
-
----
-
-### 8.4 `HERMES-CI-GATEWAY-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Treat CI results as a formal decision signal.
-
----
-
-### 8.5 `HERMES-PR-REVIEW-GATE-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Require PR review signals before merge or before certain high-risk tasks are accepted.
-
----
-
-### 8.6 `HERMES-SECURITY-SCAN-GATE-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Integrate dependency/security scanning as a decision signal.
-
----
-
-### 8.7 `HERMES-SECRET-SCAN-GATE-001`
-
-Status: future  
-Priority: high
-
-Purpose:
-
-Block commits/reports that expose secrets, tokens, credentials, or local sensitive config.
-
----
-
-### 8.8 `HERMES-DATA-BOUNDARY-GATE-001`
-
-Status: future  
-Priority: high
-
-Purpose:
-
-Enforce boundaries for user data, patient data, protected media, logs, and cloud data.
-
----
-
-### 8.9 `HERMES-HUMAN-APPROVAL-CONSTRAINTS-001`
-
-Status: future  
-Priority: high
-
-Purpose:
-
-Formalize that human approval is not root override.
-
-Rules:
-
-- human may confirm intent
-- human may request escalation
-- human cannot automatically downgrade critical risk
-- critical/protected destructive actions need waiver/owner/rollback, not just chat approval
-
----
-
-## 9. Host / storage / backup future layers
-
-### 9.1 `HERMES-HOST-HEALTH-GATE-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Use host health as a decision signal.
-
-Inputs:
-
-- disk health
-- free space
-- Defender status
-- suspicious tools
-- backup availability
-- power/runtime state
-
----
-
-### 9.2 `HERMES-DISK-SAFETY-GATE-001`
-
-Status: future  
-Priority: high
-
-Purpose:
-
-Prevent risky actions on unstable disks, protected media folders, and low-free-space volumes.
-
----
-
-### 9.3 `HERMES-BACKUP-REGISTRY-001`
-
-Status: future  
-Priority: high
-
-Purpose:
-
-Track backups and snapshots.
-
-Fields:
-
-- assetId
-- backupPath
-- createdAt
-- verifiedAt
-- restoreProcedure
-- retention
-
----
-
-### 9.4 `HERMES-RESTORE-DRILL-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Periodically test that backups can actually restore.
-
----
-
-## 10. Observability / reports future layers
-
-### 10.1 `HERMES-OBSERVABILITY-DASHBOARD-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Make observability readable as a dashboard, not only JSON/Markdown snapshots.
-
----
-
-### 10.2 `HERMES-AUDIT-TRAIL-HARDENING-001`
-
-Status: future  
-Priority: medium-high
-
-Purpose:
-
-Make audit/event trails harder to corrupt or silently edit.
-
----
-
-### 10.3 `HERMES-REPORT-QUALITY-GATE-001`
-
-Status: future  
-Priority: medium
-
-Purpose:
-
-Validate reports before accepting tasks.
-
-Checks:
-
-- taskId present
-- changed files listed
-- checks listed
-- smoke listed
-- blockers listed
-- no contradictions
-- no stale PR/CI metadata
-
----
-
-## 11. DentalFlow product backlog
-
-### 11.1 `PATIENT-FINANCE-UI-001`
-
-Status: pending / not implemented  
-Priority: medium-high  
-Type: DentalFlow frontend UI
-
-Purpose:
-
-Add patient card finance tab for:
-
+- patient finance tab UI
 - finance summary
 - invoices
 - invoice items
@@ -858,17 +491,6 @@ Add patient card finance tab for:
 - allocate payment
 - admin void actions
 - role-based UI boundaries
-
-Known current state:
-
-- Patient card already has a `finance` tab label `Финансы`.
-- It currently points to a placeholder / in-development panel.
-- Backend finance schema/repository/RPC/client already exist.
-
-Known blocker for Hermes_S:
-
-- UI task policy did not grant `appCodeChanges=true`.
-- Separate app-code policy permission task is needed before Hermes_S can safely implement this.
 
 Must not touch:
 
@@ -883,155 +505,140 @@ Must not touch:
 - refunds/write-offs
 - reports UI
 
----
+Blocker:
 
-### 11.2 `CASHIER-PAYMENT-FLOW-001`
-
-Status: future after Patient Finance UI  
-Priority: medium
-
-Purpose:
-
-Dedicated cashier workflow for payments and allocations.
-
-Do not start before `PATIENT-FINANCE-UI-001` is complete.
+- Must complete or activate `HERMES-TASK-POLICY-APP-CODE-PERMISSION-001` first so UI tasks can safely receive `appCodeChanges=true` with allowlists.
 
 ---
 
-### 11.3 Completed services / finance integration follow-up
+## 7. Known blockers and risks
 
-Status: future  
-Priority: medium
+### 7.1 Status drift
 
-Purpose:
+The old checkpoint existed but was stale. This is dangerous because agents may downgrade implemented layers to “future” or reimplement what already exists.
 
-Clarify relationship between completed services and invoice items.
+Mitigation:
 
-Rules:
+- Use this refreshed checkpoint.
+- Future agents must check repo tree and Git history before claiming a task is pending.
 
-- completed_service is not payment
-- invoice_item may reference completed_service
-- payment does not complete treatment
-- allocation explains where money went
+### 7.2 Local branch versus main
 
----
+Many HEP layers are on active local HEP branch. Main may not include them.
 
-### 11.4 Timeline integration follow-up
+Mitigation:
 
-Status: future  
-Priority: low-medium
+- Always report branch and HEAD.
+- Always say whether a layer is local, committed, pushed, PR-open, or merged.
 
-Purpose:
+### 7.3 UI policy blocker
 
-Only after finance UI and cashier flow are stable, consider safe timeline events.
+DentalFlow UI work needs app-code permission. Without it, Hermes_S protects the project but cannot productively modify app files.
 
-No timeline integration inside `PATIENT-FINANCE-UI-001`.
+Mitigation:
 
----
+- Do `HERMES-TASK-POLICY-APP-CODE-PERMISSION-001` before `PATIENT-FINANCE-UI-001`.
 
-### 11.5 Stock/material finance boundary
+### 7.4 Root-level workspace clutter
 
-Status: future  
-Priority: low-medium
+There are still root-level project/worktree-like folders.
 
-Purpose:
+Mitigation:
 
-Define boundaries between services, invoice items, and material write-offs.
+- No deletion.
+- Use inventory/classification task.
+- Migrate only through explicit move/archive task.
 
-No stock mutation in current finance UI tasks.
+### 7.5 Human override confusion
 
----
+Human approval can confirm intent, but it must not override hard DENY rules.
 
-### 11.6 Finance reports
+Mitigation:
 
-Status: future  
-Priority: medium
-
-Purpose:
-
-Finance dashboards/reports after core finance UI and cashier flow.
-
-No reports UI in `PATIENT-FINANCE-UI-001`.
+- Hard-code this as `HERMES-HUMAN-APPROVAL-CONSTRAINTS-001` and keep it in Decision Policy / Ownership / Waiver layers.
 
 ---
 
-## 12. Host / Windows tasks already known
+## 8. Permanent invariants
 
-Previously completed or noted:
-
-- `HOST-AUDIT-001`
-- `HOST-MEDIA-COPY-001A`
-- `HOST-MEDIA-VERIFY-001`
-- `HOST-C-DRIVE-RELIEF-002`
-- `HOST-SECURITY-TRIAGE-001`
-- `HOST-MIGRATION-PLAN-001`
-
-Known host facts:
-
-- `D:` is the main healthy Kingston SSD.
-- `E:` / `G:` are treated as risky/disposable after media rescue.
-- `D:\MEDIA_RESCUE_FROM_TOSHIBA` is protected personal media archive.
-- Windows is low-trust due to Defender/exclusions/suspicious tools history.
-- Migration remains important but not immediate.
-
----
-
-## 13. Permanent rules / invariants
-
-These must not be forgotten:
+These rules must survive chat resets, branch switches, and whatever tragic ritual humans call “just a quick change”.
 
 1. Human approval is not root override.
-2. Critical/protected destructive actions default to `DENY`.
-3. HEP tasks and DentalFlow app/UI tasks must not be mixed in the same branch.
-4. UI/app tasks require explicit `appCodeChanges=true` and strict allowlist.
-5. No cloud Supabase unless explicit cloud task.
-6. No migrations unless explicit schema/migration task.
-7. No generated types committed unless explicitly allowed.
-8. No package file edits unless explicitly allowed.
-9. No direct table writes from finance UI components.
-10. No raw RPC calls from finance UI components.
-11. Finance reads go through `FinanceRepository`.
-12. Finance writes go through `FinanceRpcClient`.
-13. `patients.balance` is not finance source of truth.
-14. Completed service is not payment.
-15. Invoice is not payment.
-16. Payment is not treatment completion.
-17. Allocation explains where money went.
-18. Any agent output must include commit hash, changed files, checks, smoke, and clean status.
-19. If blocked, write blocker report instead of guessing or bypassing.
-20. Do not leave dirty repo behind.
+2. Owner approval is not universal override.
+3. Critical/protected destructive actions default to `DENY`.
+4. Waivers must be task-bound, scoped, expiring, auditable, and rollback-linked.
+5. HEP tasks and DentalFlow UI/product tasks must not be mixed in one branch.
+6. UI/app tasks require explicit `appCodeChanges=true` and strict allowlist.
+7. No cloud Supabase unless explicit cloud task.
+8. No migrations unless explicit schema/migration task.
+9. No generated types committed unless explicitly allowed.
+10. No package file edits unless explicitly allowed.
+11. No direct table writes from finance UI components.
+12. No raw RPC calls from finance UI components.
+13. Finance reads and writes must respect repository/RPC client boundaries.
+14. `patients.balance` is not finance source of truth.
+15. Completed service is not payment.
+16. Invoice is not payment.
+17. Payment is not treatment completion.
+18. Allocation explains where money went.
+19. Any agent output must include commit hash, changed files, checks, smoke, and clean status.
+20. If blocked, write a blocker report instead of guessing or bypassing.
+21. Do not leave dirty repo behind.
+22. Do not delete or move protected media, memory, policies, worktrees, `.git`, `.env`, migrations, or project roots without explicit scoped task and safety path.
+23. Browser QA is useful but must be task-scoped and not run against stale localhost servers.
+24. Cloud data and patient data require explicit boundary checks.
 
 ---
 
-## 14. Recommended near-term paths
+## 9. Recommended implementation sequence
 
-### If priority is Hermes self-improvement
+### Path A: make Hermes governance merge-ready
 
-1. `HERMES-ASSET-OWNERSHIP-001`
-2. `HERMES-WAIVER-REGISTRY-001`
-3. `HERMES-ROLLBACK-CONTRACT-001`
-4. `HERMES-MISSION-CONTROL-001`
-5. `HERMES-SELF-IMPROVEMENT-GATE-001`
+1. `HERMES-GOVERNANCE-PR-PREP-001`
+2. Verify current HEP branch against `main`
+3. Produce PR report with changed files, tests, CI/smoke status
+4. Merge or explicitly keep as HEP branch
+5. Update roadmap after merge result
 
-### If priority is DentalFlow product
+### Path B: unlock DentalFlow product work
 
 1. `HERMES-TASK-POLICY-APP-CODE-PERMISSION-001`
 2. `PATIENT-FINANCE-UI-001`
 3. `CASHIER-PAYMENT-FLOW-001`
+4. Completed-services finance integration
+5. Timeline integration
+6. Stock/material boundary
 
-### If priority is safer automation execution
+### Path C: strengthen self-improvement safely
 
-1. `HERMES-TASK-TEMPLATE-REGISTRY-001`
-2. `HERMES-POLICY-SIMULATOR-001`
-3. `HERMES-AGENT-CAPABILITY-MATRIX-001`
-4. `HERMES-AGENT-HANDOFF-PROTOCOL-001`
+1. `HERMES-HUMAN-APPROVAL-CONSTRAINTS-001`
+2. `HERMES-ROLLBACK-VERIFY-001`
+3. `HERMES-REPORT-QUALITY-GATE-001`
+4. `HERMES-RISK-SCORING-001`
+5. `HERMES-FAILURE-BUDGET-001`
+6. `HERMES-AGENT-CAPABILITY-MATRIX-001`
+7. `HERMES-WORKER-SCHEDULER-001`
+
+### Path D: host safety
+
+1. `HERMES-HOST-HEALTH-GATE-001`
+2. `HERMES-DISK-SAFETY-GATE-001`
+3. `HERMES-BACKUP-REGISTRY-001`
+4. `HERMES-RESTORE-DRILL-001`
 
 ---
 
-## 15. Final checkpoint verdict
+## 10. Final checkpoint verdict
 
-This report captures the broader 40+ task roadmap that was not fully included in the shorter session checkpoint.
+This checkpoint now reflects the current larger Hermes architecture more accurately than the previous stale version.
 
-No code changes are intended by this task.
+Verdict: `ROADMAP CHECKPOINT REFRESHED`
 
-Verdict: `ROADMAP CHECKPOINT CAPTURED`
+Scope of this refresh:
+
+- report/document only
+- no app code changes
+- no migrations
+- no cloud Supabase
+- no browser smoke
+- no destructive file operations
