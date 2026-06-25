@@ -13,6 +13,11 @@ Commands:
   clean-task          Clean/remove a task worktree.
   test-db             Run connection test on SQLite database.
   finalize-report     Finalize metadata in a task report file using Git/GitHub CLI.
+  change-plan:create  Create a local HEP change-plan record from CLI options.
+  change-plan:simulate Simulate ALLOW/BLOCK for a change-plan JSON file.
+  change-plan:approve Approve a change-plan JSON file.
+  change-plan:revoke Revoke a change-plan JSON file.
+  change-plan:diff-check Compare planned files with actual changed files.
 
 Options:
   --taskId <id>       ID of the task (e.g. HEP-V1-WORKTREE-MEMORY-001)
@@ -26,6 +31,10 @@ Options:
   --report <path>     Path to the report file (default: auto-detect latest modified report)
   --verdict <str>     Optional final verdict text to update in report
   --next-task <str>   Optional next task ID to update in report
+  --plan <path>       Path to a change-plan JSON file
+  --scope <path>      Optional path to a scope JSON file
+  --actualFiles <csv> Comma-separated actual changed files for diff-check
+  --out <path>        Optional output JSON path for change-plan commands
 `);
 }
 
@@ -83,8 +92,28 @@ async function main(): Promise<void> {
   const report = (options.report as string) || (options["report"] as string);
   const nextTask = (options.nextTask as string) || (options["next-task"] as string);
   const verdict = options.verdict as string;
+  const planPath = (options.plan as string) || (options["plan"] as string);
+  const scopePath = (options.scope as string) || (options["scope"] as string);
+  const outPath = (options.out as string) || (options["out"] as string);
+  const actualFilesCsv = (options.actualFiles as string) || (options["actual-files"] as string);
 
   const manager = new WorktreeManager(repositoryPath, worktreeRoot);
+
+  async function readJsonFile(filePath: string): Promise<unknown> {
+    const fs = await import("node:fs");
+    return JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+  }
+
+  async function writeJsonOrPrint(value: unknown): Promise<void> {
+    const serialized = `${JSON.stringify(value, null, 2)}\n`;
+    if (outPath) {
+      const fs = await import("node:fs");
+      fs.writeFileSync(outPath, serialized, "utf8");
+      console.log(`Wrote ${outPath}`);
+      return;
+    }
+    console.log(serialized);
+  }
 
   try {
     switch (command) {
@@ -135,6 +164,73 @@ async function main(): Promise<void> {
           verdict,
           nextTask
         });
+        break;
+      }
+      case "change-plan:create": {
+        const { createChangePlan } = await import("./change-plan.ts");
+        if (!taskId) throw new Error("Missing required option: --taskId");
+        const actor = (options.actor as string) || "maintenance.autopilot";
+        const action = ((options.action as string) || "modify") as "create" | "modify" | "delete" | "inspect";
+        const target = (options.target as string) || "tools/hep/index.ts";
+        const riskLevel = ((options.riskLevel as string) || (options["risk-level"] as string) || "medium") as "low" | "medium" | "high" | "critical";
+        const summary = (options.summary as string) || "HEP local change-plan";
+        const reason = (options.reason as string) || summary;
+        const createdBy = (options.createdBy as string) || (options["created-by"] as string) || actor;
+        const rollbackRef = (options.rollbackRef as string) || (options["rollback-ref"] as string) || branchName || "local.rollback.ref";
+        const plannedFilesCsv = (options.plannedFiles as string) || (options["planned-files"] as string) || target;
+        const expectedFiles = plannedFilesCsv.split(",").map((filePath) => ({
+          path: filePath.trim(),
+          reason: "planned by CLI",
+          changeType: action
+        }));
+        const plan = createChangePlan({
+          taskId,
+          actor,
+          action,
+          target,
+          riskLevel,
+          createdBy,
+          reason,
+          summary,
+          expectedFiles,
+          checks: [{ command: "npm test -- --run", required: true, expectedResult: "tests pass" }],
+          rollbackRef,
+          requiresOwnerReview: riskLevel === "high" || riskLevel === "critical"
+        });
+        await writeJsonOrPrint(plan);
+        break;
+      }
+      case "change-plan:simulate": {
+        const { simulateChangePlan } = await import("./change-plan.ts");
+        if (!planPath) throw new Error("Missing required option: --plan");
+        const plan = await readJsonFile(planPath);
+        const scope = scopePath ? await readJsonFile(scopePath) : {};
+        await writeJsonOrPrint(simulateChangePlan(plan as Parameters<typeof simulateChangePlan>[0], scope as Parameters<typeof simulateChangePlan>[1]));
+        break;
+      }
+      case "change-plan:approve": {
+        const { approveChangePlan } = await import("./change-plan.ts");
+        if (!planPath) throw new Error("Missing required option: --plan");
+        const approvedBy = (options.approvedBy as string) || (options["approved-by"] as string) || "owner";
+        const plan = await readJsonFile(planPath);
+        await writeJsonOrPrint(approveChangePlan(plan as Parameters<typeof approveChangePlan>[0], approvedBy));
+        break;
+      }
+      case "change-plan:revoke": {
+        const { revokeChangePlan } = await import("./change-plan.ts");
+        if (!planPath) throw new Error("Missing required option: --plan");
+        const revokedBy = (options.revokedBy as string) || (options["revoked-by"] as string) || "owner";
+        const plan = await readJsonFile(planPath);
+        await writeJsonOrPrint(revokeChangePlan(plan as Parameters<typeof revokeChangePlan>[0], revokedBy));
+        break;
+      }
+      case "change-plan:diff-check": {
+        const { comparePlannedToActual } = await import("./change-plan.ts");
+        if (!planPath) throw new Error("Missing required option: --plan");
+        if (!actualFilesCsv) throw new Error("Missing required option: --actualFiles");
+        const plan = await readJsonFile(planPath);
+        const actualFiles = actualFilesCsv.split(",").map((filePath) => filePath.trim()).filter(Boolean);
+        await writeJsonOrPrint(comparePlannedToActual(plan as Parameters<typeof comparePlannedToActual>[0], actualFiles));
         break;
       }
       default: {
