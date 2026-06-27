@@ -1,4 +1,4 @@
-﻿# CASHIER-PAYMENT-FLOW-001: Cashier payment workstation
+# CASHIER-PAYMENT-FLOW-001: Cashier payment workstation
 
 ## Summary
 
@@ -10,11 +10,11 @@ Implemented a dedicated cashier payment workstation for patient invoice payment 
 
 ## PR URL
 
-Pending PR creation. This section will be finalized after the PR is opened.
+https://github.com/NckNA/codex-test/pull/332
 
 ## PR head reviewed before final report update
 
-Pending final report update after PR creation and CI.
+`177957112828940075a3dbb75871e8ff73f7464e`
 
 ## Report update commit
 
@@ -201,7 +201,7 @@ Console result:
 - `npm run lint`: passed.
 - `npm run test -- --run`: passed, 67 files / 667 tests.
 - `npm.cmd run build`: passed after the PowerShell wrapper was blocked by local safety layer; Vite emitted only the existing non-blocking chunk-size warning.
-- GitHub Actions CI: pending PR creation.
+- GitHub Actions CI #649 / run 28279218613: success on 177957112828940075a3dbb75871e8ff73f7464e.
 
 ## Issues/warnings
 
