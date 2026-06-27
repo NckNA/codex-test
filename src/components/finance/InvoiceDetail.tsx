@@ -53,6 +53,7 @@ export function InvoiceDetail({ invoice, items, canAddItem, actionLoading, onAdd
 
   const invoiceItems = useMemo(() => (invoice ? items.filter((item) => item.invoiceId === invoice.id) : []), [invoice, items]);
   const canUseForm = Boolean(invoice && canAddItem && ['draft', 'issued'].includes(invoice.status));
+  const invoiceCurrency = invoice?.currency ?? 'KZT';
 
   const resetForm = () => {
     setServiceName('');
@@ -144,10 +145,10 @@ export function InvoiceDetail({ invoice, items, canAddItem, actionLoading, onAdd
               <ItemField label="Зуб" value={item.toothNumber} />
               <ItemField label="Поверхность" value={item.toothSurface} />
               <ItemField label="Количество" value={item.quantity} />
-              <ItemField label="Цена" value={formatFinanceMoney(item.unitPrice, invoice.currency)} />
-              <ItemField label="Скидка" value={formatFinanceMoney(item.discountAmount, invoice.currency)} />
-              <ItemField label="Корректировка" value={formatFinanceMoney(item.adjustmentAmount, invoice.currency)} />
-              <ItemField label="Итого" value={formatFinanceMoney(item.totalAmount, invoice.currency)} />
+              <ItemField label="Цена" value={formatFinanceMoney(item.unitPrice, invoiceCurrency)} />
+              <ItemField label="Скидка" value={formatFinanceMoney(item.discountAmount, invoiceCurrency)} />
+              <ItemField label="Корректировка" value={formatFinanceMoney(item.adjustmentAmount, invoiceCurrency)} />
+              <ItemField label="Итого" value={formatFinanceMoney(item.totalAmount, invoiceCurrency)} />
             </dl>
           </article>
         ))}

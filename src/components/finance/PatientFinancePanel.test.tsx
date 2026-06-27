@@ -58,6 +58,14 @@ function createRpcClient(): FinanceRpcClient {
   } as unknown as FinanceRpcClient;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+}
+
 async function flush() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 }
@@ -87,9 +95,16 @@ describe('PatientFinancePanel', () => {
   }
 
   it('renders loading and then empty finance state', async () => {
+    const invoicesResult = deferred<Invoice[]>();
     const repository = createRepository({ empty: true });
-    await act(async () => { root.render(<PatientFinancePanel tenantId={tenantId} patientId={patientId} role="clinic_admin" repository={repository} rpcClient={createRpcClient()} />); });
+    vi.mocked(repository.listInvoices).mockReturnValueOnce(invoicesResult.promise);
+
+    await act(async () => {
+      root.render(<PatientFinancePanel tenantId={tenantId} patientId={patientId} role="clinic_admin" repository={repository} rpcClient={createRpcClient()} />);
+    });
     expect(container.querySelector('[data-testid="patient-finance-loading"]')).not.toBeNull();
+
+    invoicesResult.resolve([]);
     await flush();
     expect(container.querySelector('[data-testid="patient-finance-empty"]')).not.toBeNull();
   });
