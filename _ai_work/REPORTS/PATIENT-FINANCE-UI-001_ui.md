@@ -1,335 +1,102 @@
-# PATIENT-FINANCE-UI-001: Patient Finance UI
+# PATIENT-FINANCE-UI-001: Patient Finance UI QA report
 
 ## 1. Summary
 
-Implemented a patient-card finance UI draft for one patient. The UI adds a `Финансы` tab with a finance summary, invoices, invoice item details, payments, payment allocations, and role-gated finance actions.
+Patient Finance UI was repaired and validated after the failing PR CI was reproduced locally.
 
-This implementation is connector-authored through GitHub API because the local Hermes/Windows execution bridge was unavailable in this session. Local browser smoke, local DB validation, lint, tests, and build were not executed here and remain required before considering the PR verified.
+Root cause: `src/components/finance/PatientFinancePanel.test.tsx` asserted the loading state after an immediately-resolving mock repository had already completed. The test was stabilized with a controlled deferred promise. A separate TypeScript build error in `src/components/finance/InvoiceDetail.tsx` was fixed by avoiding nullable `invoice.currency` access during item rendering.
 
-## 2. Branch name
+## 2. Branch and PR
 
+- Repository: `NckNA/codex-test`
 - Branch: `feature/patient-finance-ui-001`
-- Base branch: `main`
-
-## 3. PR URL
-
+- PR: `#331`
+- PR title: `PATIENT-FINANCE-UI-001: add patient finance tab`
 - PR URL: https://github.com/NckNA/codex-test/pull/331
-- PR state: draft
 
-## 4. PR head reviewed before final report update
+## 3. Scope kept
 
-- PR head reviewed before final report update: `68a614865a621ddb02ee7ee654c94336a56889f5`
+Changed only Patient Finance UI / related tests / this report:
 
-## 5. Report update commit
-
-- Report update commit: N/A because the final report update commit cannot reference itself before creation.
-
-## 6. Changed files summary
-
-Added finance UI and hooks:
-
-- `src/components/finance/PatientFinancePanel.tsx`
-- `src/components/finance/PatientFinanceSummaryCard.tsx`
-- `src/components/finance/InvoiceList.tsx`
 - `src/components/finance/InvoiceDetail.tsx`
-- `src/components/finance/InvoiceActions.tsx`
-- `src/components/finance/PaymentList.tsx`
-- `src/components/finance/PaymentActions.tsx`
-- `src/components/finance/AllocationActions.tsx`
-- `src/components/finance/FinanceStatusBadge.tsx`
-- `src/components/finance/financeLabels.ts`
-- `src/components/finance/financePermissions.ts`
-- `src/data/hooks/usePatientFinance.ts`
-- `src/data/hooks/useFinanceActions.ts`
 - `src/components/finance/PatientFinancePanel.test.tsx`
-- `src/data/hooks/usePatientFinance.test.tsx`
-- `src/data/hooks/useFinanceActions.test.tsx`
-
-Updated patient page integration:
-
-- `src/pages/PatientCardPage.tsx`
-
-Added report:
-
 - `_ai_work/REPORTS/PATIENT-FINANCE-UI-001_ui.md`
 
-## 7. Pre-read summary
+No migrations, seed files, generated types, unrelated DentalFlow code, Supabase cloud changes, or HEP work were changed.
 
-Reviewed the finance schema and RPC boundary from:
+## 4. Fix details
 
-- `supabase/migrations/0016_create_finance_model.sql`
-- `supabase/migrations/0017_create_finance_rpc.sql`
-- `src/data/repositories/FinanceRepository.ts`
-- `src/data/repositories/FinanceRpcClient.ts`
-- existing patient card tab pattern in `src/pages/PatientCardPage.tsx`
-- existing visit, encounter, and completed-service panel patterns
+### Test stabilization
 
-Key domain boundary confirmed from the schema: completed service, invoice item, invoice, payment, allocation, refund, and adjustment are separate finance concepts; patient debt/balance is finance-derived rather than manually typed into the patient row.
+`PatientFinancePanel.test.tsx` now uses a small `deferred<T>()` helper so the loading-state assertion runs while the finance query is still unresolved. After the assertion, the deferred invoice list resolves to `[]`, and the test verifies the empty finance state.
 
-## 8. Implementation summary
+### TypeScript build fix
 
-### Tab integration
+`InvoiceDetail.tsx` now derives `invoiceCurrency` from `invoice?.currency ?? 'KZT'` before rendering invoice item money fields. This removes the `TS18047: 'invoice' is possibly 'null'` errors without changing UI behavior.
 
-`PatientCardPage.tsx` now imports `PatientFinancePanel` and renders it when the active tab is `finance`. The finance tab is removed from the generic placeholder block.
+## 5. Local validation
 
-### Components
+Local Hermes/Windows execution bridge is available again.
 
-The finance UI is split into small components:
+- Hermes CLI: reachable
+- Workspace root: `D:\hermes`
+- Local worktree: `D:\hermes\worktrees\archived\patient-finance-ui-001-work`
 
-- summary card;
-- invoice list;
-- invoice detail and item form;
-- invoice actions;
-- payment list and record/void actions;
-- allocation list, allocation form, and allocation void actions;
-- status badge;
-- labels and permissions helpers.
+Dependency install:
 
-### Hooks
+- `npm ci`: passed after stopping the local Vite dev server that was locking a Rolldown native binding under `node_modules`.
 
-`usePatientFinance` reads through `FinanceRepository` only.
+Quality checks:
 
-`useFinanceActions` writes through `FinanceRpcClient` only.
+- `npm test`: passed, 64 test files, 642 tests.
+- `npm run lint`: passed.
+- `npm run build`: passed.
 
-### Finance actions
+Non-blocking warning:
 
-Implemented UI action paths for:
+- Vite reported a chunk larger than 500 kB after minification. This is a warning, not a failed check, and was not changed because it is outside the PR scope.
 
-- create draft invoice;
-- add invoice item;
-- issue invoice;
-- record payment;
-- allocate payment;
-- void invoice;
-- void payment allocation;
-- void payment.
+## 6. Browser smoke
 
-### Role gating
+Dev server:
 
-- `clinic_owner` / `clinic_admin`: full finance mutation UI including void actions.
-- `cashier`: create/issue/record/allocate, no void actions.
-- `doctor` / `registrar`: read-only finance view, no mutation actions.
-- no-tenant: blocked state.
+- Started with `npm run dev -- --host 127.0.0.1`
+- Local URL: `http://127.0.0.1:5173/`
 
-### Error handling
+Smoke path:
 
-UI uses Russian safe messages for missing clinic, missing patient, missing invoice/payment, invalid amount/quantity, required reason, permission errors, and generic finance-operation failure.
+- Opened `http://127.0.0.1:5173/patients/p1`
+- Confirmed demo patient page rendered: `???????? ?.?.`
+- Clicked the `???????` tab
+- Confirmed the finance panel rendered with heading `???????` and create draft invoice UI
+- Screenshot saved locally: `D:\hermes\reports\patient-p1-finance.png`
 
-## 9. Finance UI behavior
+Observed local-browser limitation:
 
-### Summary
+- The browser smoke showed the safe message `?? ??????? ????????? ?????????? ??????.` because the local prototype browser session did not have live finance backend data wired for that demo patient. This did not block CI because repository/hook/component coverage is mocked and local build/test/lint all passed.
 
-Displays:
+## 7. GitHub CI
 
-- `Начислено`
-- `Оплачено`
-- `Возвраты`
-- `Долг`
-- `Переплата`
-- `Открытые счета`
-- `Неоплаченные`
-- `Частично оплаченные`
-- `Последняя оплата`
+After code fix commit `4e37708749addd5ce8d2e98caade68a57b518b91`:
 
-### Invoices
+- Workflow: `CI`
+- Run: `#644`
+- Job: `validate`
+- Steps: `ESLint`, `Tests`, `Build`
+- Result: success
 
-Displays invoice number or short id, status, issue date, due date, total, paid amount, balance, currency, and notes.
+A follow-up report-only commit may trigger another CI run; the final PR state should be checked against the latest head commit.
 
-### Invoice items
+## 8. Remaining risks
 
-Displays service name, service code, completed service id if present, tooth number, tooth surface, quantity, unit price, discount, adjustment, total, and status.
+- Browser smoke verifies render/no-crash of the finance tab, but not a full live finance data flow against a seeded local Supabase database.
+- Existing React `act(...)` warnings remain in unrelated tests. They do not fail the suite and were not changed to avoid scope creep.
+- Bundle size warning remains unchanged because it is unrelated to Patient Finance CI failure.
 
-### Payments
+## 9. Verdict
 
-Displays status, amount, currency, payment method, received date, payer name, external reference, and notes.
+PASS for current PR objective: Patient Finance UI now passes local tests, lint, build, and the relevant GitHub Actions CI on the code-fix commit. Browser smoke confirms the finance tab renders without crashing in the local prototype route.
 
-### Allocations
-
-Displays allocation amount, status, allocated date, payment reference, invoice reference, and invoice item reference.
-
-### Void actions
-
-Owner/admin-only void UI requires a reason before attempting a void operation.
-
-## 10. Role behavior
-
-### Owner/admin
-
-Expected to see create draft invoice, add invoice item, issue invoice, record payment, allocate payment, and void actions.
-
-### Cashier
-
-Expected to see create draft invoice, add invoice item, issue invoice, record payment, and allocate payment. Cashier does not see void invoice/payment/allocation controls.
-
-### Doctor
-
-Read-only finance display. No mutation controls.
-
-### Registrar
-
-Read-only finance display. No mutation controls.
-
-### No-tenant
-
-Blocked state: `Не выбрана клиника.`
-
-### Cross-tenant
-
-No explicit cross-tenant bypass added. Patient page and repository/RLS boundaries remain responsible for preventing cross-tenant data access.
-
-## 11. Data/write boundaries
-
-- Reads are routed through `FinanceRepository` via `usePatientFinance`.
-- Writes are routed through `FinanceRpcClient` via `useFinanceActions`.
-- Components do not call raw Supabase RPC directly.
-- Components do not perform direct table insert/update/delete/upsert writes.
-- The UI does not use the patient row as a finance source of truth.
-- The UI does not mutate completed services.
-
-## 12. Domain boundaries
-
-Implemented separation between:
-
-- payment versus treatment completion;
-- invoice versus payment;
-- completed service versus invoice item.
-
-Intentionally not implemented:
-
-- stock/material write-off;
-- documents/acts;
-- timeline integration;
-- refund workflows;
-- write-off workflows;
-- approval flows;
-- payment-provider integrations;
-- dedicated cashier workstation;
-- finance reports UI.
-
-## 13. Tests
-
-Added hook tests for:
-
-- no fetch without tenant id;
-- no fetch without patient id;
-- `FinanceRepository.getPatientFinanceSummary` usage;
-- finance fact/list loading;
-- refresh reload;
-- repository error surfacing;
-- `FinanceRpcClient.createInvoice` usage;
-- add item, issue invoice, record payment, allocate payment;
-- void methods;
-- refresh after action;
-- safe permission error surfacing.
-
-Added component tests for:
-
-- loading state;
-- empty state;
-- summary totals/debt labels;
-- invoice list rendering;
-- invoice item rendering;
-- payment list rendering;
-- allocation list rendering;
-- admin mutation/void visibility;
-- cashier mutation visibility without void actions;
-- doctor/registrar no mutation controls;
-- no-tenant block;
-- create invoice action;
-- item/payment/allocation validation;
-- metadata not rendered.
-
-Important limitation: these tests were added but not run in this session.
-
-## 14. Browser smoke
-
-Browser smoke was not executed in this session.
-
-### Environment
-
-- GitHub connector available.
-- Local Hermes/Windows execution bridge unavailable.
-- Container DNS could not resolve GitHub for cloning, so local checkout validation could not be performed here.
-
-### Admin A result
-
-Not run.
-
-### Cashier A result
-
-Not run.
-
-### Doctor A result
-
-Not run.
-
-### Registrar A result
-
-Not run.
-
-### No-tenant result
-
-Not run in browser; component test coverage was added for the blocked state.
-
-### Admin B/cross-tenant result
-
-Not run.
-
-### DB validation
-
-Not run.
-
-### Cleanup counts
-
-Not applicable because smoke rows were not created.
-
-### Console result
-
-Not checked.
-
-## 15. What was intentionally NOT changed
-
-- no migrations;
-- no SQL/RPC changes;
-- no cloud Supabase;
-- no seed changes;
-- no generated types;
-- no dedicated cashier workstation;
-- no refunds;
-- no write-offs;
-- no stock;
-- no documents;
-- no timeline integration;
-- no reports UI;
-- no HEP-V2.
-
-## 16. Checks
-
-- `git status --short`: not run locally in this session.
-- `npm run lint`: not run locally in this session.
-- `npm run test -- --run`: not run locally in this session.
-- `npm run build`: not run locally in this session.
-- GitHub Actions CI: pending/not verified at report creation time.
-
-## 17. Issues/warnings
-
-- Implementation was performed via GitHub connector only.
-- Local browser smoke could not be run because Hermes/local execution was unavailable.
-- Local Supabase DB reset and smoke validation were not run.
-- CI status was not green-confirmed at report creation time.
-- Because checks were not run, this PR must remain draft until CI/local validation is completed.
-
-## 18. Final verdict
-
-PARTIAL with exact missing validation:
-
-- local lint not run;
-- local tests not run;
-- local build not run;
-- local browser smoke not run;
-- local DB validation and cleanup not run;
-- GitHub Actions CI not green-confirmed.
-
-## 19. Recommended next task
+## 10. Recommended next task
 
 CASHIER-PAYMENT-FLOW-001
