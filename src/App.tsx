@@ -11,6 +11,7 @@ import { PatientsPage } from './pages/PatientsPage';
 import { DoctorsPage } from './pages/DoctorsPage';
 import { MedicalPage } from './pages/MedicalPage';
 import { FinancePage } from './pages/FinancePage';
+import { CashierPaymentPage } from './pages/CashierPaymentPage';
 import { WarehousePage } from './pages/WarehousePage';
 import { StatisticsPage } from './pages/StatisticsPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -105,6 +106,7 @@ function AppContent() {
           <Route path="doctors" element={<DoctorsPage />} />
           <Route path="medical" element={<MedicalPage />} />
           <Route path="finance" element={<FinancePage />} />
+          <Route path="cashier/payments" element={<CashierPaymentPage />} />
           <Route path="warehouse" element={<WarehousePage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="reports" element={<ReportsPage />} />
