@@ -1,4 +1,4 @@
-﻿# COMPLETED-SERVICE-BILLING-GUARD-001
+# COMPLETED-SERVICE-BILLING-GUARD-001
 
 ## 1. Summary
 Implemented a database-authoritative historical billing lock: one `completed_services` row can back at most one `invoice_items` row. Added relationship guards, hardened RPC behavior, a scoped eligibility read model, UI states, SQL/concurrency/unit/browser validation, and no clinical mutations.
