@@ -7,10 +7,10 @@ Implemented a database-authoritative historical billing lock: one `completed_ser
 `feature/completed-service-billing-guard-001`, based on verified `origin/main` `6fdfda06f268967941ad3c83bf58489a50ef21b2` containing PR #338.
 
 ## 3. PR URL
-Pending PR creation after the implementation commit.
+https://github.com/NckNA/codex-test/pull/339
 
 ## 4. PR head reviewed before final report update
-Pending. The implementation head will be reviewed before the final report-only update.
+Implementation head `1be4ae881b1f4487f28f4d92ae4ea8436e518c2a` was reviewed after local SQL, concurrency, browser, lint, full test, and build validation, and after fresh GitHub Actions success.
 
 ## 5. Report update commit
 N/A because the final report update commit cannot reference itself before creation.
@@ -97,7 +97,7 @@ All QA data was local-only; Vite processes stopped; final `npx supabase db reset
 `npm run lint`: passed. `npm run test -- --run`: 73 files/754 tests passed. `npm run build`: passed. SQL, concurrency, and repeated clean reset through `0021`: passed. Existing unrelated React `act(...)` warnings and Vite chunk advisory remain non-fatal.
 
 ## 31. GitHub Actions CI
-Pending PR creation and fresh CI on the current PR head.
+Implementation head `1be4ae881b1f4487f28f4d92ae4ea8436e518c2a` passed CI run `29127962215`: ESLint, tests, and build succeeded. The final report-only head must also pass fresh PR CI before final handoff; that final run is recorded in the task delivery.
 
 ## 32. Cloud apply precheck
 No cloud action performed. Before future apply, require empty results for: duplicate non-null `completed_service_id` groups; orphan links; invoice-item/invoice tenant or patient mismatch; completed-service/item tenant or patient mismatch. Migration intentionally fails rather than deleting or choosing a winner.
@@ -109,7 +109,7 @@ Manual semantic duplicates are not detected. Controlled rebilling is deferred. N
 No correction foundation, credit/debit notes, rebill workflow, clinical mutations, payment/refund/write-off/deposit changes, patient-credit foundation, fuzzy matching, cloud apply, seed/generated types, frontend service role, HEP-V2, or broad refactor.
 
 ## 35. Final verdict
-PARTIAL: fresh GitHub Actions CI on the current PR head has not yet been verified.
+COMPLETED SERVICE BILLING GUARD IMPLEMENTED AND VERIFIED
 
 ## 36. Recommended next task
 `PATIENT-CREDIT-DEPOSITS-FOUNDATION-001` because duplicate clinical billing is now blocked and safe prepayment/credit/deposit handling is the next major finance capability. Do not start it in this task.
