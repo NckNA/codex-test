@@ -1,16 +1,22 @@
-import type { Payment } from '../../data/repositories/FinanceRepository';
+import type { FinanceRepository, Payment } from '../../data/repositories/FinanceRepository';
+import type { FinanceRpcClient } from '../../data/repositories/FinanceRpcClient';
 import type { FinanceActionName, RecordPaymentActionInput } from '../../data/hooks/useFinanceActions';
 import { FinanceStatusBadge } from './FinanceStatusBadge';
 import { formatFinanceDateTime, formatFinanceMoney, paymentMethodLabels, shortFinanceId } from './financeLabels';
 import type { FinanceUserRole } from './financePermissions';
 import { PaymentActions } from './PaymentActions';
+import { RefundActions } from './RefundActions';
 
 interface PaymentListProps {
+  tenantId?: string | null;
   payments: Payment[];
   role: FinanceUserRole;
+  repository?: FinanceRepository;
+  rpcClient?: FinanceRpcClient;
   actionLoading: FinanceActionName | null;
   onRecordPayment: (input: RecordPaymentActionInput) => Promise<void>;
   onVoidPayment: (paymentId: string, reason: string) => Promise<void>;
+  onChanged?: () => Promise<void> | void;
 }
 
 function PaymentField({ label, value }: { label: string; value?: string | number | null }) {
@@ -22,7 +28,7 @@ function PaymentField({ label, value }: { label: string; value?: string | number
   );
 }
 
-export function PaymentList({ payments, role, actionLoading, onRecordPayment, onVoidPayment }: PaymentListProps) {
+export function PaymentList({ tenantId, payments, role, repository, rpcClient, actionLoading, onRecordPayment, onVoidPayment, onChanged }: PaymentListProps) {
   return (
     <section data-testid="finance-payment-list" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-900">Оплаты</h3>
@@ -45,6 +51,7 @@ export function PaymentList({ payments, role, actionLoading, onRecordPayment, on
               <PaymentField label="Внешняя ссылка" value={payment.externalReference} />
               <PaymentField label="Примечание" value={payment.notes} />
             </dl>
+            <RefundActions tenantId={tenantId} paymentId={payment.id} role={role} repository={repository} rpcClient={rpcClient} onChanged={onChanged} />
           </article>
         ))}
       </div>

@@ -1,14 +1,22 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import type { Invoice, InvoiceItem } from '../../data/repositories/FinanceRepository';
+import type { FinanceRepository, Invoice, InvoiceItem } from '../../data/repositories/FinanceRepository';
+import type { FinanceRpcClient } from '../../data/repositories/FinanceRpcClient';
 import type { FinanceActionName } from '../../data/hooks/useFinanceActions';
 import { FinanceStatusBadge } from './FinanceStatusBadge';
 import { formatFinanceMoney, shortFinanceId } from './financeLabels';
+import type { FinanceUserRole } from './financePermissions';
+import { WriteOffActions } from './WriteOffActions';
 
 interface InvoiceDetailProps {
+  tenantId?: string | null;
   invoice: Invoice | null;
   items: InvoiceItem[];
+  role?: FinanceUserRole;
+  repository?: FinanceRepository;
+  rpcClient?: FinanceRpcClient;
   canAddItem: boolean;
   actionLoading: FinanceActionName | null;
+  onChanged?: () => Promise<void> | void;
   onAddItem: (input: {
     invoiceId: string;
     serviceName: string;
@@ -38,7 +46,7 @@ function parseOptionalAmount(value: string) {
   return Number(value);
 }
 
-export function InvoiceDetail({ invoice, items, canAddItem, actionLoading, onAddItem }: InvoiceDetailProps) {
+export function InvoiceDetail({ tenantId, invoice, items, role, repository, rpcClient, canAddItem, actionLoading, onChanged, onAddItem }: InvoiceDetailProps) {
   const [serviceName, setServiceName] = useState('');
   const [serviceCode, setServiceCode] = useState('');
   const [completedServiceId, setCompletedServiceId] = useState('');
@@ -153,6 +161,7 @@ export function InvoiceDetail({ invoice, items, canAddItem, actionLoading, onAdd
           </article>
         ))}
       </div>
+      {invoice && <WriteOffActions tenantId={tenantId} invoiceId={invoice.id} role={role} repository={repository} rpcClient={rpcClient} onChanged={onChanged} />}
     </section>
   );
 }

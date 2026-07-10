@@ -42,6 +42,8 @@ function createRepository({ empty = false }: { empty?: boolean } = {}): FinanceR
     listPaymentAllocations: vi.fn().mockResolvedValue(empty ? [] : [allocation]),
     listRefunds: vi.fn().mockResolvedValue([]),
     listFinancialAdjustments: vi.fn().mockResolvedValue([]),
+    getPaymentRefundability: vi.fn().mockResolvedValue({ payment, paymentAmount: 1000, activeAllocatedAmount: 1000, completedRefundAmount: 0, reservedRefundAmount: 0, refundableAmount: 0, hasActiveAllocations: true, refundCount: 0, currency: 'KZT' }),
+    getInvoiceWriteOffEligibility: vi.fn().mockResolvedValue({ invoice, invoiceTotalAmount: 1000, paidAmount: 0, approvedWriteOffAmount: 0, reservedWriteOffAmount: 0, availableWriteOffAmount: 0, eligible: false, ineligibilityReason: 'Invoice status draft is not eligible for write-off.', currency: 'KZT' }),
   } as unknown as FinanceRepository;
 }
 
@@ -55,6 +57,15 @@ function createRpcClient(): FinanceRpcClient {
     allocatePayment: vi.fn().mockResolvedValue(allocation),
     voidPaymentAllocation: vi.fn().mockResolvedValue({ ...allocation, status: 'voided' }),
     voidPayment: vi.fn().mockResolvedValue({ ...payment, status: 'voided' }),
+    requestRefund: vi.fn(),
+    approveRefund: vi.fn(),
+    completeRefund: vi.fn(),
+    rejectRefund: vi.fn(),
+    voidRefund: vi.fn(),
+    requestInvoiceWriteOff: vi.fn(),
+    approveInvoiceWriteOff: vi.fn(),
+    rejectInvoiceWriteOff: vi.fn(),
+    voidInvoiceWriteOff: vi.fn(),
   } as unknown as FinanceRpcClient;
 }
 
@@ -116,6 +127,8 @@ describe('PatientFinancePanel', () => {
     expect(container.querySelector('[data-testid="finance-invoice-item-item-1"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-payment-card-payment-1"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-allocation-card-allocation-1"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="refund-actions-panel-payment-1"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="writeoff-actions-panel-invoice-1"]')).not.toBeNull();
     expect(container.textContent).toContain('Долг');
     expect(container.textContent).toContain('Smoke finance service');
     expect(container.textContent).not.toContain('metadata');
