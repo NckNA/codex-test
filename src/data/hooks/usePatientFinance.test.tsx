@@ -13,19 +13,17 @@ const patientId = 'patient-1';
 const summary = {
   tenantId,
   patientId,
-  invoiceTotalAmount: 1000,
-  paidAmount: 1000,
-  allocatedPaymentAmount: 1000,
-  refundedAmount: 0,
-  discountAmount: 0,
-  writeOffAmount: 0,
-  adjustmentAmount: 0,
-  balanceAmount: 0,
-  creditAmount: 0,
-  openInvoiceCount: 1,
-  unpaidInvoiceCount: 0,
-  partiallyPaidInvoiceCount: 0,
-  lastPaymentAt: '2026-06-21T10:00:00.000Z',
+  asOf: '2026-07-11T00:00:00Z',
+  modelVersion: 'finance-summary-v1',
+  factComplete: true,
+  currencies: [{
+    currency: 'KZT', totalInvoiced: 1000, activeAllocatedAmount: 1000, cashReceived: 1000,
+    completedRefundAmount: 0, approvedWriteOffAmount: 0, currentDebt: 0,
+    grossUnallocatedAmount: 0, refundReservedAmount: 0, reservedDepositAmount: 0,
+    availableCreditAmount: 0, netPositionAmount: 0, openInvoiceCount: 1,
+    unpaidInvoiceCount: 0, partiallyPaidInvoiceCount: 0, lastPaymentAt: '2026-06-21T10:00:00.000Z',
+  }],
+  warnings: [],
 } as PatientFinanceSummary;
 const invoice = { id: 'invoice-1', tenantId, patientId, invoiceNumber: 'INV-1', status: 'issued', currency: 'KZT', totalAmount: 1000, paidAmount: 0, balanceAmount: 1000 } as Invoice;
 const payment = { id: 'payment-1', tenantId, patientId, status: 'received', paymentMethod: 'cash', amount: 1000, currency: 'KZT', receivedAt: '2026-06-21T10:00:00.000Z' } as Payment;
@@ -91,7 +89,7 @@ describe('usePatientFinance', () => {
     await flush();
     expect(repository.getPatientFinanceSummary).toHaveBeenCalledWith({ tenantId, patientId });
     expect(repository.listInvoices).toHaveBeenCalledWith(expect.objectContaining({ tenantId, patientId }));
-    expect(latest?.summary?.balanceAmount).toBe(0);
+    expect(latest?.summary?.currencies[0]?.currentDebt).toBe(0);
     expect(latest?.payments).toEqual([payment]);
     expect(latest?.paymentAllocations).toEqual([allocation]);
   });

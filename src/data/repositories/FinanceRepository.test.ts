@@ -5,17 +5,16 @@ import {
   PATIENT_REQUIRED_FOR_FINANCE_ERROR,
   RECORD_ID_REQUIRED_FOR_FINANCE_ERROR,
   SupabaseFinanceRepository,
-  computePatientFinanceSummary,
   createFinanceRepository,
   mapFinancialAdjustmentRow,
   mapInvoiceItemRow,
   mapInvoiceRow,
   mapPaymentAllocationRow,
   mapPaymentRow,
+  mapPatientFinanceSummaryPayload,
   mapRefundRow,
   normalizeFinanceLimit,
   normalizeFinanceOffset,
-  type PatientFinanceFacts,
 } from './FinanceRepository';
 
 type QueryResult = {
@@ -100,7 +99,7 @@ function createRepository(
     update: vi.fn(),
     delete: vi.fn(),
     upsert: vi.fn(),
-    rpc: vi.fn(),
+    rpc: vi.fn().mockResolvedValue({ data: { tenantId, patientId, asOf: '2026-07-11T00:00:00Z', modelVersion: 'finance-summary-v1', currencies: [], factComplete: true, warnings: [] }, error: null }),
   };
 
   return {
@@ -444,79 +443,50 @@ describe('FinanceRepository', () => {
     expectNoWriteCalls(client);
   });
 
-  it('getPatientFinanceSummary returns zero summary for no finance facts', async () => {
-    const { repository } = createRepository();
+  it('getPatientFinanceSummary uses the authoritative RPC without capped table reads', async () => {
+    const { repository, client, calls } = createRepository();
 
     await expect(repository.getPatientFinanceSummary({ tenantId, patientId })).resolves.toMatchObject({
       tenantId,
       patientId,
-      invoiceTotalAmount: 0,
-      paidAmount: 0,
-      allocatedPaymentAmount: 0,
-      refundedAmount: 0,
-      balanceAmount: 0,
-      creditAmount: 0,
-      lastPaymentAt: null,
+      modelVersion: 'finance-summary-v1',
+      currencies: [],
+      factComplete: true,
+      warnings: [],
+    });
+    expect(client.rpc).toHaveBeenCalledWith('get_patient_finance_summary', { p_tenant_id: tenantId, p_patient_id: patientId });
+    expect(calls).toEqual([]);
+  });
+
+  it('sanitizes RPC failures and does not expose backend details', async () => {
+    const { repository, client } = createRepository();
+    client.rpc.mockResolvedValueOnce({ data: null, error: new Error('sensitive postgres detail') });
+
+    await expect(repository.getPatientFinanceSummary({ tenantId, patientId })).rejects.toThrow('Finance summary read failed.');
+    await repository.getPatientFinanceSummary({ tenantId, patientId }).catch((error: Error) => {
+      expect(error.message).not.toContain('sensitive postgres detail');
     });
   });
 
-  it('computePatientFinanceSummary ignores voided/archived facts and handles balance/credit conservatively', () => {
-    const facts: PatientFinanceFacts = {
-      invoices: [
-        mapInvoiceRow({ ...invoiceRow, status: 'issued', total_amount: '10000.00', balance_amount: '6000.00' }),
-        mapInvoiceRow({ ...invoiceRow, id: 'archived-invoice', status: 'archived', total_amount: '9999.00', balance_amount: '9999.00' }),
-      ],
-      invoiceItems: [mapInvoiceItemRow(invoiceItemRow)],
-      payments: [
-        mapPaymentRow({ ...paymentRow, amount: '12000.00', received_at: '2026-06-21T02:00:00Z' }),
-        mapPaymentRow({ ...paymentRow, id: 'void-payment', status: 'voided', amount: '9999.00', received_at: '2026-06-22T02:00:00Z' }),
-      ],
-      paymentAllocations: [
-        mapPaymentAllocationRow({ ...allocationRow, amount: '9000.00' }),
-        mapPaymentAllocationRow({ ...allocationRow, id: 'void-allocation', status: 'voided', amount: '9999.00' }),
-      ],
-      refunds: [
-        mapRefundRow({ ...refundRow, amount: '500.00', status: 'completed' }),
-        mapRefundRow({ ...refundRow, id: 'pending-refund', status: 'pending', amount: '9999.00' }),
-      ],
-      financialAdjustments: [
-        mapFinancialAdjustmentRow({ ...adjustmentRow, adjustment_type: 'write_off', amount: '1000.00', status: 'approved' }),
-        mapFinancialAdjustmentRow({ ...adjustmentRow, id: 'discount-adjustment', adjustment_type: 'discount', amount: '500.00', status: 'active' }),
-        mapFinancialAdjustmentRow({ ...adjustmentRow, id: 'archived-adjustment', adjustment_type: 'write_off', amount: '9999.00', status: 'archived' }),
-      ],
-    };
-
-    const summary = computePatientFinanceSummary(tenantId, patientId, facts);
-
-    expect(summary).toMatchObject({
-      invoiceTotalAmount: 10000,
-      paidAmount: 12000,
-      allocatedPaymentAmount: 9000,
-      refundedAmount: 500,
-      discountAmount: 500,
-      writeOffAmount: 1000,
-      balanceAmount: 0,
-      creditAmount: 0,
-      unpaidInvoiceCount: 1,
-      openInvoiceCount: 1,
-      lastPaymentAt: '2026-06-21T02:00:00Z',
+  it('maps per-currency RPC payloads and rejects unknown warning codes', () => {
+    const mapped = mapPatientFinanceSummaryPayload({
+      tenantId,
+      patientId,
+      asOf: '2026-07-11T00:00:00Z',
+      modelVersion: 'finance-summary-v1',
+      currencies: [{
+        currency: 'kzt', totalInvoiced: '1000.00', activeAllocatedAmount: 400, cashReceived: 1500,
+        completedRefundAmount: 100, approvedWriteOffAmount: 0, currentDebt: 600,
+        grossUnallocatedAmount: 1000, refundReservedAmount: 200, reservedDepositAmount: 0,
+        availableCreditAmount: 800, netPositionAmount: 200, openInvoiceCount: 1,
+        unpaidInvoiceCount: 1, partiallyPaidInvoiceCount: 1, lastPaymentAt: null,
+      }],
+      factComplete: true,
+      warnings: [{ code: 'MULTIPLE_CURRENCIES', currency: null, entityType: 'patient', entityId: patientId, details: { currencyCount: 2, raw: { hidden: true } } }],
     });
-  });
-
-  it('computePatientFinanceSummary reports overpayment as credit without reading patient balance', () => {
-    const facts: PatientFinanceFacts = {
-      invoices: [mapInvoiceRow({ ...invoiceRow, total_amount: '3000.00', balance_amount: '0.00', status: 'paid' })],
-      invoiceItems: [],
-      payments: [mapPaymentRow({ ...paymentRow, amount: '5000.00' })],
-      paymentAllocations: [mapPaymentAllocationRow({ ...allocationRow, amount: '5000.00' })],
-      refunds: [],
-      financialAdjustments: [],
-    };
-
-    const summary = computePatientFinanceSummary(tenantId, patientId, facts);
-
-    expect(summary.balanceAmount).toBe(0);
-    expect(summary.creditAmount).toBe(2000);
+    expect(mapped.currencies[0]).toMatchObject({ currency: 'KZT', availableCreditAmount: 800, currentDebt: 600 });
+    expect(mapped.warnings[0]?.details).toEqual({ currencyCount: 2 });
+    expect(() => mapPatientFinanceSummaryPayload({ ...mapped, warnings: [{ code: 'UNKNOWN', details: {} }] })).toThrow('unknown code');
   });
 
   it('surfaces Supabase errors and empty lists safely', async () => {
