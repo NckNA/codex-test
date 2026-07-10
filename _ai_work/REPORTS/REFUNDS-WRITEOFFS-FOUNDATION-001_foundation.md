@@ -850,7 +850,40 @@ Implementation-head CI:
 - Tests: success
 - Build: success
 
-A fresh CI run on the final report-update head is verified separately after the report commit is pushed; its immutable run/commit pairing is recorded in the finalization receipt and final task response because the report commit cannot contain its own future CI result.
+## Finalization
+
+Final PR head before report-only update:
+
+`108a4d04626dc2e0c184d509d5b1f73b76b72515`
+
+GitHub Actions CI #653 / run `29080027605`:
+
+- conclusion: `success`;
+- tested commit: `108a4d04626dc2e0c184d509d5b1f73b76b72515`;
+- tested commit matched the PR head before this report-only update.
+
+Report update commit:
+
+N/A because the final report update commit cannot reference itself before creation.
+
+Hermes finalizer note:
+
+Hermes finalizer failed with `replaceReportPlaceholders is not defined`.
+The failure did not modify repository files or implementation results.
+
+Final verdict:
+
+REFUNDS WRITEOFFS FOUNDATION IMPLEMENTED AND VERIFIED
+
+Recommended next task:
+
+`CASHIER-PAYMENT-FLOW-HARDENING-001`
+
+After that:
+
+`REFUNDS-WRITEOFFS-UI-001`
+
+A fresh CI run on the report-only commit is verified after push. Its final run ID, run number, conclusion, and tested commit are reported separately because this report cannot contain its own future commit SHA or CI result.
 
 ## 34. Issues/warnings
 
