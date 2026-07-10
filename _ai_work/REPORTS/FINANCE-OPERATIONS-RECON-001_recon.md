@@ -2,6 +2,10 @@
 
 Final verdict: **PASS**
 
+## Summary
+
+Report-only reconciliation of finance operational readiness, data invariants, roles, audit coverage, performance risks, business gaps, architecture decisions, and the dependency-ordered implementation roadmap.
+
 ## 1. Executive summary
 
 The finance module now has a strong transaction core but is not yet operationally complete for a dental clinic.
@@ -42,15 +46,24 @@ The baseline contains merged PR #335 (`REFUNDS-WRITEOFFS-UI-001`).
 
 ## 3. PR URL
 
-Not created yet.
+https://github.com/NckNA/codex-test/pull/336
 
 ## 4. PR head reviewed before final report update
 
-Not available before PR creation.
+`209814b22895dc8d5021d0f9860cad328000912f`
+
+Fresh implementation/report CI before the final metadata update:
+
+- workflow: `CI`;
+- run number: `662`;
+- run ID: `29098542205`;
+- result: `success`;
+- tested commit: `209814b22895dc8d5021d0f9860cad328000912f`.
 
 ## 5. Report update commit
 
-N/A because the final report update commit cannot reference itself before creation.
+- Report update commit: N/A (the report commit cannot reference itself; use the finalization receipt).
+- The immutable finalization receipt records the final report-only commit and fresh CI run.
 
 ## 6. Changed files
 
@@ -1331,8 +1344,14 @@ The review is complete. The current finance module has a strong controlled trans
 - Browser smoke: not run; forbidden and unnecessary for this report-only task. Existing scoped browser reports were reviewed.
 - Direct database mutations: none.
 - Cloud Supabase: not touched.
-- Report validator: pending PR creation/final metadata.
-- GitHub Actions: pending PR creation.
+- Report validator: passed with 0 errors and 0 warnings for PR #336.
+- GitHub Actions: CI #662 / run `29098542205` passed on `209814b22895dc8d5021d0f9860cad328000912f`.
+
+## Browser smoke
+
+- New browser smoke was not run because this is a report-only task and browser fixture creation is forbidden.
+- Existing patient-finance, cashier, refund, write-off, role, no-tenant, and cross-tenant browser evidence in the reviewed reports was reconciled.
+- No new database fixture was created and no cleanup was required.
 
 ## Issues / warnings
 
