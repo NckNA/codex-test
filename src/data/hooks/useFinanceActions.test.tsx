@@ -67,6 +67,18 @@ describe('useFinanceActions', () => {
     expect(rpcClient.addInvoiceItem).toHaveBeenCalledWith(expect.objectContaining({ tenantId, invoiceId: 'invoice-1', serviceName: 'Service', quantity: 1, unitPrice: 1000 }));
   });
 
+  it('refreshes and shows the safe race message after a completed-service duplicate', async () => {
+    const rpcClient = createRpcClient();
+    vi.mocked(rpcClient.addInvoiceItem).mockRejectedValueOnce(new Error('Эта выполненная услуга уже включена в другой счёт.'));
+    await renderHook(rpcClient);
+    let thrown: unknown;
+    await act(async () => {
+      try { await latest?.addInvoiceItem({ invoiceId: 'invoice-1', serviceName: 'Service', quantity: 1, unitPrice: 1000, completedServiceId: 'service-1' }); } catch (error) { thrown = error; }
+    });
+    expect((thrown as Error).message).toBe('Услуга уже была включена в другой счёт. Данные обновлены.');
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
   it('calls issueInvoice', async () => {
     const rpcClient = await renderHook();
     await act(async () => { await latest?.issueInvoice('invoice-1'); });

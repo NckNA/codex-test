@@ -30,6 +30,9 @@ const invoice = { id: 'invoice-1', tenantId, patientId, invoiceNumber: 'INV-1', 
 const invoiceItem = { id: 'item-1', tenantId, patientId, invoiceId: invoice.id, serviceName: 'Smoke finance service', serviceCode: 'SMK', completedServiceId: 'service-1', toothNumber: '16', toothSurface: 'O', quantity: 1, unitPrice: 1000, discountAmount: 0, adjustmentAmount: 0, totalAmount: 1000, status: 'active' } as InvoiceItem;
 const payment = { id: 'payment-1', tenantId, patientId, status: 'received', paymentMethod: 'cash', amount: 1000, currency: 'KZT', receivedAt: '2026-06-21T10:00:00.000Z', payerName: 'Patient', externalReference: 'SMOKE-PATIENT-FINANCE-UI-001', notes: 'Payment note' } as Payment;
 const allocation = { id: 'allocation-1', tenantId, patientId, paymentId: payment.id, invoiceId: invoice.id, invoiceItemId: null, status: 'active', amount: 1000, currency: 'KZT', allocatedAt: '2026-06-21T10:05:00.000Z' } as PaymentAllocation;
+const billedService = { completedServiceId: 'service-1', serviceName: 'Already billed', serviceCode: null, toothNumber: null, toothSurface: null, quantity: 1, unitPrice: 1000, currency: 'KZT', billingState: 'billed', invoiceId: 'invoice-void', invoiceItemId: 'item-void', invoiceNumber: 'INV-VOID', invoiceStatus: 'voided', billedAt: '2026-07-11T00:00:00.000Z' } as const;
+const unbilledService = { completedServiceId: 'service-2', serviceName: 'Selectable service', serviceCode: 'SEL', toothNumber: '16', toothSurface: 'O', quantity: 2, unitPrice: 1500, currency: 'KZT', billingState: 'unbilled', invoiceId: null, invoiceItemId: null, invoiceNumber: null, invoiceStatus: null, billedAt: null } as const;
+const unavailableService = { completedServiceId: 'service-3', serviceName: 'Unavailable service', serviceCode: null, toothNumber: null, toothSurface: null, quantity: 1, unitPrice: 1, currency: 'KZT', billingState: 'unavailable', invoiceId: null, invoiceItemId: null, invoiceNumber: null, invoiceStatus: null, billedAt: null } as const;
 
 function createRepository({ empty = false }: { empty?: boolean } = {}): FinanceRepository {
   return {
@@ -40,6 +43,7 @@ function createRepository({ empty = false }: { empty?: boolean } = {}): FinanceR
     listPaymentAllocations: vi.fn().mockResolvedValue(empty ? [] : [allocation]),
     listRefunds: vi.fn().mockResolvedValue([]),
     listFinancialAdjustments: vi.fn().mockResolvedValue([]),
+    getCompletedServiceBillingEligibility: vi.fn().mockResolvedValue([]),
     getPaymentRefundability: vi.fn().mockResolvedValue({ payment, paymentAmount: 1000, activeAllocatedAmount: 1000, completedRefundAmount: 0, reservedRefundAmount: 0, refundableAmount: 0, hasActiveAllocations: true, refundCount: 0, currency: 'KZT' }),
     getInvoiceWriteOffEligibility: vi.fn().mockResolvedValue({ invoice, invoiceTotalAmount: 1000, paidAmount: 0, approvedWriteOffAmount: 0, reservedWriteOffAmount: 0, availableWriteOffAmount: 0, eligible: false, ineligibilityReason: 'Invoice status draft is not eligible for write-off.', currency: 'KZT' }),
   } as unknown as FinanceRepository;
@@ -175,6 +179,77 @@ describe('PatientFinancePanel', () => {
     await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="finance-add-item-submit"]')?.click(); });
     expect(container.textContent).toContain('Название услуги обязательно.');
     expect(rpcClient.addInvoiceItem).not.toHaveBeenCalled();
+  });
+
+  it('renders billed services disabled with their historical invoice number while keeping manual items available', async () => {
+    const repository = createRepository();
+    vi.mocked(repository.getCompletedServiceBillingEligibility).mockResolvedValue([billedService]);
+    await renderPanel({ repository });
+    const select = container.querySelector<HTMLSelectElement>('[data-testid="finance-completed-service-select"]');
+    expect(select?.options[0]?.text).toContain('Ручная позиция');
+    expect(select?.options[1]?.disabled).toBe(true);
+    expect(select?.options[1]?.text).toContain('Уже включено в счёт');
+    expect(select?.options[1]?.text).toContain('INV-VOID');
+  });
+
+  it('keeps unavailable services disabled and fills a selectable completed service while preserving manual', async () => {
+    const repository = createRepository();
+    vi.mocked(repository.getCompletedServiceBillingEligibility).mockResolvedValue([unbilledService, unavailableService]);
+    await renderPanel({ repository });
+    const select = container.querySelector<HTMLSelectElement>('[data-testid="finance-completed-service-select"]');
+    expect(select?.options[0]?.value).toBe('');
+    expect(select?.options[2]?.disabled).toBe(true);
+    await act(async () => {
+      if (!select) return;
+      select.value = unbilledService.completedServiceId;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(container.querySelector<HTMLInputElement>('[data-testid="finance-item-service-name"]')?.value).toBe('Selectable service');
+    expect(container.querySelector<HTMLInputElement>('[data-testid="finance-item-service-code"]')?.value).toBe('SEL');
+    expect(container.querySelector<HTMLInputElement>('[data-testid="finance-item-tooth-number"]')?.value).toBe('16');
+    expect(container.querySelector<HTMLInputElement>('[data-testid="finance-item-tooth-surface"]')?.value).toBe('O');
+    expect(container.querySelector<HTMLInputElement>('[data-testid="finance-item-quantity"]')?.value).toBe('2');
+    expect(container.querySelector<HTMLInputElement>('[data-testid="finance-item-unit-price"]')?.value).toBe('1500');
+  });
+
+  it('refreshes and displays the safe duplicate message after the backend rejects a selected service', async () => {
+    const repository = createRepository();
+    const rpcClient = createRpcClient();
+    vi.mocked(repository.getCompletedServiceBillingEligibility).mockResolvedValue([unbilledService]);
+    vi.mocked(rpcClient.addInvoiceItem).mockRejectedValueOnce(new Error('Эта выполненная услуга уже включена в другой счёт.'));
+    await renderPanel({ repository, rpcClient });
+    const select = container.querySelector<HTMLSelectElement>('[data-testid="finance-completed-service-select"]');
+    await act(async () => {
+      if (!select) return;
+      select.value = unbilledService.completedServiceId;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="finance-add-item-submit"]')?.click(); });
+    expect(rpcClient.addInvoiceItem).toHaveBeenCalledWith(expect.objectContaining({ completedServiceId: unbilledService.completedServiceId }));
+    expect(repository.getPatientFinanceSummary).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('Услуга уже была включена в другой счёт. Данные обновлены.');
+  });
+
+  it('disables a pending item submission so a second click does not repeat the RPC', async () => {
+    const repository = createRepository();
+    const rpcClient = createRpcClient();
+    const pending = deferred<InvoiceItem>();
+    vi.mocked(repository.getCompletedServiceBillingEligibility).mockResolvedValue([unbilledService]);
+    vi.mocked(rpcClient.addInvoiceItem).mockReturnValueOnce(pending.promise);
+    await renderPanel({ repository, rpcClient });
+    const select = container.querySelector<HTMLSelectElement>('[data-testid="finance-completed-service-select"]');
+    await act(async () => {
+      if (!select) return;
+      select.value = unbilledService.completedServiceId;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="finance-add-item-submit"]')?.click(); });
+    const submit = container.querySelector<HTMLButtonElement>('[data-testid="finance-add-item-submit"]');
+    expect(submit?.disabled).toBe(true);
+    await act(async () => { submit?.click(); });
+    expect(rpcClient.addInvoiceItem).toHaveBeenCalledTimes(1);
+    pending.resolve(invoiceItem);
+    await flush();
   });
 
   it('record payment and allocation forms validate required fields', async () => {

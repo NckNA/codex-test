@@ -7,6 +7,7 @@ import {
   SupabaseFinanceRepository,
   createFinanceRepository,
   mapFinancialAdjustmentRow,
+  mapCompletedServiceBillingEligibilityRow,
   mapInvoiceItemRow,
   mapInvoiceRow,
   mapPaymentAllocationRow,
@@ -292,6 +293,38 @@ describe('FinanceRepository', () => {
 
     await expect(repository.getPatientFinanceFacts({ tenantId, patientId: '' })).rejects.toThrow(PATIENT_REQUIRED_FOR_FINANCE_ERROR);
     await expect(repository.getPatientFinanceSummary({ tenantId, patientId: '' })).rejects.toThrow(PATIENT_REQUIRED_FOR_FINANCE_ERROR);
+  });
+
+  it('reads authoritative completed-service billing eligibility through its tenant-scoped RPC', async () => {
+    const { repository, client } = createRepository();
+    client.rpc.mockResolvedValueOnce({ data: [{
+      completed_service_id: completedServiceId, service_name: 'Consultation', service_code: 'CONS',
+      tooth_number: '16', tooth_surface: 'O', quantity: '1', unit_price: '1000', currency: 'KZT',
+      billing_state: 'billed', invoice_id: invoiceId, invoice_item_id: invoiceItemId,
+      invoice_number: 'INV-1', invoice_status: 'voided', billed_at: '2026-07-11T10:00:00Z',
+    }], error: null });
+
+    await expect(repository.getCompletedServiceBillingEligibility({ tenantId, patientId })).resolves.toEqual([expect.objectContaining({
+      completedServiceId, billingState: 'billed', invoiceId, invoiceItemId, invoiceNumber: 'INV-1', invoiceStatus: 'voided', billedAt: '2026-07-11T10:00:00Z',
+    })]);
+    expect(client.rpc).toHaveBeenCalledWith('get_completed_service_billing_eligibility', { p_tenant_id: tenantId, p_patient_id: patientId });
+    expect(client.insert).not.toHaveBeenCalled();
+    expect(client.update).not.toHaveBeenCalled();
+    expect(client.delete).not.toHaveBeenCalled();
+    expect(client.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown billing eligibility state instead of treating it as selectable', () => {
+    expect(() => mapCompletedServiceBillingEligibilityRow({
+      completed_service_id: completedServiceId, service_name: 'Consultation', quantity: 1, currency: 'KZT', billing_state: 'unknown',
+    })).toThrow('invalid billing_state');
+  });
+
+  it('rejects an invalid eligibility invoice status instead of blindly casting it', () => {
+    expect(() => mapCompletedServiceBillingEligibilityRow({
+      completed_service_id: completedServiceId, service_name: 'Consultation', quantity: 1, currency: 'KZT',
+      billing_state: 'billed', invoice_status: 'invented',
+    })).toThrow('invalid invoice_status');
   });
 
   it('requires ids for get methods', async () => {

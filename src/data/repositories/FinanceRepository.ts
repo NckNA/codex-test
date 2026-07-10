@@ -67,6 +67,25 @@ export interface InvoiceItem {
   updatedAt: string;
 }
 
+export type CompletedServiceBillingState = 'unbilled' | 'billed' | 'unavailable';
+
+export interface CompletedServiceBillingEligibility {
+  completedServiceId: string;
+  serviceName: string;
+  serviceCode: string | null;
+  toothNumber: string | null;
+  toothSurface: string | null;
+  quantity: number;
+  unitPrice: number | null;
+  currency: string;
+  billingState: CompletedServiceBillingState;
+  invoiceId: string | null;
+  invoiceItemId: string | null;
+  invoiceNumber: string | null;
+  invoiceStatus: InvoiceStatus | null;
+  billedAt: string | null;
+}
+
 export interface Payment {
   id: string;
   tenantId: string;
@@ -331,6 +350,11 @@ export interface PatientFinanceOptions {
   patientId: string;
 }
 
+export interface GetCompletedServiceBillingEligibilityOptions {
+  tenantId: string;
+  patientId: string;
+}
+
 export interface FinanceRepository {
   listInvoices(options: ListInvoicesOptions): Promise<Invoice[]>;
   getInvoiceById(options: GetInvoiceByIdOptions): Promise<Invoice | null>;
@@ -342,6 +366,7 @@ export interface FinanceRepository {
   listFinancialAdjustments(options: ListFinancialAdjustmentsOptions): Promise<FinancialAdjustment[]>;
   getPaymentRefundability(options: GetPaymentRefundabilityOptions): Promise<PaymentRefundability | null>;
   getInvoiceWriteOffEligibility(options: GetInvoiceWriteOffEligibilityOptions): Promise<InvoiceWriteOffEligibility | null>;
+  getCompletedServiceBillingEligibility(options: GetCompletedServiceBillingEligibilityOptions): Promise<CompletedServiceBillingEligibility[]>;
   getPatientFinanceFacts(options: PatientFinanceOptions): Promise<PatientFinanceFacts>;
   getPatientFinanceSummary(options: PatientFinanceOptions): Promise<PatientFinanceSummary>;
 }
@@ -474,6 +499,33 @@ export function mapInvoiceItemRow(row: Record<string, unknown>): InvoiceItem {
     archivedAt: nullableString(row.archived_at),
     createdAt: requiredString(row.created_at, 'created_at'),
     updatedAt: requiredString(row.updated_at, 'updated_at'),
+  };
+}
+
+export function mapCompletedServiceBillingEligibilityRow(row: Record<string, unknown>): CompletedServiceBillingEligibility {
+  const billingState = requiredString(row.billing_state, 'billing_state') as CompletedServiceBillingState;
+  if (!['unbilled', 'billed', 'unavailable'].includes(billingState)) {
+    throw new Error('Finance billing eligibility row has invalid billing_state');
+  }
+  const invoiceStatus = nullableString(row.invoice_status);
+  if (invoiceStatus !== null && !['draft', 'issued', 'partially_paid', 'paid', 'voided', 'written_off', 'archived'].includes(invoiceStatus)) {
+    throw new Error('Finance billing eligibility row has invalid invoice_status');
+  }
+  return {
+    completedServiceId: requiredString(row.completed_service_id, 'completed_service_id'),
+    serviceName: requiredString(row.service_name, 'service_name'),
+    serviceCode: nullableString(row.service_code),
+    toothNumber: nullableString(row.tooth_number),
+    toothSurface: nullableString(row.tooth_surface),
+    quantity: requiredNumber(row.quantity, 'quantity'),
+    unitPrice: row.unit_price === null || row.unit_price === undefined ? null : requiredNumber(row.unit_price, 'unit_price'),
+    currency: requiredString(row.currency, 'currency'),
+    billingState,
+    invoiceId: nullableString(row.invoice_id),
+    invoiceItemId: nullableString(row.invoice_item_id),
+    invoiceNumber: nullableString(row.invoice_number),
+    invoiceStatus: invoiceStatus as InvoiceStatus | null,
+    billedAt: nullableString(row.billed_at),
   };
 }
 
@@ -724,6 +776,17 @@ export class SupabaseFinanceRepository implements FinanceRepository {
     const { data, error } = await query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
     if (error) throw error;
     return ((data ?? []) as Record<string, unknown>[]).map(mapInvoiceItemRow);
+  }
+
+  async getCompletedServiceBillingEligibility(options: GetCompletedServiceBillingEligibilityOptions): Promise<CompletedServiceBillingEligibility[]> {
+    const tenantId = requireTenantId(options.tenantId);
+    const patientId = requirePatientId(options.patientId);
+    const { data, error } = await this.client.rpc('get_completed_service_billing_eligibility', {
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+    });
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(mapCompletedServiceBillingEligibilityRow);
   }
 
   async listPayments(options: ListPaymentsOptions): Promise<Payment[]> {

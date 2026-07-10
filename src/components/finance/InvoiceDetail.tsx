@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import type { FinanceRepository, Invoice, InvoiceItem } from '../../data/repositories/FinanceRepository';
+import type { CompletedServiceBillingEligibility, FinanceRepository, Invoice, InvoiceItem } from '../../data/repositories/FinanceRepository';
 import type { FinanceRpcClient } from '../../data/repositories/FinanceRpcClient';
 import type { FinanceActionName } from '../../data/hooks/useFinanceActions';
 import { FinanceStatusBadge } from './FinanceStatusBadge';
@@ -11,6 +11,7 @@ interface InvoiceDetailProps {
   tenantId?: string | null;
   invoice: Invoice | null;
   items: InvoiceItem[];
+  completedServiceBillingEligibility: CompletedServiceBillingEligibility[];
   role?: FinanceUserRole;
   repository?: FinanceRepository;
   rpcClient?: FinanceRpcClient;
@@ -46,7 +47,7 @@ function parseOptionalAmount(value: string) {
   return Number(value);
 }
 
-export function InvoiceDetail({ tenantId, invoice, items, role, repository, rpcClient, canAddItem, actionLoading, onChanged, onAddItem }: InvoiceDetailProps) {
+export function InvoiceDetail({ tenantId, invoice, items, completedServiceBillingEligibility, role, repository, rpcClient, canAddItem, actionLoading, onChanged, onAddItem }: InvoiceDetailProps) {
   const [serviceName, setServiceName] = useState('');
   const [serviceCode, setServiceCode] = useState('');
   const [completedServiceId, setCompletedServiceId] = useState('');
@@ -60,6 +61,7 @@ export function InvoiceDetail({ tenantId, invoice, items, role, repository, rpcC
   const [formError, setFormError] = useState<string | null>(null);
 
   const invoiceItems = useMemo(() => (invoice ? items.filter((item) => item.invoiceId === invoice.id) : []), [invoice, items]);
+  const completedServiceById = useMemo(() => new Map(completedServiceBillingEligibility.map((service) => [service.completedServiceId, service])), [completedServiceBillingEligibility]);
   const canUseForm = Boolean(invoice && canAddItem && ['draft', 'issued'].includes(invoice.status));
   const invoiceCurrency = invoice?.currency ?? 'KZT';
 
@@ -74,6 +76,18 @@ export function InvoiceDetail({ tenantId, invoice, items, role, repository, rpcC
     setDiscountAmount('');
     setAdjustmentAmount('');
     setNotes('');
+  };
+
+  const handleCompletedServiceChange = (nextId: string) => {
+    setCompletedServiceId(nextId);
+    const service = completedServiceById.get(nextId);
+    if (!service || service.billingState !== 'unbilled') return;
+    setServiceName(service.serviceName);
+    setServiceCode(service.serviceCode ?? '');
+    setToothNumber(service.toothNumber ?? '');
+    setToothSurface(service.toothSurface ?? '');
+    setQuantity(String(service.quantity));
+    setUnitPrice(service.unitPrice === null ? '' : String(service.unitPrice));
   };
 
   const handleAddItem = async (event: FormEvent<HTMLFormElement>) => {
@@ -124,10 +138,20 @@ export function InvoiceDetail({ tenantId, invoice, items, role, repository, rpcC
             <label className="text-sm font-medium text-slate-700">Название услуги<input data-testid="finance-item-service-name" value={serviceName} onChange={(event) => setServiceName(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
             <label className="text-sm font-medium text-slate-700">Количество<input data-testid="finance-item-quantity" type="number" min="0" step="0.01" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
             <label className="text-sm font-medium text-slate-700">Цена<input data-testid="finance-item-unit-price" type="number" min="0" step="0.01" value={unitPrice} onChange={(event) => setUnitPrice(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
-            <label className="text-sm font-medium text-slate-700">Код<input value={serviceCode} onChange={(event) => setServiceCode(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
-            <label className="text-sm font-medium text-slate-700">ID выполненной услуги<input value={completedServiceId} onChange={(event) => setCompletedServiceId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
-            <label className="text-sm font-medium text-slate-700">Зуб<input value={toothNumber} onChange={(event) => setToothNumber(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
-            <label className="text-sm font-medium text-slate-700">Поверхность<input value={toothSurface} onChange={(event) => setToothSurface(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
+            <label className="text-sm font-medium text-slate-700">Код<input data-testid="finance-item-service-code" value={serviceCode} onChange={(event) => setServiceCode(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
+            <label className="text-sm font-medium text-slate-700">Выполненная услуга
+              <select data-testid="finance-completed-service-select" value={completedServiceId} onChange={(event) => handleCompletedServiceChange(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                <option value="">Ручная позиция (без выполненной услуги)</option>
+                {completedServiceBillingEligibility.map((service) => {
+                  const billingDetail = service.billingState === 'billed'
+                    ? ` — Уже включено в счёт${service.invoiceNumber ? ` №${service.invoiceNumber}` : ''}`
+                    : service.billingState === 'unavailable' ? ' — Недоступно' : '';
+                  return <option key={service.completedServiceId} value={service.completedServiceId} disabled={service.billingState !== 'unbilled'}>{service.serviceName}{billingDetail}</option>;
+                })}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700">Зуб<input data-testid="finance-item-tooth-number" value={toothNumber} onChange={(event) => setToothNumber(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
+            <label className="text-sm font-medium text-slate-700">Поверхность<input data-testid="finance-item-tooth-surface" value={toothSurface} onChange={(event) => setToothSurface(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
             <label className="text-sm font-medium text-slate-700">Скидка<input type="number" min="0" step="0.01" value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
             <label className="text-sm font-medium text-slate-700">Корректировка<input type="number" min="0" step="0.01" value={adjustmentAmount} onChange={(event) => setAdjustmentAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
             <label className="text-sm font-medium text-slate-700 md:col-span-3">Примечание<input value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>

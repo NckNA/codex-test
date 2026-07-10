@@ -66,6 +66,8 @@ export interface UseFinanceActionsResult {
 }
 
 const ACTION_METADATA = { source: 'patient_finance_ui' };
+const COMPLETED_SERVICE_ALREADY_BILLED_ERROR = 'Эта выполненная услуга уже включена в другой счёт.';
+const COMPLETED_SERVICE_ALREADY_BILLED_REFRESHED_ERROR = 'Услуга уже была включена в другой счёт. Данные обновлены.';
 
 function normalizeOptionalText(value?: string | null) {
   const trimmed = value?.trim();
@@ -84,6 +86,10 @@ function safeFinanceError(error: unknown): Error {
     }
   }
   return new Error('Не удалось выполнить финансовую операцию.');
+}
+
+function isCompletedServiceDuplicate(error: unknown) {
+  return error instanceof Error && error.message.toLowerCase().includes(COMPLETED_SERVICE_ALREADY_BILLED_ERROR.toLowerCase());
 }
 
 export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: UseFinanceActionsOptions): UseFinanceActionsResult {
@@ -109,7 +115,10 @@ export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: U
       await action();
       await refresh?.();
     } catch (err) {
-      const parsed = safeFinanceError(err);
+      const parsed = isCompletedServiceDuplicate(err)
+        ? new Error(COMPLETED_SERVICE_ALREADY_BILLED_REFRESHED_ERROR)
+        : safeFinanceError(err);
+      if (isCompletedServiceDuplicate(err)) await refresh?.();
       setActionError(parsed);
       throw parsed;
     } finally {
@@ -225,3 +234,5 @@ export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: U
     clearError: () => setActionError(null),
   };
 }
+
+export { COMPLETED_SERVICE_ALREADY_BILLED_ERROR, COMPLETED_SERVICE_ALREADY_BILLED_REFRESHED_ERROR };
