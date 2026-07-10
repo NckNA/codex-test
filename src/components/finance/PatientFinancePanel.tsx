@@ -34,7 +34,13 @@ export function PatientFinancePanel({ tenantId, patientId, role, repository, rpc
   const [createError, setCreateError] = useState<string | null>(null);
   const capabilities = useMemo(() => getFinanceRoleCapabilities(role), [role]);
 
-  const finance = usePatientFinance({ tenantId, patientId, repository, enabled: capabilities.canView });
+  const finance = usePatientFinance({
+    tenantId,
+    patientId,
+    repository,
+    enabled: capabilities.canView,
+    includeCompletedServiceBillingEligibility: capabilities.canAddInvoiceItem,
+  });
   const actions = useFinanceActions({ tenantId, patientId, refresh: finance.refresh, rpcClient });
 
   const selectedInvoice = useMemo(() => {
@@ -101,7 +107,7 @@ export function PatientFinancePanel({ tenantId, patientId, role, repository, rpc
           <PatientFinanceSummaryCard summary={finance.summary} />
           <div className="grid gap-6 xl:grid-cols-2">
             <InvoiceList invoices={finance.invoices} selectedInvoiceId={selectedInvoice?.id ?? null} role={role} actionLoading={actions.actionLoading} onSelectInvoice={setSelectedInvoiceId} onIssueInvoice={actions.issueInvoice} onVoidInvoice={actions.voidInvoice} />
-            <InvoiceDetail tenantId={tenantId} invoice={selectedInvoice} items={finance.invoiceItems} role={role} repository={repository} rpcClient={rpcClient} canAddItem={capabilities.canAddInvoiceItem} actionLoading={actions.actionLoading} onChanged={finance.refresh} onAddItem={actions.addInvoiceItem} />
+            <InvoiceDetail tenantId={tenantId} invoice={selectedInvoice} items={finance.invoiceItems} completedServiceBillingEligibility={finance.completedServiceBillingEligibility} role={role} repository={repository} rpcClient={rpcClient} canAddItem={capabilities.canAddInvoiceItem} actionLoading={actions.actionLoading} onChanged={finance.refresh} onAddItem={actions.addInvoiceItem} />
           </div>
           <PaymentList tenantId={tenantId} payments={finance.payments} role={role} repository={repository} rpcClient={rpcClient} actionLoading={actions.actionLoading} onRecordPayment={actions.recordPayment} onVoidPayment={actions.voidPayment} onChanged={finance.refresh} />
           <AllocationActions invoices={finance.invoices} invoiceItems={finance.invoiceItems} payments={finance.payments} allocations={finance.paymentAllocations} role={role} actionLoading={actions.actionLoading} onAllocatePayment={actions.allocatePayment} onVoidAllocation={actions.voidPaymentAllocation} />

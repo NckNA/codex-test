@@ -7,6 +7,8 @@ import {
   mapPaymentRow,
   mapRefundRow,
   mapFinancialAdjustmentRow,
+  mapCompletedServiceBillingEligibilityRow,
+  type CompletedServiceBillingEligibility,
   type Invoice,
   type InvoiceItem,
   type Payment,
@@ -71,6 +73,11 @@ export interface AddInvoiceItemInput {
   toothSurface?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+export interface GetCompletedServiceBillingEligibilityInput {
+  tenantId: string;
+  patientId: string;
 }
 
 export interface IssueInvoiceInput {
@@ -189,6 +196,7 @@ export interface VoidInvoiceWriteOffInput { tenantId: string; adjustmentId: stri
 export interface FinanceRpcClient {
   createInvoice(input: CreateInvoiceInput): Promise<Invoice>;
   addInvoiceItem(input: AddInvoiceItemInput): Promise<InvoiceItem>;
+  getCompletedServiceBillingEligibility(input: GetCompletedServiceBillingEligibilityInput): Promise<CompletedServiceBillingEligibility[]>;
   issueInvoice(input: IssueInvoiceInput): Promise<Invoice>;
   voidInvoice(input: VoidInvoiceInput): Promise<Invoice>;
   recordPayment(input: RecordPaymentInput): Promise<Payment>;
@@ -282,22 +290,53 @@ function extractSingleRow(data: unknown, operation: string): Record<string, unkn
   return row;
 }
 
-function safeRpcErrorDetail(error: Error): string {
-  const raw = error.message.trim();
+function getRpcErrorField(error: unknown, field: 'message' | 'code' | 'constraint' | 'details'): string | undefined {
+  if (error instanceof Error && field === 'message') return error.message;
+  if (error instanceof Error || isPlainObject(error)) {
+    const value = (error as unknown as Record<string, unknown>)[field];
+    return typeof value === 'string' ? value : undefined;
+  }
+  return undefined;
+}
+
+function safeRpcErrorDetail(error: unknown): string {
+  const raw = getRpcErrorField(error, 'message')?.trim() ?? '';
   if (!raw || raw.length > 240 || /[\r\n{}]/.test(raw) || raw.includes('[') || raw.includes(']')) return '';
   return raw.replace(/\s+/g, ' ');
 }
 
+function isCompletedServiceBillingConstraint(error: unknown, code?: string): boolean {
+  if (code !== '23505') return false;
+  const values = ['constraint', 'details', 'message']
+    .map((field) => getRpcErrorField(error, field as 'constraint' | 'details' | 'message'))
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+  return values.includes('uq_invoice_items_completed_service_billed_once');
+}
+
 function normalizeRpcError(error: unknown, operation: string): FinanceRpcClientError {
   if (error instanceof FinanceRpcClientError) return error;
-  if (error instanceof Error) {
-    const errorWithCode = error as unknown as { code?: unknown };
-    const code = typeof errorWithCode.code === 'string' ? errorWithCode.code : undefined;
+  if (error instanceof Error || isPlainObject(error)) {
+    const code = getRpcErrorField(error, 'code');
     const detail = safeRpcErrorDetail(error);
+    if (operation === 'addInvoiceItem' && (
+      detail.toLowerCase().includes('эта выполненная услуга уже включена')
+      || isCompletedServiceBillingConstraint(error, code)
+    )) {
+      return new FinanceRpcClientError({
+        operation,
+        code,
+        category: 'duplicate_conflict',
+        message: 'Эта выполненная услуга уже включена в другой счёт.',
+      });
+    }
     return new FinanceRpcClientError({
       operation,
       code,
-      message: detail
+      message: operation === 'addInvoiceItem'
+        ? FINANCE_RPC_OPERATION_FAILED_MESSAGE
+        : detail
         ? `${FINANCE_RPC_OPERATION_FAILED_MESSAGE} ${detail}`
         : FINANCE_RPC_OPERATION_FAILED_MESSAGE,
     });
@@ -315,6 +354,22 @@ async function callRpc(
     const { data, error } = await client.rpc(rpcName, params);
     if (error) throw normalizeRpcError(error, operation);
     return extractSingleRow(data, operation);
+  } catch (error) {
+    throw normalizeRpcError(error, operation);
+  }
+}
+
+async function callRpcRows(
+  client: SupabaseClient,
+  operation: string,
+  rpcName: string,
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>[]> {
+  try {
+    const { data, error } = await client.rpc(rpcName, params);
+    if (error) throw normalizeRpcError(error, operation);
+    if (!Array.isArray(data)) throw new FinanceRpcClientError({ operation, category: 'read_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
+    return data.filter(isPlainObject);
   } catch (error) {
     throw normalizeRpcError(error, operation);
   }
@@ -505,6 +560,15 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
       p_metadata: normalizeMetadata(input.metadata),
     });
     return mapInvoiceItemRow(row);
+  }
+
+  async getCompletedServiceBillingEligibility(input: GetCompletedServiceBillingEligibilityInput): Promise<CompletedServiceBillingEligibility[]> {
+    const operation = 'getCompletedServiceBillingEligibility';
+    const rows = await callRpcRows(this.client, operation, 'get_completed_service_billing_eligibility', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_patient_id: requireNonEmptyString(input.patientId, 'Пациент не выбран.'),
+    });
+    return rows.map(mapCompletedServiceBillingEligibilityRow);
   }
 
   async issueInvoice(input: IssueInvoiceInput): Promise<Invoice> {

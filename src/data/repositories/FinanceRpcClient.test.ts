@@ -314,6 +314,58 @@ describe('FinanceRpcClient RPC mapping', () => {
     } });
   });
 
+  it('maps the completed-service duplicate conflict to the safe message', async () => {
+    const error = Object.assign(new Error('Эта выполненная услуга уже включена в другой счёт.'), { code: '23505' });
+    const { rpcClient } = createClientMock({ data: null, error });
+    await expect(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Filling', completedServiceId })).rejects.toMatchObject({
+      category: 'duplicate_conflict',
+      message: 'Эта выполненная услуга уже включена в другой счёт.',
+    });
+  });
+
+  it('maps the plain PostgREST duplicate response used by Supabase in the browser', async () => {
+    const error = {
+      code: '23505',
+      message: 'Эта выполненная услуга уже включена в другой счёт.',
+      details: null,
+      hint: null,
+    } as unknown as Error;
+    const { rpcClient } = createClientMock({ data: null, error });
+    await expect(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Filling', completedServiceId })).rejects.toMatchObject({
+      category: 'duplicate_conflict',
+      message: 'Эта выполненная услуга уже включена в другой счёт.',
+    });
+  });
+
+  it('does not mislabel an unrelated 23505 as a completed-service billing conflict', async () => {
+    const error = Object.assign(new Error('duplicate key value violates unique constraint "some_other_unique"'), { code: '23505', constraint: 'some_other_unique' });
+    const { rpcClient } = createClientMock({ data: null, error });
+    await expect(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Filling', completedServiceId })).rejects.toMatchObject({
+      category: undefined,
+      message: 'Не удалось выполнить финансовую операцию.',
+    });
+  });
+
+  it('maps the known unique index conflict safely without exposing raw SQL detail', async () => {
+    const error = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505', constraint: 'uq_invoice_items_completed_service_billed_once' });
+    const { rpcClient } = createClientMock({ data: null, error });
+    await expect(rpcClient.addInvoiceItem({ tenantId, invoiceId, serviceName: 'Filling', completedServiceId })).rejects.toMatchObject({
+      category: 'duplicate_conflict',
+      message: 'Эта выполненная услуга уже включена в другой счёт.',
+    });
+  });
+
+  it('gets completed-service billing eligibility only through the RPC', async () => {
+    const { rpcClient, rpcCalls, client } = createClientMock({ data: [{
+      completed_service_id: completedServiceId, service_name: 'Consultation', service_code: null,
+      tooth_number: null, tooth_surface: null, quantity: 1, unit_price: 1000, currency: 'KZT',
+      billing_state: 'unbilled', invoice_id: null, invoice_item_id: null, invoice_number: null, invoice_status: null, billed_at: null,
+    }], error: null });
+    await expect(rpcClient.getCompletedServiceBillingEligibility({ tenantId, patientId })).resolves.toEqual([expect.objectContaining({ completedServiceId, billingState: 'unbilled' })]);
+    expect(rpcCalls).toEqual([{ rpcName: 'get_completed_service_billing_eligibility', params: { p_tenant_id: tenantId, p_patient_id: patientId } }]);
+    expectNoDirectWriteCalls(client);
+  });
+
   it('issueInvoice calls issue_invoice', async () => {
     const { rpcClient, rpcCalls } = createClientMock({ data: invoiceRow, error: null });
     await rpcClient.issueInvoice({ tenantId, invoiceId });
@@ -618,6 +670,7 @@ describe('FinanceRpcClient safety boundaries', () => {
     expect(methods).toEqual(expect.arrayContaining([
       'createInvoice',
       'addInvoiceItem',
+      'getCompletedServiceBillingEligibility',
       'issueInvoice',
       'voidInvoice',
       'recordPayment',

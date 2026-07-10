@@ -4,6 +4,7 @@ import {
   createFinanceRepository,
   type FinanceRepository,
   type FinancialAdjustment,
+  type CompletedServiceBillingEligibility,
   type Invoice,
   type InvoiceItem,
   type PatientFinanceSummary,
@@ -18,6 +19,7 @@ export interface UsePatientFinanceOptions {
   patientId?: string | null;
   repository?: FinanceRepository;
   enabled?: boolean;
+  includeCompletedServiceBillingEligibility?: boolean;
 }
 
 export interface PatientFinanceState {
@@ -28,6 +30,7 @@ export interface PatientFinanceState {
   paymentAllocations: PaymentAllocation[];
   refunds: Refund[];
   financialAdjustments: FinancialAdjustment[];
+  completedServiceBillingEligibility: CompletedServiceBillingEligibility[];
 }
 
 export interface UsePatientFinanceResult extends PatientFinanceState {
@@ -46,11 +49,12 @@ const EMPTY_FINANCE_STATE: PatientFinanceState = {
   paymentAllocations: [],
   refunds: [],
   financialAdjustments: [],
+  completedServiceBillingEligibility: [],
 };
 
 const UNAVAILABLE_ERROR = 'Supabase client is not configured for finance access.';
 
-export function usePatientFinance({ tenantId, patientId, repository, enabled = true }: UsePatientFinanceOptions): UsePatientFinanceResult {
+export function usePatientFinance({ tenantId, patientId, repository, enabled = true, includeCompletedServiceBillingEligibility = true }: UsePatientFinanceOptions): UsePatientFinanceResult {
   const canFetch = Boolean(tenantId && patientId) && enabled;
 
   const financeRepository = useMemo(() => {
@@ -63,7 +67,7 @@ export function usePatientFinance({ tenantId, patientId, repository, enabled = t
     if (!tenantId || !patientId) return EMPTY_FINANCE_STATE;
     if (!financeRepository) throw new Error(UNAVAILABLE_ERROR);
 
-    const [summary, invoices, invoiceItems, payments, paymentAllocations, refunds, financialAdjustments] = await Promise.all([
+    const [summary, invoices, invoiceItems, payments, paymentAllocations, refunds, financialAdjustments, completedServiceBillingEligibility] = await Promise.all([
       financeRepository.getPatientFinanceSummary({ tenantId, patientId }),
       financeRepository.listInvoices({ tenantId, patientId, includeArchived: true, limit: 100 }),
       financeRepository.listInvoiceItems({ tenantId, patientId, includeArchived: true, limit: 200 }),
@@ -71,15 +75,19 @@ export function usePatientFinance({ tenantId, patientId, repository, enabled = t
       financeRepository.listPaymentAllocations({ tenantId, patientId, includeVoided: true, limit: 200 }),
       financeRepository.listRefunds({ tenantId, patientId, includeArchived: true, limit: 50 }),
       financeRepository.listFinancialAdjustments({ tenantId, patientId, includeArchived: true, limit: 50 }),
+      includeCompletedServiceBillingEligibility
+        ? financeRepository.getCompletedServiceBillingEligibility({ tenantId, patientId })
+        : Promise.resolve([]),
     ]);
 
-    return { summary, invoices, invoiceItems, payments, paymentAllocations, refunds, financialAdjustments };
-  }, [financeRepository, patientId, tenantId]);
+    return { summary, invoices, invoiceItems, payments, paymentAllocations, refunds, financialAdjustments, completedServiceBillingEligibility };
+  }, [financeRepository, includeCompletedServiceBillingEligibility, patientId, tenantId]);
 
   const { data, isLoading, isError, error, refetch } = useAsyncQuery<PatientFinanceState>({
     queryFn,
     initialData: EMPTY_FINANCE_STATE,
     enabled: canFetch,
+    queryKey: `${tenantId ?? ''}:${patientId ?? ''}:${canFetch}`,
   });
 
   return {

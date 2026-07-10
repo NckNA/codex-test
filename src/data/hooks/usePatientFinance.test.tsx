@@ -38,11 +38,18 @@ function createRepository(): FinanceRepository {
     listPaymentAllocations: vi.fn().mockResolvedValue([allocation]),
     listRefunds: vi.fn().mockResolvedValue([]),
     listFinancialAdjustments: vi.fn().mockResolvedValue([]),
+    getCompletedServiceBillingEligibility: vi.fn().mockResolvedValue([]),
   } as unknown as FinanceRepository;
 }
 
 async function flush() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolver) => { resolve = resolver; });
+  return { promise, resolve };
 }
 
 describe('usePatientFinance', () => {
@@ -100,6 +107,23 @@ describe('usePatientFinance', () => {
     await flush();
     await act(async () => { await latest?.refresh(); });
     expect(repository.getPatientFinanceSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a stale patient response after the patient context changes', async () => {
+    const repository = createRepository();
+    const slowPatientA = deferred<PatientFinanceSummary>();
+    const patientB = 'patient-2';
+    const summaryB = { ...summary, patientId: patientB };
+    vi.mocked(repository.getPatientFinanceSummary).mockImplementation(({ patientId: requestedPatientId }) => (
+      requestedPatientId === patientId ? slowPatientA.promise : Promise.resolve(summaryB)
+    ));
+    await act(async () => { root.render(<Probe repository={repository} />); });
+    await act(async () => { root.render(<Probe patient={patientB} repository={repository} />); });
+    await flush();
+    expect(latest?.summary?.patientId).toBe(patientB);
+    slowPatientA.resolve(summary);
+    await flush();
+    expect(latest?.summary?.patientId).toBe(patientB);
   });
 
   it('surfaces repository errors safely', async () => {
