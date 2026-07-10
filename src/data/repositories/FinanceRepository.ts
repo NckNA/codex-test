@@ -171,22 +171,51 @@ export interface PatientFinanceFacts {
   financialAdjustments: FinancialAdjustment[];
 }
 
-export interface PatientFinanceSummary {
-  tenantId: string;
-  patientId: string;
-  invoiceTotalAmount: number;
-  paidAmount: number;
-  allocatedPaymentAmount: number;
-  refundedAmount: number;
-  discountAmount: number;
-  writeOffAmount: number;
-  adjustmentAmount: number;
-  balanceAmount: number;
-  creditAmount: number;
+export type FinanceSummaryWarningCode =
+  | 'PAYMENT_OVERCONSUMED'
+  | 'REFUND_RESERVATION_EXCEEDS_CAPACITY'
+  | 'INVOICE_NEGATIVE_BALANCE'
+  | 'INVOICE_PAID_MISMATCH'
+  | 'INVOICE_WRITEOFF_MISMATCH'
+  | 'INVOICE_STATUS_MISMATCH'
+  | 'PAYMENT_STATUS_MISMATCH'
+  | 'MULTIPLE_CURRENCIES';
+
+export interface FinanceSummaryWarning {
+  code: FinanceSummaryWarningCode;
+  currency: string | null;
+  entityType: 'invoice' | 'payment' | 'patient' | null;
+  entityId: string | null;
+  details: Record<string, string | number | boolean | null>;
+}
+
+export interface PatientFinanceCurrencySummary {
+  currency: string;
+  totalInvoiced: number;
+  activeAllocatedAmount: number;
+  cashReceived: number;
+  completedRefundAmount: number;
+  approvedWriteOffAmount: number;
+  currentDebt: number;
+  grossUnallocatedAmount: number;
+  refundReservedAmount: number;
+  reservedDepositAmount: number;
+  availableCreditAmount: number;
+  netPositionAmount: number;
   openInvoiceCount: number;
   unpaidInvoiceCount: number;
   partiallyPaidInvoiceCount: number;
   lastPaymentAt: string | null;
+}
+
+export interface PatientFinanceSummary {
+  tenantId: string;
+  patientId: string;
+  asOf: string;
+  modelVersion: string;
+  currencies: PatientFinanceCurrencySummary[];
+  factComplete: boolean;
+  warnings: FinanceSummaryWarning[];
 }
 
 export interface PaymentRefundability {
@@ -551,64 +580,96 @@ export function mapFinancialAdjustmentRow(row: Record<string, unknown>): Financi
   };
 }
 
-function isActiveStatus(status: string): boolean {
-  return status !== 'voided' && status !== 'archived' && status !== 'rejected';
+
+function requiredBoolean(value: unknown, fieldName: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`Finance summary has invalid boolean field: ${fieldName}`);
+  return value;
+}
+
+function requiredArray(value: unknown, fieldName: string): unknown[] {
+  if (!Array.isArray(value)) throw new Error(`Finance summary has invalid array field: ${fieldName}`);
+  return value;
+}
+
+function normalizeCurrency(value: string): string {
+  const currency = value.trim().toUpperCase();
+  if (!currency) throw new Error('Finance summary has empty currency.');
+  return currency;
+}
+
+function safeWarningDetails(value: unknown): Record<string, string | number | boolean | null> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string | number | boolean | null] => {
+      const detail = entry[1];
+      return detail === null || ['string', 'number', 'boolean'].includes(typeof detail);
+    }),
+  );
+}
+
+export function mapPatientFinanceSummaryPayload(payload: unknown): PatientFinanceSummary {
+  if (!isRecord(payload)) throw new Error('Finance summary RPC returned an invalid payload.');
+  const currencies = requiredArray(payload.currencies, 'currencies').map((value, index) => {
+    if (!isRecord(value)) throw new Error(`Finance summary currency bucket ${index} is invalid.`);
+    return {
+      currency: normalizeCurrency(requiredString(value.currency, `currencies[${index}].currency`)),
+      totalInvoiced: requiredNumber(value.totalInvoiced, `currencies[${index}].totalInvoiced`),
+      activeAllocatedAmount: requiredNumber(value.activeAllocatedAmount, `currencies[${index}].activeAllocatedAmount`),
+      cashReceived: requiredNumber(value.cashReceived, `currencies[${index}].cashReceived`),
+      completedRefundAmount: requiredNumber(value.completedRefundAmount, `currencies[${index}].completedRefundAmount`),
+      approvedWriteOffAmount: requiredNumber(value.approvedWriteOffAmount, `currencies[${index}].approvedWriteOffAmount`),
+      currentDebt: requiredNumber(value.currentDebt, `currencies[${index}].currentDebt`),
+      grossUnallocatedAmount: requiredNumber(value.grossUnallocatedAmount, `currencies[${index}].grossUnallocatedAmount`),
+      refundReservedAmount: requiredNumber(value.refundReservedAmount, `currencies[${index}].refundReservedAmount`),
+      reservedDepositAmount: requiredNumber(value.reservedDepositAmount, `currencies[${index}].reservedDepositAmount`),
+      availableCreditAmount: requiredNumber(value.availableCreditAmount, `currencies[${index}].availableCreditAmount`),
+      netPositionAmount: requiredNumber(value.netPositionAmount, `currencies[${index}].netPositionAmount`),
+      openInvoiceCount: requiredNumber(value.openInvoiceCount, `currencies[${index}].openInvoiceCount`),
+      unpaidInvoiceCount: requiredNumber(value.unpaidInvoiceCount, `currencies[${index}].unpaidInvoiceCount`),
+      partiallyPaidInvoiceCount: requiredNumber(value.partiallyPaidInvoiceCount, `currencies[${index}].partiallyPaidInvoiceCount`),
+      lastPaymentAt: nullableString(value.lastPaymentAt),
+    } satisfies PatientFinanceCurrencySummary;
+  });
+
+  const allowedCodes: FinanceSummaryWarningCode[] = [
+    'PAYMENT_OVERCONSUMED', 'REFUND_RESERVATION_EXCEEDS_CAPACITY', 'INVOICE_NEGATIVE_BALANCE',
+    'INVOICE_PAID_MISMATCH', 'INVOICE_WRITEOFF_MISMATCH', 'INVOICE_STATUS_MISMATCH',
+    'PAYMENT_STATUS_MISMATCH', 'MULTIPLE_CURRENCIES',
+  ];
+  const warnings = requiredArray(payload.warnings, 'warnings').map((value, index) => {
+    if (!isRecord(value)) throw new Error(`Finance summary warning ${index} is invalid.`);
+    const code = requiredString(value.code, `warnings[${index}].code`) as FinanceSummaryWarningCode;
+    if (!allowedCodes.includes(code)) throw new Error(`Finance summary warning ${index} has an unknown code.`);
+    const entityType = value.entityType == null ? null : requiredString(value.entityType, `warnings[${index}].entityType`);
+    if (entityType !== null && !['invoice', 'payment', 'patient'].includes(entityType)) {
+      throw new Error(`Finance summary warning ${index} has an invalid entity type.`);
+    }
+    return {
+      code,
+      currency: value.currency == null ? null : normalizeCurrency(String(value.currency)),
+      entityType: entityType as FinanceSummaryWarning['entityType'],
+      entityId: nullableString(value.entityId),
+      details: safeWarningDetails(value.details),
+    } satisfies FinanceSummaryWarning;
+  });
+
+  return {
+    tenantId: requiredString(payload.tenantId, 'tenantId'),
+    patientId: requiredString(payload.patientId, 'patientId'),
+    asOf: requiredString(payload.asOf, 'asOf'),
+    modelVersion: requiredString(payload.modelVersion, 'modelVersion'),
+    currencies,
+    factComplete: requiredBoolean(payload.factComplete, 'factComplete'),
+    warnings,
+  };
+}
+
+export function getPatientFinanceCurrencySummaries(summary: PatientFinanceSummary | null | undefined): PatientFinanceCurrencySummary[] {
+  return summary?.currencies ?? [];
 }
 
 function sumBy<T>(rows: T[], selector: (row: T) => number): number {
   return Number(rows.reduce((total, row) => total + selector(row), 0).toFixed(2));
-}
-
-function latestDate(values: Array<string | null | undefined>): string | null {
-  const dates = values.filter((value): value is string => Boolean(value));
-  if (dates.length === 0) return null;
-  return dates.sort().at(-1) ?? null;
-}
-
-export function computePatientFinanceSummary(
-  tenantId: string,
-  patientId: string,
-  facts: PatientFinanceFacts,
-): PatientFinanceSummary {
-  const activeInvoices = facts.invoices.filter((invoice) => invoice.status !== 'voided' && invoice.status !== 'archived');
-  const activePayments = facts.payments.filter((payment) => payment.status !== 'voided' && payment.status !== 'archived');
-  const activeAllocations = facts.paymentAllocations.filter((allocation) => isActiveStatus(allocation.status));
-  const completedRefunds = facts.refunds.filter((refund) => refund.status === 'completed');
-  const activeAdjustments = facts.financialAdjustments.filter((adjustment) => isActiveStatus(adjustment.status));
-
-  const invoiceTotalAmount = sumBy(activeInvoices, (invoice) => invoice.totalAmount);
-  const paidAmount = sumBy(activePayments, (payment) => payment.amount);
-  const allocatedPaymentAmount = sumBy(activeAllocations, (allocation) => allocation.amount);
-  const refundedAmount = sumBy(completedRefunds, (refund) => refund.amount);
-  const discountAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'discount'), (adjustment) => adjustment.amount);
-  const writeOffAmount = sumBy(
-    activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'write_off' && adjustment.status === 'approved'),
-    (adjustment) => adjustment.amount,
-  );
-  const surchargeAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'surcharge'), (adjustment) => adjustment.amount);
-  const correctionAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'correction'), (adjustment) => adjustment.amount);
-  const adjustmentAmount = Number((surchargeAmount + correctionAmount - discountAmount - writeOffAmount).toFixed(2));
-  const amountDue = Number((invoiceTotalAmount + surchargeAmount + correctionAmount + refundedAmount - allocatedPaymentAmount - discountAmount - writeOffAmount).toFixed(2));
-  const balanceAmount = Math.max(0, amountDue);
-  const creditAmount = Math.max(0, Number((-amountDue).toFixed(2)));
-
-  return {
-    tenantId,
-    patientId,
-    invoiceTotalAmount,
-    paidAmount,
-    allocatedPaymentAmount,
-    refundedAmount,
-    discountAmount,
-    writeOffAmount,
-    adjustmentAmount,
-    balanceAmount,
-    creditAmount,
-    openInvoiceCount: activeInvoices.filter((invoice) => ['draft', 'issued', 'partially_paid', 'written_off'].includes(invoice.status)).length,
-    unpaidInvoiceCount: activeInvoices.filter((invoice) => invoice.balanceAmount > 0 && invoice.status !== 'paid').length,
-    partiallyPaidInvoiceCount: activeInvoices.filter((invoice) => invoice.status === 'partially_paid').length,
-    lastPaymentAt: latestDate(activePayments.map((payment) => payment.receivedAt)),
-  };
 }
 
 export class SupabaseFinanceRepository implements FinanceRepository {
@@ -840,8 +901,16 @@ export class SupabaseFinanceRepository implements FinanceRepository {
   async getPatientFinanceSummary(options: PatientFinanceOptions): Promise<PatientFinanceSummary> {
     const tenantId = requireTenantId(options.tenantId);
     const patientId = requirePatientId(options.patientId);
-    const facts = await this.getPatientFinanceFacts({ tenantId, patientId });
-    return computePatientFinanceSummary(tenantId, patientId, facts);
+    try {
+      const { data, error } = await this.client.rpc('get_patient_finance_summary', {
+        p_tenant_id: tenantId,
+        p_patient_id: patientId,
+      });
+      if (error) throw error;
+      return mapPatientFinanceSummaryPayload(data);
+    } catch (error) {
+      throw new Error('Finance summary read failed.', { cause: error });
+    }
   }
 }
 

@@ -1,119 +1,77 @@
 # FINANCE-SUMMARY-CORRECTNESS-001
 
-Final verdict: **BLOCKED: the ChatGPT-to-Hermes local bridge is unreachable, so the required local repository inspection, implementation, Supabase reset, SQL tests, browser smoke, cleanup, and validation cannot be performed safely.**
+Final verdict: **PASS locally. The authoritative per-currency patient finance summary is implemented and validated. Fresh GitHub Actions evidence is pending until the implementation commit is pushed.**
 
-## 1. Summary
+## Scope and branch
 
-The task stopped at preflight. GitHub access and Supabase project discovery succeeded, but all Hermes local-bridge calls failed with a network connection error. No application code, SQL migration, tests, seed, generated types, cloud database objects, or finance data were changed.
+This task replaces the capped client-side finance summary with one complete PostgreSQL snapshot and integrates it into patient finance and cashier UI.
 
-A bounded GitHub-only reconciliation confirmed the current client summary defects: the summary reads at most 200 rows per finance table, hides unallocated payment capacity, adds completed refunds to amount due, and silently combines currencies.
+- Remote branch: `feature/finance-summary-correctness-001`
+- Local worktree branch: `feature/finance-summary-correctness-001-local`
+- Draft PR: `NckNA/codex-test#338`
+- Required baseline and confirmed merge base: `781680ad0c009bf590d00ddf148d9e366f7381dc`
+- PR remains draft and must not be merged by this task.
 
-## 2. Branch
+Not started: `FINANCE-SINGLE-CURRENCY-GUARD-001`, deposit foundation, HEP-V2, provider/fiscal integrations. No cloud Supabase migration or cloud data change occurred.
 
-`feature/finance-summary-correctness-001`
+## Changed files
 
-Created directly from required baseline merge commit `781680ad0c009bf590d00ddf148d9e366f7381dc`. GitHub `main` was confirmed at this commit. Local source-worktree cleanliness could not be checked because Hermes was unreachable.
-
-## 3. PR URL
-
-https://github.com/NckNA/codex-test/pull/338
-
-The PR is draft and must not be merged.
-
-## 4. PR head reviewed before final report update
-
-`018be0b84c8f6c52e37ff729c23d9641b3b38e9e`
-
-CI run `29116046122`, run number `668`, passed ESLint, tests, and build on this head.
-
-## 5. Report update commit
-
-N/A because the final report update commit cannot reference itself before creation.
-
-## 6. Changed files
-
+- `supabase/migrations/0020_create_patient_finance_summary_rpc.sql`
+- `supabase/tests/0020_patient_finance_summary_test.sql`
+- `src/data/repositories/FinanceRepository.ts`
+- `src/data/repositories/FinanceRepository.test.ts`
+- `src/data/hooks/usePatientFinance.test.tsx`
+- `src/data/hooks/useCashierPaymentFlow.test.tsx`
+- `src/components/finance/PatientFinanceSummaryCard.tsx`
+- `src/components/finance/PatientFinancePanel.test.tsx`
+- `src/components/finance/FinanceSummaryCards.test.tsx`
+- `src/components/cashier/CashierPatientFinanceSummary.tsx`
+- `src/components/cashier/CashierPaymentPanel.test.tsx`
 - `_ai_work/REPORTS/FINANCE-SUMMARY-CORRECTNESS-001_summary.md`
 
-No other files were changed.
+## Authoritative RPC
 
-## 7. Pre-read
+Migration `0020_create_patient_finance_summary_rpc.sql` adds:
 
-Completed through GitHub:
+```sql
+public.get_patient_finance_summary(p_tenant_id uuid, p_patient_id uuid) returns jsonb
+```
 
-- PR #337 and its merged reconciliation report;
-- recent `main` commits proving the required finance baseline sequence;
-- `src/data/repositories/FinanceRepository.ts` at baseline commit `781680ad0c009bf590d00ddf148d9e366f7381dc`.
+Top-level DTO:
 
-The complete required local pre-read was blocked by the unavailable Hermes bridge.
+- `tenantId`, `patientId`, `asOf`, `modelVersion`
+- `currencies[]`, `factComplete`, `warnings[]`
+- `modelVersion = finance-summary-v1`
+- a successful complete aggregate returns `factComplete = true`; authorization or scope failures throw instead of returning a false success.
 
-## 8. Previous client summary analysis
+Each currency bucket contains:
 
-`computePatientFinanceSummary` lives in `src/data/repositories/FinanceRepository.ts`.
+- `currency`, `totalInvoiced`, `activeAllocatedAmount`, `cashReceived`
+- `completedRefundAmount`, `approvedWriteOffAmount`, `currentDebt`
+- `grossUnallocatedAmount`, `refundReservedAmount`, `reservedDepositAmount`
+- `availableCreditAmount`, `netPositionAmount`
+- `openInvoiceCount`, `unpaidInvoiceCount`, `partiallyPaidInvoiceCount`, `lastPaymentAt`
 
-It consumes invoices, invoice items, payments, payment allocations, refunds, and financial adjustments. `getPatientFinanceFacts` loads every list independently with `MAX_FINANCE_LIMIT = 200`; `getPatientFinanceSummary` then computes totals client-side.
+Currencies are normalized and never combined. `reservedDepositAmount` is `0` by design because deposit reservations are out of scope.
 
-| Current field | Current formula | Current bug | Target formula |
-|---|---|---|---|
-| `invoiceTotalAmount` | Sum every non-voided/non-archived invoice total | Includes drafts and combines currencies | Sum non-draft/non-voided/non-archived invoice totals per currency |
-| `paidAmount` | Sum non-voided/non-archived payment amounts | Historical cash received is mislabeled and combined across currencies | `cash_received` per currency |
-| `allocatedPaymentAmount` | Sum active allocations | Truncated and not reconciled with invoice values | All active allocations linked to valid patient invoices per currency |
-| `refundedAmount` | Sum completed refunds | Added to `amountDue`, creating false debt | Report separately; do not add to debt |
-| `writeOffAmount` | Sum approved write-offs | Client-side, truncated, not reconciled | Approved non-voided write-offs per currency |
-| `balanceAmount` | Positive part of synthetic amount due | Uses invoice totals, includes drafts, completed refunds create debt | Sum active invoice `balance_amount` per currency |
-| `creditAmount` | Negative part of synthetic amount due | Unallocated payment capacity is normally invisible | Sum valid unallocated capacity after refunds and reservations |
+## Formulas and lifecycle
 
-## 9. Exact previous defects
+Included invoices: `issued`, `partially_paid`, `paid`, `written_off`.
 
-1. `MAX_FINANCE_LIMIT = 200` caps each fact list.
-2. `getPatientFinanceFacts` requests exactly that limit for all finance tables.
-3. Completed refunds are added to `amountDue`.
-4. Unallocated payment capacity is absent from `creditAmount`.
-5. Draft invoices are included because only voided and archived invoices are excluded.
-6. Currencies are added together.
-7. Multiple independently fetched lists are treated as one authoritative snapshot.
-8. Different UI surfaces can diverge if they do not share the same client formula.
+Excluded invoices: `draft`, `voided`, `archived`.
 
-## 10. Authoritative RPC contract
+```text
+currentDebt = sum(max(0, invoice.balance_amount))
+grossUnallocated per payment = max(0, payment.amount - active allocations - completed refunds)
+availableCredit per payment = max(0, payment.amount - active allocations - completed refunds - pending/approved refund reservations)
+netPositionAmount = availableCreditAmount - currentDebt
+```
 
-Not implemented. Required target remains:
+Payments with status `voided` or `archived` are excluded. Only active allocations linked to valid same-tenant, same-patient payments and included invoices are counted. Completed refunds reduce payment capacity and do not create debt. Pending and approved refunds reserve credit. Only approved `write_off` adjustments are reported.
 
-`get_patient_finance_summary(p_tenant_id uuid, p_patient_id uuid) -> jsonb`
+## Warnings
 
-## 11. Per-currency DTO
-
-Not implemented. Required top-level fields remain `tenantId`, `patientId`, `asOf`, `modelVersion`, `currencies`, `factComplete`, and `warnings`, with separate currency summaries.
-
-## 12. Debt formula
-
-Target: `current_debt = sum(active invoice balance_amount)` per currency. Not implemented.
-
-## 13. Credit formula
-
-Target per payment:
-
-`available_credit = max(0, payment.amount - active allocations - completed refunds - pending/approved refund reservations)`.
-
-Not implemented.
-
-## 14. Refund reserve formula
-
-Target: sum pending and approved refund amounts per payment and currency. Not implemented.
-
-## 15. Completed refund behavior
-
-Current code incorrectly increases `amountDue` by completed refunds. Target behavior is to reduce payment credit and report the refund separately without creating debt. Not implemented.
-
-## 16. Write-off behavior
-
-Target behavior is to reduce invoice debt without increasing paid amount. Not implemented.
-
-## 17. Status filters
-
-Current client code excludes only voided/archived invoices and payments, treats allocation statuses other than voided/archived/rejected as active, includes only completed refunds in the summary, and includes adjustments other than voided/archived/rejected. The authoritative server status matrix was not implemented or validated.
-
-## 18. Anomaly warnings
-
-Not implemented. Required codes remain:
+Implemented warning codes:
 
 - `PAYMENT_OVERCONSUMED`
 - `REFUND_RESERVATION_EXCEEDS_CAPACITY`
@@ -124,99 +82,113 @@ Not implemented. Required codes remain:
 - `PAYMENT_STATUS_MISMATCH`
 - `MULTIPLE_CURRENCIES`
 
-## 19. Security and grants
+Warnings expose only safe identifiers and primitive diagnostic values. Raw metadata, secrets, and backend errors are not returned.
 
-Not implemented. No grants, policies, functions, or cloud resources were changed.
+The SQL suite runtime-validates every warning except `INVOICE_NEGATIVE_BALANCE`; the current schema constraint prevents creating a negative invoice balance through normal SQL. The warning remains defensive for imported or legacy data.
 
-## 20. Repository integration
+## Security and indexes
 
-Not implemented. Current `getPatientFinanceSummary` still calls `getPatientFinanceFacts` and `computePatientFinanceSummary`.
+The RPC is `STABLE`, `SECURITY DEFINER`, and uses `SET search_path = public, pg_temp`. It checks `auth.uid()`, tenant role, and exact patient/tenant scope.
 
-## 21. Hook integration
+Allowed roles: `clinic_owner`, `clinic_admin`, `cashier`, `registrar`, `doctor`.
 
-Not changed.
+Execution is revoked from `PUBLIC`, `anon`, and `authenticated`, then granted explicitly to `authenticated`. Internal authorization still decides whether the call succeeds.
 
-## 22. Patient finance UI
+Partial indexes were added for active allocations, relevant refund statuses, and approved write-offs.
 
-Not changed.
+## Repository and UI
 
-## 23. Cashier integration
+`SupabaseFinanceRepository.getPatientFinanceSummary` now calls only the RPC and strictly maps the versioned payload. RPC failures are sanitized to `Finance summary read failed.`
 
-Not changed.
+The old client-side summary calculation was removed. There is no fallback to capped list reads and no second source of truth. `getPatientFinanceFacts` remains only for detail screens.
 
-## 24. Performance and indexes
+Patient finance and cashier UI now render independent currency sections, model/as-of information, debt, credit, reserves, counts, and visible Russian warning messages. Neither UI creates a cross-currency total.
 
-The 200-row cap was confirmed. No migration or index was added because local schema and query-plan validation were unavailable.
+## Local SQL validation
 
-## 25. 250-row validation
+- `npx supabase db reset` passed through migration `0020`.
+- `supabase/tests/0020_patient_finance_summary_test.sql` passed transactionally.
+- Final SQL line: `FINANCE-SUMMARY-CORRECTNESS-001 SQL validation passed`.
 
-Not run. Blocked by unavailable Hermes local bridge.
+Validated cases:
 
-## 26. 1000-row validation
+- empty patient and versioned DTO shape;
+- draft exclusion;
+- completed refund reducing credit without creating debt;
+- pending/approved refund reservations;
+- approved write-off reporting and debt behavior;
+- 250 payments without truncation;
+- 1000 payments without truncation;
+- KZT/USD separation and `MULTIPLE_CURRENCIES`;
+- overconsumption, reservation, payment-status, invoice-paid, invoice-write-off, and invoice-status warnings;
+- clinic admin, cashier, doctor, and registrar access;
+- no-tenant, cross-tenant, wrong-patient-tenant, and anonymous denial;
+- no raw metadata;
+- no mutation of patients, completed services, appointments, documents, stock, or finance facts.
 
-Not run. Blocked by unavailable Hermes local bridge.
+The SQL suite ends with `ROLLBACK`. A direct post-test query confirmed zero remaining fixture patients.
 
-## 27. Multi-currency validation
+## Browser smoke
 
-Not run. Current client formula was confirmed to combine currencies silently.
+A Vite server was started from the implementation worktree with local Supabase and repository-supported QA users.
 
-## 28. Role validation
+Cashier scenario:
 
-Not run.
+- authenticated as `qa.cashier.a@example.local`;
+- opened `/cashier/payments`;
+- searched and selected the seeded patient;
+- cashier summary and empty state rendered;
+- no console error and no visible secret.
 
-## 29. Cross-tenant validation
+The harness reported one non-critical failed background request, while every required page assertion and finance RPC behavior passed.
 
-Not run.
+Clinic administrator scenario:
 
-## 30. Browser smoke
+- authenticated as `qa.admin.a@example.local`;
+- opened the seeded patient card and finance tab;
+- patient finance summary and empty state rendered;
+- no failed request, console error, or visible secret.
 
-Not run because local browser/application access through Hermes was unavailable.
+The development server was stopped after validation.
 
-## 31. Side-effect validation
+## TypeScript, tests, lint, and build
 
-No implementation or database writes occurred. Patients, completed services, appointments, documents, stock, timeline, and finance facts were not changed.
+Coverage includes RPC-only summary loading, absence of capped fallback reads, strict DTO mapping, warning validation, sanitized errors, multi-currency patient/cashier display, visible warnings, hook integration, and stale patient selection protection.
 
-## 32. Cleanup
+Final local results:
 
-No local fixtures were created. No cloud migration was applied. No cleanup was required.
+- ESLint: passed
+- test files: **73 passed**
+- tests: **740 passed**
+- production build: passed
+- `git diff --check`: passed
+- local Supabase schema lint: completed successfully
 
-## 33. Tests
+Schema lint reported only pre-existing warnings in unrelated treatment-plan, visit, encounter, and completed-service functions. The new summary RPC produced no lint issue.
 
-Mandatory targeted and SQL tests were not run locally. The repository CI suite passed on the initial report-only head, but that does not validate the missing implementation.
+The build retains the repository's existing large-chunk warning. The test suite retains existing React `act(...)` warnings. Neither warning fails validation or originates from this summary implementation.
 
-## 34. Lint and build
+Two obsolete tests for the removed client-side summary formula were deleted, so the final count is two lower than the intermediate 742-test run.
 
-GitHub Actions run `29116046122` passed ESLint, tests, and build on initial report-only head `018be0b84c8f6c52e37ff729c23d9641b3b38e9e`.
+## CI
 
-## 35. GitHub Actions CI
+Fresh GitHub Actions evidence will be recorded after the implementation commit is pushed to PR #338.
 
-Initial report-only CI: success.
+Current pre-push status: **pending**.
 
-- workflow: `CI`
-- run number: `668`
-- run ID: `29116046122`
-- tested head: `018be0b84c8f6c52e37ff729c23d9641b3b38e9e`
+## Limitations
 
-Fresh CI after this final report update must be recorded in the PR body and final task response because this commit cannot predict its own future SHA and run.
+- Deposit reservations remain out of scope, so `reservedDepositAmount = 0`.
+- Inconsistent historical facts are reported, not silently repaired.
+- `INVOICE_NEGATIVE_BALANCE` is defensive because the normal schema currently prevents such a row.
+- Currency buckets are separated, but single-currency enforcement belongs to `FINANCE-SINGLE-CURRENCY-GUARD-001`.
 
-## 36. What was intentionally not implemented
+## Final verdict
 
-No deposit reservations, credit allocation, overpayment, cashier prepayment, currency guard, completed-service billing guard, invoice correction, refund/write-off lifecycle change, provider integration, fiscal receipt, documents, stock, timeline, clinical mutation, cloud apply, seed change, generated types, service-role application code, or HEP-V2 work was started.
+**PASS locally.** The previous bridge blocker is resolved, the implementation is complete, mandatory local validation passed, fixtures were cleaned, and cloud Supabase was untouched.
 
-## 37. Final verdict
+PR #338 remains draft and must not be merged until fresh CI succeeds on the implementation head.
 
-**BLOCKED: Hermes local bridge connection failed repeatedly, preventing the mandatory local implementation and validation workflow.**
+## Recommended next task
 
-Required capability to resume:
-
-- reachable ChatGPT-to-Hermes workspace bridge;
-- local Git and filesystem access;
-- local Supabase reset and SQL execution;
-- local test/build runner;
-- localhost browser smoke tooling.
-
-## 38. Recommended next task
-
-Resume `FINANCE-SUMMARY-CORRECTNESS-001` after restoring Hermes connectivity.
-
-Do not start `FINANCE-SINGLE-CURRENCY-GUARD-001` yet. It remains the correct next task only after the authoritative summary is implemented and verified.
+After this PR passes CI and review, the next bounded task is `FINANCE-SINGLE-CURRENCY-GUARD-001`.

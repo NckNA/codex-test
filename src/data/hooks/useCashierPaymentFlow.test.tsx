@@ -12,8 +12,8 @@ vi.mock('../../lib/supabaseClient', () => ({ supabase: {}, isSupabaseConfigured:
 const tenantId = 'tenant-1';
 const patientId = 'patient-1';
 const patientIdB = 'patient-2';
-const summary = { tenantId, patientId, invoiceTotalAmount: 1000, paidAmount: 0, allocatedPaymentAmount: 0, refundedAmount: 0, discountAmount: 0, writeOffAmount: 0, adjustmentAmount: 0, balanceAmount: 1000, creditAmount: 0, openInvoiceCount: 1, unpaidInvoiceCount: 1, partiallyPaidInvoiceCount: 0, lastPaymentAt: null } as PatientFinanceSummary;
-const summaryB = { ...summary, patientId: patientIdB, balanceAmount: 2000 } as PatientFinanceSummary;
+const summary = { tenantId, patientId, asOf: '2026-07-11T00:00:00Z', modelVersion: 'finance-summary-v1', factComplete: true, currencies: [{ currency: 'KZT', totalInvoiced: 1000, activeAllocatedAmount: 0, cashReceived: 0, completedRefundAmount: 0, approvedWriteOffAmount: 0, currentDebt: 1000, grossUnallocatedAmount: 0, refundReservedAmount: 0, reservedDepositAmount: 0, availableCreditAmount: 0, netPositionAmount: -1000, openInvoiceCount: 1, unpaidInvoiceCount: 1, partiallyPaidInvoiceCount: 0, lastPaymentAt: null }], warnings: [] } as PatientFinanceSummary;
+const summaryB = { ...summary, patientId: patientIdB, currencies: [{ ...summary.currencies[0], totalInvoiced: 2000, currentDebt: 2000, netPositionAmount: -2000 }] } as PatientFinanceSummary;
 const invoice = { id: 'invoice-1', tenantId, patientId, invoiceNumber: 'INV-1', status: 'issued', currency: 'KZT', issueDate: '2026-06-27T00:00:00Z', dueDate: null, totalAmount: 1000, paidAmount: 0, balanceAmount: 1000, notes: 'Smoke cashier invoice' } as Invoice;
 const invoiceB = { ...invoice, id: 'invoice-2', patientId: patientIdB, invoiceNumber: 'INV-2', totalAmount: 2000, balanceAmount: 2000 } as Invoice;
 const draftInvoice = { ...invoice, id: 'draft-1', status: 'draft' } as Invoice;
@@ -92,7 +92,7 @@ describe('useCashierPaymentFlow hardening', () => {
   it('loads tenant/patient-scoped finance facts', async () => {
     const { repository } = await renderHook();
     expect(repository.getPatientFinanceSummary).toHaveBeenCalledWith({ tenantId, patientId });
-    expect(hook.summary?.balanceAmount).toBe(1000);
+    expect(hook.summary?.currencies[0]?.currentDebt).toBe(1000);
     expect(hook.openInvoices.map((row) => row.id)).toEqual(['invoice-1']);
   });
 

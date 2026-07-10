@@ -14,19 +14,17 @@ const patientId = 'patient-1';
 const summary = {
   tenantId,
   patientId,
-  invoiceTotalAmount: 1000,
-  paidAmount: 1000,
-  allocatedPaymentAmount: 1000,
-  refundedAmount: 0,
-  discountAmount: 0,
-  writeOffAmount: 0,
-  adjustmentAmount: 0,
-  balanceAmount: 0,
-  creditAmount: 0,
-  openInvoiceCount: 1,
-  unpaidInvoiceCount: 0,
-  partiallyPaidInvoiceCount: 0,
-  lastPaymentAt: '2026-06-21T10:00:00.000Z',
+  asOf: '2026-07-11T00:00:00Z',
+  modelVersion: 'finance-summary-v1',
+  factComplete: true,
+  currencies: [{
+    currency: 'KZT', totalInvoiced: 1000, activeAllocatedAmount: 1000, cashReceived: 1000,
+    completedRefundAmount: 0, approvedWriteOffAmount: 0, currentDebt: 0,
+    grossUnallocatedAmount: 0, refundReservedAmount: 0, reservedDepositAmount: 0,
+    availableCreditAmount: 0, netPositionAmount: 0, openInvoiceCount: 1,
+    unpaidInvoiceCount: 0, partiallyPaidInvoiceCount: 0, lastPaymentAt: '2026-06-21T10:00:00.000Z',
+  }],
+  warnings: [],
 } as PatientFinanceSummary;
 const invoice = { id: 'invoice-1', tenantId, patientId, invoiceNumber: 'INV-1', status: 'draft', currency: 'KZT', issueDate: null, dueDate: null, totalAmount: 1000, paidAmount: 0, balanceAmount: 1000, notes: 'Invoice note' } as Invoice;
 const invoiceItem = { id: 'item-1', tenantId, patientId, invoiceId: invoice.id, serviceName: 'Smoke finance service', serviceCode: 'SMK', completedServiceId: 'service-1', toothNumber: '16', toothSurface: 'O', quantity: 1, unitPrice: 1000, discountAmount: 0, adjustmentAmount: 0, totalAmount: 1000, status: 'active' } as InvoiceItem;
@@ -129,7 +127,7 @@ describe('PatientFinancePanel', () => {
     expect(container.querySelector('[data-testid="finance-allocation-card-allocation-1"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="refund-actions-panel-payment-1"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="writeoff-actions-panel-invoice-1"]')).not.toBeNull();
-    expect(container.textContent).toContain('Долг');
+    expect(container.textContent).toContain('Текущий долг');
     expect(container.textContent).toContain('Smoke finance service');
     expect(container.textContent).not.toContain('metadata');
   });
