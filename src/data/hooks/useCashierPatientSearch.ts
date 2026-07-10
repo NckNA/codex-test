@@ -1,4 +1,5 @@
-﻿import { useCallback, useMemo, useState } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect -- tenant changes must clear stale cashier search results immediately */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPatientRepository, type PatientRepository } from '../repositories/PatientRepository';
 import type { Patient } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
@@ -22,11 +23,7 @@ function normalizePatientQuery(query: string) {
   return query.trim().toLowerCase();
 }
 
-function safePatientSearchError(error: unknown) {
-  if (error instanceof Error) {
-    const message = error.message || 'Не удалось найти пациента.';
-    if (message.length <= 160 && !message.includes('\n') && !message.includes('{')) return new Error(message);
-  }
+function safePatientSearchError() {
   return new Error('Не удалось найти пациента.');
 }
 
@@ -35,6 +32,9 @@ export function useCashierPatientSearch({ tenantId, repository, minQueryLength =
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const requestGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
+  const tenantRef = useRef(tenantId);
 
   const patientRepository = useMemo(() => {
     if (repository) return repository;
@@ -42,45 +42,82 @@ export function useCashierPatientSearch({ tenantId, repository, minQueryLength =
     return createPatientRepository({ backend: 'supabase', tenantId });
   }, [repository, tenantId]);
 
-  const search = useCallback(async (nextQuery: string) => {
-    setQuery(nextQuery);
+  useLayoutEffect(() => {
+    if (tenantRef.current !== tenantId) {
+      tenantRef.current = tenantId;
+      requestGenerationRef.current += 1;
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestGenerationRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    requestGenerationRef.current += 1;
+    setPatients([]);
+    setQuery('');
+    setLoading(false);
     setError(null);
+  }, [tenantId]);
+
+  const search = useCallback(async (nextQuery: string) => {
+    const requestGeneration = ++requestGenerationRef.current;
+    const requestTenantId = tenantId;
+    const requestRepository = patientRepository;
     const normalized = normalizePatientQuery(nextQuery);
 
-    if (!tenantId) {
-      setPatients([]);
+    setQuery(nextQuery);
+    setPatients([]);
+    setError(null);
+
+    if (!requestTenantId || normalized.length < minQueryLength) {
+      setLoading(false);
       return;
     }
 
-    if (normalized.length < minQueryLength) {
-      setPatients([]);
-      return;
-    }
-
-    if (!patientRepository) {
-      setPatients([]);
-      setError(new Error('Не удалось найти пациента.'));
+    if (!requestRepository) {
+      setLoading(false);
+      setError(safePatientSearchError());
       return;
     }
 
     setLoading(true);
     try {
-      const allPatients = await patientRepository.listPatients();
+      const allPatients = await requestRepository.listPatients();
+      if (
+        !mountedRef.current ||
+        requestGenerationRef.current !== requestGeneration ||
+        tenantRef.current !== requestTenantId
+      ) return;
+
       setPatients(allPatients.filter((patient) => {
         const haystack = `${patient.fullName ?? ''} ${patient.phone ?? ''}`.toLowerCase();
         return haystack.includes(normalized) && patient.status !== 'archived';
       }));
-    } catch (err) {
+      setLoading(false);
+    } catch {
+      if (
+        !mountedRef.current ||
+        requestGenerationRef.current !== requestGeneration ||
+        tenantRef.current !== requestTenantId
+      ) return;
+
       setPatients([]);
-      setError(safePatientSearchError(err));
-    } finally {
+      setError(safePatientSearchError());
       setLoading(false);
     }
   }, [minQueryLength, patientRepository, tenantId]);
 
   const clear = useCallback(() => {
+    requestGenerationRef.current += 1;
     setPatients([]);
     setQuery('');
+    setLoading(false);
     setError(null);
   }, []);
 

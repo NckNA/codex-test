@@ -17,21 +17,34 @@ import {
   type FinancialAdjustment,
 } from './FinanceRepository';
 
+export type FinanceRpcErrorCategory =
+  | 'validation'
+  | 'permission'
+  | 'stale_patient'
+  | 'duplicate_conflict'
+  | 'operation_uncertain'
+  | 'payment_not_created'
+  | 'operation_failed'
+  | 'read_failed';
+
 export interface FinanceRpcClientErrorDetails {
   operation: string;
   code?: string;
+  category?: FinanceRpcErrorCategory;
   message: string;
 }
 
 export class FinanceRpcClientError extends Error {
   readonly operation: string;
   readonly code?: string;
+  readonly category?: FinanceRpcErrorCategory;
 
   constructor(details: FinanceRpcClientErrorDetails) {
     super(details.message);
     this.name = 'FinanceRpcClientError';
     this.operation = details.operation;
     this.code = details.code;
+    this.category = details.category;
   }
 }
 
@@ -82,6 +95,42 @@ export interface RecordPaymentInput {
   payerName?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
+}
+
+export interface RecordAndAllocatePaymentInput {
+  tenantId: string;
+  patientId: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  currency?: string;
+  receivedAt?: string | null;
+  externalReference?: string | null;
+  payerName?: string | null;
+  notes?: string | null;
+  invoiceIds: string[];
+  idempotencyKey: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type CashierPaymentOperationStatus = 'completed' | 'already_completed' | 'not_found';
+
+export interface CashierPaymentOperationResult {
+  status: CashierPaymentOperationStatus;
+  operationId: string;
+  tenantId: string;
+  patientId: string | null;
+  payment: Payment | null;
+  allocations: PaymentAllocation[];
+  issuedInvoiceIds: string[];
+  requestedAmount: number;
+  allocatedAmount: number;
+  unallocatedAmount: number;
+  remainingPatientDebt: number;
+}
+
+export interface GetCashierPaymentOperationInput {
+  tenantId: string;
+  idempotencyKey: string;
 }
 
 export interface AllocatePaymentInput {
@@ -143,6 +192,8 @@ export interface FinanceRpcClient {
   issueInvoice(input: IssueInvoiceInput): Promise<Invoice>;
   voidInvoice(input: VoidInvoiceInput): Promise<Invoice>;
   recordPayment(input: RecordPaymentInput): Promise<Payment>;
+  recordAndAllocatePayment(input: RecordAndAllocatePaymentInput): Promise<CashierPaymentOperationResult>;
+  getCashierPaymentOperation(input: GetCashierPaymentOperationInput): Promise<CashierPaymentOperationResult>;
   allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation>;
   voidPaymentAllocation(input: VoidPaymentAllocationInput): Promise<PaymentAllocation>;
   voidPayment(input: VoidPaymentInput): Promise<Payment>;
@@ -260,9 +311,13 @@ async function callRpc(
   rpcName: string,
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const { data, error } = await client.rpc(rpcName, params);
-  if (error) throw normalizeRpcError(error, operation);
-  return extractSingleRow(data, operation);
+  try {
+    const { data, error } = await client.rpc(rpcName, params);
+    if (error) throw normalizeRpcError(error, operation);
+    return extractSingleRow(data, operation);
+  } catch (error) {
+    throw normalizeRpcError(error, operation);
+  }
 }
 
 function validatePaymentMethod(paymentMethod: PaymentMethod | null | undefined): PaymentMethod {
@@ -285,9 +340,121 @@ function normalizeIdempotencyKey(value?: string | null): string | null {
   if (value === undefined || value === null) return null;
   const normalized = value.trim();
   if (!normalized) {
-    throw new FinanceRpcClientError({ operation: 'validation', message: 'Ключ идемпотентности не должен быть пустым.' });
+    throw new FinanceRpcClientError({ operation: 'validation', category: 'validation', message: 'Ключ идемпотентности не должен быть пустым.' });
   }
   return normalized;
+}
+
+function requireCashierIdempotencyKey(value?: string | null): string {
+  const normalized = normalizeIdempotencyKey(value);
+  if (!normalized) {
+    throw new FinanceRpcClientError({ operation: 'validation', category: 'validation', message: 'Ключ кассовой операции обязателен.' });
+  }
+  return normalized;
+}
+
+function validateInvoiceIds(invoiceIds: string[] | null | undefined): string[] {
+  if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+    throw new FinanceRpcClientError({ operation: 'validation', category: 'validation', message: 'Нужно выбрать хотя бы один счёт.' });
+  }
+  const normalized = invoiceIds.map((invoiceId) => requireNonEmptyString(invoiceId, 'Счёт не выбран.'));
+  if (new Set(normalized).size !== normalized.length) {
+    throw new FinanceRpcClientError({ operation: 'validation', category: 'validation', message: 'Один и тот же счёт выбран несколько раз.' });
+  }
+  return normalized;
+}
+
+function requiredResultNumber(value: unknown, field: string): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    throw new FinanceRpcClientError({ operation: 'mapCashierPaymentOperation', category: 'operation_failed', message: `Некорректное поле результата: ${field}.` });
+  }
+  return numeric;
+}
+
+function requiredResultString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new FinanceRpcClientError({ operation: 'mapCashierPaymentOperation', category: 'operation_failed', message: `Некорректное поле результата: ${field}.` });
+  }
+  return value;
+}
+
+function mapCashierPaymentOperationRow(row: Record<string, unknown>): CashierPaymentOperationResult {
+  const status = requiredResultString(row.status, 'status') as CashierPaymentOperationStatus;
+  if (!['completed', 'already_completed', 'not_found'].includes(status)) {
+    throw new FinanceRpcClientError({ operation: 'mapCashierPaymentOperation', category: 'operation_failed', message: 'Некорректный статус кассовой операции.' });
+  }
+
+  const allocationRows = Array.isArray(row.allocations) ? row.allocations : [];
+  const issuedInvoiceIds = Array.isArray(row.issued_invoice_ids)
+    ? row.issued_invoice_ids.filter((value): value is string => typeof value === 'string')
+    : [];
+  const paymentRow = isPlainObject(row.payment) ? row.payment : null;
+
+  return {
+    status,
+    operationId: requiredResultString(row.operation_id, 'operation_id'),
+    tenantId: requiredResultString(row.tenant_id, 'tenant_id'),
+    patientId: typeof row.patient_id === 'string' ? row.patient_id : null,
+    payment: paymentRow ? mapPaymentRow(paymentRow) : null,
+    allocations: allocationRows.filter(isPlainObject).map(mapPaymentAllocationRow),
+    issuedInvoiceIds,
+    requestedAmount: requiredResultNumber(row.requested_amount, 'requested_amount'),
+    allocatedAmount: requiredResultNumber(row.allocated_amount, 'allocated_amount'),
+    unallocatedAmount: requiredResultNumber(row.unallocated_amount, 'unallocated_amount'),
+    remainingPatientDebt: requiredResultNumber(row.remaining_patient_debt, 'remaining_patient_debt'),
+  };
+}
+
+function normalizeCashierRpcError(error: unknown, operation: string): FinanceRpcClientError {
+  if (error instanceof FinanceRpcClientError && error.category) return error;
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = raw.toLowerCase();
+  const code = error instanceof Error && typeof (error as Error & { code?: unknown }).code === 'string'
+    ? (error as Error & { code?: string }).code
+    : undefined;
+
+  if (normalized.includes('access denied') || normalized.includes('insufficient finance permissions') || code === '42501') {
+    return new FinanceRpcClientError({ operation, code, category: 'permission', message: 'Недостаточно прав для кассовой операции.' });
+  }
+  if (normalized.includes('cashier_idempotency_conflict') || normalized.includes('operation key was reused')) {
+    return new FinanceRpcClientError({ operation, code, category: 'duplicate_conflict', message: 'Ключ операции уже использован для другой оплаты.' });
+  }
+  if (
+    normalized.includes('must be positive') ||
+    normalized.includes('unsupported payment method') ||
+    normalized.includes('invoice') ||
+    normalized.includes('patient') ||
+    normalized.includes('metadata') ||
+    normalized.includes('currency') ||
+    normalized.includes('idempotency key')
+  ) {
+    return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Проверьте пациента, сумму и выбранные счета.' });
+  }
+  if (normalized.includes('cashier_operation_failed')) {
+    return new FinanceRpcClientError({ operation, code, category: 'operation_failed', message: 'Оплата не была создана.' });
+  }
+  return new FinanceRpcClientError({
+    operation,
+    code,
+    category: 'operation_uncertain',
+    message: 'Не удалось получить ответ сервера. Проверяем, была ли оплата сохранена.',
+  });
+}
+
+async function callCashierRpc(
+  client: SupabaseClient,
+  operation: string,
+  rpcName: string,
+  params: Record<string, unknown>,
+): Promise<CashierPaymentOperationResult> {
+  try {
+    const { data, error } = await client.rpc(rpcName, params);
+    if (error) throw error;
+    return mapCashierPaymentOperationRow(extractSingleRow(data, operation));
+  } catch (error) {
+    throw normalizeCashierRpcError(error, operation);
+  }
 }
 
 export class SupabaseFinanceRpcClient implements FinanceRpcClient {
@@ -383,6 +550,38 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
       p_metadata: normalizeMetadata(input.metadata),
     });
     return mapPaymentRow(row);
+  }
+
+  async recordAndAllocatePayment(input: RecordAndAllocatePaymentInput): Promise<CashierPaymentOperationResult> {
+    const operation = 'recordAndAllocatePayment';
+    const tenantId = requireTenantId(input.tenantId);
+    const patientId = requireNonEmptyString(input.patientId, 'Пациент не выбран.');
+    const amount = requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.');
+    const paymentMethod = validatePaymentMethod(input.paymentMethod);
+    const invoiceIds = validateInvoiceIds(input.invoiceIds);
+    const idempotencyKey = requireCashierIdempotencyKey(input.idempotencyKey);
+
+    return callCashierRpc(this.client, operation, 'record_and_allocate_payment', {
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+      p_amount: amount,
+      p_payment_method: paymentMethod,
+      p_currency: input.currency || 'KZT',
+      p_received_at: input.receivedAt || null,
+      p_external_reference: input.externalReference || null,
+      p_payer_name: input.payerName || null,
+      p_notes: input.notes || null,
+      p_invoice_ids: invoiceIds,
+      p_idempotency_key: idempotencyKey,
+      p_metadata: normalizeMetadata(input.metadata),
+    });
+  }
+
+  async getCashierPaymentOperation(input: GetCashierPaymentOperationInput): Promise<CashierPaymentOperationResult> {
+    return callCashierRpc(this.client, 'getCashierPaymentOperation', 'get_cashier_payment_operation', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_idempotency_key: requireCashierIdempotencyKey(input.idempotencyKey),
+    });
   }
 
   async allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation> {
