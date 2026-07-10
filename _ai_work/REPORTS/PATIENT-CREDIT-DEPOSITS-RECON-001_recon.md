@@ -55,11 +55,19 @@ Verified before work:
 
 ## 3. PR URL
 
-Not created yet.
+https://github.com/NckNA/codex-test/pull/337
 
 ## 4. PR head reviewed before final report update
 
-Not available before PR creation.
+`d3cc8135416a42232d42267c7e2a51013fdb6764`
+
+Fresh initial report CI before the final metadata update:
+
+- workflow: `CI`;
+- run number: `665`;
+- run ID: `29100568101`;
+- result: `success`;
+- tested commit: `d3cc8135416a42232d42267c7e2a51013fdb6764`.
 
 ## 5. Report update commit
 
@@ -1411,8 +1419,8 @@ A coherent model is selected: payments remain authoritative money receipts, unal
 - Database writes: none.
 - Cloud Supabase: not touched.
 - SQL/code/tests/seed/generated types: not changed.
-- Report validator: pending PR metadata/final validation.
-- GitHub Actions: pending PR creation.
+- Report validator: passed with 0 errors and 0 warnings for PR #337.
+- GitHub Actions: CI #665 / run `29100568101` passed on `d3cc8135416a42232d42267c7e2a51013fdb6764`.
 
 ## Browser smoke
 
