@@ -542,3 +542,87 @@ describe('FinanceRepository', () => {
     expect(() => createFinanceRepository({ backend: 'local' })).toThrow('Finance repository requires Supabase backend.');
   });
 });
+
+
+describe('FinanceRepository refundability and write-off eligibility', () => {
+  it('maps payment refundability from tenant-scoped payment, allocations, and refunds', async () => {
+    const pendingRefund = { ...refundRow, id: 'pending-refund', status: 'pending', amount: '100.00', idempotency_key: 'pending-1' };
+    const { repository, calls, client } = createRepository(
+      {
+        payment_allocations: { data: [allocationRow], error: null },
+        refunds: { data: [refundRow, pendingRefund], error: null },
+      },
+      { payments: { data: paymentRow, error: null } },
+    );
+
+    await expect(repository.getPaymentRefundability({ tenantId, paymentId })).resolves.toMatchObject({
+      paymentAmount: 5000,
+      activeAllocatedAmount: 4000,
+      completedRefundAmount: 500,
+      reservedRefundAmount: 100,
+      refundableAmount: 400,
+      hasActiveAllocations: true,
+      refundCount: 2,
+      currency: 'KZT',
+    });
+    expectCall(calls, 'payments', 'eq', 'tenant_id', tenantId);
+    expectCall(calls, 'payment_allocations', 'eq', 'tenant_id', tenantId);
+    expectCall(calls, 'payment_allocations', 'eq', 'payment_id', paymentId);
+    expectCall(calls, 'refunds', 'eq', 'tenant_id', tenantId);
+    expectCall(calls, 'refunds', 'eq', 'payment_id', paymentId);
+    expectNoWriteCalls(client);
+  });
+
+  it('returns null safely when payment or invoice does not exist', async () => {
+    const { repository } = createRepository({}, {
+      payments: { data: null, error: null },
+      invoices: { data: null, error: null },
+    });
+    await expect(repository.getPaymentRefundability({ tenantId, paymentId })).resolves.toBeNull();
+    await expect(repository.getInvoiceWriteOffEligibility({ tenantId, invoiceId })).resolves.toBeNull();
+  });
+
+  it('maps invoice write-off eligibility and reserves active requests', async () => {
+    const approved = { ...adjustmentRow, invoice_item_id: null, amount: '1000.00', status: 'approved', idempotency_key: 'approved-1' };
+    const reserved = { ...adjustmentRow, id: 'reserved-adjustment', invoice_item_id: null, amount: '500.00', status: 'active', idempotency_key: 'active-1' };
+    const { repository, calls, client } = createRepository(
+      { financial_adjustments: { data: [approved, reserved], error: null } },
+      { invoices: { data: invoiceRow, error: null } },
+    );
+
+    await expect(repository.getInvoiceWriteOffEligibility({ tenantId, invoiceId })).resolves.toMatchObject({
+      invoiceTotalAmount: 11000,
+      paidAmount: 4000,
+      approvedWriteOffAmount: 1000,
+      reservedWriteOffAmount: 500,
+      availableWriteOffAmount: 5500,
+      eligible: true,
+      ineligibilityReason: null,
+      currency: 'KZT',
+    });
+    expectCall(calls, 'financial_adjustments', 'eq', 'tenant_id', tenantId);
+    expectCall(calls, 'financial_adjustments', 'eq', 'invoice_id', invoiceId);
+    expectCall(calls, 'financial_adjustments', 'in', 'adjustment_type', ['write_off']);
+    expectNoWriteCalls(client);
+  });
+
+  it('reports ineligible invoice status and normalizes read errors', async () => {
+    const paid = { ...invoiceRow, status: 'paid', balance_amount: '0.00' };
+    const ineligible = createRepository(
+      { financial_adjustments: { data: [], error: null } },
+      { invoices: { data: paid, error: null } },
+    );
+    await expect(ineligible.repository.getInvoiceWriteOffEligibility({ tenantId, invoiceId })).resolves.toMatchObject({
+      eligible: false,
+      availableWriteOffAmount: 7000,
+      ineligibilityReason: 'Invoice status paid is not eligible for write-off.',
+    });
+
+    const failed = createRepository(
+      { refunds: { data: null, error: new Error('read failed') } },
+      { payments: { data: paymentRow, error: null } },
+    );
+    await expect(failed.repository.getPaymentRefundability({ tenantId, paymentId }))
+      .rejects.toThrow('Finance refundability read failed: read failed');
+  });
+});
