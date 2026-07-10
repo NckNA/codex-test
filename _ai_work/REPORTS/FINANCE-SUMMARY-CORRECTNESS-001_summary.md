@@ -1,6 +1,6 @@
 # FINANCE-SUMMARY-CORRECTNESS-001
 
-Final verdict: **PASS locally. The authoritative per-currency patient finance summary is implemented and validated. Fresh GitHub Actions evidence is pending until the implementation commit is pushed.**
+Final verdict: **PASS. The authoritative per-currency patient finance summary is implemented and validated locally and by GitHub Actions.**
 
 ## Scope and branch
 
@@ -172,9 +172,19 @@ Two obsolete tests for the removed client-side summary formula were deleted, so 
 
 ## CI
 
-Fresh GitHub Actions evidence will be recorded after the implementation commit is pushed to PR #338.
+Implementation commit: `45904a480e7d5dd00b42445ddb9511ff9e4ead9e`.
 
-Current pre-push status: **pending**.
+GitHub Actions CI completed successfully on that implementation commit:
+
+- workflow: `CI`
+- run number: `670`
+- run ID: `29121791836`
+- conclusion: `success`
+- ESLint: passed
+- tests: passed
+- build: passed
+
+A final report-only commit follows. Fresh CI must also pass on the final PR head before the task is closed.
 
 ## Limitations
 
@@ -185,7 +195,7 @@ Current pre-push status: **pending**.
 
 ## Final verdict
 
-**PASS locally.** The previous bridge blocker is resolved, the implementation is complete, mandatory local validation passed, fixtures were cleaned, and cloud Supabase was untouched.
+**PASS.** The previous bridge blocker is resolved, the implementation is complete, mandatory local validation and implementation CI passed, fixtures were cleaned, and cloud Supabase was untouched.
 
 PR #338 remains draft and must not be merged until fresh CI succeeds on the implementation head.
 
