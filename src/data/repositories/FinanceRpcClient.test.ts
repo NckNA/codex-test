@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
 import {
   createFinanceRpcClient,
@@ -168,6 +168,59 @@ const paymentAllocationRow = {
   voided_at: null,
   created_at: '2026-06-21T03:00:01Z',
   updated_at: '2026-06-21T03:00:02Z',
+};
+
+const refundId = '88888888-8888-8888-8888-888888888888';
+const adjustmentId = '99999999-9999-9999-9999-999999999999';
+const refundRow = {
+  id: refundId,
+  tenant_id: tenantId,
+  patient_id: patientId,
+  payment_id: paymentId,
+  status: 'pending',
+  refund_method: 'cash',
+  amount: '400.00',
+  currency: 'KZT',
+  reason: 'Overpayment',
+  requested_by: 'cashier-1',
+  approved_by: null,
+  completed_by: null,
+  requested_at: '2026-06-21T04:00:00Z',
+  approved_at: null,
+  completed_at: null,
+  rejected_at: null,
+  voided_at: null,
+  voided_by: null,
+  void_reason: null,
+  external_reference: null,
+  idempotency_key: 'refund-1',
+  metadata: { source: 'refund' },
+  created_at: '2026-06-21T04:00:01Z',
+  updated_at: '2026-06-21T04:00:02Z',
+};
+
+const adjustmentRow = {
+  id: adjustmentId,
+  tenant_id: tenantId,
+  patient_id: patientId,
+  invoice_id: invoiceId,
+  invoice_item_id: null,
+  payment_id: null,
+  adjustment_type: 'write_off',
+  status: 'active',
+  amount: '400.00',
+  currency: 'KZT',
+  reason: 'Bad debt',
+  approved_by: null,
+  created_by: 'admin-1',
+  voided_by: null,
+  approved_at: null,
+  voided_at: null,
+  void_reason: null,
+  idempotency_key: 'writeoff-1',
+  metadata: { source: 'writeoff' },
+  created_at: '2026-06-21T05:00:01Z',
+  updated_at: '2026-06-21T05:00:02Z',
 };
 
 function sourceText() {
@@ -494,6 +547,17 @@ describe('FinanceRpcClient error behavior', () => {
     });
   });
 
+  it('hides raw structured Supabase error dumps', async () => {
+    const error = Object.assign(new Error('{"message":"denied","details":{"secret":"hidden"}}'), { code: '42501' });
+    const { rpcClient } = createClientMock({ data: null, error });
+    await expect(rpcClient.createInvoice({ tenantId, patientId })).rejects.toMatchObject({
+      name: 'FinanceRpcClientError',
+      operation: 'createInvoice',
+      code: '42501',
+      message: 'Не удалось выполнить финансовую операцию.',
+    });
+  });
+
   it('null data with no error is handled safely', async () => {
     const { rpcClient } = createClientMock({ data: null, error: null });
     await expect(rpcClient.createInvoice({ tenantId, patientId })).rejects.toMatchObject({
@@ -549,7 +613,7 @@ describe('FinanceRpcClient safety boundaries', () => {
     expect(source).not.toContain('balance =');
   });
 
-  it('client exposes only controlled invoice/payment RPC methods', () => {
+  it('client exposes controlled invoice, payment, refund, and write-off RPC methods', () => {
     const methods = Object.getOwnPropertyNames(SupabaseFinanceRpcClient.prototype);
     expect(methods).toEqual(expect.arrayContaining([
       'createInvoice',
@@ -560,9 +624,92 @@ describe('FinanceRpcClient safety boundaries', () => {
       'allocatePayment',
       'voidPaymentAllocation',
       'voidPayment',
+      'requestRefund',
+      'approveRefund',
+      'completeRefund',
+      'rejectRefund',
+      'voidRefund',
+      'requestInvoiceWriteOff',
+      'approveInvoiceWriteOff',
+      'rejectInvoiceWriteOff',
+      'voidInvoiceWriteOff',
     ]));
-    expect(methods.some((method) => method.toLowerCase().includes('refund'))).toBe(false);
-    expect(methods.some((method) => method.toLowerCase().includes('writeoff'))).toBe(false);
   });
 });
 
+
+
+describe('FinanceRpcClient refund and write-off lifecycle', () => {
+  it('maps all refund RPC names and exact p_* arguments', async () => {
+    const request = createClientMock({ data: [refundRow], error: null });
+    await request.rpcClient.requestRefund({ tenantId, paymentId, amount: 400, refundMethod: 'cash', reason: 'Overpayment', idempotencyKey: ' refund-1 ', metadata: { source: 'ui' } });
+    expect(request.rpcCalls).toEqual([{ rpcName: 'request_refund', params: {
+      p_tenant_id: tenantId, p_payment_id: paymentId, p_amount: 400, p_refund_method: 'cash',
+      p_reason: 'Overpayment', p_idempotency_key: 'refund-1', p_metadata: { source: 'ui' },
+    } }]);
+
+    const approve = createClientMock({ data: [refundRow], error: null });
+    await approve.rpcClient.approveRefund({ tenantId, refundId });
+    expect(approve.rpcCalls[0]).toEqual({ rpcName: 'approve_refund', params: { p_tenant_id: tenantId, p_refund_id: refundId } });
+
+    const complete = createClientMock({ data: [refundRow], error: null });
+    await complete.rpcClient.completeRefund({ tenantId, refundId, externalReference: 'EXT-1', metadata: { provider: false } });
+    expect(complete.rpcCalls[0]).toEqual({ rpcName: 'complete_refund', params: {
+      p_tenant_id: tenantId, p_refund_id: refundId, p_external_reference: 'EXT-1', p_metadata: { provider: false },
+    } });
+
+    const reject = createClientMock({ data: [refundRow], error: null });
+    await reject.rpcClient.rejectRefund({ tenantId, refundId, reason: 'Not approved' });
+    expect(reject.rpcCalls[0]).toEqual({ rpcName: 'reject_refund', params: { p_tenant_id: tenantId, p_refund_id: refundId, p_reason: 'Not approved' } });
+
+    const voided = createClientMock({ data: [refundRow], error: null });
+    await voided.rpcClient.voidRefund({ tenantId, refundId, reason: 'Cancelled' });
+    expect(voided.rpcCalls[0]).toEqual({ rpcName: 'void_refund', params: { p_tenant_id: tenantId, p_refund_id: refundId, p_reason: 'Cancelled' } });
+  });
+
+  it('maps all write-off RPC names and exact p_* arguments', async () => {
+    const request = createClientMock({ data: [adjustmentRow], error: null });
+    await request.rpcClient.requestInvoiceWriteOff({ tenantId, invoiceId, amount: 400, reason: 'Bad debt', idempotencyKey: ' writeoff-1 ', metadata: { source: 'ui' } });
+    expect(request.rpcCalls[0]).toEqual({ rpcName: 'request_invoice_write_off', params: {
+      p_tenant_id: tenantId, p_invoice_id: invoiceId, p_amount: 400, p_reason: 'Bad debt',
+      p_idempotency_key: 'writeoff-1', p_metadata: { source: 'ui' },
+    } });
+
+    const approve = createClientMock({ data: [adjustmentRow], error: null });
+    await approve.rpcClient.approveInvoiceWriteOff({ tenantId, adjustmentId });
+    expect(approve.rpcCalls[0]).toEqual({ rpcName: 'approve_invoice_write_off', params: { p_tenant_id: tenantId, p_adjustment_id: adjustmentId } });
+
+    const reject = createClientMock({ data: [adjustmentRow], error: null });
+    await reject.rpcClient.rejectInvoiceWriteOff({ tenantId, adjustmentId, reason: 'No evidence' });
+    expect(reject.rpcCalls[0]).toEqual({ rpcName: 'reject_invoice_write_off', params: { p_tenant_id: tenantId, p_adjustment_id: adjustmentId, p_reason: 'No evidence' } });
+
+    const voided = createClientMock({ data: [adjustmentRow], error: null });
+    await voided.rpcClient.voidInvoiceWriteOff({ tenantId, adjustmentId, reason: 'Reversed' });
+    expect(voided.rpcCalls[0]).toEqual({ rpcName: 'void_invoice_write_off', params: { p_tenant_id: tenantId, p_adjustment_id: adjustmentId, p_reason: 'Reversed' } });
+  });
+
+  it('maps refund and write-off results including idempotency keys', async () => {
+    const refund = createClientMock({ data: [refundRow], error: null });
+    await expect(refund.rpcClient.requestRefund({ tenantId, paymentId, amount: 400, refundMethod: 'cash', reason: 'Overpayment' }))
+      .resolves.toMatchObject({ id: refundId, paymentId, amount: 400, idempotencyKey: 'refund-1' });
+    const adjustment = createClientMock({ data: [adjustmentRow], error: null });
+    await expect(adjustment.rpcClient.requestInvoiceWriteOff({ tenantId, invoiceId, amount: 400, reason: 'Bad debt' }))
+      .resolves.toMatchObject({ id: adjustmentId, invoiceId, amount: 400, idempotencyKey: 'writeoff-1' });
+  });
+
+  it('validates refund and write-off IDs, amounts, methods, reasons, metadata, and idempotency keys', async () => {
+    const refund = createClientMock({ data: [refundRow], error: null }).rpcClient;
+    await expectFinanceClientError(refund.requestRefund({ tenantId, paymentId, amount: 0, refundMethod: 'cash', reason: 'x' }), 'Сумма возврата должна быть больше 0.');
+    await expectFinanceClientError(refund.requestRefund({ tenantId, paymentId, amount: 1, refundMethod: 'crypto' as never, reason: 'x' }), 'Некорректный способ возврата.');
+    await expectFinanceClientError(refund.requestRefund({ tenantId, paymentId, amount: 1, refundMethod: 'cash', reason: ' ' }), 'Причина возврата обязательна.');
+    await expectFinanceClientError(refund.requestRefund({ tenantId, paymentId, amount: 1, refundMethod: 'cash', reason: 'x', idempotencyKey: ' ' }), 'Ключ идемпотентности не должен быть пустым.');
+    await expectFinanceClientError(refund.completeRefund({ tenantId, refundId, metadata: [] as never }), 'Метаданные должны быть объектом.');
+    await expectFinanceClientError(refund.approveRefund({ tenantId, refundId: '' }), 'Возврат не выбран.');
+
+    const writeOff = createClientMock({ data: [adjustmentRow], error: null }).rpcClient;
+    await expectFinanceClientError(writeOff.requestInvoiceWriteOff({ tenantId, invoiceId, amount: -1, reason: 'x' }), 'Сумма списания должна быть больше 0.');
+    await expectFinanceClientError(writeOff.requestInvoiceWriteOff({ tenantId, invoiceId, amount: 1, reason: '' }), 'Причина списания обязательна.');
+    await expectFinanceClientError(writeOff.requestInvoiceWriteOff({ tenantId, invoiceId, amount: 1, reason: 'x', metadata: null as never }), 'Метаданные должны быть объектом.');
+    await expectFinanceClientError(writeOff.approveInvoiceWriteOff({ tenantId, adjustmentId: '' }), 'Списание не выбрано.');
+  });
+});

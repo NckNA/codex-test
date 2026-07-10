@@ -1,15 +1,20 @@
-﻿import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as defaultSupabase } from '../../lib/supabaseClient';
 import {
   mapInvoiceItemRow,
   mapInvoiceRow,
   mapPaymentAllocationRow,
   mapPaymentRow,
+  mapRefundRow,
+  mapFinancialAdjustmentRow,
   type Invoice,
   type InvoiceItem,
   type Payment,
   type PaymentAllocation,
   type PaymentMethod,
+  type Refund,
+  type RefundMethod,
+  type FinancialAdjustment,
 } from './FinanceRepository';
 
 export interface FinanceRpcClientErrorDetails {
@@ -100,6 +105,38 @@ export interface VoidPaymentInput {
   reason: string;
 }
 
+export interface RequestRefundInput {
+  tenantId: string;
+  paymentId: string;
+  amount: number;
+  refundMethod: RefundMethod;
+  reason: string;
+  idempotencyKey?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ApproveRefundInput { tenantId: string; refundId: string; }
+export interface CompleteRefundInput {
+  tenantId: string;
+  refundId: string;
+  externalReference?: string | null;
+  metadata?: Record<string, unknown>;
+}
+export interface RejectRefundInput { tenantId: string; refundId: string; reason: string; }
+export interface VoidRefundInput { tenantId: string; refundId: string; reason: string; }
+
+export interface RequestInvoiceWriteOffInput {
+  tenantId: string;
+  invoiceId: string;
+  amount: number;
+  reason: string;
+  idempotencyKey?: string | null;
+  metadata?: Record<string, unknown>;
+}
+export interface ApproveInvoiceWriteOffInput { tenantId: string; adjustmentId: string; }
+export interface RejectInvoiceWriteOffInput { tenantId: string; adjustmentId: string; reason: string; }
+export interface VoidInvoiceWriteOffInput { tenantId: string; adjustmentId: string; reason: string; }
+
 export interface FinanceRpcClient {
   createInvoice(input: CreateInvoiceInput): Promise<Invoice>;
   addInvoiceItem(input: AddInvoiceItemInput): Promise<InvoiceItem>;
@@ -109,6 +146,15 @@ export interface FinanceRpcClient {
   allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation>;
   voidPaymentAllocation(input: VoidPaymentAllocationInput): Promise<PaymentAllocation>;
   voidPayment(input: VoidPaymentInput): Promise<Payment>;
+  requestRefund(input: RequestRefundInput): Promise<Refund>;
+  approveRefund(input: ApproveRefundInput): Promise<Refund>;
+  completeRefund(input: CompleteRefundInput): Promise<Refund>;
+  rejectRefund(input: RejectRefundInput): Promise<Refund>;
+  voidRefund(input: VoidRefundInput): Promise<Refund>;
+  requestInvoiceWriteOff(input: RequestInvoiceWriteOffInput): Promise<FinancialAdjustment>;
+  approveInvoiceWriteOff(input: ApproveInvoiceWriteOffInput): Promise<FinancialAdjustment>;
+  rejectInvoiceWriteOff(input: RejectInvoiceWriteOffInput): Promise<FinancialAdjustment>;
+  voidInvoiceWriteOff(input: VoidInvoiceWriteOffInput): Promise<FinancialAdjustment>;
 }
 
 export type FinanceRpcClientBackend = 'supabase' | 'local';
@@ -129,6 +175,9 @@ const PAYMENT_METHODS: readonly PaymentMethod[] = [
   'osms',
   'mixed',
   'other',
+];
+const REFUND_METHODS: readonly RefundMethod[] = [
+  'cash', 'kaspi', 'halyk_terminal', 'card', 'bank_transfer', 'other',
 ];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -182,15 +231,24 @@ function extractSingleRow(data: unknown, operation: string): Record<string, unkn
   return row;
 }
 
+function safeRpcErrorDetail(error: Error): string {
+  const raw = error.message.trim();
+  if (!raw || raw.length > 240 || /[\r\n{}]/.test(raw) || raw.includes('[') || raw.includes(']')) return '';
+  return raw.replace(/\s+/g, ' ');
+}
+
 function normalizeRpcError(error: unknown, operation: string): FinanceRpcClientError {
   if (error instanceof FinanceRpcClientError) return error;
   if (error instanceof Error) {
     const errorWithCode = error as unknown as { code?: unknown };
     const code = typeof errorWithCode.code === 'string' ? errorWithCode.code : undefined;
+    const detail = safeRpcErrorDetail(error);
     return new FinanceRpcClientError({
       operation,
       code,
-      message: `${FINANCE_RPC_OPERATION_FAILED_MESSAGE} ${error.message}`.trim(),
+      message: detail
+        ? `${FINANCE_RPC_OPERATION_FAILED_MESSAGE} ${detail}`
+        : FINANCE_RPC_OPERATION_FAILED_MESSAGE,
     });
   }
   return new FinanceRpcClientError({ operation, message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
@@ -213,6 +271,23 @@ function validatePaymentMethod(paymentMethod: PaymentMethod | null | undefined):
     throw new FinanceRpcClientError({ operation: 'validation', message: 'Некорректный способ оплаты.' });
   }
   return method;
+}
+
+function validateRefundMethod(refundMethod: RefundMethod | null | undefined): RefundMethod {
+  const method = requireNonEmptyString(refundMethod, 'Способ возврата обязателен.') as RefundMethod;
+  if (!REFUND_METHODS.includes(method)) {
+    throw new FinanceRpcClientError({ operation: 'validation', message: 'Некорректный способ возврата.' });
+  }
+  return method;
+}
+
+function normalizeIdempotencyKey(value?: string | null): string | null {
+  if (value === undefined || value === null) return null;
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new FinanceRpcClientError({ operation: 'validation', message: 'Ключ идемпотентности не должен быть пустым.' });
+  }
+  return normalized;
 }
 
 export class SupabaseFinanceRpcClient implements FinanceRpcClient {
@@ -353,6 +428,102 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
       p_reason: reason,
     });
     return mapPaymentRow(row);
+  }
+
+  async requestRefund(input: RequestRefundInput): Promise<Refund> {
+    const operation = 'requestRefund';
+    const row = await callRpc(this.client, operation, 'request_refund', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_payment_id: requireNonEmptyString(input.paymentId, 'Платёж не выбран.'),
+      p_amount: requirePositiveNumber(input.amount, 'Сумма возврата должна быть больше 0.'),
+      p_refund_method: validateRefundMethod(input.refundMethod),
+      p_reason: requireNonEmptyString(input.reason, 'Причина возврата обязательна.'),
+      p_idempotency_key: normalizeIdempotencyKey(input.idempotencyKey),
+      p_metadata: normalizeMetadata(input.metadata),
+    });
+    return mapRefundRow(row);
+  }
+
+  async approveRefund(input: ApproveRefundInput): Promise<Refund> {
+    const operation = 'approveRefund';
+    const row = await callRpc(this.client, operation, 'approve_refund', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_refund_id: requireNonEmptyString(input.refundId, 'Возврат не выбран.'),
+    });
+    return mapRefundRow(row);
+  }
+
+  async completeRefund(input: CompleteRefundInput): Promise<Refund> {
+    const operation = 'completeRefund';
+    const row = await callRpc(this.client, operation, 'complete_refund', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_refund_id: requireNonEmptyString(input.refundId, 'Возврат не выбран.'),
+      p_external_reference: input.externalReference || null,
+      p_metadata: normalizeMetadata(input.metadata),
+    });
+    return mapRefundRow(row);
+  }
+
+  async rejectRefund(input: RejectRefundInput): Promise<Refund> {
+    const operation = 'rejectRefund';
+    const row = await callRpc(this.client, operation, 'reject_refund', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_refund_id: requireNonEmptyString(input.refundId, 'Возврат не выбран.'),
+      p_reason: requireNonEmptyString(input.reason, 'Причина отказа обязательна.'),
+    });
+    return mapRefundRow(row);
+  }
+
+  async voidRefund(input: VoidRefundInput): Promise<Refund> {
+    const operation = 'voidRefund';
+    const row = await callRpc(this.client, operation, 'void_refund', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_refund_id: requireNonEmptyString(input.refundId, 'Возврат не выбран.'),
+      p_reason: requireNonEmptyString(input.reason, 'Причина отмены обязательна.'),
+    });
+    return mapRefundRow(row);
+  }
+
+  async requestInvoiceWriteOff(input: RequestInvoiceWriteOffInput): Promise<FinancialAdjustment> {
+    const operation = 'requestInvoiceWriteOff';
+    const row = await callRpc(this.client, operation, 'request_invoice_write_off', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_invoice_id: requireNonEmptyString(input.invoiceId, 'Счёт не выбран.'),
+      p_amount: requirePositiveNumber(input.amount, 'Сумма списания должна быть больше 0.'),
+      p_reason: requireNonEmptyString(input.reason, 'Причина списания обязательна.'),
+      p_idempotency_key: normalizeIdempotencyKey(input.idempotencyKey),
+      p_metadata: normalizeMetadata(input.metadata),
+    });
+    return mapFinancialAdjustmentRow(row);
+  }
+
+  async approveInvoiceWriteOff(input: ApproveInvoiceWriteOffInput): Promise<FinancialAdjustment> {
+    const operation = 'approveInvoiceWriteOff';
+    const row = await callRpc(this.client, operation, 'approve_invoice_write_off', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_adjustment_id: requireNonEmptyString(input.adjustmentId, 'Списание не выбрано.'),
+    });
+    return mapFinancialAdjustmentRow(row);
+  }
+
+  async rejectInvoiceWriteOff(input: RejectInvoiceWriteOffInput): Promise<FinancialAdjustment> {
+    const operation = 'rejectInvoiceWriteOff';
+    const row = await callRpc(this.client, operation, 'reject_invoice_write_off', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_adjustment_id: requireNonEmptyString(input.adjustmentId, 'Списание не выбрано.'),
+      p_reason: requireNonEmptyString(input.reason, 'Причина отказа обязательна.'),
+    });
+    return mapFinancialAdjustmentRow(row);
+  }
+
+  async voidInvoiceWriteOff(input: VoidInvoiceWriteOffInput): Promise<FinancialAdjustment> {
+    const operation = 'voidInvoiceWriteOff';
+    const row = await callRpc(this.client, operation, 'void_invoice_write_off', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_adjustment_id: requireNonEmptyString(input.adjustmentId, 'Списание не выбрано.'),
+      p_reason: requireNonEmptyString(input.reason, 'Причина отмены обязательна.'),
+    });
+    return mapFinancialAdjustmentRow(row);
   }
 }
 

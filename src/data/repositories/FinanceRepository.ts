@@ -130,6 +130,7 @@ export interface Refund {
   voidedBy: string | null;
   voidReason: string | null;
   externalReference: string | null;
+  idempotencyKey: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -153,6 +154,7 @@ export interface FinancialAdjustment {
   approvedAt: string | null;
   voidedAt: string | null;
   voidReason: string | null;
+  idempotencyKey: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
@@ -183,6 +185,40 @@ export interface PatientFinanceSummary {
   unpaidInvoiceCount: number;
   partiallyPaidInvoiceCount: number;
   lastPaymentAt: string | null;
+}
+
+export interface PaymentRefundability {
+  payment: Payment;
+  paymentAmount: number;
+  activeAllocatedAmount: number;
+  completedRefundAmount: number;
+  reservedRefundAmount: number;
+  refundableAmount: number;
+  hasActiveAllocations: boolean;
+  refundCount: number;
+  currency: string;
+}
+
+export interface InvoiceWriteOffEligibility {
+  invoice: Invoice;
+  invoiceTotalAmount: number;
+  paidAmount: number;
+  approvedWriteOffAmount: number;
+  reservedWriteOffAmount: number;
+  availableWriteOffAmount: number;
+  eligible: boolean;
+  ineligibilityReason: string | null;
+  currency: string;
+}
+
+export interface GetPaymentRefundabilityOptions {
+  tenantId: string;
+  paymentId: string;
+}
+
+export interface GetInvoiceWriteOffEligibilityOptions {
+  tenantId: string;
+  invoiceId: string;
 }
 
 export interface ListInvoicesOptions {
@@ -273,6 +309,8 @@ export interface FinanceRepository {
   listPaymentAllocations(options: ListPaymentAllocationsOptions): Promise<PaymentAllocation[]>;
   listRefunds(options: ListRefundsOptions): Promise<Refund[]>;
   listFinancialAdjustments(options: ListFinancialAdjustmentsOptions): Promise<FinancialAdjustment[]>;
+  getPaymentRefundability(options: GetPaymentRefundabilityOptions): Promise<PaymentRefundability | null>;
+  getInvoiceWriteOffEligibility(options: GetInvoiceWriteOffEligibilityOptions): Promise<InvoiceWriteOffEligibility | null>;
   getPatientFinanceFacts(options: PatientFinanceOptions): Promise<PatientFinanceFacts>;
   getPatientFinanceSummary(options: PatientFinanceOptions): Promise<PatientFinanceSummary>;
 }
@@ -476,6 +514,7 @@ export function mapRefundRow(row: Record<string, unknown>): Refund {
     voidedBy: nullableString(row.voided_by),
     voidReason: nullableString(row.void_reason),
     externalReference: nullableString(row.external_reference),
+    idempotencyKey: nullableString(row.idempotency_key),
     metadata: metadataObject(row.metadata),
     createdAt: requiredString(row.created_at, 'created_at'),
     updatedAt: requiredString(row.updated_at, 'updated_at'),
@@ -501,6 +540,7 @@ export function mapFinancialAdjustmentRow(row: Record<string, unknown>): Financi
     approvedAt: nullableString(row.approved_at),
     voidedAt: nullableString(row.voided_at),
     voidReason: nullableString(row.void_reason),
+    idempotencyKey: nullableString(row.idempotency_key),
     metadata: metadataObject(row.metadata),
     createdAt: requiredString(row.created_at, 'created_at'),
     updatedAt: requiredString(row.updated_at, 'updated_at'),
@@ -537,7 +577,10 @@ export function computePatientFinanceSummary(
   const allocatedPaymentAmount = sumBy(activeAllocations, (allocation) => allocation.amount);
   const refundedAmount = sumBy(completedRefunds, (refund) => refund.amount);
   const discountAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'discount'), (adjustment) => adjustment.amount);
-  const writeOffAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'write_off'), (adjustment) => adjustment.amount);
+  const writeOffAmount = sumBy(
+    activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'write_off' && adjustment.status === 'approved'),
+    (adjustment) => adjustment.amount,
+  );
   const surchargeAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'surcharge'), (adjustment) => adjustment.amount);
   const correctionAmount = sumBy(activeAdjustments.filter((adjustment) => adjustment.adjustmentType === 'correction'), (adjustment) => adjustment.amount);
   const adjustmentAmount = Number((surchargeAmount + correctionAmount - discountAmount - writeOffAmount).toFixed(2));
@@ -704,6 +747,76 @@ export class SupabaseFinanceRepository implements FinanceRepository {
     const { data, error } = await query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
     if (error) throw error;
     return ((data ?? []) as Record<string, unknown>[]).map(mapFinancialAdjustmentRow);
+  }
+
+  async getPaymentRefundability(options: GetPaymentRefundabilityOptions): Promise<PaymentRefundability | null> {
+    const tenantId = requireTenantId(options.tenantId);
+    const paymentId = requireRecordId(options.paymentId);
+    try {
+      const payment = await this.getPaymentById({ tenantId, paymentId });
+      if (!payment) return null;
+      const [allocations, refunds] = await Promise.all([
+        this.listPaymentAllocations({ tenantId, paymentId, includeVoided: true, limit: MAX_FINANCE_LIMIT }),
+        this.listRefunds({ tenantId, paymentId, includeArchived: true, limit: MAX_FINANCE_LIMIT }),
+      ]);
+      const activeAllocatedAmount = sumBy(allocations.filter((row) => row.status === 'active'), (row) => row.amount);
+      const completedRefundAmount = sumBy(refunds.filter((row) => row.status === 'completed'), (row) => row.amount);
+      const reservedRefundAmount = sumBy(refunds.filter((row) => row.status === 'pending' || row.status === 'approved'), (row) => row.amount);
+      return {
+        payment,
+        paymentAmount: payment.amount,
+        activeAllocatedAmount,
+        completedRefundAmount,
+        reservedRefundAmount,
+        refundableAmount: Math.max(0, Number((payment.amount - activeAllocatedAmount - completedRefundAmount - reservedRefundAmount).toFixed(2))),
+        hasActiveAllocations: activeAllocatedAmount > 0,
+        refundCount: refunds.length,
+        currency: payment.currency,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown finance read failure';
+      throw new Error(`Finance refundability read failed: ${message}`, { cause: error });
+    }
+  }
+
+  async getInvoiceWriteOffEligibility(options: GetInvoiceWriteOffEligibilityOptions): Promise<InvoiceWriteOffEligibility | null> {
+    const tenantId = requireTenantId(options.tenantId);
+    const invoiceId = requireRecordId(options.invoiceId);
+    try {
+      const invoice = await this.getInvoiceById({ tenantId, invoiceId });
+      if (!invoice) return null;
+      const adjustments = await this.listFinancialAdjustments({
+        tenantId,
+        invoiceId,
+        adjustmentType: 'write_off',
+        includeArchived: true,
+        limit: MAX_FINANCE_LIMIT,
+      });
+      const approvedWriteOffAmount = sumBy(adjustments.filter((row) => row.status === 'approved'), (row) => row.amount);
+      const reservedWriteOffAmount = sumBy(adjustments.filter((row) => row.status === 'active'), (row) => row.amount);
+      const availableWriteOffAmount = Math.max(0, Number((invoice.totalAmount - invoice.paidAmount - approvedWriteOffAmount - reservedWriteOffAmount).toFixed(2)));
+      const eligibleStatuses: InvoiceStatus[] = ['issued', 'partially_paid'];
+      const eligible = eligibleStatuses.includes(invoice.status) && availableWriteOffAmount > 0;
+      const ineligibilityReason = eligible
+        ? null
+        : !eligibleStatuses.includes(invoice.status)
+          ? `Invoice status ${invoice.status} is not eligible for write-off.`
+          : 'Invoice has no available balance for write-off.';
+      return {
+        invoice,
+        invoiceTotalAmount: invoice.totalAmount,
+        paidAmount: invoice.paidAmount,
+        approvedWriteOffAmount,
+        reservedWriteOffAmount,
+        availableWriteOffAmount,
+        eligible,
+        ineligibilityReason,
+        currency: invoice.currency,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown finance read failure';
+      throw new Error(`Finance write-off eligibility read failed: ${message}`, { cause: error });
+    }
   }
 
   async getPatientFinanceFacts(options: PatientFinanceOptions): Promise<PatientFinanceFacts> {
