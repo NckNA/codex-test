@@ -621,6 +621,8 @@ describe('FinanceRpcClient safety boundaries', () => {
       'issueInvoice',
       'voidInvoice',
       'recordPayment',
+      'recordAndAllocatePayment',
+      'getCashierPaymentOperation',
       'allocatePayment',
       'voidPaymentAllocation',
       'voidPayment',
@@ -711,5 +713,122 @@ describe('FinanceRpcClient refund and write-off lifecycle', () => {
     await expectFinanceClientError(writeOff.requestInvoiceWriteOff({ tenantId, invoiceId, amount: 1, reason: '' }), 'Причина списания обязательна.');
     await expectFinanceClientError(writeOff.requestInvoiceWriteOff({ tenantId, invoiceId, amount: 1, reason: 'x', metadata: null as never }), 'Метаданные должны быть объектом.');
     await expectFinanceClientError(writeOff.approveInvoiceWriteOff({ tenantId, adjustmentId: '' }), 'Списание не выбрано.');
+  });
+});
+
+
+describe('FinanceRpcClient atomic cashier payment operation', () => {
+  const cashierOperationRow = {
+    status: 'completed',
+    operation_id: 'cashier-payment-operation-1',
+    tenant_id: tenantId,
+    patient_id: patientId,
+    payment: { ...paymentRow, status: 'allocated', cashier_operation_key: 'cashier-payment-operation-1', cashier_operation_fingerprint: 'fingerprint-1' },
+    allocations: [paymentAllocationRow],
+    issued_invoice_ids: [invoiceId],
+    requested_amount: '11000.00',
+    allocated_amount: '11000.00',
+    unallocated_amount: '0.00',
+    remaining_patient_debt: '0.00',
+  };
+
+  it('calls record_and_allocate_payment with exact p_* arguments and maps the composite result', async () => {
+    const { rpcClient, rpcCalls, client } = createClientMock({ data: cashierOperationRow, error: null });
+    const result = await rpcClient.recordAndAllocatePayment({
+      tenantId,
+      patientId,
+      amount: 11000,
+      paymentMethod: 'cash',
+      currency: 'KZT',
+      receivedAt: '2026-06-21T02:00:00Z',
+      externalReference: 'EXT-1',
+      payerName: 'Patient',
+      notes: 'Atomic payment',
+      invoiceIds: [invoiceId],
+      idempotencyKey: ' cashier-payment-operation-1 ',
+      metadata: { source: 'cashier' },
+    });
+
+    expect(rpcCalls).toEqual([{ rpcName: 'record_and_allocate_payment', params: {
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+      p_amount: 11000,
+      p_payment_method: 'cash',
+      p_currency: 'KZT',
+      p_received_at: '2026-06-21T02:00:00Z',
+      p_external_reference: 'EXT-1',
+      p_payer_name: 'Patient',
+      p_notes: 'Atomic payment',
+      p_invoice_ids: [invoiceId],
+      p_idempotency_key: 'cashier-payment-operation-1',
+      p_metadata: { source: 'cashier' },
+    } }]);
+    expect(result).toMatchObject({
+      status: 'completed', operationId: 'cashier-payment-operation-1', tenantId, patientId,
+      requestedAmount: 11000, allocatedAmount: 11000, unallocatedAmount: 0,
+      remainingPatientDebt: 0, issuedInvoiceIds: [invoiceId],
+    });
+    expect(result.payment?.cashierOperationKey).toBe('cashier-payment-operation-1');
+    expect(result.allocations).toHaveLength(1);
+    expectNoDirectWriteCalls(client);
+  });
+
+  it('calls get_cashier_payment_operation with tenant and operation key', async () => {
+    const { rpcClient, rpcCalls } = createClientMock({ data: { ...cashierOperationRow, status: 'already_completed' }, error: null });
+    const result = await rpcClient.getCashierPaymentOperation({ tenantId, idempotencyKey: ' cashier-payment-operation-1 ' });
+    expect(rpcCalls).toEqual([{ rpcName: 'get_cashier_payment_operation', params: {
+      p_tenant_id: tenantId,
+      p_idempotency_key: 'cashier-payment-operation-1',
+    } }]);
+    expect(result.status).toBe('already_completed');
+  });
+
+  it('maps a tenant-scoped not_found reconciliation result without inventing a payment', async () => {
+    const { rpcClient } = createClientMock({ data: {
+      status: 'not_found', operation_id: 'missing-key', tenant_id: tenantId, patient_id: null,
+      payment: null, allocations: [], issued_invoice_ids: [], requested_amount: 0,
+      allocated_amount: 0, unallocated_amount: 0, remaining_patient_debt: 0,
+    }, error: null });
+    await expect(rpcClient.getCashierPaymentOperation({ tenantId, idempotencyKey: 'missing-key' })).resolves.toMatchObject({
+      status: 'not_found', operationId: 'missing-key', tenantId, patientId: null, payment: null,
+    });
+  });
+
+  it('requires an idempotency key and validates invoice IDs', async () => {
+    const { rpcClient } = createClientMock({ data: cashierOperationRow, error: null });
+    const base = { tenantId, patientId, amount: 100, paymentMethod: 'cash' as const };
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, invoiceIds: [invoiceId], idempotencyKey: '' }), 'Ключ идемпотентности не должен быть пустым.');
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, invoiceIds: [], idempotencyKey: 'key-1' }), 'Нужно выбрать хотя бы один счёт.');
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, invoiceIds: [invoiceId, invoiceId], idempotencyKey: 'key-1' }), 'Один и тот же счёт выбран несколько раз.');
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, invoiceIds: [''], idempotencyKey: 'key-1' }), 'Счёт не выбран.');
+  });
+
+  it('validates cashier amount, method, and metadata before RPC', async () => {
+    const { rpcClient, client } = createClientMock({ data: cashierOperationRow, error: null });
+    const base = { tenantId, patientId, invoiceIds: [invoiceId], idempotencyKey: 'key-1' };
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, amount: 0, paymentMethod: 'cash' }), 'Сумма должна быть больше 0.');
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, amount: 100, paymentMethod: 'crypto' as PaymentMethod }), 'Некорректный способ оплаты.');
+    await expectFinanceClientError(rpcClient.recordAndAllocatePayment({ ...base, amount: 100, paymentMethod: 'cash', metadata: [] as never }), 'Метаданные должны быть объектом.');
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
+  it('normalizes permission and idempotency conflict errors to safe Russian messages', async () => {
+    const permission = createClientMock({ data: null, error: Object.assign(new Error('Access denied: insufficient finance permissions for this tenant'), { code: '42501' }) }).rpcClient;
+    await expect(permission.recordAndAllocatePayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', invoiceIds: [invoiceId], idempotencyKey: 'key-1' })).rejects.toMatchObject({
+      category: 'permission', message: 'Недостаточно прав для кассовой операции.',
+    });
+
+    const conflict = createClientMock({ data: null, error: new Error('CASHIER_IDEMPOTENCY_CONFLICT: operation key was reused with different payment details') }).rpcClient;
+    await expect(conflict.recordAndAllocatePayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', invoiceIds: [invoiceId], idempotencyKey: 'key-1' })).rejects.toMatchObject({
+      category: 'duplicate_conflict', message: 'Ключ операции уже использован для другой оплаты.',
+    });
+  });
+
+  it('treats an unclassified transport failure as operation_uncertain without raw details', async () => {
+    const { rpcClient } = createClientMock({ data: null, error: new Error('{"socket":"closed","secret":"hidden"}') });
+    await expect(rpcClient.recordAndAllocatePayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', invoiceIds: [invoiceId], idempotencyKey: 'key-1' })).rejects.toMatchObject({
+      category: 'operation_uncertain',
+      message: 'Не удалось получить ответ сервера. Проверяем, была ли оплата сохранена.',
+    });
   });
 });

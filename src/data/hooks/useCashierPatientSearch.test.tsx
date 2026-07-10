@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { createRoot, type Root } from 'react-dom/client';
 import { act, useEffect } from 'react';
@@ -30,6 +30,7 @@ function Harness({ tenantId, repository }: { tenantId?: string | null; repositor
 }
 
 async function flush() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); }
+function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; }
 
 describe('useCashierPatientSearch', () => {
   let container: HTMLDivElement;
@@ -91,6 +92,46 @@ describe('useCashierPatientSearch', () => {
     act(() => snapshot.clear());
     expect(snapshot.patients).toEqual([]);
     expect(snapshot.query).toBe('');
+  });
+
+  it('keeps only the newest search results when Ali is slower than Alisa', async () => {
+    const slowAli = deferred<Patient[]>();
+    const fastAlisa = deferred<Patient[]>();
+    const alisa = { ...patient, id: 'patient-alisa', fullName: 'Alisa' } as Patient;
+    const repository = createRepository();
+    vi.mocked(repository.listPatients)
+      .mockReturnValueOnce(slowAli.promise)
+      .mockReturnValueOnce(fastAlisa.promise);
+    await renderHook('tenant-1', repository);
+    let aliSearch!: Promise<void>;
+    let alisaSearch!: Promise<void>;
+    act(() => { aliSearch = snapshot.search('Ali'); });
+    act(() => { alisaSearch = snapshot.search('Alisa'); });
+    fastAlisa.resolve([alisa]);
+    await act(async () => { await alisaSearch; });
+    expect(snapshot.query).toBe('Alisa');
+    expect(snapshot.patients.map((row) => row.id)).toEqual(['patient-alisa']);
+    slowAli.resolve([patient]);
+    await act(async () => { await aliSearch; });
+    expect(snapshot.query).toBe('Alisa');
+    expect(snapshot.patients.map((row) => row.id)).toEqual(['patient-alisa']);
+  });
+
+  it('ignores a stale search error after a newer success', async () => {
+    const slowAli = deferred<Patient[]>();
+    const alisa = { ...patient, id: 'patient-alisa', fullName: 'Alisa' } as Patient;
+    const repository = createRepository();
+    vi.mocked(repository.listPatients)
+      .mockReturnValueOnce(slowAli.promise)
+      .mockResolvedValueOnce([alisa]);
+    await renderHook('tenant-1', repository);
+    let aliSearch!: Promise<void>;
+    act(() => { aliSearch = snapshot.search('Ali'); });
+    await act(async () => { await snapshot.search('Alisa'); });
+    slowAli.reject(new Error('raw stale database error'));
+    await act(async () => { await aliSearch; });
+    expect(snapshot.error).toBeNull();
+    expect(snapshot.patients.map((row) => row.id)).toEqual(['patient-alisa']);
   });
 
   it('hook implementation does not expose localStorage or service_role references', () => {
