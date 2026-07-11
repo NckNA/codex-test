@@ -61,6 +61,9 @@ export function SchedulePage() {
     createAppointment,
     updateAppointment,
     deleteAppointment,
+    isSaving,
+    isReconciling,
+    saveError,
   } = useScheduleAppointments();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -112,25 +115,28 @@ export function SchedulePage() {
     setIsModalOpen(true);
   };
 
-  const handleSaveAppointment = async (saved: Appointment) => {
+  const handleSaveAppointment = async (saved: Appointment): Promise<boolean> => {
     try {
-      if (editingAppointment?.id) {
-        await updateAppointment(saved);
-      } else {
-        await createAppointment(saved);
-      }
+      const result = editingAppointment?.id
+        ? await updateAppointment(editingAppointment as Appointment, saved)
+        : await createAppointment(saved);
+
+      if (!result) return false;
       setIsModalOpen(false);
-    } catch (e) {
-      console.error(e);
+      return true;
+    } catch {
+      return false;
     }
   };
 
-  const handleDeleteAppointment = async (id: string) => {
+  const handleDeleteAppointment = async (id: string): Promise<boolean> => {
     try {
-      await deleteAppointment(id);
+      const deleted = await deleteAppointment(id);
+      if (!deleted) return false;
       setIsModalOpen(false);
-    } catch (e) {
-      console.error(e);
+      return true;
+    } catch {
+      return false;
     }
   };
 
@@ -302,6 +308,9 @@ export function SchedulePage() {
         appointments={appointments}
         doctors={allDoctors}
         patients={patients}
+        isSaving={isSaving}
+        isReconciling={isReconciling}
+        serverError={saveError?.message || null}
       />
     </div>
   );

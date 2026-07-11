@@ -43,6 +43,7 @@ $$;
 \set registrar_a 'a9230000-0000-4000-8000-000000000005'
 \set notenant 'a9230000-0000-4000-8000-000000000006'
 \set admin_b 'b9230000-0000-4000-8000-000000000001'
+\set appointment_doctor_a 'a9260000-0000-4000-8000-000000000001'
 \set invoice_a1 'a9240000-0000-4000-8000-000000000001'
 \set invoice_a2 'a9240000-0000-4000-8000-000000000002'
 \set invoice_a_patient2 'a9240000-0000-4000-8000-000000000003'
@@ -81,8 +82,10 @@ INSERT INTO public.patients(id, tenant_id, full_name, phone, source, balance) VA
   (:'patient_a', :'tenant_a', 'Billing Guard Patient A', '+77009220001', 'phone', 777),
   (:'patient_a2', :'tenant_a', 'Billing Guard Patient A2', '+77009220002', 'phone', 0),
   (:'patient_b', :'tenant_b', 'Billing Guard Patient B', '+77009220003', 'phone', 0);
-INSERT INTO public.appointments(tenant_id, patient_id, service, status, start_time, end_time)
-VALUES (:'tenant_a', :'patient_a', 'No billing side effect fixture', 'completed', now() - interval '1 hour', now());
+INSERT INTO public.doctors(id, tenant_id, full_name)
+VALUES (:'appointment_doctor_a', :'tenant_a', 'Billing guard fixture doctor');
+INSERT INTO public.appointments(tenant_id, patient_id, doctor_id, service, status, start_time, end_time)
+VALUES (:'tenant_a', :'patient_a', :'appointment_doctor_a', 'No billing side effect fixture', 'completed', now() - interval '1 hour', now());
 INSERT INTO public.invoices(id, tenant_id, patient_id, invoice_number, status, currency, subtotal_amount, total_amount, balance_amount, created_by, metadata) VALUES
   (:'invoice_a1', :'tenant_a', :'patient_a', 'CSBG-A1', 'draft', 'KZT', 0, 0, 0, :'admin_a', '{}'),
   (:'invoice_a2', :'tenant_a', :'patient_a', 'CSBG-A2', 'draft', 'KZT', 0, 0, 0, :'admin_a', '{}'),

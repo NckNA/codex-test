@@ -336,44 +336,36 @@ SELECT pg_temp.expect_error(
   'permission denied'
 );
 
--- Current AppointmentRepository direct CRUD remains reachable through RLS.
-INSERT INTO public.appointments(id, tenant_id, patient_id, doctor_id, service, status, start_time, end_time)
-VALUES (:'appointment_created', :'tenant_a', :'patient_a', :'doctor_a', 'Created by admin', 'new', '2026-08-01T10:00:00Z', '2026-08-01T11:00:00Z');
-UPDATE public.appointments SET status = 'confirmed', comment = 'updated by admin' WHERE id = :'appointment_created';
-SELECT pg_temp.assert_true(
-  (SELECT status = 'confirmed' AND comment = 'updated by admin' FROM public.appointments WHERE id = :'appointment_created'),
-  'appointment create and update succeed under current RLS'
+-- Migration 0025 preserves the legacy grants matrix but closes direct appointment
+-- INSERT/UPDATE through an authoritative trigger. Current members write via RPC.
+SELECT pg_temp.expect_error(
+  format('insert into public.appointments(id,tenant_id,patient_id,doctor_id,status,start_time,end_time) values(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L,%L::timestamptz,%L::timestamptz)', 'a9244000-0000-4000-8000-000000000097', :'tenant_a', :'patient_a', :'doctor_a', 'new', '2026-08-01T10:00:00Z', '2026-08-01T11:00:00Z'),
+  'Недостаточно прав'
+);
+SELECT (public.create_appointment(:'tenant_a', :'patient_a', :'doctor_a', '2026-08-01T10:00:00Z', '2026-08-01T11:00:00Z', '', 'Created by admin', 'new', NULL, NULL, NULL, NULL, 'legacy-grants-admin-create')->'appointment'->>'id') AS appointment_created \gset
+SELECT pg_temp.expect_error(
+  format('update public.appointments set status=%L where id=%L::uuid', 'confirmed', :'appointment_created'),
+  'Недостаточно прав'
 );
 SELECT pg_temp.expect_error(
   format('insert into public.appointments(id,tenant_id,patient_id,doctor_id,status,start_time,end_time) values(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L,%L::timestamptz,%L::timestamptz)', 'b9244000-0000-4000-8000-000000000099', :'tenant_b', :'patient_b', :'doctor_b', 'new', '2026-08-01T10:00:00Z', '2026-08-01T11:00:00Z'),
-  'row-level security'
-);
-SELECT pg_temp.expect_error(
-  format('insert into public.appointments(id,tenant_id,patient_id,doctor_id,status,start_time,end_time) values(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L,%L::timestamptz,%L::timestamptz)', 'a9244000-0000-4000-8000-000000000099', :'tenant_a', :'patient_b', :'doctor_a', 'new', '2026-08-01T11:00:00Z', '2026-08-01T12:00:00Z'),
-  'appointments_tenant_id_patient_id_fkey'
-);
-SELECT pg_temp.expect_error(
-  format('insert into public.appointments(id,tenant_id,patient_id,doctor_id,status,start_time,end_time) values(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L,%L::timestamptz,%L::timestamptz)', 'a9244000-0000-4000-8000-000000000098', :'tenant_a', :'patient_a', :'doctor_b', 'new', '2026-08-01T11:00:00Z', '2026-08-01T12:00:00Z'),
-  'appointments_tenant_id_doctor_id_fkey'
-);
-SELECT pg_temp.expect_error(
-  format('update public.appointments set patient_id=%L::uuid where id=%L::uuid', :'patient_b', :'appointment_created'),
-  'appointments_tenant_id_patient_id_fkey'
-);
-SELECT pg_temp.expect_error(
-  format('update public.appointments set doctor_id=%L::uuid where id=%L::uuid', :'doctor_b', :'appointment_created'),
-  'appointments_tenant_id_doctor_id_fkey'
+  'Недостаточно прав'
 );
 
--- Current broad appointment policies allow doctor and cashier create/update.
+-- Current broad appointment role policy is now enforced through RPC, while
+-- direct table mutations remain blocked for doctor and cashier as well.
 SELECT set_config('request.jwt.claim.sub', :'doctor_user_a', true);
-INSERT INTO public.appointments(id, tenant_id, patient_id, doctor_id, service, status, start_time, end_time)
-VALUES (:'appointment_doctor_created', :'tenant_a', :'patient_a', :'doctor_a', 'Doctor policy evidence', 'new', '2026-08-01T12:00:00Z', '2026-08-01T13:00:00Z');
-UPDATE public.appointments SET status = 'arrived' WHERE id = :'appointment_doctor_created';
+SELECT (public.create_appointment(:'tenant_a', :'patient_a', :'doctor_a', '2026-08-01T12:00:00Z', '2026-08-01T13:00:00Z', '', 'Doctor policy evidence', 'new', NULL, NULL, NULL, NULL, 'legacy-grants-doctor-create')->'appointment'->>'id') AS appointment_doctor_created \gset
+SELECT pg_temp.expect_error(
+  format('update public.appointments set status=%L where id=%L::uuid', 'arrived', :'appointment_doctor_created'),
+  'Недостаточно прав'
+);
 SELECT set_config('request.jwt.claim.sub', :'cashier_a', true);
-INSERT INTO public.appointments(id, tenant_id, patient_id, doctor_id, service, status, start_time, end_time)
-VALUES (:'appointment_cashier_created', :'tenant_a', :'patient_a', :'doctor_a', 'Cashier policy evidence', 'new', '2026-08-01T13:00:00Z', '2026-08-01T14:00:00Z');
-UPDATE public.appointments SET status = 'confirmed' WHERE id = :'appointment_cashier_created';
+SELECT (public.create_appointment(:'tenant_a', :'patient_a', :'doctor_a', '2026-08-01T13:00:00Z', '2026-08-01T14:00:00Z', '', 'Cashier policy evidence', 'new', NULL, NULL, NULL, NULL, 'legacy-grants-cashier-create')->'appointment'->>'id') AS appointment_cashier_created \gset
+SELECT pg_temp.expect_error(
+  format('update public.appointments set status=%L where id=%L::uuid', 'confirmed', :'appointment_cashier_created'),
+  'Недостаточно прав'
+);
 
 -- Registrar has DELETE table privilege but existing RLS prevents deletion.
 SELECT set_config('request.jwt.claim.sub', :'registrar_a', true);

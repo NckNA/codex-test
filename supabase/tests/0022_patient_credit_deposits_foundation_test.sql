@@ -41,6 +41,7 @@ $$;
 \set registrar_a 'e2230000-0000-4000-8000-000000000005'
 \set notenant 'e2230000-0000-4000-8000-000000000006'
 \set admin_b 'e2230000-0000-4000-8000-000000000007'
+\set appointment_doctor_a 'e2230000-0000-4000-8000-000000000099'
 \set appointment_a 'e2270000-0000-4000-8000-000000000001'
 \set appointment_a2 'e2270000-0000-4000-8000-000000000002'
 \set plan_a 'e2280000-0000-4000-8000-000000000001'
@@ -97,9 +98,11 @@ INSERT INTO public.patients(id, tenant_id, full_name, phone, source, balance) VA
   (:'patient_a2', :'tenant_a', 'Deposit Patient A2', '+77002220002', 'phone', 0),
   (:'patient_b', :'tenant_b', 'Deposit Patient B', '+77002220003', 'phone', 0);
 
-INSERT INTO public.appointments(id, tenant_id, patient_id, service, status, start_time, end_time) VALUES
-  (:'appointment_a', :'tenant_a', :'patient_a', 'Deposit appointment', 'confirmed', now() + interval '1 day', now() + interval '1 day 1 hour'),
-  (:'appointment_a2', :'tenant_a', :'patient_a2', 'Other patient appointment', 'confirmed', now() + interval '2 days', now() + interval '2 days 1 hour');
+INSERT INTO public.doctors(id, tenant_id, full_name)
+VALUES (:'appointment_doctor_a', :'tenant_a', 'Deposit fixture doctor');
+INSERT INTO public.appointments(id, tenant_id, patient_id, doctor_id, service, status, start_time, end_time) VALUES
+  (:'appointment_a', :'tenant_a', :'patient_a', :'appointment_doctor_a', 'Deposit appointment', 'confirmed', now() + interval '1 day', now() + interval '1 day 1 hour'),
+  (:'appointment_a2', :'tenant_a', :'patient_a2', :'appointment_doctor_a', 'Other patient appointment', 'confirmed', now() + interval '2 days', now() + interval '2 days 1 hour');
 INSERT INTO public.treatment_plans(id, tenant_id, patient_id, title, status, total_price) VALUES
   (:'plan_a', :'tenant_a', :'patient_a', 'Deposit treatment plan', 'approved', 5000);
 

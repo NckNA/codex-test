@@ -1,170 +1,331 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { 
-  createAppointmentRepository, 
-  SupabaseAppointmentRepository, 
-  LocalStorageAppointmentRepository 
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import repositorySource from './AppointmentRepository.ts?raw';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Appointment } from '../../types';
+import {
+  AppointmentRepositoryError,
+  LocalStorageAppointmentRepository,
+  SupabaseAppointmentRepository,
+  createAppointmentRepository,
+  isProtectedAppointmentChange,
+  toSafeAppointmentError,
 } from './AppointmentRepository';
 import { supabase } from '../../lib/supabaseClient';
-import type { Appointment } from '../../types';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
   },
 }));
+
+const tenantId = '11111111-1111-4111-8111-111111111111';
+const appointmentId = '22222222-2222-4222-8222-222222222222';
+const patientId = '33333333-3333-4333-8333-333333333333';
+const doctorId = '44444444-4444-4444-8444-444444444444';
+const operationKey = 'appointment-test-operation-001';
+
+const appointment: Appointment = {
+  id: appointmentId,
+  patientId,
+  doctorId,
+  cabinet: 'A1',
+  service: 'Осмотр',
+  status: 'new',
+  paymentType: 'unpaid',
+  source: 'phone',
+  price: 1500,
+  comment: 'Комментарий',
+  start: '2026-08-01T10:00:00',
+  end: '2026-08-01T11:00:00',
+  createdAt: '2026-07-01T09:00:00',
+  updatedAt: '2026-07-01T09:00:00+00:00',
+};
+
+const databaseRow = (overrides: Record<string, unknown> = {}) => ({
+  id: appointmentId,
+  tenant_id: tenantId,
+  patient_id: patientId,
+  doctor_id: doctorId,
+  cabinet: 'A1',
+  service: 'Осмотр',
+  status: 'new',
+  payment_type: 'unpaid',
+  source: 'phone',
+  price: '1500.00',
+  comment: 'Комментарий',
+  start_time: '2026-08-01T10:00:00+00:00',
+  end_time: '2026-08-01T11:00:00+00:00',
+  created_at: '2026-07-01T09:00:00+00:00',
+  updated_at: '2026-07-01T09:00:00+00:00',
+  ...overrides,
+});
+
+const rpcResult = (
+  operationType: 'create' | 'reschedule' | 'details' = 'create',
+  overrides: Record<string, unknown> = {},
+) => ({
+  appointment: databaseRow(overrides),
+  replayed: false,
+  recovered: false,
+  operationType,
+});
+
+const createClient = () => {
+  const rpc = vi.fn();
+  const from = vi.fn();
+  return {
+    client: { rpc, from } as unknown as SupabaseClient,
+    rpc,
+    from,
+  };
+};
 
 describe('AppointmentRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('Factory', () => {
-    it('returns LocalStorageAppointmentRepository when backend is local', () => {
-      const repo = createAppointmentRepository({ backend: 'local' });
-      expect(repo).toBe(LocalStorageAppointmentRepository);
+  describe('factory', () => {
+    it('uses local storage only when local backend is selected', () => {
+      expect(createAppointmentRepository({ backend: 'local' })).toBe(LocalStorageAppointmentRepository);
+      expect(createAppointmentRepository({ backend: 'supabase', tenantId: null })).toBe(LocalStorageAppointmentRepository);
     });
 
-    it('returns LocalStorageAppointmentRepository when backend is supabase but no tenantId', () => {
-      const repo = createAppointmentRepository({ backend: 'supabase', tenantId: null });
-      expect(repo).toBe(LocalStorageAppointmentRepository);
-    });
-
-    it('returns SupabaseAppointmentRepository when backend is supabase with tenantId', () => {
-      const repo = createAppointmentRepository({ backend: 'supabase', tenantId: 't1' });
-      expect(repo).toBeInstanceOf(SupabaseAppointmentRepository);
+    it('creates Supabase repository for configured tenant backend', () => {
+      const repository = createAppointmentRepository({ backend: 'supabase', tenantId });
+      expect(repository).toBeInstanceOf(SupabaseAppointmentRepository);
+      expect(supabase).toBeTruthy();
     });
   });
 
-  describe('SupabaseAppointmentRepository', () => {
-    const tenantId = 'test-tenant';
-    const client = supabase as unknown as SupabaseClient;
-    const repo = new SupabaseAppointmentRepository(tenantId, client);
-    
-    const mockSelect = vi.fn();
-    const mockEq = vi.fn();
-    const mockOrder = vi.fn();
-    const mockInsert = vi.fn();
-    const mockUpdate = vi.fn();
-    const mockDelete = vi.fn();
+  it('reads appointments through tenant-scoped table SELECT', async () => {
+    const { client, from } = createClient();
+    const order = vi.fn().mockResolvedValue({ data: [databaseRow()], error: null });
+    const secondEq = vi.fn().mockReturnValue({ order });
+    const firstEq = vi.fn().mockReturnValue({ eq: secondEq, order });
+    const select = vi.fn().mockReturnValue({ eq: firstEq });
+    from.mockReturnValue({ select });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
 
-    beforeEach(() => {
-      vi.mocked(client.from).mockReturnValue({
-        select: mockSelect,
-        insert: mockInsert,
-        update: mockUpdate,
-        delete: mockDelete,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
+    const all = await repository.listAppointments();
+    const byPatient = await repository.listAppointmentsByPatient(patientId);
 
-      mockSelect.mockReturnValue({ eq: mockEq });
-      mockEq.mockReturnValue({ eq: mockEq, order: mockOrder, maybeSingle: vi.fn() });
-      mockOrder.mockResolvedValue({ data: [], error: null });
-      mockInsert.mockResolvedValue({ error: null });
-      mockUpdate.mockReturnValue({ eq: mockEq });
-      mockDelete.mockReturnValue({ eq: mockEq });
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockEq.mockImplementation((...args: any[]) => {
-        void args;
-        const chain = { eq: mockEq, order: mockOrder };
-        return Object.assign(Promise.resolve({ error: null }), chain);
+    expect(from).toHaveBeenCalledWith('appointments');
+    expect(firstEq).toHaveBeenCalledWith('tenant_id', tenantId);
+    expect(secondEq).toHaveBeenCalledWith('patient_id', patientId);
+    expect(all[0]).toMatchObject({
+      id: appointmentId,
+      patientId,
+      doctorId,
+      start: '2026-08-01T10:00:00',
+      end: '2026-08-01T11:00:00',
+      updatedAt: '2026-07-01T09:00:00+00:00',
+      price: 1500,
+    });
+    expect(byPatient).toHaveLength(1);
+  });
+
+  it('creates through create_appointment RPC and preserves operation key unchanged', async () => {
+    const { client, rpc, from } = createClient();
+    rpc.mockResolvedValue({ data: rpcResult('create'), error: null });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const result = await repository.createAppointment(appointment, { operationKey });
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('create_appointment', expect.objectContaining({
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+      p_doctor_id: doctorId,
+      p_start_time: '2026-08-01T10:00:00Z',
+      p_end_time: '2026-08-01T11:00:00Z',
+      p_operation_key: operationKey,
+    }));
+    expect(from).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ operationType: 'create', replayed: false, recovered: false });
+  });
+
+  it('reschedules through reschedule_appointment RPC with optimistic version and unchanged key', async () => {
+    const { client, rpc, from } = createClient();
+    rpc.mockResolvedValue({
+      data: rpcResult('reschedule', {
+        doctor_id: '55555555-5555-4555-8555-555555555555',
+        start_time: '2026-08-01T12:00:00+00:00',
+        end_time: '2026-08-01T13:00:00+00:00',
+      }),
+      error: null,
+    });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+    const next: Appointment = {
+      ...appointment,
+      doctorId: '55555555-5555-4555-8555-555555555555',
+      start: '2026-08-01T12:00:00',
+      end: '2026-08-01T13:00:00',
+    };
+
+    const result = await repository.rescheduleAppointment(appointment, next, { operationKey });
+
+    expect(rpc).toHaveBeenCalledWith('reschedule_appointment', expect.objectContaining({
+      p_tenant_id: tenantId,
+      p_appointment_id: appointmentId,
+      p_patient_id: patientId,
+      p_doctor_id: next.doctorId,
+      p_expected_updated_at: appointment.updatedAt,
+      p_operation_key: operationKey,
+    }));
+    expect(from).not.toHaveBeenCalled();
+    expect(result.appointment.start).toBe('2026-08-01T12:00:00');
+  });
+
+  it('updates non-protected details only through update_appointment_details RPC', async () => {
+    const { client, rpc, from } = createClient();
+    rpc.mockResolvedValue({ data: rpcResult('details', { comment: 'Новый комментарий' }), error: null });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+    const next = { ...appointment, comment: 'Новый комментарий' };
+
+    await repository.updateAppointmentDetails(appointment, next);
+
+    expect(rpc).toHaveBeenCalledWith('update_appointment_details', expect.objectContaining({
+      p_tenant_id: tenantId,
+      p_appointment_id: appointmentId,
+      p_comment: 'Новый комментарий',
+      p_expected_updated_at: appointment.updatedAt,
+    }));
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('recovers operation through scoped recovery RPC without exposing fingerprint', async () => {
+    const { client, rpc } = createClient();
+    rpc.mockResolvedValue({
+      data: {
+        found: true,
+        operationType: 'create',
+        appointment: databaseRow(),
+        replayed: true,
+        recovered: true,
+      },
+      error: null,
+    });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const recovered = await repository.recoverAppointmentOperation(operationKey);
+
+    expect(rpc).toHaveBeenCalledWith('get_appointment_operation', {
+      p_tenant_id: tenantId,
+      p_operation_key: operationKey,
+    });
+    expect(recovered).toMatchObject({
+      found: true,
+      operationType: 'create',
+      replayed: true,
+      recovered: true,
+      appointment: { id: appointmentId },
+    });
+    expect(JSON.stringify(recovered)).not.toContain('fingerprint');
+  });
+
+  it('recovers an uncertain create with the original operation key and reports reconciliation state', async () => {
+    const { client, rpc } = createClient();
+    rpc
+      .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+      .mockResolvedValueOnce({
+        data: {
+          found: true,
+          operationType: 'create',
+          appointment: databaseRow(),
+          replayed: true,
+          recovered: true,
+        },
+        error: null,
       });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+    const recoveryStates: boolean[] = [];
+
+    const result = await repository.createAppointment(appointment, {
+      operationKey,
+      onRecoveryStateChange: (recovering) => recoveryStates.push(recovering),
     });
 
-    it('listAppointments filters by tenant_id and orders asc', async () => {
-      await repo.listAppointments();
-      expect(client.from).toHaveBeenCalledWith('appointments');
-      expect(mockSelect).toHaveBeenCalledWith('*');
-      expect(mockEq).toHaveBeenCalledWith('tenant_id', tenantId);
-      expect(mockOrder).toHaveBeenCalledWith('start_time', { ascending: true });
+    expect(rpc.mock.calls[0]).toEqual(['create_appointment', expect.objectContaining({ p_operation_key: operationKey })]);
+    expect(rpc.mock.calls[1]).toEqual(['get_appointment_operation', {
+      p_tenant_id: tenantId,
+      p_operation_key: operationKey,
+    }]);
+    expect(recoveryStates).toEqual([true, false]);
+    expect(result).toMatchObject({ recovered: true, replayed: true, appointment: { id: appointmentId } });
+  });
+
+  it.each([
+    ['У врача уже есть запись на это время.', 'doctor_conflict', 'У врача уже есть запись на это время.'],
+    ['У пациента уже есть другая запись на это время.', 'patient_conflict', 'У пациента уже есть другая запись на это время.'],
+    ['Время окончания должно быть позже времени начала.', 'invalid_interval', 'Время окончания должно быть позже времени начала.'],
+    ['Пациент недоступен в этой клинике.', 'patient_unavailable', 'Пациент недоступен в этой клинике.'],
+    ['Врач недоступен в этой клинике.', 'doctor_unavailable', 'Врач недоступен в этой клинике.'],
+    ['Операция с этим идентификатором уже выполнена с другими параметрами.', 'idempotency_conflict', 'Операция с этим идентификатором уже выполнена с другими параметрами.'],
+    ['Запись была изменена другим пользователем. Обновите расписание.', 'concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.'],
+    ['permission denied for function', 'permission', 'Недостаточно прав для изменения записи.'],
+  ])('maps server error safely: %s', (rawMessage, code, safeMessage) => {
+    const mapped = toSafeAppointmentError({
+      message: rawMessage,
+      details: 'SQLSTATE 23505 appointment_operations_tenant_key_key',
+      hint: 'public.create_appointment',
     });
 
-    it('listAppointmentsByPatient filters by tenant_id and patient_id and orders desc', async () => {
-      await repo.listAppointmentsByPatient('p1');
-      expect(client.from).toHaveBeenCalledWith('appointments');
-      expect(mockSelect).toHaveBeenCalledWith('*');
-      expect(mockEq).toHaveBeenCalledWith('tenant_id', tenantId);
-      expect(mockEq).toHaveBeenCalledWith('patient_id', 'p1');
-      expect(mockOrder).toHaveBeenCalledWith('start_time', { ascending: false });
-    });
+    expect(mapped).toBeInstanceOf(AppointmentRepositoryError);
+    expect(mapped.code).toBe(code);
+    expect(mapped.message).toBe(safeMessage);
+    expect(mapped.message).not.toContain('SQLSTATE');
+    expect(mapped.message).not.toContain('appointment_operations');
+    expect(mapped.message).not.toContain('create_appointment');
+  });
 
-    it('createAppointment inserts tenant_id and generates UUID if missing', async () => {
-      const appt: Appointment = {
-        id: 'a123',
-        doctorId: 'd1',
-        patientId: '',
-        cabinet: '1',
-        service: 'test',
-        status: 'new',
-        start: '2023-01-01T10:00',
-        end: '2023-01-01T11:00',
-        createdAt: '2023-01-01T09:00',
-      };
-      
-      await repo.createAppointment(appt);
-      expect(mockInsert).toHaveBeenCalled();
-      const insertArg = mockInsert.mock.calls[0][0];
-      
-      expect(insertArg.tenant_id).toBe(tenantId);
-      expect(insertArg.id).not.toBe('a123');
-      expect(insertArg.id.length).toBe(36);
-      expect(insertArg.patient_id).toBeNull();
-      expect(insertArg.payment_type).toBeNull();
-      expect(insertArg.start_time).toBe('2023-01-01T10:00:00Z');
-    });
+  it('does not attempt recovery for deterministic doctor conflict', async () => {
+    const { client, rpc } = createClient();
+    rpc.mockResolvedValue({ data: null, error: { message: 'У врача уже есть запись на это время.' } });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
 
-    it('updateAppointment updates by tenant_id and id', async () => {
-      const appt: Appointment = {
-        id: 'uuid-123',
-        doctorId: 'd1',
-        cabinet: '1',
-        service: 'test',
-        status: 'new',
-        start: '2023-01-01T10:00',
-        end: '2023-01-01T11:00',
-        createdAt: '2023-01-01T09:00',
-      };
-      
-      await repo.updateAppointment(appt);
-      expect(mockUpdate).toHaveBeenCalled();
-      expect(mockEq).toHaveBeenCalledWith('tenant_id', tenantId);
-      expect(mockEq).toHaveBeenCalledWith('id', 'uuid-123');
-    });
+    await expect(repository.createAppointment(appointment, { operationKey }))
+      .rejects.toMatchObject({ code: 'doctor_conflict' });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
 
-    it('deleteAppointment deletes by tenant_id and id', async () => {
-      await repo.deleteAppointment('uuid-123');
-      expect(mockDelete).toHaveBeenCalled();
-      expect(mockEq).toHaveBeenCalledWith('tenant_id', tenantId);
-      expect(mockEq).toHaveBeenCalledWith('id', 'uuid-123');
-    });
+  it('marks protected scheduling changes and ignores details-only edits', () => {
+    expect(isProtectedAppointmentChange(appointment, { ...appointment, comment: 'Другое' })).toBe(false);
+    expect(isProtectedAppointmentChange(appointment, { ...appointment, start: '2026-08-01T10:30:00' })).toBe(true);
+    expect(isProtectedAppointmentChange(appointment, { ...appointment, patientId: 'other' })).toBe(true);
+    expect(isProtectedAppointmentChange(appointment, { ...appointment, doctorId: 'other' })).toBe(true);
+  });
 
-    it('strips UTC timezone offset when reading from DB to preserve wall-clock time', async () => {
-      mockOrder.mockResolvedValueOnce({
-        data: [{
-          id: 'uuid-123',
-          doctor_id: 'd1',
-          cabinet: '1',
-          service: 'test',
-          status: 'new',
-          start_time: '2026-06-10T09:00:00Z',
-          end_time: '2026-06-10T10:00:00+00:00',
-          created_at: '2026-06-10T08:00:00Z',
-        }],
-        error: null
-      });
+  it('retains direct DELETE only under current hard-delete policy', async () => {
+    const { client, from } = createClient();
+    const finalEq = vi.fn().mockResolvedValue({ error: null });
+    const firstEq = vi.fn().mockReturnValue({ eq: finalEq });
+    const deleteCall = vi.fn().mockReturnValue({ eq: firstEq });
+    from.mockReturnValue({ delete: deleteCall });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
 
-      const apps = await repo.listAppointments();
-      expect(apps).toHaveLength(1);
-      expect(apps[0].start).toBe('2026-06-10T09:00:00');
-      expect(apps[0].end).toBe('2026-06-10T10:00:00');
-      expect(apps[0].createdAt).toBe('2026-06-10T08:00:00');
-    });
+    await repository.deleteAppointment(appointmentId);
 
-    it('throws Supabase errors', async () => {
-      mockInsert.mockResolvedValueOnce({ error: new Error('DB Error') });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await expect(repo.createAppointment({} as any)).rejects.toThrow('DB Error');
-    });
+    expect(from).toHaveBeenCalledWith('appointments');
+    expect(deleteCall).toHaveBeenCalledTimes(1);
+    expect(firstEq).toHaveBeenCalledWith('tenant_id', tenantId);
+    expect(finalEq).toHaveBeenCalledWith('id', appointmentId);
+  });
+
+  it('source contains no protected direct INSERT/UPDATE, service role, or Supabase localStorage fallback', () => {
+    const supabaseClass = repositorySource.slice(
+      repositorySource.indexOf('export class SupabaseAppointmentRepository'),
+      repositorySource.indexOf('export function createAppointmentRepository'),
+    );
+
+    expect(supabaseClass).not.toContain('.insert(');
+    expect(supabaseClass).not.toContain('.update(');
+    expect(supabaseClass).not.toContain('service_role');
+    expect(supabaseClass).not.toContain('localStorage');
+    expect(supabaseClass).not.toContain('storage.');
+    expect(supabaseClass).toContain("rpc('create_appointment'");
+    expect(supabaseClass).toContain("rpc('reschedule_appointment'");
+    expect(supabaseClass).toContain("rpc('get_appointment_operation'");
   });
 });
