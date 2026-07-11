@@ -34,15 +34,18 @@ No invoice, allocation, reservation, appointment, treatment plan, completed serv
 
 ## PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/343
 
 ## Implementation head reviewed
 
-Pending commit and PR publication.
+`f337b21b2f5836e55eea7f5395afab741d8bc7e4`
 
 ## Report update commit
 
-N/A before finalization. The finalization receipt and final response must verify the final PR head and fresh CI run.
+N/A because the final report update commit cannot reference itself before creation.
+
+- Report update commit: N/A (the report commit cannot reference itself; use the finalization receipt).
+- The final report-only commit and its fresh CI run are recorded in the finalization receipt, PR body, and final task response after push.
 
 ## Current payment-intake recon
 
@@ -438,16 +441,23 @@ The existing patient Finance UI caller is covered by hook/client tests. This tas
 
 ## Fresh CI
 
-Pending PR publication and GitHub Actions on the final PR head.
+Implementation CI completed successfully:
 
-Required final verification:
+- workflow: `CI`;
+- run: `#686` (`29154002773`);
+- tested commit: `f337b21b2f5836e55eea7f5395afab741d8bc7e4`;
+- conclusion: `success`;
+- ESLint: passed;
+- tests: passed;
+- build: passed.
 
-- CI tested commit equals final PR head;
-- ESLint passed;
-- all tests passed;
-- build passed;
-- changed-file scope matches this report;
-- PR remains open and unmerged.
+The final response verifies the report-only update commit against a fresh CI run and confirms that PR #343 remains open and unmerged.
+
+## Recommended next task
+
+`CASHIER-CREDIT-PREPAYMENT-UI-001`
+
+Add an explicit patient-credit/prepayment UI that preserves the operation key across a full browser restart and uses the hardened intake and recovery RPCs without introducing a second money ledger.
 
 ## Final verdict
 
