@@ -113,7 +113,13 @@ SQL-набор проверяет capacity, tenant/patient/currency isolation, �
 
 ## Pull Request
 
-PR URL и CI metadata будут внесены после публикации ветки. Слияние не выполняется.
+- PR: https://github.com/NckNA/codex-test/pull/340
+- Implementation commit: `1d72c2f8cc5da1abfb342c34f5bf19220f0eafd0`
+- CI run: `29132986607` / run #677
+- CI result on implementation commit: **success**
+- PR state: open; слияние не выполнялось.
+
+После этого отчёт обновляется отдельным report-only коммитом; итоговый HEAD дополнительно проверяется свежим PR CI.
 
 ## Recommended next task
 
