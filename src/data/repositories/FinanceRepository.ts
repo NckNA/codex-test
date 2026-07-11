@@ -138,6 +138,8 @@ export interface Payment {
   notes: string | null;
   cashierOperationKey: string | null;
   cashierOperationFingerprint: string | null;
+  creditIntakeOperationKey: string | null;
+  creditIntakeOperationFingerprint: string | null;
   metadata: Record<string, unknown>;
   receivedBy: string | null;
   voidedBy: string | null;
@@ -594,6 +596,8 @@ export function mapPaymentRow(row: Record<string, unknown>): Payment {
     notes: nullableString(row.notes),
     cashierOperationKey: nullableString(row.cashier_operation_key),
     cashierOperationFingerprint: nullableString(row.cashier_operation_fingerprint),
+    creditIntakeOperationKey: nullableString(row.credit_intake_operation_key),
+    creditIntakeOperationFingerprint: nullableString(row.credit_intake_operation_fingerprint),
     metadata: metadataObject(row.metadata),
     receivedBy: nullableString(row.received_by),
     voidedBy: nullableString(row.voided_by),

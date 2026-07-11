@@ -80,7 +80,7 @@ SELECT pg_temp.expect_error(
 );
 
 SELECT set_config('request.jwt.claim.sub', :'cashier_a', true);
-SELECT (public.record_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 1000, 'cash')).id::text AS refund_payment \gset
+SELECT (public.record_patient_credit_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 1000, 'cash', 'KZT', NULL, NULL, NULL, NULL, 'refund-test-payment-key', '{}'::jsonb)#>>'{payment,id}') AS refund_payment \gset
 
 SELECT pg_temp.expect_error(
   format('select public.request_refund(%L::uuid,%L::uuid,0,''cash'',''bad amount'',null,''{}''::jsonb)', :'tenant_a', :'refund_payment'),
@@ -152,7 +152,7 @@ SELECT pg_temp.expect_error(
 );
 
 -- Pending cannot complete, pending/approved can void, rejection releases reserve.
-SELECT (public.record_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 500, 'cash')).id::text AS reserve_payment \gset
+SELECT (public.record_patient_credit_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 500, 'cash', 'KZT', NULL, NULL, NULL, NULL, 'refund-test-reserve-key', '{}'::jsonb)#>>'{payment,id}') AS reserve_payment \gset
 SELECT (public.request_refund(:'tenant_a'::uuid, :'reserve_payment'::uuid, 400, 'cash', 'Pending flow', 'refund-pending-flow', '{}'::jsonb)).id::text AS pending_refund \gset
 SELECT pg_temp.expect_error(
   format('select public.complete_refund(%L::uuid,%L::uuid,null,''{}''::jsonb)', :'tenant_a', :'pending_refund'),
@@ -173,7 +173,7 @@ SELECT (public.create_invoice(:'tenant_a'::uuid, :'patient_a'::uuid)).id::text A
 SELECT public.add_invoice_item(:'tenant_a'::uuid, :'allocated_invoice'::uuid, 'Allocated refund test', 1, 1000);
 SELECT public.issue_invoice(:'tenant_a'::uuid, :'allocated_invoice'::uuid);
 SELECT set_config('request.jwt.claim.sub', :'cashier_a', true);
-SELECT (public.record_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 1000, 'cash')).id::text AS allocated_payment \gset
+SELECT (public.record_patient_credit_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 1000, 'cash', 'KZT', NULL, NULL, NULL, NULL, 'refund-test-allocated-key', '{}'::jsonb)#>>'{payment,id}') AS allocated_payment \gset
 SELECT (public.allocate_payment(:'tenant_a'::uuid, :'allocated_payment'::uuid, 1000, :'allocated_invoice'::uuid)).id::text AS allocation_id \gset
 SELECT pg_temp.expect_error(
   format('select public.request_refund(%L::uuid,%L::uuid,100,''cash'',''allocated money'',null,''{}''::jsonb)', :'tenant_a', :'allocated_payment'),
@@ -233,7 +233,7 @@ SELECT (public.create_invoice(:'tenant_a'::uuid, :'patient_a'::uuid)).id::text A
 SELECT public.add_invoice_item(:'tenant_a'::uuid, :'paid_invoice'::uuid, 'Paid writeoff negative', 1, 100);
 SELECT public.issue_invoice(:'tenant_a'::uuid, :'paid_invoice'::uuid);
 SELECT set_config('request.jwt.claim.sub', :'cashier_a', true);
-SELECT (public.record_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 100, 'cash')).id::text AS paid_invoice_payment \gset
+SELECT (public.record_patient_credit_payment(:'tenant_a'::uuid, :'patient_a'::uuid, 100, 'cash', 'KZT', NULL, NULL, NULL, NULL, 'refund-test-paid-invoice-key', '{}'::jsonb)#>>'{payment,id}') AS paid_invoice_payment \gset
 SELECT public.allocate_payment(:'tenant_a'::uuid, :'paid_invoice_payment'::uuid, 100, :'paid_invoice'::uuid);
 SELECT set_config('request.jwt.claim.sub', :'admin_a', true);
 SELECT pg_temp.expect_error(

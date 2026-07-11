@@ -150,6 +150,30 @@ const paymentRow = {
   updated_at: '2026-06-21T02:00:02Z',
 };
 
+const patientCreditOperationRow = {
+  status: 'completed',
+  operation_id: 'patient-credit-operation-1',
+  tenant_id: tenantId,
+  patient_id: patientId,
+  payment: {
+    ...paymentRow,
+    credit_intake_operation_key: 'patient-credit-operation-1',
+    credit_intake_operation_fingerprint: 'credit-fingerprint-1',
+  },
+  capacity: {
+    paymentId,
+    patientId,
+    currency: 'KZT',
+    paymentAmount: '11000.00',
+    activeAllocatedAmount: '0.00',
+    completedRefundAmount: '0.00',
+    refundReservedAmount: '0.00',
+    reservedDepositAmount: '0.00',
+    grossUnallocatedAmount: '11000.00',
+    availableCreditAmount: '11000.00',
+  },
+};
+
 const paymentAllocationRow = {
   id: allocationId,
   tenant_id: tenantId,
@@ -378,8 +402,8 @@ describe('FinanceRpcClient RPC mapping', () => {
     expect(rpcCalls).toEqual([{ rpcName: 'void_invoice', params: { p_tenant_id: tenantId, p_invoice_id: invoiceId, p_reason: 'Wrong patient' } }]);
   });
 
-  it('recordPayment calls record_payment with exact p_* params', async () => {
-    const { rpcClient, rpcCalls } = createClientMock({ data: [paymentRow], error: null });
+  it('recordPayment calls record_patient_credit_payment with exact idempotent p_* params', async () => {
+    const { rpcClient, rpcCalls } = createClientMock({ data: [patientCreditOperationRow], error: null });
     await rpcClient.recordPayment({
       tenantId,
       patientId,
@@ -390,10 +414,11 @@ describe('FinanceRpcClient RPC mapping', () => {
       externalReference: 'KSP-1',
       payerName: 'Patient',
       notes: 'Paid',
+      idempotencyKey: ' patient-credit-operation-1 ',
       metadata: { terminal: true },
     });
 
-    expect(rpcCalls).toEqual([{ rpcName: 'record_payment', params: {
+    expect(rpcCalls).toEqual([{ rpcName: 'record_patient_credit_payment', params: {
       p_tenant_id: tenantId,
       p_patient_id: patientId,
       p_amount: 11000,
@@ -403,7 +428,18 @@ describe('FinanceRpcClient RPC mapping', () => {
       p_external_reference: 'KSP-1',
       p_payer_name: 'Patient',
       p_notes: 'Paid',
+      p_operation_key: 'patient-credit-operation-1',
       p_metadata: { terminal: true },
+    } }]);
+  });
+
+  it('getPatientCreditPaymentOperation calls the tenant- and patient-scoped recovery RPC', async () => {
+    const { rpcClient, rpcCalls } = createClientMock({ data: [patientCreditOperationRow], error: null });
+    await rpcClient.getPatientCreditPaymentOperation({ tenantId, patientId, idempotencyKey: ' patient-credit-operation-1 ' });
+    expect(rpcCalls).toEqual([{ rpcName: 'get_patient_credit_payment_operation', params: {
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+      p_operation_key: 'patient-credit-operation-1',
     } }]);
   });
 
@@ -480,13 +516,13 @@ describe('FinanceRpcClient validation', () => {
 
   it('recordPayment rejects amount <= 0', async () => {
     const { rpcClient } = createClientMock({ data: paymentRow, error: null });
-    await expectFinanceClientError(rpcClient.recordPayment({ tenantId, patientId, amount: 0, paymentMethod: 'cash' }), 'Сумма должна быть больше 0.');
+    await expectFinanceClientError(rpcClient.recordPayment({ tenantId, patientId, amount: 0, paymentMethod: 'cash', idempotencyKey: 'payment-zero' }), 'Сумма должна быть больше 0.');
   });
 
   it('recordPayment rejects invalid paymentMethod', async () => {
     const { rpcClient } = createClientMock({ data: paymentRow, error: null });
     await expectFinanceClientError(
-      rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'crypto' as PaymentMethod }),
+      rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'crypto' as PaymentMethod, idempotencyKey: 'payment-invalid-method' }),
       'Некорректный способ оплаты.',
     );
   });
@@ -554,12 +590,25 @@ describe('FinanceRpcClient result mapping', () => {
     expect(item.totalAmount).toBe(11000);
   });
 
-  it('recordPayment maps returned payment row to camelCase', async () => {
-    const { rpcClient } = createClientMock({ data: [paymentRow], error: null });
-    const payment = await rpcClient.recordPayment({ tenantId, patientId, amount: 11000, paymentMethod: 'cash' });
-    expect(payment.paymentMethod).toBe('cash');
-    expect(payment.externalReference).toBeNull();
-    expect(payment.amount).toBe(11000);
+  it('recordPayment maps payment, operation identity, and current credit capacity', async () => {
+    const { rpcClient } = createClientMock({ data: [patientCreditOperationRow], error: null });
+    const result = await rpcClient.recordPayment({ tenantId, patientId, amount: 11000, paymentMethod: 'cash', idempotencyKey: 'patient-credit-operation-1' });
+    expect(result.status).toBe('completed');
+    expect(result.operationId).toBe('patient-credit-operation-1');
+    expect(result.payment?.paymentMethod).toBe('cash');
+    expect(result.payment?.creditIntakeOperationKey).toBe('patient-credit-operation-1');
+    expect(result.payment?.creditIntakeOperationFingerprint).toBe('credit-fingerprint-1');
+    expect(result.capacity?.availableCreditAmount).toBe(11000);
+  });
+
+  it('maps a patient-credit recovery not_found result without inventing money', async () => {
+    const { rpcClient } = createClientMock({ data: [{
+      status: 'not_found', operation_id: 'missing-credit-operation', tenant_id: tenantId,
+      patient_id: patientId, payment: null, capacity: null,
+    }], error: null });
+    await expect(rpcClient.getPatientCreditPaymentOperation({ tenantId, patientId, idempotencyKey: 'missing-credit-operation' })).resolves.toEqual({
+      status: 'not_found', operationId: 'missing-credit-operation', tenantId, patientId, payment: null, capacity: null,
+    });
   });
 
   it('allocatePayment maps returned allocation row to camelCase', async () => {
@@ -620,6 +669,36 @@ describe('FinanceRpcClient error behavior', () => {
   });
 });
 
+describe('FinanceRpcClient patient-credit error normalization', () => {
+  it('maps permission, idempotency conflict, and patient mismatch safely', async () => {
+    const permission = createClientMock({ data: null, error: Object.assign(new Error('Access denied: insufficient finance permissions for this tenant'), { code: '42501' }) }).rpcClient;
+    await expect(permission.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', idempotencyKey: 'permission-key' })).rejects.toMatchObject({
+      category: 'permission', message: 'Недостаточно прав для приёма денег.',
+    });
+
+    const conflict = createClientMock({ data: null, error: new Error('PATIENT_CREDIT_IDEMPOTENCY_CONFLICT: operation key was reused with different payment details') }).rpcClient;
+    await expect(conflict.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', idempotencyKey: 'conflict-key' })).rejects.toMatchObject({
+      category: 'duplicate_conflict', message: 'Ключ операции уже использован с другими параметрами.',
+    });
+
+    const mismatch = createClientMock({ data: null, error: new Error('PATIENT_CREDIT_PATIENT_MISMATCH: operation key belongs to another patient') }).rpcClient;
+    await expect(mismatch.getPatientCreditPaymentOperation({ tenantId, patientId, idempotencyKey: 'mismatch-key' })).rejects.toMatchObject({
+      category: 'stale_patient', message: 'Операция относится к другому пациенту.',
+    });
+  });
+
+  it('treats unknown transport failure as operation_uncertain and requires the same key', async () => {
+    const { rpcClient } = createClientMock({ data: null, error: new Error('socket closed with raw details') });
+    await expect(rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', idempotencyKey: 'uncertain-key' })).rejects.toMatchObject({
+      category: 'operation_uncertain', message: 'Не удалось получить ответ сервера. Проверьте операцию по тому же ключу.',
+    });
+    await expectFinanceClientError(
+      rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', idempotencyKey: ' ' }),
+      'Ключ идемпотентности не должен быть пустым.',
+    );
+  });
+});
+
 describe('FinanceRpcClient safety boundaries', () => {
   it('factory creates a Supabase-backed client and rejects local backend', () => {
     const client = { rpc: vi.fn() } as unknown as SupabaseClient;
@@ -628,8 +707,8 @@ describe('FinanceRpcClient safety boundaries', () => {
   });
 
   it('client never calls from/insert/update/delete/upsert during a write operation', async () => {
-    const { rpcClient, client } = createClientMock({ data: [paymentRow], error: null });
-    await rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash' });
+    const { rpcClient, client } = createClientMock({ data: [patientCreditOperationRow], error: null });
+    await rpcClient.recordPayment({ tenantId, patientId, amount: 100, paymentMethod: 'cash', idempotencyKey: 'direct-write-boundary' });
     expect(client.rpc).toHaveBeenCalledOnce();
     expectNoDirectWriteCalls(client);
   });
