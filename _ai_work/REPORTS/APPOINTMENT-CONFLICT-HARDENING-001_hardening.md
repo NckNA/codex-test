@@ -2,6 +2,8 @@
 
 ## Final verdict
 
+Final verdict: **PASS**
+
 APPOINTMENT CONFLICT HARDENING IMPLEMENTED AND VERIFIED
 
 ## Summary
@@ -16,7 +18,7 @@ Configured Supabase mode no longer performs direct appointment INSERT or protect
 
 ## PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/347
 
 ## Baseline
 
@@ -28,11 +30,17 @@ Pending publication.
 
 ## PR head reviewed before final report update
 
-Pending implementation commit, PR publication, and fresh CI.
+- implementation head reviewed: `da3cc2815c32a2df54fd33c8400ff4d0d058dfa9`;
+- workflow: `CI`;
+- run: `#698`;
+- run ID: `29170706995`;
+- conclusion: `success`;
+- tested commit matched the reviewed PR head.
 
 ## Report update commit
 
-N/A because the final report commit cannot reference itself.
+- Report update commit: N/A (the report commit cannot reference itself; use the finalization receipt).
+- The final PR head and CI run are recorded after final CI in an immutable local finalization receipt.
 
 ## Changed files
 
@@ -545,17 +553,20 @@ Existing unrelated React `act(...)` test warnings and the existing Vite bundle-s
 
 ## Fresh CI
 
-Pending PR publication and a fresh GitHub Actions run on the final PR head.
+Initial implementation CI:
 
-Required final confirmation:
+- workflow: `CI`;
+- run: `#698`;
+- run ID: `29170706995`;
+- conclusion: `success`;
+- tested commit: `da3cc2815c32a2df54fd33c8400ff4d0d058dfa9`;
+- ESLint: passed;
+- tests: passed;
+- build: passed.
 
-- CI tested the exact final PR head;
-- ESLint passed;
-- tests passed;
-- build passed;
-- PR remains open and unmerged.
+A fresh CI run on the final metadata-only PR head is required after this report update. The PR must remain open and unmerged.
 
-## Known limitations
+## Limitations
 
 - Cabinet remains untrusted free text and is not an authoritative conflict resource.
 - Current broad doctor/cashier appointment mutation policy is preserved; permission redesign is deferred.
