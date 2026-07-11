@@ -2,13 +2,15 @@
 
 ## Final verdict
 
-**PARTIAL: authenticated table grants block Supabase schedule CRUD and role browser verification**
+**PARTIAL**
+
+PARTIAL: authenticated table grants block Supabase schedule CRUD and role browser verification.
 
 The repository, local database and real browser were inspected at baseline `dbdb1b0b4fd357776d021bbfc1671441e48c9c06`. The current schedule implementation is mapped with enough evidence to answer the operational questions and identify the next dependency task. However, a clean local Supabase deployment cannot load tenant membership or perform appointment CRUD because the legacy core tables created in migration `0001_initial_schema.sql` have no `SELECT`/`INSERT`/`UPDATE`/`DELETE` grants for `authenticated` or `service_role`. That blocker prevents completion of the required Supabase role-specific create/edit/cancel/cross-tenant browser smoke.
 
 The schedule-specific integrity finding is also confirmed: if table access exists, PostgreSQL currently accepts exact overlaps, partial overlaps, simultaneous conflicting moves, duplicate retries, zero-duration appointments and negative-duration appointments.
 
-## Executive summary
+## Summary
 
 The product already has a substantial schedule UI. The real implementation is `SchedulePage` on `/`, with a day grid, doctor columns, filters and one appointment modal. A second sidebar route, `/appointments`, renders only a placeholder page. Rebuilding the calendar would therefore duplicate existing work, a ceremony humans perform whenever the existing module has an inconvenient name.
 
@@ -29,7 +31,7 @@ The first implementation task must repair the explicit grants contract for the l
 
 ## PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/345
 
 ## Baseline
 
@@ -40,11 +42,19 @@ Pending publication.
 
 ## PR head reviewed before final report update
 
-Pending report commit and PR publication.
+- implementation/report head reviewed: `6552f5e1509c5f48db3c51b8dc26e8820c5a7cd1`;
+- workflow: `CI`;
+- run: `#692`;
+- run ID: `29162177217`;
+- conclusion: `success`;
+- tested commit matched the reviewed PR head.
 
 ## Report update commit
 
-N/A because final report commit cannot reference itself.
+N/A because the final report update commit cannot reference itself before creation.
+
+- Report update commit: N/A (the report commit cannot reference itself; use the finalization receipt).
+- The final report-only commit and its fresh CI run are recorded in the finalization receipt, PR body, and final task response after push.
 
 ## Changed files
 
@@ -853,7 +863,7 @@ No existing PR or report implements the required legacy table grants recovery or
 - Exclusions: lifecycle redesign.
 - Decision: **GO after write RPC exists**.
 
-## Exact recommended next task
+## Recommended next task
 
 `LEGACY-CORE-TABLE-GRANTS-RECOVERY-001`
 
@@ -917,16 +927,21 @@ Final local report-only validation:
 
 ## Fresh CI
 
-Pending PR publication and a fresh GitHub Actions run on the final PR head.
+Initial report CI:
 
-Required final confirmation:
+- workflow: `CI`;
+- run: `#692`;
+- run ID: `29162177217`;
+- conclusion: `success`;
+- tested commit: `6552f5e1509c5f48db3c51b8dc26e8820c5a7cd1`;
+- ESLint: passed;
+- tests: passed;
+- build: passed.
 
-- tested commit equals current PR head;
-- ESLint passed;
-- tests passed;
-- build passed;
-- PR remains open and unmerged.
+A fresh CI run on the final metadata-only PR head is required after this report update. The PR must remain open and unmerged.
 
 ## Final verdict
 
-**PARTIAL: authenticated table grants block Supabase schedule CRUD and role browser verification**
+**PARTIAL**
+
+PARTIAL: authenticated table grants block Supabase schedule CRUD and role browser verification.
