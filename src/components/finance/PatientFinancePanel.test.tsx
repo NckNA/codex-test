@@ -57,7 +57,8 @@ function createRpcClient(): FinanceRpcClient {
     addInvoiceItem: vi.fn().mockResolvedValue(invoiceItem),
     issueInvoice: vi.fn().mockResolvedValue({ ...invoice, status: 'issued' }),
     voidInvoice: vi.fn().mockResolvedValue({ ...invoice, status: 'voided' }),
-    recordPayment: vi.fn().mockResolvedValue(payment),
+    recordPayment: vi.fn().mockResolvedValue({ status: 'completed', operationId: 'prepayment-op', tenantId, patientId, payment, capacity: { paymentId: payment.id, patientId, currency: 'KZT', paymentAmount: 1000, activeAllocatedAmount: 0, completedRefundAmount: 0, refundReservedAmount: 0, reservedDepositAmount: 0, grossUnallocatedAmount: 1000, availableCreditAmount: 1000 } }),
+    getPatientCreditPaymentOperation: vi.fn(),
     allocatePayment: vi.fn().mockResolvedValue(allocation),
     voidPaymentAllocation: vi.fn().mockResolvedValue({ ...allocation, status: 'voided' }),
     voidPayment: vi.fn().mockResolvedValue({ ...payment, status: 'voided' }),
@@ -106,7 +107,7 @@ describe('PatientFinancePanel', () => {
 
   async function renderPanel({ role = 'clinic_admin', repository = createRepository(), rpcClient = createRpcClient(), tenant = tenantId }: { role?: string | null; repository?: FinanceRepository; rpcClient?: FinanceRpcClient; tenant?: string | null } = {}) {
     await act(async () => {
-      root.render(<PatientFinancePanel tenantId={tenant} patientId={patientId} role={role} repository={repository} rpcClient={rpcClient} />);
+      root.render(<PatientFinancePanel tenantId={tenant} patientId={patientId} patientName="Test Patient" role={role} repository={repository} rpcClient={rpcClient} />);
     });
     await flush();
     return { repository, rpcClient };
@@ -147,7 +148,7 @@ describe('PatientFinancePanel', () => {
     await renderPanel({ role: 'clinic_admin' });
     expect(container.querySelector('[data-testid="finance-create-invoice-form"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-issue-invoice-invoice-1"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="finance-record-payment-form"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="patient-finance-prepayment-open"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-allocation-form"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-void-invoice-invoice-1"]')).not.toBeNull();
   });
@@ -155,7 +156,7 @@ describe('PatientFinancePanel', () => {
   it('cashier can mutate finance but cannot see void actions', async () => {
     await renderPanel({ role: 'cashier' });
     expect(container.querySelector('[data-testid="finance-create-invoice-form"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="finance-record-payment-form"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="patient-finance-prepayment-open"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-allocation-form"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-void-invoice-invoice-1"]')).toBeNull();
     expect(container.querySelector('[data-testid="finance-void-payment-box"]')).toBeNull();
@@ -164,7 +165,7 @@ describe('PatientFinancePanel', () => {
   it('doctor and registrar see no mutation actions', async () => {
     await renderPanel({ role: 'doctor' });
     expect(container.querySelector('[data-testid="finance-create-invoice-form"]')).toBeNull();
-    expect(container.querySelector('[data-testid="finance-record-payment-form"]')).toBeNull();
+    expect(container.querySelector('[data-testid="patient-finance-prepayment-open"]')).toBeNull();
     await act(async () => { root.render(<PatientFinancePanel tenantId={tenantId} patientId={patientId} role="registrar" repository={createRepository()} rpcClient={createRpcClient()} />); });
     await flush();
     expect(container.querySelector('[data-testid="finance-allocation-form"]')).toBeNull();
@@ -259,10 +260,11 @@ describe('PatientFinancePanel', () => {
     await flush();
   });
 
-  it('record payment and allocation forms validate required fields', async () => {
+  it('prepayment and allocation forms validate required fields', async () => {
     const { rpcClient } = await renderPanel();
-    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="finance-record-payment-submit"]')?.click(); });
-    expect(container.textContent).toContain('Сумма должна быть больше 0.');
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="patient-finance-prepayment-open"]')?.click(); });
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="patient-finance-prepayment-submit"]')?.click(); });
+    expect(container.textContent).toContain('Введите сумму больше нуля.');
     await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="finance-allocation-submit"]')?.click(); });
     expect(container.textContent).toContain('Платёж не выбран.');
     expect(rpcClient.recordPayment).not.toHaveBeenCalled();

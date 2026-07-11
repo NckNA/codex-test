@@ -1,6 +1,6 @@
 import type { FinanceRepository, Payment } from '../../data/repositories/FinanceRepository';
 import type { FinanceRpcClient } from '../../data/repositories/FinanceRpcClient';
-import type { FinanceActionName, RecordPaymentActionInput } from '../../data/hooks/useFinanceActions';
+import type { FinanceActionName } from '../../data/hooks/useFinanceActions';
 import { FinanceStatusBadge } from './FinanceStatusBadge';
 import { formatFinanceDateTime, formatFinanceMoney, paymentMethodLabels, shortFinanceId } from './financeLabels';
 import type { FinanceUserRole } from './financePermissions';
@@ -14,7 +14,6 @@ interface PaymentListProps {
   repository?: FinanceRepository;
   rpcClient?: FinanceRpcClient;
   actionLoading: FinanceActionName | null;
-  onRecordPayment: (input: RecordPaymentActionInput) => Promise<void>;
   onVoidPayment: (paymentId: string, reason: string) => Promise<void>;
   onChanged?: () => Promise<void> | void;
 }
@@ -28,11 +27,11 @@ function PaymentField({ label, value }: { label: string; value?: string | number
   );
 }
 
-export function PaymentList({ tenantId, payments, role, repository, rpcClient, actionLoading, onRecordPayment, onVoidPayment, onChanged }: PaymentListProps) {
+export function PaymentList({ tenantId, payments, role, repository, rpcClient, actionLoading, onVoidPayment, onChanged }: PaymentListProps) {
   return (
     <section data-testid="finance-payment-list" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-900">Оплаты</h3>
-      <PaymentActions payments={payments} role={role} actionLoading={actionLoading} onRecordPayment={onRecordPayment} onVoidPayment={onVoidPayment} />
+      <PaymentActions payments={payments} role={role} actionLoading={actionLoading} onVoidPayment={onVoidPayment} />
       {payments.length === 0 && <p data-testid="finance-payments-empty" className="mt-4 text-sm text-slate-500">Оплат пока нет.</p>}
       <div className="mt-4 space-y-3">
         {payments.map((payment) => (

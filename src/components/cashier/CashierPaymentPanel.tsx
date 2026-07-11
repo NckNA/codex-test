@@ -5,6 +5,8 @@ import type { PatientRepository } from '../../data/repositories/PatientRepositor
 import type { Patient } from '../../types';
 import { useCashierPatientSearch } from '../../data/hooks/useCashierPatientSearch';
 import { useCashierPaymentFlow } from '../../data/hooks/useCashierPaymentFlow';
+import { useFinanceActions } from '../../data/hooks/useFinanceActions';
+import { AcceptPatientPrepaymentDialog } from './AcceptPatientPrepaymentDialog';
 import { CashierAllocationPreview } from './CashierAllocationPreview';
 import { CashierOpenInvoiceList } from './CashierOpenInvoiceList';
 import { CashierPatientFinanceSummary } from './CashierPatientFinanceSummary';
@@ -33,6 +35,12 @@ export function CashierPaymentPanel({ tenantId, role, patientRepository, finance
     rpcClient,
     enabled: Boolean(capabilities.canAccessCashier && selectedPatient),
   });
+  const prepaymentActions = useFinanceActions({
+    tenantId,
+    patientId: selectedPatient?.id,
+    refresh: flow.refresh,
+    rpcClient,
+  });
 
   if (!tenantId) {
     return <section data-testid="cashier-no-tenant" className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">Не выбрана клиника.</section>;
@@ -45,6 +53,7 @@ export function CashierPaymentPanel({ tenantId, role, patientRepository, finance
   const writeInFlight = flow.operationStatus === 'submitting' || flow.operationStatus === 'reconciling';
   const patientFinanceLoading = flow.operationStatus === 'loading_patient_finance';
   const financeReady = Boolean(selectedPatient && !patientFinanceLoading);
+  const prepaymentVisible = Boolean(selectedPatient && (financeReady || prepaymentActions.patientCreditOperationStatus !== 'idle'));
 
   const selectPatient = (patient: Patient) => {
     if (writeInFlight) return;
@@ -100,6 +109,27 @@ export function CashierPaymentPanel({ tenantId, role, patientRepository, finance
           {flow.refreshWarning && (
             <div data-testid="cashier-refresh-warning" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               {flow.refreshWarning}
+            </div>
+          )}
+
+          {prepaymentVisible && (
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-semibold text-slate-900">Предоплата без счёта</h2>
+                <p className="mt-1 text-sm text-slate-500">Новые деньги поступят в доступный кредит пациента и не будут распределены автоматически.</p>
+              </div>
+              <AcceptPatientPrepaymentDialog
+                tenantId={tenantId}
+                patient={selectedPatient}
+                role={role}
+                summary={flow.summary}
+                operationStatus={prepaymentActions.patientCreditOperationStatus}
+                operationResult={prepaymentActions.patientCreditOperationResult}
+                operationError={prepaymentActions.actionError}
+                onSubmit={prepaymentActions.recordPayment}
+                onResetOperation={prepaymentActions.resetPatientCreditOperation}
+                testIdPrefix="cashier-prepayment"
+              />
             </div>
           )}
 
