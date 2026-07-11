@@ -12,15 +12,15 @@ Baseline: `84d32230b67627c0a8a778a533ca07c82ccabb09` from `origin/main`.
 
 ## 3. PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/341
 
 ## 4. PR head reviewed before final report update
 
-Pending publication. The local implementation was reviewed and verified before the initial commit.
+`325c1025ef4a0d38683bf085763a4cb32fc93600` was the implementation head reviewed before this final report update.
 
 ## 5. Report update commit
 
-N/A because the final report update commit cannot reference itself before creation.
+- Report update commit: N/A (the report commit cannot reference itself; use the finalization receipt).
 
 ## 6. Changed files
 
@@ -211,6 +211,8 @@ Vite was stopped. Temporary browser-only network shims, SPA switch control, SQL 
 
 ## 31. Lint/test/build
 
+Checks:
+
 - Eight required targeted test commands: passed.
 - Combined task-targeted suite: 153 passed.
 - Full suite: 79 files, 809 tests passed.
@@ -222,9 +224,11 @@ Vite was stopped. Temporary browser-only network shims, SPA switch control, SQL 
 
 ## 32. GitHub Actions CI
 
-Pending PR publication and a fresh run on the current PR head.
+PR #341 implementation CI run #680 (`29135644763`) completed successfully on `325c1025ef4a0d38683bf085763a4cb32fc93600`. ESLint, the full test suite, and the production build passed. A fresh CI run on the report-only update commit is verified in the final handoff because that commit does not exist until this report version is created.
 
 ## 33. Known limitations
+
+Issues/Limitations:
 
 - The current repository RPC returns a scoped reservation list without pagination; this task uses that existing behavior.
 - Actor display names are unavailable in the read DTO and are not shown.
