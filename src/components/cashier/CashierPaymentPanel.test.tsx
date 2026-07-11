@@ -7,7 +7,7 @@ import { CashierPaymentPanel } from './CashierPaymentPanel';
 import { CashierPaymentForm } from './CashierPaymentForm';
 import { useCashierPaymentFlow } from '../../data/hooks/useCashierPaymentFlow';
 import type { FinanceRepository, Invoice, InvoiceItem, PatientFinanceSummary, Payment, PaymentAllocation } from '../../data/repositories/FinanceRepository';
-import { FinanceRpcClientError, type CashierPaymentOperationResult, type FinanceRpcClient } from '../../data/repositories/FinanceRpcClient';
+import { FinanceRpcClientError, type CashierPaymentOperationResult, type FinanceRpcClient, type PatientCreditPaymentOperationResult } from '../../data/repositories/FinanceRpcClient';
 import type { PatientRepository } from '../../data/repositories/PatientRepository';
 import type { Patient } from '../../types';
 
@@ -114,6 +114,50 @@ describe('CashierPaymentPanel', () => {
     expect(repos.rpcClient.recordPayment).not.toHaveBeenCalled();
     expect(repos.rpcClient.allocatePayment).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="cashier-payment-result"]')).not.toBeNull();
+  });
+
+  it('keeps prepayment success visible while cashier finance refresh is pending', async () => {
+    const refreshSummary = deferred<PatientFinanceSummary>();
+    const financeRepository = createFinanceRepo();
+    vi.mocked(financeRepository.getPatientFinanceSummary)
+      .mockResolvedValueOnce(summary)
+      .mockReturnValueOnce(refreshSummary.promise);
+    const rpcClient = createRpcClient();
+    const prepaymentResult: PatientCreditPaymentOperationResult = {
+      status: 'completed',
+      operationId: 'prepayment-operation-1',
+      tenantId,
+      patientId,
+      payment,
+      capacity: {
+        paymentId: payment.id,
+        patientId,
+        currency: 'KZT',
+        paymentAmount: 1000,
+        activeAllocatedAmount: 0,
+        completedRefundAmount: 0,
+        refundReservedAmount: 0,
+        reservedDepositAmount: 0,
+        grossUnallocatedAmount: 1000,
+        availableCreditAmount: 1000,
+      },
+    };
+    vi.mocked(rpcClient.recordPayment).mockResolvedValue(prepaymentResult);
+    await searchAndSelect({ patientRepository: createPatientRepo(), financeRepository, rpcClient });
+    await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="cashier-prepayment-open"]')!.click(); });
+    const amount = container.querySelector<HTMLInputElement>('[data-testid="cashier-prepayment-amount"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(amount, '1000');
+    amount.dispatchEvent(new Event('input', { bubbles: true }));
+    const method = container.querySelector<HTMLSelectElement>('[data-testid="cashier-prepayment-method"]')!;
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(method, 'cash');
+    method.dispatchEvent(new Event('change', { bubbles: true }));
+    act(() => { container.querySelector<HTMLButtonElement>('[data-testid="cashier-prepayment-submit"]')!.click(); });
+    await flush();
+    expect(container.querySelector('[data-testid="cashier-prepayment-success"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="cashier-loading"]')).not.toBeNull();
+    refreshSummary.resolve({ ...summary, currencies: [{ ...summary.currencies[0], cashReceived: 1000, grossUnallocatedAmount: 1000, availableCreditAmount: 1000, netPositionAmount: 0 }] });
+    await flush();
+    expect(container.querySelector('[data-testid="cashier-prepayment-success"]')).not.toBeNull();
   });
 
   it('cashier does not see void controls or legal receipt/fiscal wording', async () => {

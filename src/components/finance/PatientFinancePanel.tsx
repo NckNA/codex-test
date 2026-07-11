@@ -3,6 +3,7 @@ import type { FinanceRepository } from '../../data/repositories/FinanceRepositor
 import type { FinanceRpcClient } from '../../data/repositories/FinanceRpcClient';
 import { useFinanceActions } from '../../data/hooks/useFinanceActions';
 import { usePatientFinance } from '../../data/hooks/usePatientFinance';
+import { AcceptPatientPrepaymentDialog } from '../cashier/AcceptPatientPrepaymentDialog';
 import { AllocationActions } from './AllocationActions';
 import { InvoiceDetail } from './InvoiceDetail';
 import { InvoiceList } from './InvoiceList';
@@ -14,6 +15,7 @@ import { getFinanceRoleCapabilities, type FinanceUserRole } from './financePermi
 interface PatientFinancePanelProps {
   tenantId?: string | null;
   patientId?: string | null;
+  patientName?: string | null;
   role?: FinanceUserRole;
   repository?: FinanceRepository;
   rpcClient?: FinanceRpcClient;
@@ -28,7 +30,7 @@ function safeFinanceMessage(error: unknown) {
   return 'Не удалось загрузить финансовые данные.';
 }
 
-export function PatientFinancePanel({ tenantId, patientId, role, repository, rpcClient }: PatientFinancePanelProps) {
+export function PatientFinancePanel({ tenantId, patientId, patientName, role, repository, rpcClient }: PatientFinancePanelProps) {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoiceNotes, setInvoiceNotes] = useState('');
   const [invoiceDueDate, setInvoiceDueDate] = useState('');
@@ -105,6 +107,24 @@ export function PatientFinancePanel({ tenantId, patientId, role, repository, rpc
 
       {!finance.isError && (
         <>
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-900">Новые деньги пациента</h3>
+              <p className="mt-1 text-sm text-slate-500">Предоплата создаёт обычный платёж и доступный кредит без счёта, распределения или депозита.</p>
+            </div>
+            <AcceptPatientPrepaymentDialog
+              tenantId={tenantId}
+              patient={{ id: patientId, fullName: patientName?.trim() || `Пациент #${patientId.slice(0, 8)}` }}
+              role={role}
+              summary={finance.summary}
+              operationStatus={actions.patientCreditOperationStatus}
+              operationResult={actions.patientCreditOperationResult}
+              operationError={actions.actionError}
+              onSubmit={actions.recordPayment}
+              onResetOperation={actions.resetPatientCreditOperation}
+              testIdPrefix="patient-finance-prepayment"
+            />
+          </div>
           <PatientFinanceSummaryCard summary={finance.summary} />
           <PatientFundReservationsPanel
             tenantId={tenantId}
@@ -121,7 +141,7 @@ export function PatientFinancePanel({ tenantId, patientId, role, repository, rpc
             <InvoiceList invoices={finance.invoices} selectedInvoiceId={selectedInvoice?.id ?? null} role={role} actionLoading={actions.actionLoading} onSelectInvoice={setSelectedInvoiceId} onIssueInvoice={actions.issueInvoice} onVoidInvoice={actions.voidInvoice} />
             <InvoiceDetail tenantId={tenantId} invoice={selectedInvoice} items={finance.invoiceItems} completedServiceBillingEligibility={finance.completedServiceBillingEligibility} role={role} repository={repository} rpcClient={rpcClient} canAddItem={capabilities.canAddInvoiceItem} actionLoading={actions.actionLoading} onChanged={finance.refresh} onAddItem={actions.addInvoiceItem} />
           </div>
-          <PaymentList tenantId={tenantId} payments={finance.payments} role={role} repository={repository} rpcClient={rpcClient} actionLoading={actions.actionLoading} onRecordPayment={actions.recordPayment} onVoidPayment={actions.voidPayment} onChanged={finance.refresh} />
+          <PaymentList tenantId={tenantId} payments={finance.payments} role={role} repository={repository} rpcClient={rpcClient} actionLoading={actions.actionLoading} onVoidPayment={actions.voidPayment} onChanged={finance.refresh} />
           <AllocationActions invoices={finance.invoices} invoiceItems={finance.invoiceItems} payments={finance.payments} allocations={finance.paymentAllocations} role={role} actionLoading={actions.actionLoading} onAllocatePayment={actions.allocatePayment} onVoidAllocation={actions.voidPaymentAllocation} />
         </>
       )}

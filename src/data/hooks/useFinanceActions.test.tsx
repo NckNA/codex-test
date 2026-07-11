@@ -11,15 +11,26 @@ vi.mock('../../lib/supabaseClient', () => ({ supabase: {}, isSupabaseConfigured:
 const tenantId = 'tenant-1';
 const patientId = 'patient-1';
 
-function completedPatientCreditOperation(operationId = 'patient-credit-operation-1'): PatientCreditPaymentOperationResult {
+function completedPatientCreditOperation(operationId = 'patient-credit-operation-1', nextPatientId = patientId, nextTenantId = tenantId): PatientCreditPaymentOperationResult {
   return {
     status: 'completed',
     operationId,
-    tenantId,
-    patientId,
+    tenantId: nextTenantId,
+    patientId: nextPatientId,
     payment: { id: 'payment-1' } as PatientCreditPaymentOperationResult['payment'],
     capacity: { availableCreditAmount: 1000 } as PatientCreditPaymentOperationResult['capacity'],
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolver, rejecter) => { resolve = resolver; reject = rejecter; });
+  return { promise, resolve, reject };
+}
+
+async function flush() {
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 }
 
 function createRpcClient(): FinanceRpcClient {
@@ -162,7 +173,7 @@ describe('useFinanceActions', () => {
     await act(async () => {
       try { await latest?.recordPayment({ amount: 2000, paymentMethod: 'cash' }); } catch (error) { changedError = error; }
     });
-    expect((changedError as Error).message).toContain('предыдущую оплату');
+    expect((changedError as Error).message).toBe('Не удалось подтвердить результат операции. Повторите попытку с теми же данными.');
     expect(rpcClient.recordPayment).toHaveBeenCalledOnce();
   });
 
@@ -186,6 +197,118 @@ describe('useFinanceActions', () => {
     expect(first.patientId).toBe(patientId);
     expect(second.patientId).toBe('patient-2');
     expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
+  });
+
+  it('shows submitting, reconciling and succeeded states for one operation', async () => {
+    const rpcClient = createRpcClient();
+    const write = deferred<PatientCreditPaymentOperationResult>();
+    const recovery = deferred<PatientCreditPaymentOperationResult>();
+    vi.mocked(rpcClient.recordPayment).mockReturnValueOnce(write.promise);
+    vi.mocked(rpcClient.getPatientCreditPaymentOperation).mockReturnValueOnce(recovery.promise);
+    await renderHook(rpcClient);
+
+    let operationPromise!: Promise<PatientCreditPaymentOperationResult>;
+    act(() => { operationPromise = latest!.recordPayment({ amount: 1000, paymentMethod: 'cash' }); });
+    expect(latest?.patientCreditOperationStatus).toBe('submitting');
+
+    write.reject(new FinanceRpcClientError({ operation: 'recordPayment', category: 'operation_uncertain', message: 'network' }));
+    await flush();
+    expect(latest?.patientCreditOperationStatus).toBe('reconciling');
+
+    recovery.resolve(completedPatientCreditOperation());
+    await act(async () => { await operationPromise; });
+    expect(latest?.patientCreditOperationStatus).toBe('succeeded');
+    expect(latest?.patientCreditOperationResult?.payment?.id).toBe('payment-1');
+  });
+
+  it('clears a completed operation so a new payload gets a new key', async () => {
+    const rpcClient = await renderHook();
+    await act(async () => { await latest?.recordPayment({ amount: 1000, paymentMethod: 'cash' }); });
+    await act(async () => { await latest?.recordPayment({ amount: 2000, paymentMethod: 'cash' }); });
+    const first = vi.mocked(rpcClient.recordPayment).mock.calls[0][0].idempotencyKey;
+    const second = vi.mocked(rpcClient.recordPayment).mock.calls[1][0].idempotencyKey;
+    expect(second).not.toBe(first);
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears pending identity after a permission failure', async () => {
+    const rpcClient = createRpcClient();
+    vi.mocked(rpcClient.recordPayment)
+      .mockRejectedValueOnce(new FinanceRpcClientError({ operation: 'recordPayment', category: 'permission', message: 'denied' }))
+      .mockImplementationOnce(async (input) => completedPatientCreditOperation(input.idempotencyKey));
+    await renderHook(rpcClient);
+    await act(async () => { try { await latest?.recordPayment({ amount: 1000, paymentMethod: 'cash' }); } catch { /* expected */ } });
+    await act(async () => { await latest?.recordPayment({ amount: 2000, paymentMethod: 'cash' }); });
+    expect(rpcClient.recordPayment).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears pending identity after a validation failure', async () => {
+    const rpcClient = createRpcClient();
+    vi.mocked(rpcClient.recordPayment)
+      .mockRejectedValueOnce(new FinanceRpcClientError({ operation: 'recordPayment', category: 'validation', message: 'invalid amount' }))
+      .mockImplementationOnce(async (input) => completedPatientCreditOperation(input.idempotencyKey));
+    await renderHook(rpcClient);
+    await act(async () => { try { await latest?.recordPayment({ amount: 1000, paymentMethod: 'cash' }); } catch { /* expected */ } });
+    await act(async () => { await latest?.recordPayment({ amount: 2000, paymentMethod: 'cash' }); });
+    expect(rpcClient.recordPayment).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a late success after patient context changes', async () => {
+    const rpcClient = createRpcClient();
+    const write = deferred<PatientCreditPaymentOperationResult>();
+    vi.mocked(rpcClient.recordPayment).mockReturnValueOnce(write.promise);
+    await renderHook(rpcClient);
+    let operationPromise!: Promise<PatientCreditPaymentOperationResult>;
+    act(() => { operationPromise = latest!.recordPayment({ amount: 1000, paymentMethod: 'cash' }); });
+    await act(async () => { root.render(<Probe rpcClient={rpcClient} patient="patient-2" />); });
+    write.resolve(completedPatientCreditOperation('operation-a'));
+    await act(async () => { await operationPromise; });
+    expect(latest?.patientCreditOperationStatus).toBe('idle');
+    expect(latest?.patientCreditOperationResult).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late success after tenant context changes', async () => {
+    const rpcClient = createRpcClient();
+    const write = deferred<PatientCreditPaymentOperationResult>();
+    vi.mocked(rpcClient.recordPayment).mockReturnValueOnce(write.promise);
+    await renderHook(rpcClient);
+    let operationPromise!: Promise<PatientCreditPaymentOperationResult>;
+    act(() => { operationPromise = latest!.recordPayment({ amount: 1000, paymentMethod: 'cash' }); });
+    await act(async () => { root.render(<Probe rpcClient={rpcClient} tenant="tenant-2" />); });
+    write.resolve(completedPatientCreditOperation('operation-a'));
+    await act(async () => { await operationPromise; });
+    expect(latest?.patientCreditOperationStatus).toBe('idle');
+    expect(latest?.patientCreditOperationResult).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('does not refresh after an unresolved failure', async () => {
+    const rpcClient = createRpcClient();
+    vi.mocked(rpcClient.recordPayment).mockRejectedValue(new FinanceRpcClientError({ operation: 'recordPayment', category: 'operation_uncertain', message: 'network' }));
+    vi.mocked(rpcClient.getPatientCreditPaymentOperation).mockRejectedValue(new FinanceRpcClientError({ operation: 'getPatientCreditPaymentOperation', category: 'operation_uncertain', message: 'network' }));
+    await renderHook(rpcClient);
+    await act(async () => { try { await latest?.recordPayment({ amount: 1000, paymentMethod: 'cash' }); } catch { /* expected */ } });
+    expect(latest?.patientCreditOperationStatus).toBe('uncertain');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates rapid concurrent submits inside the hook', async () => {
+    const rpcClient = createRpcClient();
+    const write = deferred<PatientCreditPaymentOperationResult>();
+    vi.mocked(rpcClient.recordPayment).mockReturnValueOnce(write.promise);
+    await renderHook(rpcClient);
+    let first!: Promise<PatientCreditPaymentOperationResult>;
+    let second!: Promise<PatientCreditPaymentOperationResult>;
+    act(() => {
+      first = latest!.recordPayment({ amount: 1000, paymentMethod: 'cash' });
+      second = latest!.recordPayment({ amount: 1000, paymentMethod: 'cash' });
+    });
+    expect(first).toBe(second);
+    expect(rpcClient.recordPayment).toHaveBeenCalledOnce();
+    write.resolve(completedPatientCreditOperation());
+    await act(async () => { await Promise.all([first, second]); });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('calls allocatePayment', async () => {

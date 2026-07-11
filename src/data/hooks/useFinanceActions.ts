@@ -1,9 +1,17 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { createFinanceRpcClient, FinanceRpcClientError, type FinanceRpcClient, type RecordPaymentInput } from '../repositories/FinanceRpcClient';
+/* eslint-disable react-hooks/set-state-in-effect -- tenant/patient changes must clear visible operation state before late responses can render */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  createFinanceRpcClient,
+  FinanceRpcClientError,
+  type FinanceRpcClient,
+  type PatientCreditPaymentOperationResult,
+  type RecordPaymentInput,
+} from '../repositories/FinanceRpcClient';
 import type { PaymentMethod } from '../repositories/FinanceRepository';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export type FinanceActionName = 'createInvoice' | 'addInvoiceItem' | 'issueInvoice' | 'voidInvoice' | 'recordPayment' | 'allocatePayment' | 'voidPaymentAllocation' | 'voidPayment';
+export type PatientCreditOperationStatus = 'idle' | 'submitting' | 'reconciling' | 'succeeded' | 'failed' | 'uncertain';
 
 export interface CreateInvoiceActionInput {
   currency?: string;
@@ -54,20 +62,24 @@ export interface UseFinanceActionsResult {
   loading: boolean;
   actionError: Error | null;
   error: Error | null;
+  patientCreditOperationStatus: PatientCreditOperationStatus;
+  patientCreditOperationResult: PatientCreditPaymentOperationResult | null;
   createInvoice: (input?: CreateInvoiceActionInput) => Promise<void>;
   addInvoiceItem: (input: AddInvoiceItemActionInput) => Promise<void>;
   issueInvoice: (invoiceId: string) => Promise<void>;
   voidInvoice: (invoiceId: string, reason: string) => Promise<void>;
-  recordPayment: (input: RecordPaymentActionInput) => Promise<void>;
+  recordPayment: (input: RecordPaymentActionInput) => Promise<PatientCreditPaymentOperationResult>;
   allocatePayment: (input: AllocatePaymentActionInput) => Promise<void>;
   voidPaymentAllocation: (allocationId: string, reason: string) => Promise<void>;
   voidPayment: (paymentId: string, reason: string) => Promise<void>;
   clearError: () => void;
+  resetPatientCreditOperation: () => void;
 }
 
 const ACTION_METADATA = { source: 'patient_finance_ui' };
 const COMPLETED_SERVICE_ALREADY_BILLED_ERROR = 'Эта выполненная услуга уже включена в другой счёт.';
 const COMPLETED_SERVICE_ALREADY_BILLED_REFRESHED_ERROR = 'Услуга уже была включена в другой счёт. Данные обновлены.';
+const PATIENT_CREDIT_UNCERTAIN_MESSAGE = 'Не удалось подтвердить результат операции. Повторите попытку с теми же данными.';
 
 function normalizeOptionalText(value?: string | null) {
   const trimmed = value?.trim();
@@ -86,6 +98,36 @@ function safeFinanceError(error: unknown): Error {
     }
   }
   return new Error('Не удалось выполнить финансовую операцию.');
+}
+
+function safePatientCreditError(error: unknown): FinanceRpcClientError {
+  if (error instanceof FinanceRpcClientError) {
+    const category = error.category ?? 'operation_failed';
+    const lower = error.message.toLowerCase();
+    if (category === 'permission') {
+      return new FinanceRpcClientError({ operation: 'recordPayment', category, message: 'Недостаточно прав для приёма предоплаты.' });
+    }
+    if (category === 'duplicate_conflict') {
+      return new FinanceRpcClientError({ operation: 'recordPayment', category, message: 'Эта операция уже была выполнена с другими параметрами.' });
+    }
+    if (category === 'stale_patient') {
+      return new FinanceRpcClientError({ operation: 'recordPayment', category, message: 'Операция относится к другому пациенту. Данные обновлены.' });
+    }
+    if (category === 'operation_uncertain') {
+      return new FinanceRpcClientError({ operation: 'recordPayment', category, message: PATIENT_CREDIT_UNCERTAIN_MESSAGE });
+    }
+    if (category === 'validation' && (lower.includes('kzt') || lower.includes('currency') || lower.includes('валют'))) {
+      return new FinanceRpcClientError({ operation: 'recordPayment', category, message: 'Предоплата принимается только в KZT.' });
+    }
+    if (category === 'validation') {
+      return new FinanceRpcClientError({ operation: 'recordPayment', category, message: error.message.length <= 160 && !error.message.includes('{') ? error.message : 'Проверьте данные предоплаты.' });
+    }
+  }
+  return new FinanceRpcClientError({
+    operation: 'recordPayment',
+    category: 'operation_uncertain',
+    message: 'Не удалось принять предоплату. Проверьте текущее состояние операции.',
+  });
 }
 
 function isCompletedServiceDuplicate(error: unknown) {
@@ -115,9 +157,25 @@ function createPatientCreditOperationKey(tenantId: string, patientId: string): s
 }
 
 export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: UseFinanceActionsOptions): UseFinanceActionsResult {
+  const contextKey = tenantId && patientId ? `${tenantId}:${patientId}` : null;
+  const contextRef = useRef({ tenantId: tenantId ?? null, patientId: patientId ?? null, contextKey });
   const [actionLoading, setActionLoading] = useState<FinanceActionName | null>(null);
   const [actionError, setActionError] = useState<Error | null>(null);
+  const [patientCreditOperationStatus, setPatientCreditOperationStatus] = useState<PatientCreditOperationStatus>('idle');
+  const [patientCreditOperationResult, setPatientCreditOperationResult] = useState<PatientCreditPaymentOperationResult | null>(null);
   const pendingPatientCreditOperations = useRef(new Map<string, PendingPatientCreditOperation>());
+  const inFlightPatientCreditOperations = useRef(new Map<string, Promise<PatientCreditPaymentOperationResult>>());
+
+  useLayoutEffect(() => {
+    contextRef.current = { tenantId: tenantId ?? null, patientId: patientId ?? null, contextKey };
+  }, [contextKey, patientId, tenantId]);
+
+  useEffect(() => {
+    setPatientCreditOperationStatus('idle');
+    setPatientCreditOperationResult(null);
+    setActionError(null);
+    setActionLoading(null);
+  }, [contextKey]);
 
   const client = useMemo(() => {
     if (rpcClient) return rpcClient;
@@ -197,91 +255,121 @@ export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: U
     });
   }, [requireClient, runAction, tenantId]);
 
-  const recordPayment = useCallback(async (input: RecordPaymentActionInput) => {
-    await runAction('recordPayment', async () => {
-      const actionClient = requireClient();
-      if (!patientId) throw new Error('Пациент не выбран.');
+  const recordPayment = useCallback((input: RecordPaymentActionInput): Promise<PatientCreditPaymentOperationResult> => {
+    if (!tenantId) return Promise.reject(new Error('Клиника не выбрана.'));
+    if (!patientId) return Promise.reject(new Error('Пациент не выбран.'));
+    if (!client) return Promise.reject(new Error('Не удалось принять предоплату. Проверьте текущее состояние операции.'));
 
-      const normalizedInput = {
-        amount: input.amount,
-        paymentMethod: input.paymentMethod,
-        currency: input.currency?.trim() || 'KZT',
-        receivedAt: normalizeOptionalText(input.receivedAt),
-        externalReference: normalizeOptionalText(input.externalReference),
-        payerName: normalizeOptionalText(input.payerName),
-        notes: normalizeOptionalText(input.notes),
-        metadata: ACTION_METADATA,
-      } satisfies Omit<RecordPaymentInput, 'tenantId' | 'patientId' | 'idempotencyKey'>;
-      const fingerprint = patientCreditFingerprint(normalizedInput);
-      const operationScope = `${tenantId}:${patientId}`;
-      const pending = pendingPatientCreditOperations.current.get(operationScope);
+    const operationScope = `${tenantId}:${patientId}`;
+    const normalizedInput = {
+      amount: input.amount,
+      paymentMethod: input.paymentMethod,
+      currency: input.currency?.trim() || 'KZT',
+      receivedAt: normalizeOptionalText(input.receivedAt),
+      externalReference: normalizeOptionalText(input.externalReference),
+      payerName: normalizeOptionalText(input.payerName),
+      notes: normalizeOptionalText(input.notes),
+      metadata: ACTION_METADATA,
+    } satisfies Omit<RecordPaymentInput, 'tenantId' | 'patientId' | 'idempotencyKey'>;
+    const fingerprint = patientCreditFingerprint(normalizedInput);
+    const pending = pendingPatientCreditOperations.current.get(operationScope);
 
-      if (pending && pending.fingerprint !== fingerprint) {
+    if (pending && pending.fingerprint !== fingerprint) {
+      const conflict = new FinanceRpcClientError({
+        operation: 'recordPayment',
+        category: 'operation_uncertain',
+        message: PATIENT_CREDIT_UNCERTAIN_MESSAGE,
+      });
+      if (contextRef.current.contextKey === operationScope) {
+        setPatientCreditOperationStatus('uncertain');
+        setActionError(conflict);
+      }
+      return Promise.reject(conflict);
+    }
+
+    const existingInFlight = inFlightPatientCreditOperations.current.get(operationScope);
+    if (existingInFlight) return existingInFlight;
+
+    const idempotencyKey = pending?.idempotencyKey ?? createPatientCreditOperationKey(tenantId, patientId);
+    pendingPatientCreditOperations.current.set(operationScope, { idempotencyKey, fingerprint });
+    const request: RecordPaymentInput = {
+      tenantId,
+      patientId,
+      idempotencyKey,
+      ...normalizedInput,
+    };
+
+    const isCurrentContext = () => contextRef.current.contextKey === operationScope;
+    const confirmSuccess = async (result: PatientCreditPaymentOperationResult) => {
+      if (!result.payment || result.tenantId !== tenantId || result.patientId !== patientId) {
         throw new FinanceRpcClientError({
           operation: 'recordPayment',
-          category: 'operation_uncertain',
-          message: 'Сначала повторите предыдущую оплату с теми же параметрами, чтобы проверить её результат.',
+          category: 'stale_patient',
+          message: 'Операция относится к другому пациенту. Данные обновлены.',
         });
       }
+      pendingPatientCreditOperations.current.delete(operationScope);
+      if (isCurrentContext()) {
+        setPatientCreditOperationResult(result);
+        setPatientCreditOperationStatus('succeeded');
+        setActionError(null);
+        try {
+          await refresh?.();
+        } catch {
+          // The payment is committed and the returned capacity remains authoritative for the success view.
+        }
+      }
+      return result;
+    };
 
-      const idempotencyKey = pending?.idempotencyKey ?? createPatientCreditOperationKey(tenantId!, patientId);
-      pendingPatientCreditOperations.current.set(operationScope, { idempotencyKey, fingerprint });
-      const request: RecordPaymentInput = {
-        tenantId: tenantId!,
-        patientId,
-        idempotencyKey,
-        ...normalizedInput,
-      };
+    const operationPromise = (async () => {
+      if (isCurrentContext()) {
+        setActionLoading('recordPayment');
+        setActionError(null);
+        setPatientCreditOperationResult(null);
+        setPatientCreditOperationStatus('submitting');
+      }
 
       try {
-        const result = await actionClient.recordPayment(request);
-        if (!result.payment || result.tenantId !== tenantId || result.patientId !== patientId) {
-          throw new FinanceRpcClientError({
-            operation: 'recordPayment',
-            category: 'stale_patient',
-            message: 'Ответ операции относится к другому пациенту или клинике.',
-          });
+        try {
+          return await confirmSuccess(await client.recordPayment(request));
+        } catch (error) {
+          if (!(error instanceof FinanceRpcClientError) || error.category !== 'operation_uncertain') throw error;
         }
-        pendingPatientCreditOperations.current.delete(operationScope);
-        return;
-      } catch (error) {
-        if (!(error instanceof FinanceRpcClientError) || error.category !== 'operation_uncertain') {
-          pendingPatientCreditOperations.current.delete(operationScope);
+
+        if (isCurrentContext()) setPatientCreditOperationStatus('reconciling');
+        try {
+          const recovered = await client.getPatientCreditPaymentOperation({ tenantId, patientId, idempotencyKey });
+          if (recovered.status !== 'not_found') return await confirmSuccess(recovered);
+          return await confirmSuccess(await client.recordPayment(request));
+        } catch (error) {
+          if (error instanceof FinanceRpcClientError && error.category === 'operation_uncertain') {
+            const unresolved = safePatientCreditError(error);
+            if (isCurrentContext()) {
+              setPatientCreditOperationStatus('uncertain');
+              setActionError(unresolved);
+            }
+            throw unresolved;
+          }
           throw error;
         }
-      }
-
-      try {
-        const recovered = await actionClient.getPatientCreditPaymentOperation({ tenantId: tenantId!, patientId, idempotencyKey });
-        if (recovered.status !== 'not_found') {
-          if (!recovered.payment || recovered.tenantId !== tenantId || recovered.patientId !== patientId) {
-            throw new FinanceRpcClientError({
-              operation: 'getPatientCreditPaymentOperation',
-              category: 'stale_patient',
-              message: 'Восстановленная операция относится к другому пациенту или клинике.',
-            });
-          }
-          pendingPatientCreditOperations.current.delete(operationScope);
-          return;
-        }
-
-        const retried = await actionClient.recordPayment(request);
-        if (!retried.payment || retried.tenantId !== tenantId || retried.patientId !== patientId) {
-          throw new FinanceRpcClientError({
-            operation: 'recordPayment',
-            category: 'stale_patient',
-            message: 'Повторная операция относится к другому пациенту или клинике.',
-          });
-        }
-        pendingPatientCreditOperations.current.delete(operationScope);
       } catch (error) {
-        if (!(error instanceof FinanceRpcClientError) || error.category !== 'operation_uncertain') {
-          pendingPatientCreditOperations.current.delete(operationScope);
+        const safeError = safePatientCreditError(error);
+        if (safeError.category !== 'operation_uncertain') pendingPatientCreditOperations.current.delete(operationScope);
+        if (isCurrentContext()) {
+          setPatientCreditOperationStatus(safeError.category === 'operation_uncertain' ? 'uncertain' : 'failed');
+          setActionError(safeError);
         }
-        throw error;
+        throw safeError;
+      } finally {
+        inFlightPatientCreditOperations.current.delete(operationScope);
+        if (isCurrentContext()) setActionLoading(null);
       }
-    });
-  }, [patientId, requireClient, runAction, tenantId]);
+    })();
+
+    inFlightPatientCreditOperations.current.set(operationScope, operationPromise);
+    return operationPromise;
+  }, [client, patientId, refresh, tenantId]);
 
   const allocatePayment = useCallback(async (input: AllocatePaymentActionInput) => {
     await runAction('allocatePayment', async () => {
@@ -308,11 +396,19 @@ export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: U
     });
   }, [requireClient, runAction, tenantId]);
 
+  const resetPatientCreditOperation = useCallback(() => {
+    setPatientCreditOperationStatus('idle');
+    setPatientCreditOperationResult(null);
+    setActionError(null);
+  }, []);
+
   return {
     actionLoading,
     loading: actionLoading !== null,
     actionError,
     error: actionError,
+    patientCreditOperationStatus,
+    patientCreditOperationResult,
     createInvoice,
     addInvoiceItem,
     issueInvoice,
@@ -322,7 +418,12 @@ export function useFinanceActions({ tenantId, patientId, refresh, rpcClient }: U
     voidPaymentAllocation,
     voidPayment,
     clearError: () => setActionError(null),
+    resetPatientCreditOperation,
   };
 }
 
-export { COMPLETED_SERVICE_ALREADY_BILLED_ERROR, COMPLETED_SERVICE_ALREADY_BILLED_REFRESHED_ERROR };
+export {
+  COMPLETED_SERVICE_ALREADY_BILLED_ERROR,
+  COMPLETED_SERVICE_ALREADY_BILLED_REFRESHED_ERROR,
+  PATIENT_CREDIT_UNCERTAIN_MESSAGE,
+};

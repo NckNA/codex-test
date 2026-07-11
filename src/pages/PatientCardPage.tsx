@@ -264,6 +264,7 @@ export function PatientCardPage() {
             <PatientFinancePanel
               tenantId={activeTenant?.tenantId}
               patientId={patient.id}
+              patientName={patient.fullName}
               role={activeTenant?.role}
             />
           </div>

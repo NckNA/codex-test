@@ -57,13 +57,13 @@ export function CashierPaymentForm({
         amount: numericAmount,
         paymentMethod,
         receivedAt: receivedAt || null,
-        externalReference: externalReference || null,
-        payerName: payerName || null,
-        notes: notes || null,
+        externalReference: externalReference.trim() || null,
+        payerName: payerName.trim() || null,
+        notes: notes.trim() || null,
       });
       clearAfterSuccess();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Оплата не была создана.');
+      setError(submitError instanceof Error ? submitError.message : 'Оплата не была сохранена.');
     } finally {
       submitGuardRef.current = false;
     }
@@ -77,7 +77,7 @@ export function CashierPaymentForm({
       await action();
       clearAfterSuccess();
     } catch (recoveryError) {
-      setError(recoveryError instanceof Error ? recoveryError.message : 'Не удалось проверить результат операции.');
+      setError(recoveryError instanceof Error ? recoveryError.message : 'Не удалось подтвердить результат операции.');
     } finally {
       submitGuardRef.current = false;
     }
@@ -89,7 +89,8 @@ export function CashierPaymentForm({
 
   return (
     <section data-testid="cashier-payment-form-section" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Оплата</h2>
+      <h2 className="text-lg font-semibold text-slate-900">Принять оплату по счетам</h2>
+      <p className="mt-1 text-sm text-slate-500">Деньги будут распределены только по выбранным ниже счетам.</p>
       <form data-testid="cashier-payment-form" onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="text-sm font-medium text-slate-700">
           Сумма
@@ -115,7 +116,7 @@ export function CashierPaymentForm({
           </div>
         ) : (
           <button type="submit" data-testid="cashier-payment-submit" disabled={disabled || loading} className="md:col-span-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
-            {isReconciling ? 'Проверяем результат...' : isSubmitting ? 'Сохраняем оплату...' : 'Принять оплату'}
+            {isReconciling ? 'Проверяем результат...' : isSubmitting ? 'Сохраняем оплату...' : 'Принять оплату по счетам'}
           </button>
         )}
       </form>
