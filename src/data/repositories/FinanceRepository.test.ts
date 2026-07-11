@@ -200,6 +200,10 @@ const paymentRow = {
   external_reference: 'KSP-1',
   payer_name: 'Patient',
   notes: null,
+  cashier_operation_key: null,
+  cashier_operation_fingerprint: null,
+  credit_intake_operation_key: 'patient-credit-operation-1',
+  credit_intake_operation_fingerprint: 'credit-fingerprint-1',
   metadata: { terminal: 'kaspi' },
   received_by: 'cashier-1',
   voided_by: null,
@@ -347,7 +351,12 @@ describe('FinanceRepository', () => {
       metadata: { source: 'test' },
     });
     expect(mapInvoiceItemRow(invoiceItemRow)).toMatchObject({ completedServiceId, serviceName: 'Consultation', unitPrice: 12000 });
-    expect(mapPaymentRow(paymentRow)).toMatchObject({ paymentMethod: 'kaspi', receivedAt: '2026-06-21T02:00:00Z' });
+    expect(mapPaymentRow(paymentRow)).toMatchObject({
+      paymentMethod: 'kaspi',
+      receivedAt: '2026-06-21T02:00:00Z',
+      creditIntakeOperationKey: 'patient-credit-operation-1',
+      creditIntakeOperationFingerprint: 'credit-fingerprint-1',
+    });
     expect(mapPaymentAllocationRow(allocationRow)).toMatchObject({ invoiceId, invoiceItemId, amount: 4000 });
     expect(mapRefundRow(refundRow)).toMatchObject({ reason: 'Overpayment return', refundMethod: 'kaspi', status: 'completed' });
     expect(mapFinancialAdjustmentRow(adjustmentRow)).toMatchObject({ adjustmentType: 'write_off', reason: 'Manager approval' });

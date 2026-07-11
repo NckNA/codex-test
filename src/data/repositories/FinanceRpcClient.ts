@@ -106,7 +106,25 @@ export interface RecordPaymentInput {
   externalReference?: string | null;
   payerName?: string | null;
   notes?: string | null;
+  idempotencyKey: string;
   metadata?: Record<string, unknown>;
+}
+
+export type PatientCreditPaymentOperationStatus = 'completed' | 'already_completed' | 'not_found';
+
+export interface PatientCreditPaymentOperationResult {
+  status: PatientCreditPaymentOperationStatus;
+  operationId: string;
+  tenantId: string;
+  patientId: string;
+  payment: Payment | null;
+  capacity: PaymentFundCapacity | null;
+}
+
+export interface GetPatientCreditPaymentOperationInput {
+  tenantId: string;
+  patientId: string;
+  idempotencyKey: string;
 }
 
 export interface RecordAndAllocatePaymentInput {
@@ -242,7 +260,8 @@ export interface FinanceRpcClient {
   getCompletedServiceBillingEligibility(input: GetCompletedServiceBillingEligibilityInput): Promise<CompletedServiceBillingEligibility[]>;
   issueInvoice(input: IssueInvoiceInput): Promise<Invoice>;
   voidInvoice(input: VoidInvoiceInput): Promise<Invoice>;
-  recordPayment(input: RecordPaymentInput): Promise<Payment>;
+  recordPayment(input: RecordPaymentInput): Promise<PatientCreditPaymentOperationResult>;
+  getPatientCreditPaymentOperation(input: GetPatientCreditPaymentOperationInput): Promise<PatientCreditPaymentOperationResult>;
   recordAndAllocatePayment(input: RecordAndAllocatePaymentInput): Promise<CashierPaymentOperationResult>;
   getCashierPaymentOperation(input: GetCashierPaymentOperationInput): Promise<CashierPaymentOperationResult>;
   allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation>;
@@ -492,6 +511,14 @@ function requireCashierIdempotencyKey(value?: string | null): string {
   return normalized;
 }
 
+function requirePatientCreditIdempotencyKey(value?: string | null): string {
+  const normalized = normalizeIdempotencyKey(value);
+  if (!normalized) {
+    throw new FinanceRpcClientError({ operation: 'validation', category: 'validation', message: 'Ключ операции приёма денег обязателен.' });
+  }
+  return normalized;
+}
+
 function validateInvoiceIds(invoiceIds: string[] | null | undefined): string[] {
   if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
     throw new FinanceRpcClientError({ operation: 'validation', category: 'validation', message: 'Нужно выбрать хотя бы один счёт.' });
@@ -555,6 +582,80 @@ function mapPatientFundReservationOperationRow(row: Record<string, unknown>): Pa
     allocation,
     capacity: mapOperationCapacity(row.capacity),
   };
+}
+
+function mapPatientCreditPaymentOperationRow(row: Record<string, unknown>): PatientCreditPaymentOperationResult {
+  const status = requiredResultString(row.status, 'status') as PatientCreditPaymentOperationStatus;
+  if (!['completed', 'already_completed', 'not_found'].includes(status)) {
+    throw new FinanceRpcClientError({ operation: 'mapPatientCreditPaymentOperation', category: 'operation_failed', message: 'Некорректный статус операции приёма денег.' });
+  }
+
+  const paymentRow = isPlainObject(row.payment) ? row.payment : null;
+  const capacity = row.capacity == null
+    ? null
+    : isPlainObject(row.capacity)
+      ? mapOperationCapacity(row.capacity)
+      : (() => { throw new FinanceRpcClientError({ operation: 'mapPatientCreditPaymentOperation', category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE }); })();
+
+  return {
+    status,
+    operationId: requiredResultString(row.operation_id, 'operation_id'),
+    tenantId: requiredResultString(row.tenant_id, 'tenant_id'),
+    patientId: requiredResultString(row.patient_id, 'patient_id'),
+    payment: paymentRow ? mapPaymentRow(paymentRow) : null,
+    capacity,
+  };
+}
+
+function normalizePatientCreditRpcError(error: unknown, operation: string): FinanceRpcClientError {
+  if (error instanceof FinanceRpcClientError && error.category) return error;
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = raw.toLowerCase();
+  const code = error instanceof Error && typeof (error as Error & { code?: unknown }).code === 'string'
+    ? (error as Error & { code?: string }).code
+    : undefined;
+
+  if (normalized.includes('access denied') || normalized.includes('insufficient finance permissions') || code === '42501') {
+    return new FinanceRpcClientError({ operation, code, category: 'permission', message: 'Недостаточно прав для приёма денег.' });
+  }
+  if (normalized.includes('patient_credit_idempotency_conflict') || normalized.includes('operation key was reused')) {
+    return new FinanceRpcClientError({ operation, code, category: 'duplicate_conflict', message: 'Ключ операции уже использован с другими параметрами.' });
+  }
+  if (normalized.includes('patient_credit_patient_mismatch') || normalized.includes('belongs to another patient')) {
+    return new FinanceRpcClientError({ operation, code, category: 'stale_patient', message: 'Операция относится к другому пациенту.' });
+  }
+  if (
+    normalized.includes('must be positive') ||
+    normalized.includes('unsupported payment method') ||
+    normalized.includes('patient') ||
+    normalized.includes('metadata') ||
+    normalized.includes('currency') ||
+    normalized.includes('operation key') ||
+    normalized.includes('kzt only')
+  ) {
+    return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Проверьте пациента, сумму, валюту и способ оплаты.' });
+  }
+  return new FinanceRpcClientError({
+    operation,
+    code,
+    category: 'operation_uncertain',
+    message: 'Не удалось получить ответ сервера. Проверьте операцию по тому же ключу.',
+  });
+}
+
+async function callPatientCreditRpc(
+  client: SupabaseClient,
+  operation: string,
+  rpcName: string,
+  params: Record<string, unknown>,
+): Promise<PatientCreditPaymentOperationResult> {
+  try {
+    const { data, error } = await client.rpc(rpcName, params);
+    if (error) throw error;
+    return mapPatientCreditPaymentOperationRow(extractSingleRow(data, operation));
+  } catch (error) {
+    throw normalizePatientCreditRpcError(error, operation);
+  }
 }
 
 function mapCashierPaymentOperationRow(row: Record<string, unknown>): CashierPaymentOperationResult {
@@ -718,13 +819,15 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
     return mapInvoiceRow(row);
   }
 
-  async recordPayment(input: RecordPaymentInput): Promise<Payment> {
+  async recordPayment(input: RecordPaymentInput): Promise<PatientCreditPaymentOperationResult> {
     const operation = 'recordPayment';
     const tenantId = requireTenantId(input.tenantId);
     const patientId = requireNonEmptyString(input.patientId, 'Пациент не выбран.');
     const amount = requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.');
     const paymentMethod = validatePaymentMethod(input.paymentMethod);
-    const row = await callRpc(this.client, operation, 'record_payment', {
+    const idempotencyKey = requirePatientCreditIdempotencyKey(input.idempotencyKey);
+
+    return callPatientCreditRpc(this.client, operation, 'record_patient_credit_payment', {
       p_tenant_id: tenantId,
       p_patient_id: patientId,
       p_amount: amount,
@@ -734,9 +837,17 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
       p_external_reference: input.externalReference || null,
       p_payer_name: input.payerName || null,
       p_notes: input.notes || null,
+      p_operation_key: idempotencyKey,
       p_metadata: normalizeMetadata(input.metadata),
     });
-    return mapPaymentRow(row);
+  }
+
+  async getPatientCreditPaymentOperation(input: GetPatientCreditPaymentOperationInput): Promise<PatientCreditPaymentOperationResult> {
+    return callPatientCreditRpc(this.client, 'getPatientCreditPaymentOperation', 'get_patient_credit_payment_operation', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_patient_id: requireNonEmptyString(input.patientId, 'Пациент не выбран.'),
+      p_operation_key: requirePatientCreditIdempotencyKey(input.idempotencyKey),
+    });
   }
 
   async recordAndAllocatePayment(input: RecordAndAllocatePaymentInput): Promise<CashierPaymentOperationResult> {
