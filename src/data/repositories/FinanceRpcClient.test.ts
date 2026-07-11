@@ -885,3 +885,176 @@ describe('FinanceRpcClient atomic cashier payment operation', () => {
     });
   });
 });
+
+
+describe('FinanceRpcClient patient fund reservation operations', () => {
+  const reservationId = '88888888-8888-8888-8888-888888888888';
+  const reservationRow = {
+    id: reservationId,
+    tenant_id: tenantId,
+    patient_id: patientId,
+    payment_id: paymentId,
+    currency: 'KZT',
+    purpose_type: 'appointment',
+    purpose_label: 'Visit deposit',
+    appointment_id: '99999999-9999-9999-9999-999999999999',
+    treatment_plan_id: null,
+    original_amount: '300.00',
+    consumed_amount: '100.00',
+    released_amount: '0.00',
+    remaining_amount: '200.00',
+    status: 'partially_used',
+    expires_at: null,
+    notes: null,
+    created_at: '2026-07-11T00:00:00Z',
+    updated_at: '2026-07-11T00:01:00Z',
+    released_at: null,
+    archived_at: null,
+  };
+  const capacity = {
+    paymentId,
+    patientId,
+    currency: 'KZT',
+    paymentAmount: '1000.00',
+    activeAllocatedAmount: '100.00',
+    completedRefundAmount: '50.00',
+    refundReservedAmount: '100.00',
+    reservedDepositAmount: '200.00',
+    grossUnallocatedAmount: '850.00',
+    availableCreditAmount: '550.00',
+  };
+  const operationResult = {
+    status: 'completed',
+    reservation: reservationRow,
+    allocation: null,
+    capacity,
+  };
+
+  it('calls create_patient_fund_reservation with exact parameters and preserves the idempotency key', async () => {
+    const { rpcClient, rpcCalls, client } = createClientMock({ data: operationResult, error: null });
+    const result = await rpcClient.createPatientFundReservation({
+      tenantId,
+      patientId,
+      paymentId,
+      amount: 300,
+      purposeType: 'appointment',
+      purposeLabel: ' Visit deposit ',
+      appointmentId: '99999999-9999-9999-9999-999999999999',
+      treatmentPlanId: null,
+      expiresAt: null,
+      notes: ' Reserve for visit ',
+      metadata: { source: 'test' },
+      idempotencyKey: ' create-reservation-1 ',
+    });
+    expect(rpcCalls).toEqual([{ rpcName: 'create_patient_fund_reservation', params: {
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+      p_payment_id: paymentId,
+      p_amount: 300,
+      p_purpose_type: 'appointment',
+      p_purpose_label: 'Visit deposit',
+      p_appointment_id: '99999999-9999-9999-9999-999999999999',
+      p_treatment_plan_id: null,
+      p_expires_at: null,
+      p_notes: 'Reserve for visit',
+      p_metadata: { source: 'test' },
+      p_idempotency_key: 'create-reservation-1',
+    } }]);
+    expect(result).toMatchObject({
+      status: 'completed',
+      reservation: { id: reservationId, purposeType: 'appointment', originalAmount: 300, remainingAmount: 200 },
+      allocation: null,
+      capacity: { paymentAmount: 1000, reservedDepositAmount: 200, availableCreditAmount: 550 },
+    });
+    expectNoDirectWriteCalls(client);
+  });
+
+  it('calls release_patient_fund_reservation with exact parameters', async () => {
+    const released = {
+      ...operationResult,
+      reservation: { ...reservationRow, status: 'released', consumed_amount: '0.00', released_amount: '300.00', remaining_amount: '0.00', released_at: '2026-07-11T01:00:00Z' },
+    };
+    const { rpcClient, rpcCalls } = createClientMock({ data: released, error: null });
+    await expect(rpcClient.releasePatientFundReservation({
+      tenantId, reservationId, amount: null, reason: ' Patient changed mind ', idempotencyKey: ' release-1 ',
+    })).resolves.toMatchObject({ reservation: { status: 'released', releasedAmount: 300, remainingAmount: 0 } });
+    expect(rpcCalls).toEqual([{ rpcName: 'release_patient_fund_reservation', params: {
+      p_tenant_id: tenantId,
+      p_reservation_id: reservationId,
+      p_amount: null,
+      p_reason: 'Patient changed mind',
+      p_idempotency_key: 'release-1',
+    } }]);
+  });
+
+  it('calls allocate_reserved_credit and maps the allocation, reservation and capacity', async () => {
+    const allocationResult = {
+      ...operationResult,
+      status: 'already_completed',
+      allocation: { ...paymentAllocationRow, patient_fund_reservation_id: reservationId, reservation_operation_key: 'consume-1' },
+    };
+    const { rpcClient, rpcCalls, client } = createClientMock({ data: allocationResult, error: null });
+    const result = await rpcClient.allocateReservedCredit({
+      tenantId, patientId, reservationId, invoiceId, amount: 100, idempotencyKey: ' consume-1 ',
+    });
+    expect(rpcCalls).toEqual([{ rpcName: 'allocate_reserved_credit', params: {
+      p_tenant_id: tenantId,
+      p_patient_id: patientId,
+      p_reservation_id: reservationId,
+      p_invoice_id: invoiceId,
+      p_amount: 100,
+      p_idempotency_key: 'consume-1',
+    } }]);
+    expect(result).toMatchObject({
+      status: 'already_completed',
+      allocation: { id: allocationId, patientFundReservationId: reservationId, reservationOperationKey: 'consume-1' },
+      reservation: { id: reservationId, remainingAmount: 200 },
+    });
+    expectNoDirectWriteCalls(client);
+  });
+
+  it('validates amounts, IDs, metadata and idempotency keys before calling RPC', async () => {
+    const rpcClient = createClientMock({ data: operationResult, error: null }).rpcClient;
+    await expect(rpcClient.createPatientFundReservation({ tenantId, patientId, paymentId, amount: 0, purposeType: 'general', idempotencyKey: 'x' })).rejects.toThrow();
+    await expect(rpcClient.createPatientFundReservation({ tenantId, patientId, paymentId, amount: 1, purposeType: 'general', metadata: [] as never, idempotencyKey: 'x' })).rejects.toThrow();
+    await expect(rpcClient.createPatientFundReservation({ tenantId, patientId, paymentId, amount: 1, purposeType: 'general', idempotencyKey: ' ' })).rejects.toThrow();
+    await expect(rpcClient.releasePatientFundReservation({ tenantId, reservationId: '', reason: 'x', idempotencyKey: 'x' })).rejects.toThrow();
+    await expect(rpcClient.allocateReservedCredit({ tenantId, patientId, reservationId, invoiceId, amount: -1, idempotencyKey: 'x' })).rejects.toThrow();
+  });
+
+  it('maps safe reservation errors and hides raw database details', async () => {
+    const insufficient = createClientMock({ data: null, error: { code: 'P0001', message: 'Недостаточно доступного кредита для создания депозита.', details: null, hint: null } as unknown as PostgrestError });
+    await expect(insufficient.rpcClient.createPatientFundReservation({ tenantId, patientId, paymentId, amount: 900, purposeType: 'general', idempotencyKey: 'x' }))
+      .rejects.toMatchObject({ category: 'validation', message: 'Недостаточно доступного кредита для создания депозита.' });
+
+    const conflict = createClientMock({ data: null, error: { code: 'P0001', message: 'Release idempotency key is already used with different details', details: 'sensitive SQL', hint: null } as unknown as PostgrestError });
+    await expect(conflict.rpcClient.releasePatientFundReservation({ tenantId, reservationId, reason: 'x', idempotencyKey: 'same' }))
+      .rejects.toMatchObject({ category: 'duplicate_conflict', message: 'Ключ операции уже использован с другими параметрами.' });
+
+    const raw = createClientMock({ data: null, error: { code: 'XX000', message: 'duplicate key on private_index with table details', details: 'secret', hint: null } as unknown as PostgrestError });
+    await raw.rpcClient.allocateReservedCredit({ tenantId, patientId, reservationId, invoiceId, amount: 1, idempotencyKey: 'x' }).catch((error: Error) => {
+      expect(error.message).toBe('Не удалось выполнить финансовую операцию.');
+      expect(error.message).not.toContain('private_index');
+    });
+  });
+
+  it('maps reserved-deposit allocation, refund, and payment-void failures to exact safe messages', async () => {
+    const depositError = { code: 'P0001', message: 'Часть средств зарезервирована как депозит. Сначала освободите резерв.', details: null, hint: null } as unknown as PostgrestError;
+    const allocation = createClientMock({ data: null, error: depositError }).rpcClient;
+    await expect(allocation.allocatePayment({ tenantId, paymentId, invoiceId, amount: 1 }))
+      .rejects.toMatchObject({ category: 'validation', message: 'Часть средств зарезервирована как депозит. Сначала освободите резерв.' });
+    const refund = createClientMock({ data: null, error: depositError }).rpcClient;
+    await expect(refund.requestRefund({ tenantId, paymentId, amount: 1, refundMethod: 'cash', reason: 'x' }))
+      .rejects.toMatchObject({ category: 'validation', message: 'Часть средств зарезервирована как депозит. Сначала освободите резерв.' });
+    const voided = createClientMock({ data: null, error: { code: 'P0001', message: 'Нельзя аннулировать платёж с активным депозитом.', details: null, hint: null } as unknown as PostgrestError }).rpcClient;
+    await expect(voided.voidPayment({ tenantId, paymentId, reason: 'x' }))
+      .rejects.toMatchObject({ category: 'validation', message: 'Нельзя аннулировать платёж с активным депозитом.' });
+  });
+
+  it('does not expose direct table writes, service_role, or patients.balance in reservation client code', () => {
+    const source = SupabaseFinanceRpcClient.toString();
+    expect(source).not.toContain("from('patient_fund_reservations')");
+    expect(source).not.toContain('service_role');
+    expect(source).not.toContain('patients.balance');
+  });
+});

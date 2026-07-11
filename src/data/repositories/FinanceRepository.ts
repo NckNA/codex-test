@@ -9,6 +9,44 @@ export type RefundStatus = 'pending' | 'approved' | 'completed' | 'rejected' | '
 export type RefundMethod = 'cash' | 'kaspi' | 'halyk_terminal' | 'card' | 'bank_transfer' | 'other';
 export type FinancialAdjustmentType = 'discount' | 'correction' | 'write_off' | 'surcharge' | 'void';
 export type FinancialAdjustmentStatus = 'active' | 'approved' | 'rejected' | 'voided' | 'archived';
+export type PatientFundReservationStatus = 'active' | 'partially_used' | 'fully_used' | 'released' | 'refunded' | 'archived';
+export type PatientFundReservationPurpose = 'general' | 'appointment' | 'treatment_plan' | 'service' | 'other';
+
+export interface PatientFundReservation {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  paymentId: string;
+  currency: string;
+  purposeType: PatientFundReservationPurpose;
+  purposeLabel: string | null;
+  appointmentId: string | null;
+  treatmentPlanId: string | null;
+  originalAmount: number;
+  consumedAmount: number;
+  releasedAmount: number;
+  remainingAmount: number;
+  status: PatientFundReservationStatus;
+  expiresAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  releasedAt: string | null;
+  archivedAt: string | null;
+}
+
+export interface PaymentFundCapacity {
+  paymentId: string;
+  patientId: string;
+  currency: string;
+  paymentAmount: number;
+  activeAllocatedAmount: number;
+  completedRefundAmount: number;
+  refundReservedAmount: number;
+  reservedDepositAmount: number;
+  grossUnallocatedAmount: number;
+  availableCreditAmount: number;
+}
 
 export interface Invoice {
   id: string;
@@ -128,6 +166,8 @@ export interface PaymentAllocation {
   voidedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  patientFundReservationId: string | null;
+  reservationOperationKey: string | null;
 }
 
 export interface Refund {
@@ -193,6 +233,7 @@ export interface PatientFinanceFacts {
 export type FinanceSummaryWarningCode =
   | 'PAYMENT_OVERCONSUMED'
   | 'REFUND_RESERVATION_EXCEEDS_CAPACITY'
+  | 'DEPOSIT_RESERVATION_EXCEEDS_CAPACITY'
   | 'INVOICE_NEGATIVE_BALANCE'
   | 'INVOICE_PAID_MISMATCH'
   | 'INVOICE_WRITEOFF_MISMATCH'
@@ -349,6 +390,13 @@ export interface PatientFinanceOptions {
   tenantId: string;
   patientId: string;
 }
+export interface GetPatientFundReservationsOptions extends PatientFinanceOptions {
+  paymentId?: string;
+}
+
+export interface GetPaymentFundCapacityOptions extends PatientFinanceOptions {
+  paymentId: string;
+}
 
 export interface GetCompletedServiceBillingEligibilityOptions {
   tenantId: string;
@@ -369,6 +417,8 @@ export interface FinanceRepository {
   getCompletedServiceBillingEligibility(options: GetCompletedServiceBillingEligibilityOptions): Promise<CompletedServiceBillingEligibility[]>;
   getPatientFinanceFacts(options: PatientFinanceOptions): Promise<PatientFinanceFacts>;
   getPatientFinanceSummary(options: PatientFinanceOptions): Promise<PatientFinanceSummary>;
+  getPatientFundReservations(options: GetPatientFundReservationsOptions): Promise<PatientFundReservation[]>;
+  getPaymentFundCapacity(options: GetPaymentFundCapacityOptions): Promise<PaymentFundCapacity | null>;
 }
 
 export type FinanceRepositoryBackend = 'supabase' | 'local';
@@ -574,6 +624,8 @@ export function mapPaymentAllocationRow(row: Record<string, unknown>): PaymentAl
     voidedAt: nullableString(row.voided_at),
     createdAt: requiredString(row.created_at, 'created_at'),
     updatedAt: requiredString(row.updated_at, 'updated_at'),
+    patientFundReservationId: nullableString(row.patient_fund_reservation_id),
+    reservationOperationKey: nullableString(row.reservation_operation_key),
   };
 }
 
@@ -603,6 +655,61 @@ export function mapRefundRow(row: Record<string, unknown>): Refund {
     metadata: metadataObject(row.metadata),
     createdAt: requiredString(row.created_at, 'created_at'),
     updatedAt: requiredString(row.updated_at, 'updated_at'),
+  };
+}
+
+const PATIENT_FUND_RESERVATION_STATUSES: PatientFundReservationStatus[] = [
+  'active', 'partially_used', 'fully_used', 'released', 'refunded', 'archived',
+];
+const PATIENT_FUND_RESERVATION_PURPOSES: PatientFundReservationPurpose[] = [
+  'general', 'appointment', 'treatment_plan', 'service', 'other',
+];
+
+export function mapPatientFundReservationRow(row: Record<string, unknown>): PatientFundReservation {
+  const status = requiredString(row.status, 'status') as PatientFundReservationStatus;
+  if (!PATIENT_FUND_RESERVATION_STATUSES.includes(status)) {
+    throw new Error('Finance reservation row has invalid status');
+  }
+  const purposeType = requiredString(row.purpose_type, 'purpose_type') as PatientFundReservationPurpose;
+  if (!PATIENT_FUND_RESERVATION_PURPOSES.includes(purposeType)) {
+    throw new Error('Finance reservation row has invalid purpose_type');
+  }
+  return {
+    id: requiredString(row.id, 'id'),
+    tenantId: requiredString(row.tenant_id, 'tenant_id'),
+    patientId: requiredString(row.patient_id, 'patient_id'),
+    paymentId: requiredString(row.payment_id, 'payment_id'),
+    currency: requiredString(row.currency, 'currency'),
+    purposeType,
+    purposeLabel: nullableString(row.purpose_label),
+    appointmentId: nullableString(row.appointment_id),
+    treatmentPlanId: nullableString(row.treatment_plan_id),
+    originalAmount: requiredNumber(row.original_amount, 'original_amount'),
+    consumedAmount: requiredNumber(row.consumed_amount, 'consumed_amount'),
+    releasedAmount: requiredNumber(row.released_amount, 'released_amount'),
+    remainingAmount: requiredNumber(row.remaining_amount, 'remaining_amount'),
+    status,
+    expiresAt: nullableString(row.expires_at),
+    notes: nullableString(row.notes),
+    createdAt: requiredString(row.created_at, 'created_at'),
+    updatedAt: nullableString(row.updated_at),
+    releasedAt: nullableString(row.released_at),
+    archivedAt: nullableString(row.archived_at),
+  };
+}
+
+export function mapPaymentFundCapacityRow(row: Record<string, unknown>): PaymentFundCapacity {
+  return {
+    paymentId: requiredString(row.payment_id, 'payment_id'),
+    patientId: requiredString(row.patient_id, 'patient_id'),
+    currency: normalizeCurrency(requiredString(row.currency, 'currency')),
+    paymentAmount: requiredNumber(row.payment_amount, 'payment_amount'),
+    activeAllocatedAmount: requiredNumber(row.active_allocated_amount, 'active_allocated_amount'),
+    completedRefundAmount: requiredNumber(row.completed_refund_amount, 'completed_refund_amount'),
+    refundReservedAmount: requiredNumber(row.refund_reserved_amount, 'refund_reserved_amount'),
+    reservedDepositAmount: requiredNumber(row.reserved_deposit_amount, 'reserved_deposit_amount'),
+    grossUnallocatedAmount: requiredNumber(row.gross_unallocated_amount, 'gross_unallocated_amount'),
+    availableCreditAmount: requiredNumber(row.available_credit_amount, 'available_credit_amount'),
   };
 }
 
@@ -684,7 +791,7 @@ export function mapPatientFinanceSummaryPayload(payload: unknown): PatientFinanc
   });
 
   const allowedCodes: FinanceSummaryWarningCode[] = [
-    'PAYMENT_OVERCONSUMED', 'REFUND_RESERVATION_EXCEEDS_CAPACITY', 'INVOICE_NEGATIVE_BALANCE',
+    'PAYMENT_OVERCONSUMED', 'REFUND_RESERVATION_EXCEEDS_CAPACITY', 'DEPOSIT_RESERVATION_EXCEEDS_CAPACITY', 'INVOICE_NEGATIVE_BALANCE',
     'INVOICE_PAID_MISMATCH', 'INVOICE_WRITEOFF_MISMATCH', 'INVOICE_STATUS_MISMATCH',
     'PAYMENT_STATUS_MISMATCH', 'MULTIPLE_CURRENCIES',
   ];
@@ -974,6 +1081,30 @@ export class SupabaseFinanceRepository implements FinanceRepository {
     } catch (error) {
       throw new Error('Finance summary read failed.', { cause: error });
     }
+  }
+
+
+  async getPatientFundReservations(options: GetPatientFundReservationsOptions): Promise<PatientFundReservation[]> {
+    const { data, error } = await this.client.rpc('get_patient_fund_reservations', {
+      p_tenant_id: requireTenantId(options.tenantId),
+      p_patient_id: requirePatientId(options.patientId),
+      p_payment_id: options.paymentId ? requireRecordId(options.paymentId) : null,
+    });
+    if (error) throw new Error('Finance reservation read failed.', { cause: error });
+    if (!Array.isArray(data)) throw new Error('Finance reservation RPC returned an invalid payload.');
+    return data.filter(isRecord).map(mapPatientFundReservationRow);
+  }
+
+  async getPaymentFundCapacity(options: GetPaymentFundCapacityOptions): Promise<PaymentFundCapacity | null> {
+    const { data, error } = await this.client.rpc('get_payment_fund_capacity', {
+      p_tenant_id: requireTenantId(options.tenantId),
+      p_patient_id: requirePatientId(options.patientId),
+      p_payment_id: requireRecordId(options.paymentId),
+    });
+    if (error) throw new Error('Finance payment capacity read failed.', { cause: error });
+    if (!Array.isArray(data)) throw new Error('Finance payment capacity RPC returned an invalid payload.');
+    const row = data.find(isRecord);
+    return row ? mapPaymentFundCapacityRow(row) : null;
   }
 }
 
