@@ -44,6 +44,8 @@ function createRepository({ empty = false }: { empty?: boolean } = {}): FinanceR
     listRefunds: vi.fn().mockResolvedValue([]),
     listFinancialAdjustments: vi.fn().mockResolvedValue([]),
     getCompletedServiceBillingEligibility: vi.fn().mockResolvedValue([]),
+    getPatientFundReservations: vi.fn().mockResolvedValue([]),
+    getPaymentFundCapacity: vi.fn().mockResolvedValue(null),
     getPaymentRefundability: vi.fn().mockResolvedValue({ payment, paymentAmount: 1000, activeAllocatedAmount: 1000, completedRefundAmount: 0, reservedRefundAmount: 0, refundableAmount: 0, hasActiveAllocations: true, refundCount: 0, currency: 'KZT' }),
     getInvoiceWriteOffEligibility: vi.fn().mockResolvedValue({ invoice, invoiceTotalAmount: 1000, paidAmount: 0, approvedWriteOffAmount: 0, reservedWriteOffAmount: 0, availableWriteOffAmount: 0, eligible: false, ineligibilityReason: 'Invoice status draft is not eligible for write-off.', currency: 'KZT' }),
   } as unknown as FinanceRepository;
@@ -59,6 +61,9 @@ function createRpcClient(): FinanceRpcClient {
     allocatePayment: vi.fn().mockResolvedValue(allocation),
     voidPaymentAllocation: vi.fn().mockResolvedValue({ ...allocation, status: 'voided' }),
     voidPayment: vi.fn().mockResolvedValue({ ...payment, status: 'voided' }),
+    createPatientFundReservation: vi.fn(),
+    releasePatientFundReservation: vi.fn(),
+    allocateReservedCredit: vi.fn(),
     requestRefund: vi.fn(),
     approveRefund: vi.fn(),
     completeRefund: vi.fn(),
@@ -125,6 +130,8 @@ describe('PatientFinancePanel', () => {
   it('renders summary, invoices, items, payments and allocations', async () => {
     await renderPanel();
     expect(container.querySelector('[data-testid="patient-finance-summary-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="patient-fund-reservations-panel"]')).not.toBeNull();
+    expect(container.textContent).toContain('Кредит и депозиты');
     expect(container.querySelector('[data-testid="finance-invoice-list"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-invoice-item-item-1"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="finance-payment-card-payment-1"]')).not.toBeNull();

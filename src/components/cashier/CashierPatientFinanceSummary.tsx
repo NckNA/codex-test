@@ -39,6 +39,7 @@ export function CashierPatientFinanceSummary({ patient, summary }: Props) {
             ['Распределено', formatCashierMoney(bucket.activeAllocatedAmount, bucket.currency)],
             ['Текущий долг', formatCashierMoney(bucket.currentDebt, bucket.currency)],
             ['Доступный кредит', formatCashierMoney(bucket.availableCreditAmount, bucket.currency)],
+            ['Резерв депозита', formatCashierMoney(bucket.reservedDepositAmount, bucket.currency)],
             ['Резерв возврата', formatCashierMoney(bucket.refundReservedAmount, bucket.currency)],
             ['Открытые счета', String(bucket.openInvoiceCount)],
             ['Последний платёж', formatCashierDateTime(bucket.lastPaymentAt)],

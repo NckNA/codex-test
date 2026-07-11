@@ -18,8 +18,8 @@ const summary: PatientFinanceSummary = {
     {
       currency: 'KZT', totalInvoiced: 1000, activeAllocatedAmount: 300, cashReceived: 1500,
       completedRefundAmount: 100, approvedWriteOffAmount: 0, currentDebt: 700,
-      grossUnallocatedAmount: 1100, refundReservedAmount: 200, reservedDepositAmount: 0,
-      availableCreditAmount: 900, netPositionAmount: 200, openInvoiceCount: 1,
+      grossUnallocatedAmount: 1100, refundReservedAmount: 200, reservedDepositAmount: 300,
+      availableCreditAmount: 600, netPositionAmount: 200, openInvoiceCount: 1,
       unpaidInvoiceCount: 1, partiallyPaidInvoiceCount: 1, lastPaymentAt: '2026-07-10T10:00:00Z',
     },
     {
@@ -51,7 +51,7 @@ describe('finance summary cards', () => {
     act(() => root.render(<PatientFinanceSummaryCard summary={summary} />));
     expect(container.querySelector('[data-testid="patient-finance-summary-currency-KZT"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="patient-finance-summary-currency-USD"]')).not.toBeNull();
-    expect(container.textContent).toContain('900 KZT');
+    expect(container.textContent).toContain('600 KZT');
     expect(container.textContent).toContain('50 USD');
     expect(container.textContent).toContain('finance-summary-v1');
     expect(container.querySelector('[data-testid="patient-finance-summary-warnings"]')).not.toBeNull();
@@ -63,6 +63,8 @@ describe('finance summary cards', () => {
     expect(container.querySelector('[data-testid="cashier-summary-currency-USD"]')).not.toBeNull();
     expect(container.textContent).toContain('Текущий долг');
     expect(container.textContent).toContain('Доступный кредит');
+    expect(container.textContent).toContain('Резерв депозита');
+    expect(container.textContent).toContain('300 KZT');
     expect(container.querySelector('[data-testid="cashier-summary-warnings"]')).not.toBeNull();
   });
 });
