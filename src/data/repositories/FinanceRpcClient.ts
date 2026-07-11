@@ -17,6 +17,11 @@ import {
   type Refund,
   type RefundMethod,
   type FinancialAdjustment,
+  type PatientFundReservation,
+  type PatientFundReservationPurpose,
+  type PaymentFundCapacity,
+  mapPatientFundReservationRow,
+  mapPaymentFundCapacityRow,
 } from './FinanceRepository';
 
 export type FinanceRpcErrorCategory =
@@ -160,6 +165,44 @@ export interface VoidPaymentInput {
   paymentId: string;
   reason: string;
 }
+export interface CreatePatientFundReservationInput {
+  tenantId: string;
+  patientId: string;
+  paymentId: string;
+  amount: number;
+  purposeType: PatientFundReservationPurpose;
+  purposeLabel?: string | null;
+  appointmentId?: string | null;
+  treatmentPlanId?: string | null;
+  expiresAt?: string | null;
+  notes?: string | null;
+  metadata?: Record<string, unknown>;
+  idempotencyKey: string;
+}
+
+export interface ReleasePatientFundReservationInput {
+  tenantId: string;
+  reservationId: string;
+  amount?: number | null;
+  reason: string;
+  idempotencyKey: string;
+}
+
+export interface AllocateReservedCreditInput {
+  tenantId: string;
+  patientId: string;
+  reservationId: string;
+  invoiceId: string;
+  amount: number;
+  idempotencyKey: string;
+}
+
+export interface PatientFundReservationOperationResult {
+  status: 'completed' | 'already_completed';
+  reservation: PatientFundReservation;
+  allocation: PaymentAllocation | null;
+  capacity: PaymentFundCapacity;
+}
 
 export interface RequestRefundInput {
   tenantId: string;
@@ -205,6 +248,9 @@ export interface FinanceRpcClient {
   allocatePayment(input: AllocatePaymentInput): Promise<PaymentAllocation>;
   voidPaymentAllocation(input: VoidPaymentAllocationInput): Promise<PaymentAllocation>;
   voidPayment(input: VoidPaymentInput): Promise<Payment>;
+  createPatientFundReservation(input: CreatePatientFundReservationInput): Promise<PatientFundReservationOperationResult>;
+  releasePatientFundReservation(input: ReleasePatientFundReservationInput): Promise<PatientFundReservationOperationResult>;
+  allocateReservedCredit(input: AllocateReservedCreditInput): Promise<PatientFundReservationOperationResult>;
   requestRefund(input: RequestRefundInput): Promise<Refund>;
   approveRefund(input: ApproveRefundInput): Promise<Refund>;
   completeRefund(input: CompleteRefundInput): Promise<Refund>;
@@ -320,6 +366,38 @@ function normalizeRpcError(error: unknown, operation: string): FinanceRpcClientE
   if (error instanceof Error || isPlainObject(error)) {
     const code = getRpcErrorField(error, 'code');
     const detail = safeRpcErrorDetail(error);
+    const normalizedDetail = detail.toLowerCase();
+    if (normalizedDetail.includes('часть средств зарезервирована как депозит')) {
+      return new FinanceRpcClientError({
+        operation,
+        code,
+        category: 'validation',
+        message: 'Часть средств зарезервирована как депозит. Сначала освободите резерв.',
+      });
+    }
+    if (normalizedDetail.includes('нельзя аннулировать платёж с активным депозитом')) {
+      return new FinanceRpcClientError({
+        operation,
+        code,
+        category: 'validation',
+        message: 'Нельзя аннулировать платёж с активным депозитом.',
+      });
+    }
+    if (['createPatientFundReservation', 'releasePatientFundReservation', 'allocateReservedCredit'].includes(operation)) {
+      if (normalizedDetail.includes('недостаточно доступного кредита')) {
+        return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Недостаточно доступного кредита для создания депозита.' });
+      }
+      if (normalizedDetail.includes('платёж недоступен') || normalizedDetail.includes('payment is not available')) {
+        return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Платёж недоступен для резервирования.' });
+      }
+      if (normalizedDetail.includes('already') || normalizedDetail.includes('idempotency') || normalizedDetail.includes('уже создан')) {
+        return new FinanceRpcClientError({ operation, code, category: 'duplicate_conflict', message: 'Ключ операции уже использован с другими параметрами.' });
+      }
+      if (normalizedDetail.includes('insufficient finance permissions') || normalizedDetail.includes('access denied') || code === '42501') {
+        return new FinanceRpcClientError({ operation, code, category: 'permission', message: 'Недостаточно прав для операции с депозитом.' });
+      }
+      return new FinanceRpcClientError({ operation, code, category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
+    }
     if (operation === 'addInvoiceItem' && (
       detail.toLowerCase().includes('эта выполненная услуга уже включена')
       || isCompletedServiceBillingConstraint(error, code)
@@ -432,6 +510,45 @@ function requiredResultString(value: unknown, field: string): string {
     throw new FinanceRpcClientError({ operation: 'mapCashierPaymentOperation', category: 'operation_failed', message: `Некорректное поле результата: ${field}.` });
   }
   return value;
+}
+
+function mapOperationCapacity(value: unknown): PaymentFundCapacity {
+  if (!isPlainObject(value)) {
+    throw new FinanceRpcClientError({ operation: 'mapPatientFundReservationOperation', category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
+  }
+  return mapPaymentFundCapacityRow({
+    payment_id: value.paymentId,
+    patient_id: value.patientId,
+    currency: value.currency,
+    payment_amount: value.paymentAmount,
+    active_allocated_amount: value.activeAllocatedAmount,
+    completed_refund_amount: value.completedRefundAmount,
+    refund_reserved_amount: value.refundReservedAmount,
+    reserved_deposit_amount: value.reservedDepositAmount,
+    gross_unallocated_amount: value.grossUnallocatedAmount,
+    available_credit_amount: value.availableCreditAmount,
+  });
+}
+
+function mapPatientFundReservationOperationRow(row: Record<string, unknown>): PatientFundReservationOperationResult {
+  const status = requiredResultString(row.status, 'status') as PatientFundReservationOperationResult['status'];
+  if (!['completed', 'already_completed'].includes(status)) {
+    throw new FinanceRpcClientError({ operation: 'mapPatientFundReservationOperation', category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
+  }
+  if (!isPlainObject(row.reservation)) {
+    throw new FinanceRpcClientError({ operation: 'mapPatientFundReservationOperation', category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
+  }
+  const allocation = row.allocation == null
+    ? null
+    : isPlainObject(row.allocation)
+      ? mapPaymentAllocationRow(row.allocation)
+      : (() => { throw new FinanceRpcClientError({ operation: 'mapPatientFundReservationOperation', category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE }); })();
+  return {
+    status,
+    reservation: mapPatientFundReservationRow(row.reservation),
+    allocation,
+    capacity: mapOperationCapacity(row.capacity),
+  };
 }
 
 function mapCashierPaymentOperationRow(row: Record<string, unknown>): CashierPaymentOperationResult {
@@ -691,6 +808,48 @@ export class SupabaseFinanceRpcClient implements FinanceRpcClient {
       p_reason: reason,
     });
     return mapPaymentRow(row);
+  }
+
+
+  async createPatientFundReservation(input: CreatePatientFundReservationInput): Promise<PatientFundReservationOperationResult> {
+    const row = await callRpc(this.client, 'createPatientFundReservation', 'create_patient_fund_reservation', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_patient_id: requireNonEmptyString(input.patientId, 'Пациент не выбран.'),
+      p_payment_id: requireNonEmptyString(input.paymentId, 'Платёж не выбран.'),
+      p_amount: requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.'),
+      p_purpose_type: requireNonEmptyString(input.purposeType, 'Назначение депозита обязательно.'),
+      p_purpose_label: input.purposeLabel?.trim() || null,
+      p_appointment_id: input.appointmentId?.trim() || null,
+      p_treatment_plan_id: input.treatmentPlanId?.trim() || null,
+      p_expires_at: input.expiresAt?.trim() || null,
+      p_notes: input.notes?.trim() || null,
+      p_metadata: normalizeMetadata(input.metadata),
+      p_idempotency_key: requireNonEmptyString(input.idempotencyKey, 'Нужен ключ идемпотентности.').trim(),
+    });
+    return mapPatientFundReservationOperationRow(row);
+  }
+
+  async releasePatientFundReservation(input: ReleasePatientFundReservationInput): Promise<PatientFundReservationOperationResult> {
+    const row = await callRpc(this.client, 'releasePatientFundReservation', 'release_patient_fund_reservation', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_reservation_id: requireNonEmptyString(input.reservationId, 'Резерв не выбран.'),
+      p_amount: input.amount == null ? null : requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.'),
+      p_reason: requireNonEmptyString(input.reason, 'Укажите причину.').trim(),
+      p_idempotency_key: requireNonEmptyString(input.idempotencyKey, 'Нужен ключ идемпотентности.').trim(),
+    });
+    return mapPatientFundReservationOperationRow(row);
+  }
+
+  async allocateReservedCredit(input: AllocateReservedCreditInput): Promise<PatientFundReservationOperationResult> {
+    const row = await callRpc(this.client, 'allocateReservedCredit', 'allocate_reserved_credit', {
+      p_tenant_id: requireTenantId(input.tenantId),
+      p_patient_id: requireNonEmptyString(input.patientId, 'Пациент не выбран.'),
+      p_reservation_id: requireNonEmptyString(input.reservationId, 'Резерв не выбран.'),
+      p_invoice_id: requireNonEmptyString(input.invoiceId, 'Счёт не выбран.'),
+      p_amount: requirePositiveNumber(input.amount, 'Сумма должна быть больше 0.'),
+      p_idempotency_key: requireNonEmptyString(input.idempotencyKey, 'Нужен ключ идемпотентности.').trim(),
+    });
+    return mapPatientFundReservationOperationRow(row);
   }
 
   async requestRefund(input: RequestRefundInput): Promise<Refund> {

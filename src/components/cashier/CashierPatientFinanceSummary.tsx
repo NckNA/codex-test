@@ -8,6 +8,7 @@ interface Props { patient: Patient | null; summary: PatientFinanceSummary | null
 const warningLabels: Record<FinanceSummaryWarningCode, string> = {
   PAYMENT_OVERCONSUMED: 'Платёж использован сверх доступной суммы',
   REFUND_RESERVATION_EXCEEDS_CAPACITY: 'Резерв возврата превышает остаток платежа',
+  DEPOSIT_RESERVATION_EXCEEDS_CAPACITY: 'Депозит зарезервирован сверх доступного кредита',
   INVOICE_NEGATIVE_BALANCE: 'У счёта отрицательный остаток',
   INVOICE_PAID_MISMATCH: 'Сумма оплаты счёта требует проверки',
   INVOICE_WRITEOFF_MISMATCH: 'Сумма списания счёта требует проверки',

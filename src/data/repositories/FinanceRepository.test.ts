@@ -13,6 +13,8 @@ import {
   mapPaymentAllocationRow,
   mapPaymentRow,
   mapPatientFinanceSummaryPayload,
+  mapPatientFundReservationRow,
+  mapPaymentFundCapacityRow,
   mapRefundRow,
   normalizeFinanceLimit,
   normalizeFinanceOffset,
@@ -627,5 +629,131 @@ describe('FinanceRepository refundability and write-off eligibility', () => {
     );
     await expect(failed.repository.getPaymentRefundability({ tenantId, paymentId }))
       .rejects.toThrow('Finance refundability read failed: read failed');
+  });
+});
+
+
+describe('FinanceRepository patient fund reservations', () => {
+  const reservationRow = {
+    id: 'reservation-1',
+    tenant_id: tenantId,
+    patient_id: patientId,
+    payment_id: paymentId,
+    currency: 'KZT',
+    purpose_type: 'appointment',
+    purpose_label: 'Visit deposit',
+    appointment_id: 'appointment-1',
+    treatment_plan_id: null,
+    original_amount: '300.00',
+    consumed_amount: '100.00',
+    released_amount: '0.00',
+    remaining_amount: '200.00',
+    status: 'partially_used',
+    expires_at: null,
+    notes: 'Reserved',
+    created_at: '2026-07-11T00:00:00Z',
+    updated_at: '2026-07-11T00:01:00Z',
+    released_at: null,
+    archived_at: null,
+  };
+
+  const capacityRow = {
+    payment_id: paymentId,
+    patient_id: patientId,
+    currency: 'kzt',
+    payment_amount: '1000.00',
+    active_allocated_amount: '100.00',
+    completed_refund_amount: '50.00',
+    refund_reserved_amount: '100.00',
+    reserved_deposit_amount: '200.00',
+    gross_unallocated_amount: '850.00',
+    available_credit_amount: '550.00',
+  };
+
+  it('maps reservation status, purpose, amounts and nullable fields', () => {
+    expect(mapPatientFundReservationRow(reservationRow)).toEqual({
+      id: 'reservation-1', tenantId, patientId, paymentId, currency: 'KZT',
+      purposeType: 'appointment', purposeLabel: 'Visit deposit', appointmentId: 'appointment-1',
+      treatmentPlanId: null, originalAmount: 300, consumedAmount: 100, releasedAmount: 0,
+      remainingAmount: 200, status: 'partially_used', expiresAt: null, notes: 'Reserved',
+      createdAt: '2026-07-11T00:00:00Z', updatedAt: '2026-07-11T00:01:00Z',
+      releasedAt: null, archivedAt: null,
+    });
+    expect(() => mapPatientFundReservationRow({ ...reservationRow, status: 'expired' })).toThrow('invalid status');
+    expect(() => mapPatientFundReservationRow({ ...reservationRow, purpose_type: 'insurance' })).toThrow('invalid purpose_type');
+  });
+
+  it('maps payment capacity with the authoritative formula fields', () => {
+    expect(mapPaymentFundCapacityRow(capacityRow)).toEqual({
+      paymentId, patientId, currency: 'KZT', paymentAmount: 1000,
+      activeAllocatedAmount: 100, completedRefundAmount: 50, refundReservedAmount: 100,
+      reservedDepositAmount: 200, grossUnallocatedAmount: 850, availableCreditAmount: 550,
+    });
+  });
+
+  it('reads reservations only through the tenant and patient scoped RPC', async () => {
+    const { repository, client, calls } = createRepository();
+    client.rpc.mockResolvedValueOnce({ data: [reservationRow], error: null });
+    await expect(repository.getPatientFundReservations({ tenantId, patientId, paymentId }))
+      .resolves.toEqual([expect.objectContaining({ id: 'reservation-1', remainingAmount: 200 })]);
+    expect(client.rpc).toHaveBeenCalledWith('get_patient_fund_reservations', {
+      p_tenant_id: tenantId, p_patient_id: patientId, p_payment_id: paymentId,
+    });
+    expect(calls).toEqual([]);
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.insert).not.toHaveBeenCalled();
+    expect(client.update).not.toHaveBeenCalled();
+    expect(client.delete).not.toHaveBeenCalled();
+    expect(client.upsert).not.toHaveBeenCalled();
+  });
+
+  it('reads payment capacity only through the scoped RPC and maps an empty result to null', async () => {
+    const { repository, client, calls } = createRepository();
+    client.rpc.mockResolvedValueOnce({ data: [capacityRow], error: null });
+    await expect(repository.getPaymentFundCapacity({ tenantId, patientId, paymentId }))
+      .resolves.toMatchObject({ paymentAmount: 1000, reservedDepositAmount: 200, availableCreditAmount: 550 });
+    expect(client.rpc).toHaveBeenCalledWith('get_payment_fund_capacity', {
+      p_tenant_id: tenantId, p_patient_id: patientId, p_payment_id: paymentId,
+    });
+    client.rpc.mockResolvedValueOnce({ data: [], error: null });
+    await expect(repository.getPaymentFundCapacity({ tenantId, patientId, paymentId })).resolves.toBeNull();
+    expect(calls).toEqual([]);
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.insert).not.toHaveBeenCalled();
+    expect(client.update).not.toHaveBeenCalled();
+    expect(client.delete).not.toHaveBeenCalled();
+    expect(client.upsert).not.toHaveBeenCalled();
+  });
+
+  it('keeps gross unallocated visible while mapping reserved and available credit across currencies', () => {
+    const mapped = mapPatientFinanceSummaryPayload({
+      tenantId, patientId, asOf: '2026-07-11T00:00:00Z', modelVersion: 'finance-summary-v2',
+      currencies: [
+        { currency: 'KZT', totalInvoiced: 0, activeAllocatedAmount: 0, cashReceived: 1000,
+          completedRefundAmount: 0, approvedWriteOffAmount: 0, currentDebt: 0,
+          grossUnallocatedAmount: 1000, refundReservedAmount: 0, reservedDepositAmount: 300,
+          availableCreditAmount: 700, netPositionAmount: 700, openInvoiceCount: 0,
+          unpaidInvoiceCount: 0, partiallyPaidInvoiceCount: 0, lastPaymentAt: null },
+        { currency: 'USD', totalInvoiced: 0, activeAllocatedAmount: 0, cashReceived: 200,
+          completedRefundAmount: 0, approvedWriteOffAmount: 0, currentDebt: 0,
+          grossUnallocatedAmount: 200, refundReservedAmount: 0, reservedDepositAmount: 50,
+          availableCreditAmount: 150, netPositionAmount: 150, openInvoiceCount: 0,
+          unpaidInvoiceCount: 0, partiallyPaidInvoiceCount: 0, lastPaymentAt: null },
+      ], factComplete: true,
+      warnings: [{ code: 'DEPOSIT_RESERVATION_EXCEEDS_CAPACITY', currency: 'KZT', entityType: 'payment', entityId: paymentId, details: { reservedDepositAmount: 1200 } }],
+    });
+    expect(mapped.currencies).toEqual([
+      expect.objectContaining({ currency: 'KZT', grossUnallocatedAmount: 1000, reservedDepositAmount: 300, availableCreditAmount: 700 }),
+      expect.objectContaining({ currency: 'USD', grossUnallocatedAmount: 200, reservedDepositAmount: 50, availableCreditAmount: 150 }),
+    ]);
+    expect(mapped.warnings[0]?.code).toBe('DEPOSIT_RESERVATION_EXCEEDS_CAPACITY');
+  });
+
+  it('hides raw backend details in reservation and capacity read failures', async () => {
+    const { repository, client } = createRepository();
+    client.rpc.mockResolvedValueOnce({ data: null, error: new Error('sensitive reservation SQL') });
+    await expect(repository.getPatientFundReservations({ tenantId, patientId })).rejects.toThrow('Finance reservation read failed.');
+    client.rpc.mockResolvedValueOnce({ data: null, error: new Error('sensitive capacity SQL') });
+    await expect(repository.getPaymentFundCapacity({ tenantId, patientId, paymentId })).rejects.toThrow('Finance payment capacity read failed.');
   });
 });

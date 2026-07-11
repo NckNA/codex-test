@@ -9,6 +9,7 @@ interface PatientFinanceSummaryCardProps {
 const warningLabels: Record<FinanceSummaryWarningCode, string> = {
   PAYMENT_OVERCONSUMED: 'Платёж использован сверх доступной суммы',
   REFUND_RESERVATION_EXCEEDS_CAPACITY: 'Возврат зарезервирован сверх доступной суммы',
+  DEPOSIT_RESERVATION_EXCEEDS_CAPACITY: 'Депозит зарезервирован сверх доступного кредита',
   INVOICE_NEGATIVE_BALANCE: 'У счёта отрицательный остаток',
   INVOICE_PAID_MISMATCH: 'Оплаченная сумма счёта не совпадает с распределениями',
   INVOICE_WRITEOFF_MISMATCH: 'Списание счёта не совпадает с подтверждёнными решениями',
