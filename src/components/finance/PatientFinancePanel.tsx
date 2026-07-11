@@ -7,6 +7,7 @@ import { AllocationActions } from './AllocationActions';
 import { InvoiceDetail } from './InvoiceDetail';
 import { InvoiceList } from './InvoiceList';
 import { PatientFinanceSummaryCard } from './PatientFinanceSummaryCard';
+import { PatientFundReservationsPanel } from './PatientFundReservationsPanel';
 import { PaymentList } from './PaymentList';
 import { getFinanceRoleCapabilities, type FinanceUserRole } from './financePermissions';
 
@@ -105,6 +106,17 @@ export function PatientFinancePanel({ tenantId, patientId, role, repository, rpc
       {!finance.isError && (
         <>
           <PatientFinanceSummaryCard summary={finance.summary} />
+          <PatientFundReservationsPanel
+            tenantId={tenantId}
+            patientId={patientId}
+            role={role}
+            summary={finance.summary}
+            payments={finance.payments}
+            invoices={finance.invoices}
+            repository={repository}
+            rpcClient={rpcClient}
+            onChanged={finance.refresh}
+          />
           <div className="grid gap-6 xl:grid-cols-2">
             <InvoiceList invoices={finance.invoices} selectedInvoiceId={selectedInvoice?.id ?? null} role={role} actionLoading={actions.actionLoading} onSelectInvoice={setSelectedInvoiceId} onIssueInvoice={actions.issueInvoice} onVoidInvoice={actions.voidInvoice} />
             <InvoiceDetail tenantId={tenantId} invoice={selectedInvoice} items={finance.invoiceItems} completedServiceBillingEligibility={finance.completedServiceBillingEligibility} role={role} repository={repository} rpcClient={rpcClient} canAddItem={capabilities.canAddInvoiceItem} actionLoading={actions.actionLoading} onChanged={finance.refresh} onAddItem={actions.addInvoiceItem} />

@@ -1029,13 +1029,27 @@ describe('FinanceRpcClient patient fund reservation operations', () => {
 
     const conflict = createClientMock({ data: null, error: { code: 'P0001', message: 'Release idempotency key is already used with different details', details: 'sensitive SQL', hint: null } as unknown as PostgrestError });
     await expect(conflict.rpcClient.releasePatientFundReservation({ tenantId, reservationId, reason: 'x', idempotencyKey: 'same' }))
-      .rejects.toMatchObject({ category: 'duplicate_conflict', message: 'Ключ операции уже использован с другими параметрами.' });
+      .rejects.toMatchObject({ category: 'duplicate_conflict', message: 'Операция уже была выполнена или параметры изменились.' });
 
     const raw = createClientMock({ data: null, error: { code: 'XX000', message: 'duplicate key on private_index with table details', details: 'secret', hint: null } as unknown as PostgrestError });
     await raw.rpcClient.allocateReservedCredit({ tenantId, patientId, reservationId, invoiceId, amount: 1, idempotencyKey: 'x' }).catch((error: Error) => {
       expect(error.message).toBe('Не удалось выполнить финансовую операцию.');
       expect(error.message).not.toContain('private_index');
     });
+  });
+
+  it('maps terminal, invoice-unavailable and permission reservation failures to exact safe messages', async () => {
+    const terminal = createClientMock({ data: null, error: { code: 'P0001', message: 'Fully used reservation cannot be released', details: null, hint: null } as unknown as PostgrestError }).rpcClient;
+    await expect(terminal.releasePatientFundReservation({ tenantId, reservationId, reason: 'x', idempotencyKey: 'release-terminal' }))
+      .rejects.toMatchObject({ category: 'validation', message: 'Этот депозит больше нельзя изменить.' });
+
+    const unavailableInvoice = createClientMock({ data: null, error: { code: 'P0001', message: 'Invoice is not available for reserved allocation', details: 'private details', hint: null } as unknown as PostgrestError }).rpcClient;
+    await expect(unavailableInvoice.allocateReservedCredit({ tenantId, patientId, reservationId, invoiceId, amount: 1, idempotencyKey: 'consume-unavailable' }))
+      .rejects.toMatchObject({ category: 'validation', message: 'Выбранный счёт недоступен для использования депозита.' });
+
+    const denied = createClientMock({ data: null, error: { code: '42501', message: 'access denied', details: null, hint: null } as unknown as PostgrestError }).rpcClient;
+    await expect(denied.createPatientFundReservation({ tenantId, patientId, paymentId, amount: 1, purposeType: 'general', idempotencyKey: 'create-denied' }))
+      .rejects.toMatchObject({ category: 'permission', message: 'Недостаточно прав для этой операции.' });
   });
 
   it('maps reserved-deposit allocation, refund, and payment-void failures to exact safe messages', async () => {

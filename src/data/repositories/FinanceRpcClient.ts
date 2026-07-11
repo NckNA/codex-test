@@ -390,11 +390,17 @@ function normalizeRpcError(error: unknown, operation: string): FinanceRpcClientE
       if (normalizedDetail.includes('платёж недоступен') || normalizedDetail.includes('payment is not available')) {
         return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Платёж недоступен для резервирования.' });
       }
-      if (normalizedDetail.includes('already') || normalizedDetail.includes('idempotency') || normalizedDetail.includes('уже создан')) {
-        return new FinanceRpcClientError({ operation, code, category: 'duplicate_conflict', message: 'Ключ операции уже использован с другими параметрами.' });
+      if (normalizedDetail.includes('terminal') || normalizedDetail.includes('fully used') || normalizedDetail.includes('cannot be released') || normalizedDetail.includes('больше нельзя')) {
+        return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Этот депозит больше нельзя изменить.' });
+      }
+      if (normalizedDetail.includes('invoice not found') || normalizedDetail.includes('invoice is not available') || normalizedDetail.includes('счёт недоступен')) {
+        return new FinanceRpcClientError({ operation, code, category: 'validation', message: 'Выбранный счёт недоступен для использования депозита.' });
+      }
+      if (normalizedDetail.includes('already') || normalizedDetail.includes('idempotency') || normalizedDetail.includes('уже создан') || normalizedDetail.includes('different details')) {
+        return new FinanceRpcClientError({ operation, code, category: 'duplicate_conflict', message: 'Операция уже была выполнена или параметры изменились.' });
       }
       if (normalizedDetail.includes('insufficient finance permissions') || normalizedDetail.includes('access denied') || code === '42501') {
-        return new FinanceRpcClientError({ operation, code, category: 'permission', message: 'Недостаточно прав для операции с депозитом.' });
+        return new FinanceRpcClientError({ operation, code, category: 'permission', message: 'Недостаточно прав для этой операции.' });
       }
       return new FinanceRpcClientError({ operation, code, category: 'operation_failed', message: FINANCE_RPC_OPERATION_FAILED_MESSAGE });
     }
