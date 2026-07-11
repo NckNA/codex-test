@@ -32,7 +32,7 @@ Two acceptance limitations remain outside the permitted implementation scope:
 
 ## PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/346
 
 ## Baseline
 
@@ -44,7 +44,12 @@ Pending publication.
 
 ## PR head reviewed before final report update
 
-Pending implementation commit and PR publication.
+- implementation head reviewed: `0582db1abd9cafa87235641f1a0e3b42de009b2f`;
+- workflow: `CI`;
+- run: `#695`;
+- run ID: `29166170926`;
+- conclusion: `success`;
+- tested commit matched the reviewed PR head.
 
 ## Report update commit
 
@@ -379,7 +384,7 @@ After migration:
 - service-role tenant/profile/membership/patient/doctor/appointment create and cleanup were also asserted inside the new SQL test;
 - service-role credentials were injected only by local tools and never written to committed files or browser code.
 
-## Real browser Supabase smoke
+## Browser smoke
 
 Environment:
 
@@ -547,6 +552,17 @@ for Auth users, tenants, profiles, tenant users, patients, doctors, appointments
 
 No temporary file is part of the intended Git diff.
 
+## Checks
+
+- clean `npx supabase db reset --no-seed`: passed through migration `0024`;
+- `0024_legacy_core_table_grants_test.sql`: passed after clean reset;
+- applicable SQL regressions `0018`, `0019`, `0021`, `0022`, `0023`: passed;
+- all five current concurrency scripts: passed;
+- guarded service-role QA seed: passed;
+- real Supabase browser CRUD, roles, no-tenant, and tenant isolation: passed;
+- final cleanup counters: all zero;
+- Git diff: exactly one migration, one SQL test, and this report.
+
 ## Lint/test/build
 
 - `npm run lint`: passed;
@@ -557,17 +573,20 @@ No temporary file is part of the intended Git diff.
 
 ## Fresh CI
 
-Pending PR publication and fresh GitHub Actions run on the final PR head.
+Initial implementation CI:
 
-Required final verification:
+- workflow: `CI`;
+- run: `#695`;
+- run ID: `29166170926`;
+- conclusion: `success`;
+- tested commit: `0582db1abd9cafa87235641f1a0e3b42de009b2f`;
+- ESLint: passed;
+- tests: passed;
+- build: passed.
 
-- CI tested exact final PR head;
-- ESLint passed;
-- tests passed;
-- build passed;
-- PR remains open and unmerged.
+A fresh CI run on the final metadata-only PR head is required after this report update. The PR must remain open and unmerged.
 
-## Known limitations
+## Limitations
 
 1. Configured Supabase mode still seeds demo localStorage keys through unconditional `storage.init()`; Supabase CRUD leaves `df_appointments` unchanged, but the key exists.
 2. `0020_patient_finance_summary_test.sql` is stale relative to later refund guards and fails on direct refund fixture insertion.
