@@ -14,7 +14,7 @@ It must harden the existing `payments`/`record_payment` model for intentional, i
 
 ## 2. Executive summary
 
-DentalFlow currently contains three different maturity bands:
+**Summary:** DentalFlow currently contains three different maturity bands:
 
 1. **Implemented and verified operational core**
    - Supabase authentication and tenant membership;
@@ -61,7 +61,7 @@ Do harden the exact unfinished operational boundary.
 
 ## 4. PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/342
 
 ## 5. Baseline
 
@@ -78,11 +78,13 @@ Verification:
 
 ## 6. PR head reviewed before final report update
 
-Pending PR publication and final implementation-head review. The report-only branch currently contains no application, SQL, migration, test, generated-type, seed or dependency changes.
+Implementation/report head reviewed before the final metadata update: `ba99a71aa9462e8539b71fcc80724024aff8e96b`.
+
+GitHub Actions CI run `#683` (run ID `29149263631`) completed successfully on that exact SHA. The PR contained exactly one changed file and no application, SQL, migration, test, generated-type, seed or dependency changes.
 
 ## 7. Report update commit
 
-N/A because the final report update commit cannot reference itself before creation. Use the immutable finalization receipt and final PR metadata snapshot for the report-only commit and fresh CI run.
+Report update commit: N/A (the report commit cannot reference itself; use the finalization receipt). The immutable finalization receipt and final PR metadata snapshot must identify the report-only commit and fresh CI run.
 
 ## 8. Changed files
 
@@ -1121,6 +1123,8 @@ The next 3–5 tasks after the recommended NEXT task, in priority/dependency ord
 
 ## 33. Known uncertainties
 
+**Issues/Limitations:**
+
 1. Repository evidence proves current code and migrations, not production deployment state, backup quality or real clinic adoption.
 2. Historical browser reports vary in depth; some older reports explicitly record skipped scenarios. Current classification uses later code/tests and does not promote old PASS claims beyond their tested scope.
 3. The full source role catalogue contains more roles than the current database/frontend capability maps. The exact future role migration policy is not yet reconciled.
@@ -1132,7 +1136,7 @@ The next 3–5 tasks after the recommended NEXT task, in priority/dependency ord
 
 ## 34. Validation
 
-Required report-only checks were run on the final report worktree:
+**Checks:** Required report-only checks were run on the final report worktree:
 
 ```text
 git status --short
@@ -1163,8 +1167,22 @@ Non-blocking baseline observations:
 - Vite reported the existing bundle-size warning for the approximately 1,007.50 kB main chunk;
 - `npm ci` reported two high-severity dependency audit findings; this report-only task did not update dependencies or run `npm audit fix`.
 
+**Browser smoke:** No new browser actions were run because the task is report-only and browser access was disabled by task policy. Current browser evidence was reconciled from the merged auth/tenant, clinical, schedule, cashier, timeline, audit and deposit QA reports listed in section 9; repository code and current automated tests were treated as authoritative where older browser reports recorded limitations.
+
 ## 35. Fresh CI
-Pending PR publication and fresh GitHub Actions CI on the current PR head.
+Implementation-head CI completed successfully:
+
+- workflow: `CI`;
+- run: `#683`;
+- run ID: `29149263631`;
+- tested commit: `ba99a71aa9462e8539b71fcc80724024aff8e96b`;
+- ESLint: passed;
+- tests: passed;
+- build: passed;
+- changed files: exactly this report;
+- PR state: open and unmerged.
+
+The final report metadata commit cannot contain the future CI run that tests itself. The finalization receipt and final response must therefore verify that a fresh second CI run tested the final PR head after this metadata update.
 
 Required final verification:
 
