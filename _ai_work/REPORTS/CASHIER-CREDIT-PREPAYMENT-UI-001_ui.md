@@ -34,7 +34,7 @@ One Chrome-discovered integration defect was fixed during QA: a cashier finance 
 
 ## 4. PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/344
 
 ## 5. Baseline
 
@@ -46,7 +46,12 @@ Pending publication.
 
 ## 6. PR head reviewed before final report update
 
-Pending implementation commit and PR publication.
+- implementation head: `e9409eb227e0d059e713261a27d680d1a008a546`;
+- GitHub Actions workflow: `CI`;
+- implementation CI run: `#689`;
+- run ID: `29156651306`;
+- conclusion: `success`;
+- tested commit matched the implementation head.
 
 ## 7. Report update commit
 
@@ -368,7 +373,7 @@ Targeted final result:
 
 All 21 hook tests passed.
 
-## 23. Real browser smoke
+## 23. Browser smoke: real browser smoke
 
 A real local browser was run against Vite on port 5187 and local Supabase.
 
@@ -485,7 +490,7 @@ Completed cleanup:
 - tenants: 0;
 - QA auth users: 0.
 
-## 28. Lint/test/build
+## 28. Checks: lint/test/build
 
 Final checks after cleanup and after removing all temporary code:
 
@@ -505,17 +510,21 @@ No package dependency was changed in this task.
 
 ## 29. GitHub Actions CI
 
-Pending PR publication and fresh GitHub Actions CI on the final PR head.
+Implementation CI:
 
-Required final confirmation:
+- workflow: `CI`;
+- run: `#689`;
+- run ID: `29156651306`;
+- conclusion: `success`;
+- tested commit: `e9409eb227e0d059e713261a27d680d1a008a546`;
+- ESLint: passed;
+- tests: passed;
+- build: passed;
+- tested commit matched the implementation head.
 
-- CI tested commit equals final PR head;
-- ESLint passed;
-- tests passed;
-- build passed;
-- PR remains open and unmerged.
+A fresh CI run on the final report-only PR head is required after the report metadata commit. The PR must remain open and unmerged.
 
-## 30. Known limitations
+## 30. Limitations / known limitations
 
 1. An unresolved operation key is retained in the mounted hook instance. Durable recovery across a full browser restart is not added by this UI task and remains a future workflow concern.
 2. The no-tenant browser context correctly showed no prepayment action, but the application-level pre-cashier screen did not expose the component's internal `cashier-no-tenant` text in that isolated route assertion.
