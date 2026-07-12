@@ -1,163 +1,91 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from '../../lib/supabaseClient';
+import { isOffsetAwareInstant } from '../../domain/timezone';
 import type {
+  Appointment,
+  AppointmentConfirmationAttempt,
+  AppointmentContactChannel,
+  AppointmentContactOutcome,
   AppointmentReminderJob,
   AppointmentReminderJobState,
+  AppointmentReminderOperationResult,
   AppointmentReminderPlanResult,
+  AppointmentReminderQueueItem,
+  AppointmentReminderType,
+  CompleteAppointmentReminderJobInput,
+  DeferAppointmentReminderJobInput,
+  Doctor,
+  Patient,
+  SkipAppointmentReminderJobInput,
   TenantReminderReconcileResult,
 } from '../../types';
-import { isOffsetAwareInstant } from '../../domain/timezone';
-import { supabase } from '../../lib/supabaseClient';
 
 export type AppointmentReminderRepositoryBackend = 'local' | 'supabase';
-
-export interface AppointmentReminderListOptions {
-  appointmentId?: string;
-  includeTerminal?: boolean;
-  referenceTime?: string;
-}
-
-export interface IAppointmentReminderRepository {
-  listReminderJobs(options?: AppointmentReminderListOptions): Promise<AppointmentReminderJob[]>;
-  listReminderJobsByAppointment(appointmentId: string, includeTerminal?: boolean): Promise<AppointmentReminderJob[]>;
-  planAppointmentReminderJobs(appointmentId: string, referenceTime?: string): Promise<AppointmentReminderPlanResult>;
-  reconcileTenantReminderJobs(from: string, to: string, limit: number, referenceTime?: string): Promise<TenantReminderReconcileResult>;
-}
-
-export interface CreateAppointmentReminderRepositoryOptions {
-  tenantId?: string | null;
-  backend: AppointmentReminderRepositoryBackend;
-}
-
-export type AppointmentReminderRepositoryErrorCode =
-  | 'tenant_required'
+export type AppointmentReminderErrorCode =
+  | 'read_failed'
   | 'permission'
   | 'invalid_time'
-  | 'read_failed'
-  | 'plan_failed'
-  | 'reconcile_failed';
+  | 'stale'
+  | 'already_completed'
+  | 'terminal'
+  | 'reason_required'
+  | 'concurrent'
+  | 'idempotency_conflict'
+  | 'operation_failed';
+export type AppointmentReminderErrorContext = 'read' | 'plan' | 'complete' | 'defer' | 'skip' | 'recover';
 
 export class AppointmentReminderRepositoryError extends Error {
-  readonly code: AppointmentReminderRepositoryErrorCode;
+  readonly code: AppointmentReminderErrorCode;
 
-  constructor(code: AppointmentReminderRepositoryErrorCode, message: string) {
+  constructor(code: AppointmentReminderErrorCode, message: string) {
     super(message);
     this.name = 'AppointmentReminderRepositoryError';
     this.code = code;
   }
 }
 
-const TERMINAL_STATES = new Set<AppointmentReminderJobState>(['completed', 'cancelled', 'superseded', 'skipped']);
+export interface AppointmentReminderRepository {
+  listReminderJobs(includeTerminal?: boolean, referenceTime?: string): Promise<AppointmentReminderJob[]>;
+  listReminderJobsByAppointment(
+    appointmentId: string,
+    includeTerminal?: boolean,
+    referenceTime?: string,
+  ): Promise<AppointmentReminderJob[]>;
+  listActiveReminderJobs(referenceTime?: string): Promise<AppointmentReminderQueueItem[]>;
+  listReminderJobHistory(limit?: number, referenceTime?: string): Promise<AppointmentReminderQueueItem[]>;
+  planAppointmentReminderJobs(appointmentId: string, referenceTime?: string): Promise<AppointmentReminderPlanResult>;
+  reconcileTenantReminderJobs(
+    from: string,
+    to: string,
+    limit?: number,
+    referenceTime?: string,
+  ): Promise<TenantReminderReconcileResult>;
+  completeReminderJob(input: CompleteAppointmentReminderJobInput): Promise<AppointmentReminderOperationResult>;
+  deferReminderJob(input: DeferAppointmentReminderJobInput): Promise<AppointmentReminderOperationResult>;
+  skipReminderJob(input: SkipAppointmentReminderJobInput): Promise<AppointmentReminderOperationResult>;
+  getReminderOperation(operationKey: string): Promise<AppointmentReminderOperationResult | null>;
+}
 
-const errorText = (error: unknown): string => {
-  if (!error) return '';
-  if (error instanceof Error) return error.message.toLowerCase();
-  if (typeof error !== 'object') return String(error).toLowerCase();
-  const candidate = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
-  return [candidate.message, candidate.details, candidate.hint, candidate.code]
-    .filter((part): part is string => typeof part === 'string')
-    .join(' ')
-    .toLowerCase();
-};
+export interface CreateAppointmentReminderRepositoryOptions {
+  backend: AppointmentReminderRepositoryBackend;
+  tenantId?: string | null;
+}
 
-export const toSafeAppointmentReminderError = (
-  error: unknown,
-  fallback: 'read' | 'plan' | 'reconcile',
-): AppointmentReminderRepositoryError => {
-  if (error instanceof AppointmentReminderRepositoryError) return error;
-  const text = errorText(error);
-  if (text.includes('недостаточно прав') || text.includes('permission denied') || text.includes('42501')) {
-    return new AppointmentReminderRepositoryError('permission', 'Недостаточно прав для работы с очередью напоминаний.');
-  }
-  if (text.includes('контрольное время') || text.includes('ограниченный период') || text.includes('часовой пояс')) {
-    return new AppointmentReminderRepositoryError('invalid_time', 'Не удалось обработать период или время напоминания.');
-  }
-  if (fallback === 'read') {
-    return new AppointmentReminderRepositoryError('read_failed', 'Не удалось загрузить очередь напоминаний.');
-  }
-  if (fallback === 'reconcile') {
-    return new AppointmentReminderRepositoryError('reconcile_failed', 'Не удалось выполнить сверку очереди напоминаний.');
-  }
-  return new AppointmentReminderRepositoryError('plan_failed', 'Не удалось спланировать напоминания для записи.');
-};
+type Row = Record<string, unknown>;
 
-const requireInstant = (value: string, label: string): string => {
-  if (!isOffsetAwareInstant(value)) {
-    throw new AppointmentReminderRepositoryError('invalid_time', `Некорректное время: ${label}.`);
-  }
-  return value;
-};
-
-const asObject = (value: unknown): Record<string, unknown> => (
-  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
-);
-
-const asNumber = (value: unknown): number => Number(value ?? 0);
-
-export const mapAppointmentReminderJob = (
-  row: Record<string, unknown>,
-  referenceTime = new Date().toISOString(),
-): AppointmentReminderJob => {
-  const dueAt = requireInstant(String(row.due_at ?? row.dueAt ?? ''), 'due_at');
-  const appointmentUpdatedAt = requireInstant(
-    String(row.appointment_updated_at ?? row.appointmentUpdatedAt ?? ''),
-    'appointment_updated_at',
-  );
-  const createdAt = requireInstant(String(row.created_at ?? row.createdAt ?? ''), 'created_at');
-  const updatedAt = requireInstant(String(row.updated_at ?? row.updatedAt ?? ''), 'updated_at');
-  const state = String(row.state ?? 'scheduled') as AppointmentReminderJobState;
-  const explicitOperational = row.operationalState ?? row.operational_state;
-  const operationalState = explicitOperational
-    ? String(explicitOperational) as AppointmentReminderJobState
-    : state === 'scheduled' && new Date(dueAt).getTime() <= new Date(referenceTime).getTime()
-      ? 'ready'
-      : state;
-
-  return {
-    id: String(row.id),
-    tenantId: String(row.tenant_id ?? row.tenantId),
-    appointmentId: String(row.appointment_id ?? row.appointmentId),
-    patientId: String(row.patient_id ?? row.patientId),
-    reminderType: String(row.reminder_type ?? row.reminderType) as AppointmentReminderJob['reminderType'],
-    executionMode: String(row.execution_mode ?? row.executionMode ?? 'manual') as AppointmentReminderJob['executionMode'],
-    dueAt,
-    state,
-    operationalState,
-    appointmentUpdatedAt,
-    policyVersion: asNumber(row.policy_version ?? row.policyVersion),
-    planKey: String(row.plan_key ?? row.planKey),
-    payloadFingerprint: String(row.payload_fingerprint ?? row.payloadFingerprint),
-    priority: asNumber(row.priority),
-    createdBy: (row.created_by ?? row.createdBy) ? String(row.created_by ?? row.createdBy) : undefined,
-    createdAt,
-    updatedAt,
-    supersededAt: row.superseded_at || row.supersededAt
-      ? requireInstant(String(row.superseded_at ?? row.supersededAt), 'superseded_at')
-      : undefined,
-    cancelledAt: row.cancelled_at || row.cancelledAt
-      ? requireInstant(String(row.cancelled_at ?? row.cancelledAt), 'cancelled_at')
-      : undefined,
-    skippedAt: row.skipped_at || row.skippedAt
-      ? requireInstant(String(row.skipped_at ?? row.skippedAt), 'skipped_at')
-      : undefined,
-    completedAt: row.completed_at || row.completedAt
-      ? requireInstant(String(row.completed_at ?? row.completedAt), 'completed_at')
-      : undefined,
-    terminalReason: (row.terminal_reason ?? row.terminalReason)
-      ? String(row.terminal_reason ?? row.terminalReason)
-      : undefined,
-    metadata: asObject(row.metadata),
-  };
-};
-
-export const compareReminderJobs = (left: AppointmentReminderJob, right: AppointmentReminderJob): number => {
-  const leftReady = left.operationalState === 'ready' ? 0 : 1;
-  const rightReady = right.operationalState === 'ready' ? 0 : 1;
-  if (leftReady !== rightReady) return leftReady - rightReady;
-  const byDue = new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime();
-  if (byDue !== 0) return byDue;
-  if (left.priority !== right.priority) return left.priority - right.priority;
-  const byCreated = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
-  return byCreated !== 0 ? byCreated : left.id.localeCompare(right.id);
+const ACTIVE_STATES: AppointmentReminderJobState[] = ['scheduled', 'ready'];
+const TERMINAL_STATES: AppointmentReminderJobState[] = ['completed', 'skipped', 'cancelled', 'superseded'];
+const SAFE_MESSAGES: Record<AppointmentReminderErrorCode, string> = {
+  read_failed: 'Не удалось загрузить очередь напоминаний.',
+  permission: 'Недостаточно прав для работы с очередью напоминаний.',
+  invalid_time: 'Новое время должно быть позже текущего момента и раньше записи.',
+  stale: 'Задача устарела из-за изменения записи. Обновите очередь.',
+  already_completed: 'Задача уже завершена.',
+  terminal: 'Эта задача больше не доступна для выполнения.',
+  reason_required: 'Укажите причину.',
+  concurrent: 'Задача была изменена другим пользователем. Обновите очередь.',
+  idempotency_conflict: 'Эта операция уже выполнена с другими параметрами.',
+  operation_failed: 'Не удалось сохранить действие. Обновите очередь и проверьте результат.',
 };
 
 const emptyPlan = (): AppointmentReminderPlanResult => ({
@@ -167,27 +95,254 @@ const emptyPlan = (): AppointmentReminderPlanResult => ({
   cancelled: [],
   skipped: [],
   desired: [],
-  appointmentVersion: new Date(0).toISOString(),
+  appointmentVersion: '',
   policyVersion: 0,
   policyEnabled: false,
   callbackDeferred: false,
 });
 
-export const LocalAppointmentReminderRepository: IAppointmentReminderRepository = {
-  listReminderJobs: async () => [],
-  listReminderJobsByAppointment: async () => [],
-  planAppointmentReminderJobs: async () => emptyPlan(),
-  reconcileTenantReminderJobs: async () => ({
-    processed: 0,
-    created: 0,
-    reused: 0,
-    superseded: 0,
-    cancelled: 0,
-    skipped: 0,
-  }),
+const optionalText = (value: unknown): string | undefined => (
+  typeof value === 'string' && value.length > 0 ? value : undefined
+);
+
+const optionalNumber = (value: unknown): number | undefined => (
+  typeof value === 'number' ? value : undefined
+);
+
+export const mapAppointmentReminderJob = (
+  row: Row,
+  referenceTime = new Date().toISOString(),
+): AppointmentReminderJob => {
+  const state = row.state as AppointmentReminderJobState;
+  const dueAt = String(row.due_at ?? row.dueAt ?? '');
+  const ready = state === 'scheduled' && Date.parse(dueAt) <= Date.parse(referenceTime);
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id ?? row.tenantId),
+    appointmentId: String(row.appointment_id ?? row.appointmentId),
+    patientId: String(row.patient_id ?? row.patientId),
+    reminderType: (row.reminder_type ?? row.reminderType) as AppointmentReminderType,
+    executionMode: 'manual',
+    dueAt,
+    originalDueAt: String(row.original_due_at ?? row.originalDueAt ?? dueAt),
+    state,
+    operationalState: ready ? 'ready' : state,
+    appointmentUpdatedAt: String(row.appointment_updated_at ?? row.appointmentUpdatedAt),
+    policyVersion: Number(row.policy_version ?? row.policyVersion ?? 0),
+    planKey: String(row.plan_key ?? row.planKey),
+    payloadFingerprint: String(row.payload_fingerprint ?? row.payloadFingerprint),
+    priority: Number(row.priority ?? 100),
+    createdBy: optionalText(row.created_by ?? row.createdBy),
+    createdAt: String(row.created_at ?? row.createdAt),
+    updatedAt: String(row.updated_at ?? row.updatedAt),
+    supersededAt: optionalText(row.superseded_at ?? row.supersededAt),
+    cancelledAt: optionalText(row.cancelled_at ?? row.cancelledAt),
+    skippedAt: optionalText(row.skipped_at ?? row.skippedAt),
+    completedAt: optionalText(row.completed_at ?? row.completedAt),
+    completedBy: optionalText(row.completed_by ?? row.completedBy),
+    completionOutcome: optionalText(row.completion_outcome ?? row.completionOutcome) as AppointmentContactOutcome | undefined,
+    completionNote: optionalText(row.completion_note ?? row.completionNote),
+    confirmationAttemptId: optionalText(row.confirmation_attempt_id ?? row.confirmationAttemptId),
+    deferredAt: optionalText(row.deferred_at ?? row.deferredAt),
+    deferredBy: optionalText(row.deferred_by ?? row.deferredBy),
+    deferReason: optionalText(row.defer_reason ?? row.deferReason),
+    skippedBy: optionalText(row.skipped_by ?? row.skippedBy),
+    operationKey: optionalText(row.operation_key ?? row.operationKey),
+    operationFingerprint: optionalText(row.operation_fingerprint ?? row.operationFingerprint),
+    lastManualActionAt: optionalText(row.last_manual_action_at ?? row.lastManualActionAt),
+    terminalReason: optionalText(row.terminal_reason ?? row.terminalReason),
+    metadata: ((row.metadata as Record<string, unknown> | null) ?? {}),
+  };
 };
 
-export class SupabaseAppointmentReminderRepository implements IAppointmentReminderRepository {
+export const compareReminderJobs = (left: AppointmentReminderJob, right: AppointmentReminderJob): number => {
+  const leftActiveRank = left.operationalState === 'ready' ? 0 : 1;
+  const rightActiveRank = right.operationalState === 'ready' ? 0 : 1;
+  if (leftActiveRank !== rightActiveRank) return leftActiveRank - rightActiveRank;
+  const dueDifference = Date.parse(left.dueAt) - Date.parse(right.dueAt);
+  if (dueDifference !== 0) return dueDifference;
+  if (left.priority !== right.priority) return left.priority - right.priority;
+  const createdDifference = Date.parse(left.createdAt) - Date.parse(right.createdAt);
+  if (createdDifference !== 0) return createdDifference;
+  return left.id.localeCompare(right.id);
+};
+
+const terminalMoment = (job: AppointmentReminderJob): number => Date.parse(
+  job.completedAt
+  ?? job.skippedAt
+  ?? job.cancelledAt
+  ?? job.supersededAt
+  ?? job.updatedAt,
+);
+
+const mapAppointment = (row: Row): Appointment => ({
+  id: String(row.id),
+  patientId: optionalText(row.patient_id ?? row.patientId),
+  doctorId: String(row.doctor_id ?? row.doctorId),
+  cabinet: String(row.cabinet ?? ''),
+  service: String(row.service ?? ''),
+  start: String(row.start_time ?? row.start),
+  end: String(row.end_time ?? row.end),
+  status: row.status as Appointment['status'],
+  paymentType: optionalText(row.payment_type ?? row.paymentType) as Appointment['paymentType'],
+  source: optionalText(row.source) as Appointment['source'],
+  comment: optionalText(row.comment),
+  price: optionalNumber(row.price),
+  cancelledAt: optionalText(row.cancelled_at ?? row.cancelledAt),
+  cancelledBy: optionalText(row.cancelled_by ?? row.cancelledBy),
+  cancellationSource: optionalText(row.cancellation_source ?? row.cancellationSource) as Appointment['cancellationSource'],
+  cancellationReason: optionalText(row.cancellation_reason ?? row.cancellationReason),
+  noShowAt: optionalText(row.no_show_at ?? row.noShowAt),
+  noShowBy: optionalText(row.no_show_by ?? row.noShowBy),
+  noShowReason: optionalText(row.no_show_reason ?? row.noShowReason),
+  lifecycleMetadataVersion: optionalNumber(row.lifecycle_metadata_version ?? row.lifecycleMetadataVersion),
+  confirmationState: optionalText(row.confirmation_state ?? row.confirmationState) as Appointment['confirmationState'],
+  confirmedAt: optionalText(row.confirmed_at ?? row.confirmedAt),
+  confirmedBy: optionalText(row.confirmed_by ?? row.confirmedBy),
+  confirmationChannel: optionalText(row.confirmation_channel ?? row.confirmationChannel) as AppointmentContactChannel | undefined,
+  confirmationNote: optionalText(row.confirmation_note ?? row.confirmationNote),
+  lastConfirmationAttemptAt: optionalText(row.last_confirmation_attempt_at ?? row.lastConfirmationAttemptAt),
+  confirmationAttemptCount: optionalNumber(row.confirmation_attempt_count ?? row.confirmationAttemptCount),
+  confirmationMetadataVersion: optionalNumber(row.confirmation_metadata_version ?? row.confirmationMetadataVersion),
+  lastConfirmationOutcome: optionalText(row.last_confirmation_outcome ?? row.lastConfirmationOutcome) as AppointmentContactOutcome | undefined,
+  lastConfirmationNote: optionalText(row.last_confirmation_note ?? row.lastConfirmationNote),
+  createdAt: String(row.created_at ?? row.createdAt),
+  updatedAt: optionalText(row.updated_at ?? row.updatedAt),
+});
+
+const mapAttempt = (row: Row): AppointmentConfirmationAttempt => ({
+  id: String(row.id),
+  tenantId: String(row.tenant_id ?? row.tenantId),
+  appointmentId: optionalText(row.appointment_id ?? row.appointmentId),
+  patientId: String(row.patient_id ?? row.patientId),
+  actorUserId: String(row.actor_user_id ?? row.actorUserId),
+  channel: (row.channel as AppointmentContactChannel),
+  outcome: (row.outcome as AppointmentContactOutcome),
+  note: optionalText(row.note),
+  attemptedAt: String(row.attempted_at ?? row.attemptedAt),
+  operationKey: optionalText(row.operation_key ?? row.operationKey),
+  createdAt: String(row.created_at ?? row.createdAt),
+});
+
+const mapPatient = (row: Row): Pick<Patient, 'id' | 'fullName' | 'phone'> => ({
+  id: String(row.id),
+  fullName: String(row.full_name ?? row.fullName ?? ''),
+  phone: String(row.phone ?? ''),
+});
+
+const mapDoctor = (row: Row): Pick<Doctor, 'id' | 'fullName' | 'specialization' | 'cabinet'> => ({
+  id: String(row.id),
+  fullName: String(row.full_name ?? row.fullName ?? ''),
+  specialization: String(row.specialization ?? ''),
+  cabinet: String(row.cabinet ?? ''),
+});
+
+const assertOffsetAware = (value: string | undefined, context: AppointmentReminderErrorContext): void => {
+  if (value && !isOffsetAwareInstant(value)) {
+    throw new AppointmentReminderRepositoryError(
+      'invalid_time',
+      context === 'read' ? SAFE_MESSAGES.read_failed : SAFE_MESSAGES.invalid_time,
+    );
+  }
+};
+
+export const toSafeAppointmentReminderError = (
+  error: unknown,
+  context: AppointmentReminderErrorContext,
+): AppointmentReminderRepositoryError => {
+  if (error instanceof AppointmentReminderRepositoryError) return error;
+  const errorRecord = typeof error === 'object' && error !== null
+    ? error as Record<string, unknown>
+    : {};
+  const message = error instanceof Error
+    ? error.message
+    : 'message' in errorRecord
+      ? String(errorRecord.message ?? '')
+      : String(error ?? '');
+  const code = String(errorRecord.code ?? '');
+  const hint = String(errorRecord.hint ?? '');
+  const details = String(errorRecord.details ?? '');
+  const normalized = `${message} ${code} ${hint} ${details}`.toLowerCase();
+
+  if (normalized.includes('недостаточно прав') || normalized.includes('permission denied') || normalized.includes('42501')) {
+    return new AppointmentReminderRepositoryError('permission', SAFE_MESSAGES.permission);
+  }
+  if (
+    normalized.includes('reminder_stale')
+    || normalized.includes('устарела из-за изменения')
+    || normalized.includes('задача устарела')
+  ) {
+    return new AppointmentReminderRepositoryError('stale', SAFE_MESSAGES.stale);
+  }
+  if (normalized.includes('задача уже завершена')) {
+    return new AppointmentReminderRepositoryError('already_completed', SAFE_MESSAGES.already_completed);
+  }
+  if (normalized.includes('больше не доступна') || normalized.includes('текущий статус записи')) {
+    return new AppointmentReminderRepositoryError('terminal', SAFE_MESSAGES.terminal);
+  }
+  if (normalized.includes('укажите причину')) {
+    return new AppointmentReminderRepositoryError('reason_required', SAFE_MESSAGES.reason_required);
+  }
+  if (
+    normalized.includes('reminder_concurrent')
+    || normalized.includes('изменена другим пользователем')
+  ) {
+    return new AppointmentReminderRepositoryError('concurrent', SAFE_MESSAGES.concurrent);
+  }
+  if (normalized.includes('другими параметрами') || normalized.includes('23505')) {
+    return new AppointmentReminderRepositoryError('idempotency_conflict', SAFE_MESSAGES.idempotency_conflict);
+  }
+  if (
+    normalized.includes('новое время')
+    || normalized.includes('часовой пояс')
+    || normalized.includes('ещё не наступила')
+  ) {
+    return new AppointmentReminderRepositoryError('invalid_time', SAFE_MESSAGES.invalid_time);
+  }
+  return new AppointmentReminderRepositoryError(
+    context === 'read' ? 'read_failed' : 'operation_failed',
+    context === 'read' ? SAFE_MESSAGES.read_failed : SAFE_MESSAGES.operation_failed,
+  );
+};
+
+const mapPlanResult = (data: unknown, referenceTime: string): AppointmentReminderPlanResult => {
+  const value = (data ?? {}) as Record<string, unknown>;
+  const mapRows = (key: string): AppointmentReminderJob[] => (
+    Array.isArray(value[key]) ? (value[key] as Row[]).map((row) => mapAppointmentReminderJob(row, referenceTime)) : []
+  );
+  return {
+    created: mapRows('created'),
+    reused: mapRows('reused'),
+    superseded: mapRows('superseded'),
+    cancelled: mapRows('cancelled'),
+    skipped: mapRows('skipped'),
+    desired: Array.isArray(value.desired) ? value.desired as Array<Record<string, unknown>> : [],
+    appointmentVersion: String(value.appointmentVersion ?? ''),
+    policyVersion: Number(value.policyVersion ?? 0),
+    policyEnabled: Boolean(value.policyEnabled),
+    callbackDeferred: Boolean(value.callbackDeferred),
+  };
+};
+
+const mapOperationResult = (data: unknown, referenceTime: string): AppointmentReminderOperationResult => {
+  const value = (data ?? {}) as Record<string, unknown>;
+  const jobRow = (value.job ?? value.reminderJob) as Row | undefined;
+  const appointmentRow = value.appointment as Row | undefined;
+  if (!jobRow || !appointmentRow) {
+    throw new AppointmentReminderRepositoryError('operation_failed', SAFE_MESSAGES.operation_failed);
+  }
+  const attemptRow = value.confirmationAttempt as Row | null | undefined;
+  return {
+    job: mapAppointmentReminderJob(jobRow, referenceTime),
+    appointment: mapAppointment(appointmentRow),
+    confirmationAttempt: attemptRow ? mapAttempt(attemptRow) : undefined,
+    replayed: Boolean(value.replayed),
+    recovered: Boolean(value.recovered),
+    operationType: value.operationType as AppointmentReminderOperationResult['operationType'],
+  };
+};
+
+export class SupabaseAppointmentReminderRepository implements AppointmentReminderRepository {
   private readonly tenantId: string;
   private readonly client: SupabaseClient;
 
@@ -196,42 +351,77 @@ export class SupabaseAppointmentReminderRepository implements IAppointmentRemind
     this.client = client;
   }
 
-  async listReminderJobs(options: AppointmentReminderListOptions = {}): Promise<AppointmentReminderJob[]> {
-    const referenceTime = options.referenceTime ?? new Date().toISOString();
-    requireInstant(referenceTime, 'reference_time');
-
-    let query = this.client
-      .from('appointment_reminder_jobs')
-      .select('*')
-      .eq('tenant_id', this.tenantId);
-
-    if (options.appointmentId) query = query.eq('appointment_id', options.appointmentId);
-    if (!options.includeTerminal) {
-      query = query.in('state', ['scheduled', 'ready']);
+  async listReminderJobs(includeTerminal = false, referenceTime = new Date().toISOString()): Promise<AppointmentReminderJob[]> {
+    assertOffsetAware(referenceTime, 'read');
+    try {
+      let query = this.client
+        .from('appointment_reminder_jobs')
+        .select('*')
+        .eq('tenant_id', this.tenantId);
+      query = includeTerminal
+        ? query.in('state', TERMINAL_STATES)
+        : query.in('state', ACTIVE_STATES);
+      const { data, error } = await query
+        .order('due_at', { ascending: true })
+        .order('priority', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+      if (error) throw error;
+      const jobs = ((data ?? []) as Row[]).map((row) => mapAppointmentReminderJob(row, referenceTime));
+      return includeTerminal
+        ? jobs.sort((left, right) => terminalMoment(right) - terminalMoment(left) || left.id.localeCompare(right.id))
+        : jobs.sort(compareReminderJobs);
+    } catch (error) {
+      throw toSafeAppointmentReminderError(error, 'read');
     }
-
-    const { data, error } = await query
-      .order('due_at', { ascending: true })
-      .order('priority', { ascending: true })
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (error) throw toSafeAppointmentReminderError(error, 'read');
-    return (data || [])
-      .map((row) => mapAppointmentReminderJob(row as Record<string, unknown>, referenceTime))
-      .filter((job) => options.includeTerminal || !TERMINAL_STATES.has(job.state))
-      .sort(compareReminderJobs);
   }
 
-  listReminderJobsByAppointment(appointmentId: string, includeTerminal = true): Promise<AppointmentReminderJob[]> {
-    return this.listReminderJobs({ appointmentId, includeTerminal });
+  async listReminderJobsByAppointment(
+    appointmentId: string,
+    includeTerminal = false,
+    referenceTime = new Date().toISOString(),
+  ): Promise<AppointmentReminderJob[]> {
+    assertOffsetAware(referenceTime, 'read');
+    try {
+      let query = this.client
+        .from('appointment_reminder_jobs')
+        .select('*')
+        .eq('tenant_id', this.tenantId)
+        .eq('appointment_id', appointmentId);
+      query = includeTerminal
+        ? query.in('state', TERMINAL_STATES)
+        : query.in('state', ACTIVE_STATES);
+      const { data, error } = await query
+        .order('due_at', { ascending: true })
+        .order('priority', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as Row[])
+        .map((row) => mapAppointmentReminderJob(row, referenceTime))
+        .sort(includeTerminal
+          ? (left, right) => terminalMoment(right) - terminalMoment(left) || left.id.localeCompare(right.id)
+          : compareReminderJobs);
+    } catch (error) {
+      throw toSafeAppointmentReminderError(error, 'read');
+    }
+  }
+
+  async listActiveReminderJobs(referenceTime = new Date().toISOString()): Promise<AppointmentReminderQueueItem[]> {
+    const jobs = await this.listReminderJobs(false, referenceTime);
+    return this.enrichJobs(jobs);
+  }
+
+  async listReminderJobHistory(limit = 100, referenceTime = new Date().toISOString()): Promise<AppointmentReminderQueueItem[]> {
+    const jobs = (await this.listReminderJobs(true, referenceTime)).slice(0, Math.max(1, Math.min(limit, 500)));
+    return this.enrichJobs(jobs);
   }
 
   async planAppointmentReminderJobs(
     appointmentId: string,
     referenceTime = new Date().toISOString(),
   ): Promise<AppointmentReminderPlanResult> {
-    requireInstant(referenceTime, 'reference_time');
+    assertOffsetAware(referenceTime, 'plan');
     try {
       const { data, error } = await this.client.rpc('plan_appointment_reminder_jobs', {
         p_tenant_id: this.tenantId,
@@ -239,7 +429,7 @@ export class SupabaseAppointmentReminderRepository implements IAppointmentRemind
         p_reference_time: referenceTime,
       });
       if (error) throw error;
-      return this.mapPlanResult(data, referenceTime);
+      return mapPlanResult(data, referenceTime);
     } catch (error) {
       throw toSafeAppointmentReminderError(error, 'plan');
     }
@@ -248,12 +438,12 @@ export class SupabaseAppointmentReminderRepository implements IAppointmentRemind
   async reconcileTenantReminderJobs(
     from: string,
     to: string,
-    limit: number,
+    limit = 100,
     referenceTime = new Date().toISOString(),
   ): Promise<TenantReminderReconcileResult> {
-    requireInstant(from, 'from');
-    requireInstant(to, 'to');
-    requireInstant(referenceTime, 'reference_time');
+    assertOffsetAware(from, 'plan');
+    assertOffsetAware(to, 'plan');
+    assertOffsetAware(referenceTime, 'plan');
     try {
       const { data, error } = await this.client.rpc('reconcile_tenant_appointment_reminders', {
         p_tenant_id: this.tenantId,
@@ -263,51 +453,191 @@ export class SupabaseAppointmentReminderRepository implements IAppointmentRemind
         p_reference_time: referenceTime,
       });
       if (error) throw error;
-      const payload = asObject(data);
-      return {
-        processed: asNumber(payload.processed),
-        created: asNumber(payload.created),
-        reused: asNumber(payload.reused),
-        superseded: asNumber(payload.superseded),
-        cancelled: asNumber(payload.cancelled),
-        skipped: asNumber(payload.skipped),
-      };
+      return data as TenantReminderReconcileResult;
     } catch (error) {
-      throw toSafeAppointmentReminderError(error, 'reconcile');
+      throw toSafeAppointmentReminderError(error, 'plan');
     }
   }
 
-  private mapPlanResult(data: unknown, referenceTime: string): AppointmentReminderPlanResult {
-    const payload = asObject(data);
-    const mapRows = (value: unknown): AppointmentReminderJob[] => (
-      Array.isArray(value)
-        ? value.map((row) => mapAppointmentReminderJob(asObject(row), referenceTime))
-        : []
-    );
-    const appointmentVersion = String(payload.appointmentVersion ?? payload.appointment_version ?? '');
-    if (appointmentVersion) requireInstant(appointmentVersion, 'appointment_version');
+  async completeReminderJob(input: CompleteAppointmentReminderJobInput): Promise<AppointmentReminderOperationResult> {
+    return this.runOperation('complete_appointment_reminder_job', {
+      p_tenant_id: this.tenantId,
+      p_job_id: input.jobId,
+      p_channel: input.channel,
+      p_outcome: input.outcome,
+      p_note: input.note?.trim() || null,
+      p_expected_job_updated_at: input.expectedJobUpdatedAt,
+      p_expected_appointment_updated_at: input.expectedAppointmentUpdatedAt,
+      p_operation_key: input.operationKey,
+    }, 'complete', input.expectedJobUpdatedAt);
+  }
 
-    return {
-      created: mapRows(payload.created),
-      reused: mapRows(payload.reused),
-      superseded: mapRows(payload.superseded),
-      cancelled: mapRows(payload.cancelled),
-      skipped: mapRows(payload.skipped),
-      desired: Array.isArray(payload.desired) ? payload.desired.map(asObject) : [],
-      appointmentVersion,
-      policyVersion: asNumber(payload.policyVersion ?? payload.policy_version),
-      policyEnabled: payload.policyEnabled === true || payload.policy_enabled === true,
-      callbackDeferred: payload.callbackDeferred === true || payload.callback_deferred === true,
-    };
+  async deferReminderJob(input: DeferAppointmentReminderJobInput): Promise<AppointmentReminderOperationResult> {
+    assertOffsetAware(input.newDueAt, 'defer');
+    return this.runOperation('defer_appointment_reminder_job', {
+      p_tenant_id: this.tenantId,
+      p_job_id: input.jobId,
+      p_new_due_at: input.newDueAt,
+      p_reason: input.reason.trim(),
+      p_expected_job_updated_at: input.expectedJobUpdatedAt,
+      p_expected_appointment_updated_at: input.expectedAppointmentUpdatedAt,
+      p_operation_key: input.operationKey,
+    }, 'defer', input.expectedJobUpdatedAt);
+  }
+
+  async skipReminderJob(input: SkipAppointmentReminderJobInput): Promise<AppointmentReminderOperationResult> {
+    return this.runOperation('skip_appointment_reminder_job', {
+      p_tenant_id: this.tenantId,
+      p_job_id: input.jobId,
+      p_reason: input.reason.trim(),
+      p_expected_job_updated_at: input.expectedJobUpdatedAt,
+      p_expected_appointment_updated_at: input.expectedAppointmentUpdatedAt,
+      p_operation_key: input.operationKey,
+    }, 'skip', input.expectedJobUpdatedAt);
+  }
+
+  async getReminderOperation(operationKey: string): Promise<AppointmentReminderOperationResult | null> {
+    try {
+      const { data, error } = await this.client.rpc('get_appointment_operation', {
+        p_tenant_id: this.tenantId,
+        p_operation_key: operationKey,
+      });
+      if (error) throw error;
+      const value = (data ?? {}) as Record<string, unknown>;
+      if (!value.found || !value.reminderJob) return null;
+      return mapOperationResult(value, new Date().toISOString());
+    } catch (error) {
+      throw toSafeAppointmentReminderError(error, 'recover');
+    }
+  }
+
+  private async runOperation(
+    rpcName: string,
+    args: Record<string, unknown>,
+    context: 'complete' | 'defer' | 'skip',
+    referenceTime: string,
+  ): Promise<AppointmentReminderOperationResult> {
+    assertOffsetAware(String(args.p_expected_job_updated_at ?? ''), context);
+    assertOffsetAware(String(args.p_expected_appointment_updated_at ?? ''), context);
+    try {
+      const { data, error } = await this.client.rpc(rpcName, args);
+      if (error) throw error;
+      const operationResult = (data ?? {}) as Record<string, unknown>;
+      const operationErrorCode = String(operationResult.errorCode ?? '');
+      if (operationErrorCode) {
+        throw toSafeAppointmentReminderError({
+          code: '55000',
+          hint: `reminder_${operationErrorCode}`,
+          message: String(operationResult.errorMessage ?? ''),
+        }, context);
+      }
+      return mapOperationResult(data, referenceTime);
+    } catch (error) {
+      throw toSafeAppointmentReminderError(error, context);
+    }
+  }
+
+  private async enrichJobs(jobs: AppointmentReminderJob[]): Promise<AppointmentReminderQueueItem[]> {
+    if (jobs.length === 0) return [];
+    const appointmentIds = [...new Set(jobs.map((job) => job.appointmentId))];
+    const patientIds = [...new Set(jobs.map((job) => job.patientId))];
+
+    try {
+      const [{ data: appointmentRows, error: appointmentError }, { data: patientRows, error: patientError }] = await Promise.all([
+        this.client
+          .from('appointments')
+          .select('*')
+          .eq('tenant_id', this.tenantId)
+          .in('id', appointmentIds),
+        this.client
+          .from('patients')
+          .select('id, full_name, phone')
+          .eq('tenant_id', this.tenantId)
+          .in('id', patientIds),
+      ]);
+      if (appointmentError) throw appointmentError;
+      if (patientError) throw patientError;
+
+      const appointments = ((appointmentRows ?? []) as Row[]).map(mapAppointment);
+      const doctorIds = [...new Set(appointments.map((appointment) => appointment.doctorId))];
+      const [{ data: doctorRows, error: doctorError }, { data: attemptRows, error: attemptError }] = await Promise.all([
+        this.client
+          .from('doctors')
+          .select('id, full_name, specialization, cabinet')
+          .eq('tenant_id', this.tenantId)
+          .in('id', doctorIds),
+        this.client
+          .from('appointment_confirmation_attempts')
+          .select('*')
+          .eq('tenant_id', this.tenantId)
+          .in('appointment_id', appointmentIds)
+          .order('attempted_at', { ascending: false })
+          .order('id', { ascending: true }),
+      ]);
+      if (doctorError) throw doctorError;
+      if (attemptError) throw attemptError;
+
+      const appointmentMap = new Map(appointments.map((appointment) => [appointment.id, appointment]));
+      const patientMap = new Map(((patientRows ?? []) as Row[]).map(mapPatient).map((patient) => [patient.id, patient]));
+      const doctorMap = new Map(((doctorRows ?? []) as Row[]).map(mapDoctor).map((doctor) => [doctor.id, doctor]));
+      const attempts = ((attemptRows ?? []) as Row[]).map(mapAttempt);
+      const lastAttemptMap = new Map<string, AppointmentConfirmationAttempt>();
+      for (const attempt of attempts) {
+        if (attempt.appointmentId && !lastAttemptMap.has(attempt.appointmentId)) {
+          lastAttemptMap.set(attempt.appointmentId, attempt);
+        }
+      }
+
+      return jobs.flatMap((job) => {
+        const appointment = appointmentMap.get(job.appointmentId);
+        const patient = patientMap.get(job.patientId);
+        const doctor = appointment ? doctorMap.get(appointment.doctorId) : undefined;
+        if (!appointment || !patient || !doctor) return [];
+        return [{
+          job,
+          appointment,
+          patient,
+          doctor,
+          attemptCount: appointment.confirmationAttemptCount ?? 0,
+          lastAttempt: lastAttemptMap.get(appointment.id),
+        }];
+      });
+    } catch (error) {
+      throw toSafeAppointmentReminderError(error, 'read');
+    }
   }
 }
 
+export const LocalAppointmentReminderRepository: AppointmentReminderRepository = {
+  async listReminderJobs() { return []; },
+  async listReminderJobsByAppointment() { return []; },
+  async listActiveReminderJobs() { return []; },
+  async listReminderJobHistory() { return []; },
+  async planAppointmentReminderJobs() { return emptyPlan(); },
+  async reconcileTenantReminderJobs() {
+    return { processed: 0, created: 0, reused: 0, superseded: 0, cancelled: 0, skipped: 0 };
+  },
+  async completeReminderJob() {
+    throw new AppointmentReminderRepositoryError('operation_failed', SAFE_MESSAGES.operation_failed);
+  },
+  async deferReminderJob() {
+    throw new AppointmentReminderRepositoryError('operation_failed', SAFE_MESSAGES.operation_failed);
+  },
+  async skipReminderJob() {
+    throw new AppointmentReminderRepositoryError('operation_failed', SAFE_MESSAGES.operation_failed);
+  },
+  async getReminderOperation() { return null; },
+};
+
 export function createAppointmentReminderRepository(
   options: CreateAppointmentReminderRepositoryOptions,
-): IAppointmentReminderRepository {
+): AppointmentReminderRepository {
   if (options.backend === 'local') return LocalAppointmentReminderRepository;
-  if (!options.tenantId || !supabase) {
-    throw new AppointmentReminderRepositoryError('tenant_required', 'Клиника не выбрана.');
+  if (!options.tenantId) {
+    throw new AppointmentReminderRepositoryError('permission', 'Клиника не выбрана.');
   }
-  return new SupabaseAppointmentReminderRepository(options.tenantId, supabase as SupabaseClient);
+  if (!supabase) {
+    throw new AppointmentReminderRepositoryError('read_failed', SAFE_MESSAGES.read_failed);
+  }
+  return new SupabaseAppointmentReminderRepository(options.tenantId, supabase);
 }

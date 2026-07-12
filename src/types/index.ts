@@ -137,8 +137,67 @@ export interface AppointmentReminderJob {
   cancelledAt?: string;
   skippedAt?: string;
   completedAt?: string;
+  originalDueAt: string;
+  completedBy?: string;
+  completionOutcome?: AppointmentContactOutcome;
+  completionNote?: string;
+  confirmationAttemptId?: string;
+  deferredAt?: string;
+  deferredBy?: string;
+  deferReason?: string;
+  skippedBy?: string;
+  operationKey?: string;
+  operationFingerprint?: string;
+  lastManualActionAt?: string;
   terminalReason?: string;
   metadata: Record<string, unknown>;
+}
+
+export interface AppointmentReminderQueueItem {
+  job: AppointmentReminderJob;
+  appointment: Appointment;
+  patient: Pick<Patient, 'id' | 'fullName' | 'phone'>;
+  doctor: Pick<Doctor, 'id' | 'fullName' | 'specialization' | 'cabinet'>;
+  attemptCount: number;
+  lastAttempt?: AppointmentConfirmationAttempt;
+}
+
+export type AppointmentReminderOperationType = 'reminder_complete' | 'reminder_defer' | 'reminder_skip';
+
+export interface CompleteAppointmentReminderJobInput {
+  jobId: string;
+  channel: AppointmentContactChannel;
+  outcome: AppointmentContactOutcome;
+  note?: string;
+  expectedJobUpdatedAt: string;
+  expectedAppointmentUpdatedAt: string;
+  operationKey: string;
+}
+
+export interface DeferAppointmentReminderJobInput {
+  jobId: string;
+  newDueAt: string;
+  reason: string;
+  expectedJobUpdatedAt: string;
+  expectedAppointmentUpdatedAt: string;
+  operationKey: string;
+}
+
+export interface SkipAppointmentReminderJobInput {
+  jobId: string;
+  reason: string;
+  expectedJobUpdatedAt: string;
+  expectedAppointmentUpdatedAt: string;
+  operationKey: string;
+}
+
+export interface AppointmentReminderOperationResult {
+  job: AppointmentReminderJob;
+  appointment: Appointment;
+  confirmationAttempt?: AppointmentConfirmationAttempt;
+  replayed: boolean;
+  recovered: boolean;
+  operationType: AppointmentReminderOperationType;
 }
 
 export interface AppointmentReminderPlanResult {
