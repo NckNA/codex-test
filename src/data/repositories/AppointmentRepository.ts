@@ -1,4 +1,5 @@
 import type { Appointment, AppointmentStatus, PaymentType, Source } from '../../types';
+import { compareAppointmentsByStartThenId } from '../../domain/appointmentSummary';
 import { storage } from '../../utils/storage';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -13,6 +14,9 @@ export type AppointmentRepositoryErrorCode =
   | 'idempotency_conflict'
   | 'concurrent_change'
   | 'permission'
+  | 'tenant_required'
+  | 'schedule_read_failed'
+  | 'patient_read_failed'
   | 'generic';
 
 export class AppointmentRepositoryError extends Error {
@@ -120,6 +124,13 @@ export const toSafeAppointmentError = (error: unknown): AppointmentRepositoryErr
   return genericSaveError();
 };
 
+export const toSafeAppointmentReadError = (
+  scope: 'schedule' | 'patient',
+): AppointmentRepositoryError => new AppointmentRepositoryError(
+  scope === 'schedule' ? 'schedule_read_failed' : 'patient_read_failed',
+  scope === 'schedule' ? 'Не удалось загрузить расписание.' : 'Не удалось загрузить записи пациента.',
+);
+
 export const isProtectedAppointmentChange = (current: Appointment, next: Appointment): boolean => (
   (current.patientId || '') !== (next.patientId || '')
   || current.doctorId !== next.doctorId
@@ -140,9 +151,13 @@ const localWriteResult = (appointment: Appointment, operationType: AppointmentOp
 export const LocalStorageAppointmentRepository: IAppointmentRepository = {
   listAppointmentsByPatient: async (patientId: string): Promise<Appointment[]> => storage.getAppointments()
     .filter((appointment) => appointment.patientId === patientId)
-    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()),
+    .sort((left, right) => {
+      const startDifference = new Date(right.start).getTime() - new Date(left.start).getTime();
+      return startDifference !== 0 ? startDifference : left.id.localeCompare(right.id);
+    }),
 
-  listAppointments: async (): Promise<Appointment[]> => storage.getAppointments(),
+  listAppointments: async (): Promise<Appointment[]> => [...storage.getAppointments()]
+    .sort(compareAppointmentsByStartThenId),
 
   createAppointment: async (appointment: Appointment): Promise<AppointmentWriteResult> => {
     storage.addAppointment(appointment);
@@ -181,9 +196,10 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
       .select('*')
       .eq('tenant_id', this.tenantId)
       .eq('patient_id', patientId)
-      .order('start_time', { ascending: false });
+      .order('start_time', { ascending: false })
+      .order('id', { ascending: true });
 
-    if (error) throw toSafeAppointmentError(error);
+    if (error) throw toSafeAppointmentReadError('patient');
     return (data || []).map(this.mapToAppointment);
   }
 
@@ -192,9 +208,10 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
       .from('appointments')
       .select('*')
       .eq('tenant_id', this.tenantId)
-      .order('start_time', { ascending: true });
+      .order('start_time', { ascending: true })
+      .order('id', { ascending: true });
 
-    if (error) throw toSafeAppointmentError(error);
+    if (error) throw toSafeAppointmentReadError('schedule');
     return (data || []).map(this.mapToAppointment);
   }
 
@@ -397,8 +414,13 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
 }
 
 export function createAppointmentRepository(options: CreateAppointmentRepositoryOptions): IAppointmentRepository {
-  if (options.backend === 'supabase' && options.tenantId && supabase) {
-    return new SupabaseAppointmentRepository(options.tenantId, supabase as SupabaseClient);
+  if (options.backend === 'local') {
+    return LocalStorageAppointmentRepository;
   }
-  return LocalStorageAppointmentRepository;
+
+  if (!options.tenantId || !supabase) {
+    throw new AppointmentRepositoryError('tenant_required', 'Клиника не выбрана.');
+  }
+
+  return new SupabaseAppointmentRepository(options.tenantId, supabase as SupabaseClient);
 }

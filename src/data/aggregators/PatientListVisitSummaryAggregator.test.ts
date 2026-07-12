@@ -1,78 +1,102 @@
-// @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { PatientListVisitSummaryAggregator } from './PatientListVisitSummaryAggregator';
-import type { Appointment } from '../../types';
+import type { Appointment, AppointmentStatus } from '../../types';
+
+const appointment = (
+  id: string,
+  patientId: string | undefined,
+  start: string,
+  status: AppointmentStatus = 'confirmed',
+): Appointment => ({
+  id,
+  patientId,
+  doctorId: 'doctor-1',
+  cabinet: 'A1',
+  service: 'Осмотр',
+  start,
+  end: new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString(),
+  status,
+  createdAt: '2026-01-01T00:00:00.000Z',
+});
 
 describe('PatientListVisitSummaryAggregator', () => {
-  beforeEach(() => {
-    localStorage.clear();
+  const now = new Date('2026-01-10T12:00:00.000Z');
+
+  it('selects the latest past and earliest actionable future appointment', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('past-1', 'patient-1', '2026-01-08T10:00:00.000Z', 'completed'),
+      appointment('past-2', 'patient-1', '2026-01-09T10:00:00.000Z', 'no_show'),
+      appointment('future-2', 'patient-1', '2026-01-12T10:00:00.000Z'),
+      appointment('future-1', 'patient-1', '2026-01-11T10:00:00.000Z'),
+    ], now);
+
+    expect(summary['patient-1'].lastVisit?.toISOString()).toBe('2026-01-09T10:00:00.000Z');
+    expect(summary['patient-1'].nextVisit?.toISOString()).toBe('2026-01-11T10:00:00.000Z');
   });
 
-  it('calculates lastVisit and nextVisit per patient', async () => {
-    const now = new Date('2026-01-10T12:00:00.000Z');
-    const past = new Date('2026-01-09T12:00:00.000Z').toISOString();
-    const future = new Date('2026-01-11T12:00:00.000Z').toISOString();
+  it('excludes cancelled and malformed future terminal rows from upcoming', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('cancelled', 'patient-1', '2026-01-11T09:00:00.000Z', 'cancelled'),
+      appointment('completed-future', 'patient-1', '2026-01-11T10:00:00.000Z', 'completed'),
+      appointment('no-show-future', 'patient-1', '2026-01-11T11:00:00.000Z', 'no_show'),
+      appointment('confirmed', 'patient-1', '2026-01-11T12:00:00.000Z', 'confirmed'),
+    ], now);
 
-    const appts: Appointment[] = [
-      { id: '1', patientId: 'patient_1', doctorId: 'd1', cabinet: 'c1', service: 's1', start: past, end: past, status: 'completed', createdAt: 'now' },
-      { id: '2', patientId: 'patient_1', doctorId: 'd1', cabinet: 'c1', service: 's1', start: future, end: future, status: 'confirmed', createdAt: 'now' },
-      { id: '3', patientId: 'patient_2', doctorId: 'd1', cabinet: 'c1', service: 's1', start: future, end: future, status: 'confirmed', createdAt: 'now' }
-    ];
-    localStorage.setItem('df_appointments', JSON.stringify(appts));
-
-    const summaryMap = await PatientListVisitSummaryAggregator.getVisitSummaryByPatientId(now);
-
-    expect(summaryMap['patient_1'].lastVisit?.toISOString()).toBe(past);
-    expect(summaryMap['patient_1'].nextVisit?.toISOString()).toBe(future);
-
-    expect(summaryMap['patient_2'].lastVisit).toBeUndefined();
-    expect(summaryMap['patient_2'].nextVisit?.toISOString()).toBe(future);
+    expect(summary['patient-1'].nextVisit?.toISOString()).toBe('2026-01-11T12:00:00.000Z');
   });
 
-  it('ignores appointments without patientId', async () => {
-    const now = new Date('2026-01-10T12:00:00.000Z');
-    const appts = [
-      { id: '1', doctorId: 'd1', cabinet: 'c1', service: 's1', start: now.toISOString(), end: now.toISOString(), status: 'confirmed', createdAt: 'now' }
-    ] as Appointment[];
-    
-    localStorage.setItem('df_appointments', JSON.stringify(appts));
+  it('does not treat a cancelled past appointment as the previous visit', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('completed', 'patient-1', '2026-01-08T10:00:00.000Z', 'completed'),
+      appointment('cancelled', 'patient-1', '2026-01-09T10:00:00.000Z', 'cancelled'),
+    ], now);
 
-    const summaryMap = await PatientListVisitSummaryAggregator.getVisitSummaryByPatientId(now);
-    expect(Object.keys(summaryMap)).toHaveLength(0);
+    expect(summary['patient-1'].lastVisit?.toISOString()).toBe('2026-01-08T10:00:00.000Z');
   });
 
-  it('ignores blocked and cancelled appointments', async () => {
-    const now = new Date('2026-01-10T12:00:00.000Z');
-    const past = new Date('2026-01-09T12:00:00.000Z').toISOString();
+  it('uses start >= now as the deterministic upcoming boundary', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('exact-now', 'patient-1', now.toISOString(), 'confirmed'),
+      appointment('one-ms-past', 'patient-1', '2026-01-10T11:59:59.999Z', 'arrived'),
+    ], now);
 
-    const appts: Appointment[] = [
-      { id: '1', patientId: 'patient_2', doctorId: 'd1', cabinet: 'c1', service: 's1', start: past, end: past, status: 'cancelled', createdAt: 'now' },
-      { id: '2', patientId: 'patient_2', doctorId: 'd1', cabinet: 'c1', service: 's1', start: past, end: past, status: 'blocked', createdAt: 'now' }
-    ];
-    localStorage.setItem('df_appointments', JSON.stringify(appts));
-
-    const summaryMap = await PatientListVisitSummaryAggregator.getVisitSummaryByPatientId(now);
-    // Current behavior returns empty object if no valid appts
-    expect(summaryMap['patient_2']).toBeUndefined();
+    expect(summary['patient-1'].lastVisit?.toISOString()).toBe('2026-01-10T11:59:59.999Z');
+    expect(summary['patient-1'].nextVisit?.toISOString()).toBe(now.toISOString());
   });
 
-  it('handles patients without appointments', async () => {
-    const now = new Date('2026-01-10T12:00:00.000Z');
-    localStorage.setItem('df_appointments', JSON.stringify([]));
+  it('groups multiple patients independently from one appointment array', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('a', 'patient-a', '2026-01-11T10:00:00.000Z'),
+      appointment('b', 'patient-b', '2026-01-09T10:00:00.000Z', 'completed'),
+      appointment('c', 'patient-b', '2026-01-13T10:00:00.000Z'),
+    ], now);
 
-    const summaryMap = await PatientListVisitSummaryAggregator.getVisitSummaryByPatientId(now);
-    expect(summaryMap['patient_3']).toBeUndefined();
+    expect(summary['patient-a'].lastVisit).toBeUndefined();
+    expect(summary['patient-a'].nextVisit?.toISOString()).toBe('2026-01-11T10:00:00.000Z');
+    expect(summary['patient-b'].lastVisit?.toISOString()).toBe('2026-01-09T10:00:00.000Z');
+    expect(summary['patient-b'].nextVisit?.toISOString()).toBe('2026-01-13T10:00:00.000Z');
   });
 
-  it('does not mutate appointments storage', async () => {
-    const now = new Date('2026-01-10T12:00:00.000Z');
-    const apptsData = JSON.stringify([
-      { id: '1', patientId: 'patient_1', doctorId: 'd1', cabinet: 'c1', service: 's1', start: now.toISOString(), end: now.toISOString(), status: 'completed', createdAt: 'now' }
-    ]);
-    localStorage.setItem('df_appointments', apptsData);
+  it('uses appointment id as a stable tie-breaker for equal start times', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('z-id', 'patient-1', '2026-01-11T10:00:00.000Z'),
+      appointment('a-id', 'patient-1', '2026-01-11T10:00:00.000Z'),
+    ], now);
 
-    await PatientListVisitSummaryAggregator.getVisitSummaryByPatientId(now);
+    expect(summary['patient-1'].nextVisit?.toISOString()).toBe('2026-01-11T10:00:00.000Z');
+  });
 
-    expect(localStorage.getItem('df_appointments')).toBe(apptsData);
+  it('ignores blocked rows and rows without a patient', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([
+      appointment('blocked', undefined, '2026-01-11T10:00:00.000Z', 'blocked'),
+      appointment('missing-patient', undefined, '2026-01-11T11:00:00.000Z', 'confirmed'),
+    ], now);
+
+    expect(summary).toEqual({});
+  });
+
+  it('returns no state for a patient without appointments', () => {
+    const summary = PatientListVisitSummaryAggregator.getVisitSummaryByPatientId([], now);
+    expect(summary['patient-none']).toBeUndefined();
   });
 });

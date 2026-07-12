@@ -102,6 +102,8 @@ export function PatientsPage() {
 
   const {
     visitSummaryByPatientId,
+    isLoading: isVisitSummaryLoading,
+    isError: isVisitSummaryError,
   } = usePatientListVisitSummary();
 
   const filteredPatients = useMemo(() => {
@@ -230,8 +232,8 @@ export function PatientsPage() {
                 <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Дата рождения</th>
                 <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Источник</th>
                 <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Статус</th>
-                <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Последний визит</th>
-                <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Следующий визит</th>
+                <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Предыдущая запись</th>
+                <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Следующая запись</th>
                 <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Баланс</th>
                 <th className="py-3 px-4 font-semibold text-sm text-slate-600 border-b border-slate-200">Действия</th>
               </tr>
@@ -270,8 +272,12 @@ export function PatientsPage() {
                           {getStatusLabel(patient.status)}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-sm text-slate-600">{formatDate(visits.lastVisit)}</td>
-                      <td className="py-3 px-4 text-sm text-slate-600">{formatDate(visits.nextVisit)}</td>
+                      <td className="py-3 px-4 text-sm text-slate-600">
+                        {isVisitSummaryLoading ? '…' : isVisitSummaryError ? 'Недоступно' : formatDate(visits.lastVisit)}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-slate-600">
+                        {isVisitSummaryLoading ? '…' : isVisitSummaryError ? 'Недоступно' : formatDate(visits.nextVisit)}
+                      </td>
                       <td className="py-3 px-4 text-sm font-medium text-slate-700">{patient.balance ? `${patient.balance} ₸` : '-'}</td>
                       <td className="py-3 px-4 text-sm">
                         <div className="flex items-center gap-3">

@@ -250,6 +250,7 @@ export function SchedulePage() {
                 {timeSlots.map((time, i) => (
                   <div
                     key={time}
+                    data-testid={`schedule-slot-${doctor.id}-${time.replace(':', '')}`}
                     onClick={() => handleOpenModal(doctor, time)}
                     className={clsx(
                       "group border-b border-slate-100 cursor-pointer hover:bg-blue-50/50 transition-colors flex items-center justify-center",
@@ -270,6 +271,7 @@ export function SchedulePage() {
                     return (
                       <div
                         key={apt.id}
+                        data-testid={`schedule-appointment-${apt.id}`}
                         onClick={() => handleEditAppointment(apt)}
                         className={clsx(
                           "absolute left-1 right-1 rounded-lg border p-1.5 text-xs shadow-sm transition-transform hover:-translate-y-0.5 cursor-pointer overflow-hidden flex flex-col",

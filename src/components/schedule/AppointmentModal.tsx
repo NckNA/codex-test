@@ -375,6 +375,7 @@ export function AppointmentModal({
                     <button
                       key={status.value}
                       type="button"
+                      data-testid={`appointment-status-${status.value}`}
                       onClick={() => handleStatusChange(status.value as AppointmentStatus)}
                       className={`px-3 py-1 text-sm rounded-md border ${
                         formData.status === status.value

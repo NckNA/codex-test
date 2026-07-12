@@ -88,7 +88,7 @@ function renderHook(patientValue: Patient | null = patient, includeArchived = fa
 describe('usePatientTimeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active', user: { id: 'user-a' } } as unknown as ReturnType<typeof useAuth>);
     vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
     mocks.getChiefComplaint.mockResolvedValue(null);
     mocks.listFindingsByPatient.mockResolvedValue([]);
@@ -174,7 +174,7 @@ describe('usePatientTimeline', () => {
   });
 
   it('does not query activity repository in non-Supabase local mode and does not create a local fallback', async () => {
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'local' } as unknown as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue({ authMode: 'dev', user: { id: 'dev-user' } } as unknown as ReturnType<typeof useAuth>);
     const { root, render } = renderHook(patient);
     await render();
 

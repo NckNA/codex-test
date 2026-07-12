@@ -14,21 +14,28 @@ const STORAGE_KEYS = {
 };
 
 export const storage = {
-  init: () => {
+  init: (options: { includeAppointments?: boolean } = {}) => {
+    const includeAppointments = options.includeAppointments ?? true;
     const initialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
+
     if (!initialized) {
       localStorage.setItem(STORAGE_KEYS.DOCTORS, JSON.stringify(demoDoctors));
       localStorage.setItem(STORAGE_KEYS.PATIENTS, JSON.stringify(demoPatients));
-      localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(demoAppointments));
       localStorage.setItem(STORAGE_KEYS.CHIEF_COMPLAINTS, JSON.stringify(demoChiefComplaints));
       localStorage.setItem(STORAGE_KEYS.DENTAL_FINDINGS, JSON.stringify(demoDentalFindings));
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+    }
+
+    // Configured Supabase mode must not create demo appointment facts. Existing browser
+    // data is deliberately left untouched; explicit local/dev mode can still initialize it.
+    if (includeAppointments && localStorage.getItem(STORAGE_KEYS.APPOINTMENTS) === null) {
+      localStorage.setItem(STORAGE_KEYS.APPOINTMENTS, JSON.stringify(demoAppointments));
     }
   },
 
   reset: () => {
     localStorage.removeItem(STORAGE_KEYS.INITIALIZED);
-    storage.init();
+    storage.init({ includeAppointments: true });
   },
 
   getDoctors: (): Doctor[] => {

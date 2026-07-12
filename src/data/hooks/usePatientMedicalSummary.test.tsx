@@ -1,133 +1,148 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createRoot } from 'react-dom/client';
 import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePatientMedicalSummary } from './usePatientMedicalSummary';
-import * as ClinicalSummaryAggregatorModule from '../aggregators/ClinicalSummaryAggregator';
-import * as SupabaseClientModule from '../../lib/supabaseClient';
+import * as ClinicalSummary from '../aggregators/ClinicalSummaryAggregator';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 
-vi.mock('../../lib/supabaseClient', () => ({
-  supabase: {},
-  isSupabaseConfigured: true,
-}));
+vi.mock('../../lib/supabaseClient', () => ({ supabase: {}, isSupabaseConfigured: true }));
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: vi.fn() }));
+vi.mock('../../contexts/TenantContext', () => ({ useTenant: vi.fn() }));
 
-vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: vi.fn(),
-}));
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => { resolve = res; });
+  return { promise, resolve };
+};
 
-vi.mock('../../contexts/TenantContext', () => ({
-  useTenant: vi.fn(),
-}));
+const summary = (amount: number): ClinicalSummary.PatientMedicalSummaryData => ({
+  dentalSummary: {
+    ...ClinicalSummary.EMPTY_PATIENT_DENTAL_SUMMARY,
+    totalAmount: amount,
+  },
+});
 
 describe('usePatientMedicalSummary', () => {
+  let authState: any;
+  let tenantState: any;
+  let current: ReturnType<typeof usePatientMedicalSummary> | undefined;
+
   beforeEach(() => {
     vi.restoreAllMocks();
+    authState = { authMode: 'supabase-active', user: { id: 'user-a' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A' } };
+    vi.mocked(useAuth).mockImplementation(() => authState);
+    vi.mocked(useTenant).mockImplementation(() => tenantState);
   });
 
-  it('routes to supabase backend when authMode is supabase-active, activeTenant exists, and supabase is configured', async () => {
-    const aggregatorSpy = vi.spyOn(ClinicalSummaryAggregatorModule, 'getPatientMedicalSummary').mockResolvedValue(ClinicalSummaryAggregatorModule.EMPTY_PATIENT_MEDICAL_SUMMARY);
-
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
-
-    const TestComponent = () => {
-      usePatientMedicalSummary('patient_1');
+  const mount = async (patientId: string) => {
+    const root = createRoot(document.createElement('div'));
+    const Harness = ({ id, tick = 0 }: { id: string; tick?: number }) => {
+      void tick;
+      current = usePatientMedicalSummary(id);
       return null;
     };
+    await act(async () => root.render(<Harness id={patientId} />));
+    return { root, Harness };
+  };
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
+  it('uses Supabase only with an authenticated tenant context', async () => {
+    const spy = vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary').mockResolvedValue(summary(100));
+    const { root } = await mount('patient-a');
 
-    await act(async () => {
-      root.render(<TestComponent />);
-    });
-
-    expect(aggregatorSpy).toHaveBeenCalledWith('patient_1', expect.objectContaining({ backend: 'supabase', tenantId: 'real-tenant-id' }));
-
-    await act(async () => {
-      root.unmount();
-    });
+    expect(spy).toHaveBeenCalledWith('patient-a', { backend: 'supabase', tenantId: 'tenant-a' });
+    expect(current?.data.dentalSummary.totalAmount).toBe(100);
+    await act(async () => root.unmount());
   });
 
-  it('routes to local backend when authMode is supabase-active but activeTenant is missing', async () => {
-    const aggregatorSpy = vi.spyOn(ClinicalSummaryAggregatorModule, 'getPatientMedicalSummary').mockResolvedValue(ClinicalSummaryAggregatorModule.EMPTY_PATIENT_MEDICAL_SUMMARY);
+  it('does not fall back to local storage without tenant in Supabase mode', async () => {
+    tenantState = { activeTenant: null };
+    const spy = vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary').mockResolvedValue(summary(999));
+    const { root } = await mount('patient-a');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: null } as unknown as ReturnType<typeof useTenant>);
-
-    const TestComponent = () => {
-      usePatientMedicalSummary('patient_1');
-      return null;
-    };
-
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<TestComponent />);
+    expect(spy).not.toHaveBeenCalled();
+    expect(current).toMatchObject({
+      data: ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY,
+      isLoading: false,
+      isError: false,
     });
-
-    expect(aggregatorSpy).toHaveBeenCalledWith('patient_1', expect.objectContaining({ backend: 'local' }));
-
-    await act(async () => {
-      root.unmount();
-    });
+    await act(async () => root.unmount());
   });
 
-  it('routes to local backend when authMode is dev', async () => {
-    const aggregatorSpy = vi.spyOn(ClinicalSummaryAggregatorModule, 'getPatientMedicalSummary').mockResolvedValue(ClinicalSummaryAggregatorModule.EMPTY_PATIENT_MEDICAL_SUMMARY);
+  it('uses local backend only in explicit dev mode', async () => {
+    authState = { authMode: 'dev', user: { id: 'dev-user' } };
+    tenantState = { activeTenant: { tenantId: 'dev-tenant', tenantName: 'Dev' } };
+    const spy = vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary').mockResolvedValue(summary(200));
+    const { root } = await mount('patient-a');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'dev' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: '123', tenantName: 'Dev' } } as unknown as ReturnType<typeof useTenant>);
-
-    const TestComponent = () => {
-      usePatientMedicalSummary('patient_1');
-      return null;
-    };
-
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<TestComponent />);
-    });
-
-    expect(aggregatorSpy).toHaveBeenCalledWith('patient_1', expect.objectContaining({ backend: 'local', tenantId: '123' }));
-
-    await act(async () => {
-      root.unmount();
-    });
+    expect(spy).toHaveBeenCalledWith('patient-a', { backend: 'local', tenantId: 'dev-tenant' });
+    await act(async () => root.unmount());
   });
 
-  it('routes to local backend when authMode is supabase-active but isSupabaseConfigured is false', async () => {
-    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: false, configurable: true });
-    const aggregatorSpy = vi.spyOn(ClinicalSummaryAggregatorModule, 'getPatientMedicalSummary').mockResolvedValue(ClinicalSummaryAggregatorModule.EMPTY_PATIENT_MEDICAL_SUMMARY);
+  it('clears stale patient data and ignores a late response', async () => {
+    const a = deferred<ClinicalSummary.PatientMedicalSummaryData>();
+    const b = deferred<ClinicalSummary.PatientMedicalSummaryData>();
+    vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary')
+      .mockImplementation((patientId) => patientId === 'patient-a' ? a.promise : b.promise);
+    const { root, Harness } = await mount('patient-a');
 
-    vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    await act(async () => root.render(<Harness id="patient-b" tick={1} />));
+    expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
 
-    const TestComponent = () => {
-      usePatientMedicalSummary('patient_1');
-      return null;
-    };
+    await act(async () => a.resolve(summary(111)));
+    expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
 
-    const container = document.createElement('div');
-    const root = createRoot(container);
+    await act(async () => b.resolve(summary(222)));
+    expect(current?.data.dentalSummary.totalAmount).toBe(222);
+    await act(async () => root.unmount());
+  });
 
-    await act(async () => {
-      root.render(<TestComponent />);
-    });
+  it('clears stale tenant data and ignores a late response', async () => {
+    const a = deferred<ClinicalSummary.PatientMedicalSummaryData>();
+    const b = deferred<ClinicalSummary.PatientMedicalSummaryData>();
+    vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary')
+      .mockImplementation((_patientId, config) => config.tenantId === 'tenant-a' ? a.promise : b.promise);
+    const { root, Harness } = await mount('patient-a');
 
-    expect(aggregatorSpy).toHaveBeenCalledWith('patient_1', expect.objectContaining({ backend: 'local', tenantId: 'real-tenant-id' }));
+    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B' } };
+    await act(async () => root.render(<Harness id="patient-a" tick={1} />));
+    expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
 
-    await act(async () => {
-      root.unmount();
-    });
-    
-    // Restore
-    Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: true, configurable: true });
+    await act(async () => a.resolve(summary(111)));
+    expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
+
+    await act(async () => b.resolve(summary(222)));
+    expect(current?.data.dentalSummary.totalAmount).toBe(222);
+    await act(async () => root.unmount());
+  });
+
+  it('clears data when the Supabase session ends during a request', async () => {
+    const pending = deferred<ClinicalSummary.PatientMedicalSummaryData>();
+    const spy = vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary').mockReturnValue(pending.promise);
+    const { root, Harness } = await mount('patient-a');
+
+    authState = { authMode: 'supabase-active', user: null };
+    await act(async () => root.render(<Harness id="patient-a" tick={1} />));
+    expect(current).toMatchObject({ data: ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY, isLoading: false });
+
+    await act(async () => pending.resolve(summary(999)));
+    expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
+    expect(spy).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+  });
+
+  it('maps failures to a safe summary error without fallback', async () => {
+    vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary')
+      .mockRejectedValue({ message: 'SQLSTATE 42501 public.appointments' });
+    const { root } = await mount('patient-a');
+
+    expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
+    expect(current?.isError).toBe(true);
+    expect(current?.error?.message).toBe('Не удалось загрузить сводку пациента.');
+    await act(async () => root.unmount());
   });
 });

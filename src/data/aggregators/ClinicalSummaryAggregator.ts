@@ -3,6 +3,7 @@ import { createTreatmentPlansRepository } from '../repositories/TreatmentPlansRe
 import { createChiefComplaintRepository } from '../repositories/ChiefComplaintRepository';
 import { createFindingsRepository } from '../repositories/FindingsRepository';
 import { createAppointmentRepository } from '../repositories/AppointmentRepository';
+import { getPatientAppointmentSummary } from '../../domain/appointmentSummary';
 import { isActiveFindingStatus } from '../../domain/findingStatus';
 
 export interface PatientDentalSummary {
@@ -58,17 +59,13 @@ export async function getPatientMedicalSummary(patientId: string, config: Clinic
   const findingsRepo = createFindingsRepository(config);
   const appointmentRepo = createAppointmentRepository(config);
 
-  const [chart, plans, complaint, findings, allAppointments] = await Promise.all([
+  const [chart, plans, complaint, findings, patientAppointments] = await Promise.all([
     chartRepo.getDentalChart(patientId),
     plansRepo.listTreatmentPlansByPatient(patientId),
     complaintRepo.getChiefComplaint(patientId),
     findingsRepo.listFindingsByPatient(patientId),
-    appointmentRepo.listAppointments(),
+    appointmentRepo.listAppointmentsByPatient(patientId),
   ]);
-
-  const patientAppointments = allAppointments
-    .filter(a => a.patientId === patientId)
-    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
 
   const needsTreatment = chart.teeth.filter(t => ['needs_treatment', 'caries', 'pulpitis', 'periodontitis'].includes(t.condition)).length;
   const missing = chart.teeth.filter(t => t.condition === 'missing').length;
@@ -81,21 +78,13 @@ export async function getPatientMedicalSummary(patientId: string, config: Clinic
   const notIncludedFindings = activeFindings.filter(f => f.status === 'discovered').length;
   const monitoringFindings = activeFindings.filter(f => f.status === 'monitoring').length;
 
-  let lastVisit: Date | undefined;
-  let nextVisit: Date | undefined;
-  const now = new Date();
-
-  const sortedAsc = [...patientAppointments].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-  for (const appt of sortedAsc) {
-    if (appt.status === 'blocked' || appt.status === 'cancelled') continue;
-    const apptDate = new Date(appt.start);
-    if (apptDate < now) {
-      lastVisit = apptDate;
-    } else {
-      if (!nextVisit) nextVisit = apptDate;
-    }
-  }
+  const appointmentSummary = getPatientAppointmentSummary(patientAppointments, patientId);
+  const lastVisit = appointmentSummary.previousAppointment
+    ? new Date(appointmentSummary.previousAppointment.start)
+    : undefined;
+  const nextVisit = appointmentSummary.nextAppointment
+    ? new Date(appointmentSummary.nextAppointment.start)
+    : undefined;
 
   return {
     dentalSummary: {

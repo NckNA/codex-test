@@ -23,26 +23,25 @@ interface UsePatientTimelineOptions {
 }
 
 export function usePatientTimeline({ patient, includeArchived = false }: UsePatientTimelineOptions) {
-  const { authMode } = useAuth();
+  const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
-
-  const isNoTenantSupabase = authMode === 'supabase-active' && isSupabaseConfigured && !activeTenant?.tenantId;
+  const tenantId = activeTenant?.tenantId;
+  const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
 
   const repositoryConfig = useMemo(() => {
-    const backend = authMode === 'supabase-active' && isSupabaseConfigured && activeTenant?.tenantId
-      ? 'supabase'
-      : 'local';
-
-    return {
-      backend,
-      tenantId: activeTenant?.tenantId,
-    } as const;
-  }, [authMode, activeTenant?.tenantId]);
+    if (authMode === 'dev') {
+      return { backend: 'local' as const, tenantId };
+    }
+    if (isSupabaseMode && user?.id && tenantId) {
+      return { backend: 'supabase' as const, tenantId };
+    }
+    return null;
+  }, [authMode, isSupabaseMode, tenantId, user?.id]);
 
   const queryFn = useCallback(async (): Promise<PatientTimelineEvent[]> => {
-    if (!patient?.id) return [];
-    if (isNoTenantSupabase || !activeTenant?.tenantId) return [];
+    if (!patient?.id || !repositoryConfig) return [];
 
+    const timelineTenantId = repositoryConfig.tenantId || '11111111-1111-1111-1111-111111111111';
     const chiefComplaintRepository = createChiefComplaintRepository(repositoryConfig);
     const findingsRepository = createFindingsRepository(repositoryConfig);
     const treatmentPlansRepository = createTreatmentPlansRepository(repositoryConfig);
@@ -62,7 +61,7 @@ export function usePatientTimeline({ patient, includeArchived = false }: UsePati
       dentalChartRepository.getDentalChart(patient.id),
       activityRepository
         ? activityRepository.listPatientActivityEvents({
-          tenantId: activeTenant.tenantId,
+          tenantId: timelineTenantId,
           patientId: patient.id,
           includeArchived,
         })
@@ -70,7 +69,7 @@ export function usePatientTimeline({ patient, includeArchived = false }: UsePati
     ]);
 
     const events = buildPatientTimeline({
-      tenantId: activeTenant.tenantId,
+      tenantId: timelineTenantId,
       patientId: patient.id,
       patient,
       chiefComplaint,
@@ -83,20 +82,28 @@ export function usePatientTimeline({ patient, includeArchived = false }: UsePati
       includeArchived,
     });
 
-    return events.filter((event) => canRoleSeePatientTimelineEvent(activeTenant.role, event));
-  }, [activeTenant, includeArchived, isNoTenantSupabase, patient, repositoryConfig]);
+    return events.filter((event) => canRoleSeePatientTimelineEvent(activeTenant?.role, event));
+  }, [activeTenant?.role, includeArchived, patient, repositoryConfig]);
+
+  const enabled = Boolean(patient?.id) && (
+    authMode === 'dev'
+    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId))
+  );
+  const queryKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${patient?.id || 'no-patient'}:${includeArchived ? 'archived' : 'active'}:timeline`;
 
   const { data, isLoading, isError, error, refetch } = useAsyncQuery<PatientTimelineEvent[]>({
     queryFn,
     initialData: [],
-    enabled: Boolean(patient?.id),
+    enabled,
+    queryKey,
+    resetOnDisable: true,
   });
 
   return {
-    events: isNoTenantSupabase ? [] : data,
-    isLoading: isNoTenantSupabase ? false : isLoading,
-    isError,
-    error,
+    events: enabled ? data : [],
+    isLoading: enabled ? isLoading : false,
+    isError: enabled ? isError : false,
+    error: enabled ? error : null,
     refresh: refetch,
   };
 }
