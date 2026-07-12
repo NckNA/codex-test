@@ -1,4 +1,4 @@
-﻿# APPOINTMENT-CANCELLATION-NOSHOW-001: controlled appointment lifecycle actions
+# APPOINTMENT-CANCELLATION-NOSHOW-001: controlled appointment lifecycle actions
 
 ## Final verdict
 
@@ -20,7 +20,7 @@ No reminder, penalty, waitlist, finance, document, clinical, stock, amoCRM, clou
 
 ## PR URL
 
-PENDING
+https://github.com/NckNA/codex-test/pull/349
 
 ## Baseline
 
@@ -31,11 +31,12 @@ PENDING
 
 ## PR head reviewed before final report update
 
-- implementation head reviewed: PENDING;
+- implementation head reviewed: `8844da0f0ad580f8c10a68e9368c1d8de37df7a5`;
 - workflow: `CI`;
-- run: PENDING;
-- run ID: PENDING;
-- conclusion: PENDING;
+- run: `#704`;
+- run ID: `29188737624`;
+- conclusion: `success`;
+- tested commit matched the reviewed implementation head exactly;
 - the PR must remain open and unmerged.
 
 ## Report update commit
@@ -240,7 +241,16 @@ Existing unrelated React `act(...)` warnings and the existing Vite bundle-size w
 
 ## Fresh CI
 
-Implementation CI is pending after commit and push. A second fresh CI run is required after the final report-only metadata commit. The PR must remain open and unmerged.
+Implementation CI:
+
+- workflow: `CI`;
+- run: `#704`;
+- run ID: `29188737624`;
+- conclusion: `success`;
+- tested commit: `8844da0f0ad580f8c10a68e9368c1d8de37df7a5`;
+- validate job passed ESLint, tests, and build.
+
+A second fresh CI run is required after the final report-only metadata commit. The PR must remain open and unmerged.
 
 ## Recommended next task
 
