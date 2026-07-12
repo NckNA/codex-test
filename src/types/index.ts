@@ -105,6 +105,64 @@ export interface AppointmentConfirmationAttempt {
   createdAt: string;
 }
 
+export type AppointmentReminderType =
+  | 'confirmation_request'
+  | 'day_before_reminder'
+  | 'control_call_task'
+  | 'callback_task';
+
+export type AppointmentReminderExecutionMode = 'manual';
+export type AppointmentReminderJobState = 'scheduled' | 'ready' | 'completed' | 'cancelled' | 'superseded' | 'skipped';
+export type AppointmentReminderOperationalState = AppointmentReminderJobState;
+
+export interface AppointmentReminderJob {
+  id: string;
+  tenantId: string;
+  appointmentId: string;
+  patientId: string;
+  reminderType: AppointmentReminderType;
+  executionMode: AppointmentReminderExecutionMode;
+  dueAt: string;
+  state: AppointmentReminderJobState;
+  operationalState: AppointmentReminderOperationalState;
+  appointmentUpdatedAt: string;
+  policyVersion: number;
+  planKey: string;
+  payloadFingerprint: string;
+  priority: number;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  supersededAt?: string;
+  cancelledAt?: string;
+  skippedAt?: string;
+  completedAt?: string;
+  terminalReason?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AppointmentReminderPlanResult {
+  created: AppointmentReminderJob[];
+  reused: AppointmentReminderJob[];
+  superseded: AppointmentReminderJob[];
+  cancelled: AppointmentReminderJob[];
+  skipped: AppointmentReminderJob[];
+  desired: Array<Record<string, unknown>>;
+  appointmentVersion: string;
+  policyVersion: number;
+  policyEnabled: boolean;
+  callbackDeferred: boolean;
+}
+
+export interface TenantReminderReconcileResult {
+  processed: number;
+  created: number;
+  reused: number;
+  superseded: number;
+  cancelled: number;
+  skipped: number;
+}
+
 export type ToothNumber =
   | 18 | 17 | 16 | 15 | 14 | 13 | 12 | 11
   | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28
