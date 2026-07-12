@@ -3,6 +3,7 @@ import { Stethoscope, ClipboardList } from 'lucide-react';
 
 import { useClinicDoctors } from '../../../data/hooks/useClinicDoctors';
 import { usePatientAppointments } from '../../../data/hooks/usePatientAppointments';
+import { cancellationSourceLabel } from '../../schedule/appointmentLifecycle';
 
 interface PatientHistoryTabProps {
   patientId: string;
@@ -95,6 +96,21 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
                   <td className="py-3 px-4">
                     <div className="text-slate-800 font-medium">{appt.service || 'Без названия'}</div>
                     {appt.comment && <div className="text-xs text-slate-500 truncate max-w-[200px] mt-0.5">{appt.comment}</div>}
+                    {appt.status === 'cancelled' && (
+                      <div className="mt-2 max-w-sm rounded bg-red-50 p-2 text-xs text-red-800" data-testid={`history-cancellation-${appt.id}`}>
+                        <div>Отменено: {appt.cancelledAt ? new Date(appt.cancelledAt).toLocaleString('ru-RU') : 'историческая запись'}</div>
+                        <div>Источник: {cancellationSourceLabel(appt.cancellationSource)}</div>
+                        <div>Причина: {appt.cancellationReason || 'Не была сохранена в прежней версии системы'}</div>
+                        <div>Сотрудник: {appt.cancelledBy ? 'Сотрудник клиники' : 'Не указан'}</div>
+                      </div>
+                    )}
+                    {appt.status === 'no_show' && (
+                      <div className="mt-2 max-w-sm rounded bg-rose-50 p-2 text-xs text-rose-800" data-testid={`history-no-show-${appt.id}`}>
+                        <div>Неявка: {appt.noShowAt ? new Date(appt.noShowAt).toLocaleString('ru-RU') : 'историческая запись'}</div>
+                        <div>Причина: {appt.noShowReason || 'Не была сохранена в прежней версии системы'}</div>
+                        <div>Сотрудник: {appt.noShowBy ? 'Сотрудник клиники' : 'Не указан'}</div>
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-slate-600">{appt.cabinet}</td>
                   <td className="py-3 px-4">

@@ -62,7 +62,7 @@ const databaseRow = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const rpcResult = (
-  operationType: 'create' | 'reschedule' | 'details' = 'create',
+  operationType: 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' = 'create',
   overrides: Record<string, unknown> = {},
 ) => ({
   appointment: databaseRow(overrides),
@@ -244,6 +244,92 @@ describe('AppointmentRepository', () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it('cancels through cancel_appointment RPC, preserves tenant/key, trims reason, and maps metadata', async () => {
+    const { client, rpc, from } = createClient();
+    rpc.mockResolvedValue({
+      data: rpcResult('cancel', {
+        status: 'cancelled',
+        cancelled_at: '2026-08-01T09:30:00+00:00',
+        cancelled_by: '55555555-5555-4555-8555-555555555555',
+        cancellation_source: 'patient',
+        cancellation_reason: 'Patient requested',
+        lifecycle_metadata_version: 1,
+      }),
+      error: null,
+    });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const result = await repository.cancelAppointment(appointment, 'patient', '  Patient requested  ', { operationKey });
+
+    expect(rpc).toHaveBeenCalledWith('cancel_appointment', {
+      p_tenant_id: tenantId,
+      p_appointment_id: appointmentId,
+      p_cancellation_source: 'patient',
+      p_cancellation_reason: 'Patient requested',
+      p_expected_updated_at: appointment.updatedAt,
+      p_operation_key: operationKey,
+    });
+    expect(from).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      operationType: 'cancel',
+      appointment: {
+        status: 'cancelled',
+        cancellationSource: 'patient',
+        cancellationReason: 'Patient requested',
+        cancelledBy: '55555555-5555-4555-8555-555555555555',
+        lifecycleMetadataVersion: 1,
+      },
+    });
+  });
+
+  it('marks no-show through mark_appointment_no_show RPC and maps metadata', async () => {
+    const { client, rpc, from } = createClient();
+    rpc.mockResolvedValue({
+      data: rpcResult('no_show', {
+        status: 'no_show',
+        no_show_at: '2026-08-01T09:30:00+00:00',
+        no_show_by: '55555555-5555-4555-8555-555555555555',
+        no_show_reason: 'Unable to contact',
+        lifecycle_metadata_version: 1,
+      }),
+      error: null,
+    });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const result = await repository.markAppointmentNoShow(appointment, '  Unable to contact  ', { operationKey });
+
+    expect(rpc).toHaveBeenCalledWith('mark_appointment_no_show', {
+      p_tenant_id: tenantId,
+      p_appointment_id: appointmentId,
+      p_no_show_reason: 'Unable to contact',
+      p_expected_updated_at: appointment.updatedAt,
+      p_operation_key: operationKey,
+    });
+    expect(from).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      operationType: 'no_show',
+      appointment: {
+        status: 'no_show',
+        noShowReason: 'Unable to contact',
+        noShowBy: '55555555-5555-4555-8555-555555555555',
+        lifecycleMetadataVersion: 1,
+      },
+    });
+  });
+
+  it('rejects generic create, details, and reschedule attempts into lifecycle statuses before RPC', async () => {
+    const { client, rpc } = createClient();
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    await expect(repository.createAppointment({ ...appointment, status: 'cancelled' }, { operationKey }))
+      .rejects.toMatchObject({ code: 'invalid_transition' });
+    await expect(repository.updateAppointmentDetails(appointment, { ...appointment, status: 'no_show' }))
+      .rejects.toMatchObject({ code: 'invalid_transition' });
+    await expect(repository.rescheduleAppointment(appointment, { ...appointment, status: 'cancelled', start: '2026-08-01T12:00:00' }, { operationKey }))
+      .rejects.toMatchObject({ code: 'invalid_transition' });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it('recovers operation through scoped recovery RPC without exposing fingerprint', async () => {
     const { client, rpc } = createClient();
     rpc.mockResolvedValue({
@@ -305,13 +391,61 @@ describe('AppointmentRepository', () => {
     expect(result).toMatchObject({ recovered: true, replayed: true, appointment: { id: appointmentId } });
   });
 
+  it('recovers an uncertain cancellation with the original operation key', async () => {
+    const { client, rpc } = createClient();
+    rpc
+      .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+      .mockResolvedValueOnce({
+        data: {
+          found: true,
+          operationType: 'cancel',
+          appointment: databaseRow({
+            status: 'cancelled',
+            cancellation_source: 'clinic',
+            cancellation_reason: 'Recovered cancellation',
+            cancelled_at: '2026-08-01T09:30:00+00:00',
+            cancelled_by: '55555555-5555-4555-8555-555555555555',
+            lifecycle_metadata_version: 1,
+          }),
+          replayed: true,
+          recovered: true,
+        },
+        error: null,
+      });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+    const recoveryStates: boolean[] = [];
+
+    const result = await repository.cancelAppointment(appointment, 'clinic', 'Recovered cancellation', {
+      operationKey,
+      onRecoveryStateChange: (recovering) => recoveryStates.push(recovering),
+    });
+
+    expect(rpc.mock.calls[0]).toEqual(['cancel_appointment', expect.objectContaining({ p_operation_key: operationKey })]);
+    expect(rpc.mock.calls[1]).toEqual(['get_appointment_operation', {
+      p_tenant_id: tenantId,
+      p_operation_key: operationKey,
+    }]);
+    expect(recoveryStates).toEqual([true, false]);
+    expect(result).toMatchObject({
+      recovered: true,
+      replayed: true,
+      operationType: 'cancel',
+      appointment: { status: 'cancelled', cancellationReason: 'Recovered cancellation' },
+    });
+  });
+
   it.each([
     ['У врача уже есть запись на это время.', 'doctor_conflict', 'У врача уже есть запись на это время.'],
     ['У пациента уже есть другая запись на это время.', 'patient_conflict', 'У пациента уже есть другая запись на это время.'],
     ['Время окончания должно быть позже времени начала.', 'invalid_interval', 'Время окончания должно быть позже времени начала.'],
     ['Пациент недоступен в этой клинике.', 'patient_unavailable', 'Пациент недоступен в этой клинике.'],
     ['Врач недоступен в этой клинике.', 'doctor_unavailable', 'Врач недоступен в этой клинике.'],
-    ['Операция с этим идентификатором уже выполнена с другими параметрами.', 'idempotency_conflict', 'Операция с этим идентификатором уже выполнена с другими параметрами.'],
+    ['Операция с этим идентификатором уже выполнена с другими параметрами.', 'idempotency_conflict', 'Эта операция уже была выполнена с другими параметрами.'],
+    ['Запись уже отменена.', 'already_cancelled', 'Запись уже отменена.'],
+    ['Неявка уже отмечена.', 'already_no_show', 'Неявка уже отмечена.'],
+    ['Текущий статус записи не позволяет выполнить это действие.', 'invalid_transition', 'Текущий статус записи не позволяет выполнить это действие.'],
+    ['Укажите причину.', 'reason_required', 'Укажите причину.'],
+    ['Укажите, кто отменил запись.', 'source_required', 'Укажите, кто отменил запись.'],
     ['Запись была изменена другим пользователем. Обновите расписание.', 'concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.'],
     ['permission denied for function', 'permission', 'Недостаточно прав для изменения записи.'],
   ])('maps server error safely: %s', (rawMessage, code, safeMessage) => {
@@ -375,6 +509,8 @@ describe('AppointmentRepository', () => {
     expect(supabaseClass).not.toContain('storage.');
     expect(supabaseClass).toContain("rpc('create_appointment'");
     expect(supabaseClass).toContain("rpc('reschedule_appointment'");
+    expect(supabaseClass).toContain("rpc('cancel_appointment'");
+    expect(supabaseClass).toContain("rpc('mark_appointment_no_show'");
     expect(supabaseClass).toContain("rpc('get_appointment_operation'");
   });
 });

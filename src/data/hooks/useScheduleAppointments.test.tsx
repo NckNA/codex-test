@@ -5,7 +5,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Appointment } from '../../types';
+import type { Appointment, CancellationSource } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import {
@@ -51,7 +51,7 @@ const appointment: Appointment = {
   updatedAt: '2026-07-01T09:00:00+00:00',
 };
 
-const writeResult = (value: Appointment = appointment, operationType: 'create' | 'reschedule' | 'details' = 'create') => ({
+const writeResult = (value: Appointment = appointment, operationType: 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' = 'create') => ({
   appointment: value,
   replayed: false,
   recovered: false,
@@ -74,6 +74,8 @@ const makeRepository = (): IAppointmentRepository => ({
   createAppointment: vi.fn().mockResolvedValue(writeResult()),
   rescheduleAppointment: vi.fn().mockResolvedValue(writeResult(appointment, 'reschedule')),
   updateAppointmentDetails: vi.fn().mockResolvedValue(writeResult(appointment, 'details')),
+  cancelAppointment: vi.fn().mockResolvedValue(writeResult({ ...appointment, status: 'cancelled' }, 'cancel')),
+  markAppointmentNoShow: vi.fn().mockResolvedValue(writeResult({ ...appointment, status: 'no_show' }, 'no_show')),
   recoverAppointmentOperation: vi.fn().mockResolvedValue({ found: false }),
   deleteAppointment: vi.fn().mockResolvedValue(undefined),
 });
@@ -300,6 +302,144 @@ describe('useScheduleAppointments', () => {
 
     expect(harness.getResult().saveError?.message).toBe('У пациента уже есть другая запись на это время.');
     expect(refetchMock).not.toHaveBeenCalled();
+    await harness.unmount();
+  });
+
+  it('blocks rapid duplicate cancellation with one repository call, key, and refetch', async () => {
+    const save = deferred<ReturnType<typeof writeResult>>();
+    const cancel = vi.fn((...args: Parameters<IAppointmentRepository['cancelAppointment']>) => {
+      void args;
+      return save.promise;
+    });
+    repository.cancelAppointment = cancel;
+    const harness = await renderHook();
+
+    let first!: Promise<unknown>;
+    let second!: Promise<unknown>;
+    await act(async () => {
+      first = harness.getResult().cancelAppointment(appointment, 'patient', 'Patient requested');
+      second = harness.getResult().cancelAppointment(appointment, 'patient', 'Patient requested');
+      await Promise.resolve();
+    });
+
+    expect(first).toBe(second);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(cancel.mock.calls[0][3].operationKey).toMatch(/^[0-9a-f-]{36}$/);
+    expect(harness.getResult()).toMatchObject({ isSaving: true, isCancelling: true, isMarkingNoShow: false });
+
+    await act(async () => save.resolve(writeResult({ ...appointment, status: 'cancelled' }, 'cancel')));
+    await first;
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    expect(harness.getResult().isCancelling).toBe(false);
+    await harness.unmount();
+  });
+
+  it('blocks rapid duplicate no-show and cannot run cancel and no-show simultaneously', async () => {
+    const save = deferred<ReturnType<typeof writeResult>>();
+    const noShow = vi.fn(() => save.promise);
+    const cancel = vi.fn().mockResolvedValue(writeResult({ ...appointment, status: 'cancelled' }, 'cancel'));
+    repository.markAppointmentNoShow = noShow;
+    repository.cancelAppointment = cancel;
+    const harness = await renderHook();
+
+    let first!: Promise<unknown>;
+    let second!: Promise<unknown>;
+    let competing!: Promise<unknown>;
+    await act(async () => {
+      first = harness.getResult().markAppointmentNoShow(appointment, 'Unable to contact');
+      second = harness.getResult().markAppointmentNoShow(appointment, 'Unable to contact');
+      competing = harness.getResult().cancelAppointment(appointment, 'clinic', 'Competing action');
+      await Promise.resolve();
+    });
+
+    expect(first).toBe(second);
+    expect(competing).toBe(first);
+    expect(noShow).toHaveBeenCalledTimes(1);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(harness.getResult()).toMatchObject({ isMarkingNoShow: true, isCancelling: false });
+
+    await act(async () => save.resolve(writeResult({ ...appointment, status: 'no_show' }, 'no_show')));
+    await first;
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    await harness.unmount();
+  });
+
+  it('shows lifecycle reconciliation state and keeps the operation key for an ambiguous retry', async () => {
+    const keys: string[] = [];
+    const cancel = vi.fn()
+      .mockImplementationOnce((_current: Appointment, _source: CancellationSource, _reason: string, options: AppointmentWriteOptions) => {
+        keys.push(options.operationKey);
+        options.onRecoveryStateChange?.(true);
+        options.onRecoveryStateChange?.(false);
+        return Promise.reject(new AppointmentRepositoryError(
+          'generic',
+          'Не удалось изменить статус записи. Обновите расписание и проверьте результат.',
+          true,
+        ));
+      })
+      .mockImplementationOnce((_current: Appointment, _source: CancellationSource, _reason: string, options: AppointmentWriteOptions) => {
+        keys.push(options.operationKey);
+        return Promise.resolve(writeResult({ ...appointment, status: 'cancelled' }, 'cancel'));
+      });
+    repository.cancelAppointment = cancel;
+    const harness = await renderHook();
+
+    await act(async () => {
+      await expect(harness.getResult().cancelAppointment(appointment, 'clinic', 'Reason')).rejects.toMatchObject({ ambiguous: true });
+    });
+    await act(async () => {
+      await expect(harness.getResult().cancelAppointment(appointment, 'clinic', 'Reason')).resolves.toMatchObject({ operationType: 'cancel' });
+    });
+
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).toBe(keys[0]);
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    await harness.unmount();
+  });
+
+  it('clears lifecycle key after definitive failure so a corrected retry uses another key', async () => {
+    const keys: string[] = [];
+    const cancel = vi.fn()
+      .mockImplementationOnce((_current: Appointment, _source: CancellationSource, _reason: string, options: AppointmentWriteOptions) => {
+        keys.push(options.operationKey);
+        return Promise.reject(new AppointmentRepositoryError('reason_required', 'Укажите причину.'));
+      })
+      .mockImplementationOnce((_current: Appointment, _source: CancellationSource, _reason: string, options: AppointmentWriteOptions) => {
+        keys.push(options.operationKey);
+        return Promise.resolve(writeResult({ ...appointment, status: 'cancelled' }, 'cancel'));
+      });
+    repository.cancelAppointment = cancel;
+    const harness = await renderHook();
+
+    await act(async () => {
+      await expect(harness.getResult().cancelAppointment(appointment, 'clinic', 'Bad')).rejects.toThrow('Укажите причину');
+    });
+    await act(async () => {
+      await harness.getResult().cancelAppointment(appointment, 'clinic', 'Corrected');
+    });
+
+    expect(keys[1]).not.toBe(keys[0]);
+    await harness.unmount();
+  });
+
+  it('ignores stale lifecycle success after tenant changes and does not refresh new tenant', async () => {
+    const save = deferred<ReturnType<typeof writeResult>>();
+    repository.cancelAppointment = vi.fn(() => save.promise);
+    const harness = await renderHook();
+
+    let pending!: Promise<unknown>;
+    await act(async () => {
+      pending = harness.getResult().cancelAppointment(appointment, 'clinic', 'Tenant A action');
+      await Promise.resolve();
+    });
+    activeTenant = { tenantId: 'tenant-b' };
+    await harness.rerender();
+    expect(harness.getResult().isCancelling).toBe(false);
+
+    await act(async () => save.resolve(writeResult({ ...appointment, status: 'cancelled' }, 'cancel')));
+    await expect(pending).resolves.toBeNull();
+    expect(refetchMock).not.toHaveBeenCalled();
+    expect(harness.getResult().saveError).toBeNull();
     await harness.unmount();
   });
 });
