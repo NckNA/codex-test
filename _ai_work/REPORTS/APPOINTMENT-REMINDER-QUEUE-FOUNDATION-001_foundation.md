@@ -22,7 +22,7 @@ No external message or provider request exists.
 
 ## 4. PR URL
 
-Pending creation after the implementation commit.
+https://github.com/NckNA/codex-test/pull/354
 
 ## 5. Baseline
 
@@ -36,7 +36,15 @@ Pending creation after the implementation commit.
 
 ## 6. PR head reviewed before final report update
 
-Pending implementation commit and first fresh CI run.
+- implementation head: `fd039d793cbc3af4d6bcda25ff46132956d48639`;
+- workflow: `CI`;
+- run number: `#719`;
+- run ID: `29205053951`;
+- conclusion: `success`;
+- tested commit: `fd039d793cbc3af4d6bcda25ff46132956d48639`;
+- tested commit matched the implementation head exactly;
+- ESLint, tests, build, and merge guard passed;
+- PR #354 remains open and unmerged.
 
 ## 7. Report update commit
 
@@ -400,7 +408,7 @@ Repository suite: **9/9 passed**.
 
 Full suite: **91 files / 1016 tests passed**.
 
-## 32. Browser/local smoke
+## 32. Browser smoke / local Supabase
 
 Equivalent isolated HeadlessChrome 150 was used because a separately invokable Chrome DevTools MCP action was unavailable in this environment, which the task explicitly permits when documented.
 
@@ -528,11 +536,21 @@ Non-blocking baseline warnings remain:
 
 ## 39. Fresh CI
 
-Pending PR creation and fresh GitHub Actions CI on the exact implementation head.
+Implementation CI passed on the exact implementation head:
 
-A second fresh CI run is required after the report-only metadata commit. The final CI run must test the exact final PR HEAD and include ESLint, tests, build, and merge guard.
+- workflow: `CI`;
+- run number: `#719`;
+- run ID: `29205053951`;
+- conclusion: `success`;
+- tested commit: `fd039d793cbc3af4d6bcda25ff46132956d48639`;
+- ESLint: passed;
+- tests: passed;
+- build: passed;
+- merge guard: passed.
 
-The PR must remain open and unmerged.
+A second fresh CI run is required after the report-only metadata commit. The final CI run must test the exact final PR HEAD. Its immutable metadata belongs in the finalization receipt because this report cannot reference its own future commit.
+
+PR #354 must remain open and unmerged.
 
 ## 40. Issues / Limitations
 
