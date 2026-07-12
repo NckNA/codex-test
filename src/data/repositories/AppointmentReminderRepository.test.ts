@@ -154,10 +154,166 @@ describe('AppointmentReminderRepository', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it('maps manual operation metadata and preserves exact plan identity', () => {
+    const mapped = mapAppointmentReminderJob(row({
+      original_due_at: '2026-07-11T09:00:00+00:00',
+      completed_by: '55555555-5555-4555-8555-555555555555',
+      completion_outcome: 'no_answer',
+      completion_note: 'Не ответил',
+      confirmation_attempt_id: '66666666-6666-4666-8666-666666666666',
+      deferred_at: '2026-07-11T10:00:00+00:00',
+      deferred_by: '55555555-5555-4555-8555-555555555555',
+      defer_reason: 'Позже',
+      operation_key: 'reminder-complete-test-001',
+      operation_fingerprint: 'c'.repeat(64),
+      last_manual_action_at: '2026-07-12T09:00:00+00:00',
+    }), now);
+    expect(mapped).toMatchObject({
+      originalDueAt: '2026-07-11T09:00:00+00:00',
+      completedBy: '55555555-5555-4555-8555-555555555555',
+      completionOutcome: 'no_answer',
+      confirmationAttemptId: '66666666-6666-4666-8666-666666666666',
+      deferReason: 'Позже',
+      operationKey: 'reminder-complete-test-001',
+    });
+  });
+
+  it('uses only controlled RPCs for complete, defer and skip and preserves operation keys', async () => {
+    const appointmentRow = {
+      id: appointmentId,
+      tenant_id: tenantId,
+      patient_id: patientId,
+      doctor_id: '77777777-7777-4777-8777-777777777777',
+      cabinet: 'A1', service: 'Consultation', status: 'new',
+      start_time: '2026-07-20T10:00:00+00:00', end_time: '2026-07-20T11:00:00+00:00',
+      created_at: '2026-07-01T00:00:00+00:00', updated_at: '2026-07-11T08:00:00.123456+00:00',
+      confirmation_state: 'contact_in_progress', confirmation_attempt_count: 1,
+    };
+    const result = (operationType: string, jobOverrides: Record<string, unknown> = {}) => ({
+      job: row(jobOverrides),
+      appointment: appointmentRow,
+      confirmationAttempt: operationType === 'reminder_complete' ? {
+        id: '88888888-8888-4888-8888-888888888888', tenant_id: tenantId,
+        appointment_id: appointmentId, patient_id: patientId,
+        actor_user_id: '99999999-9999-4999-8999-999999999999',
+        channel: 'phone', outcome: 'no_answer', attempted_at: now, created_at: now,
+      } : null,
+      replayed: false, recovered: false, operationType,
+    });
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: result('reminder_complete', { state: 'completed', completed_at: now, completed_by: patientId, completion_outcome: 'no_answer', terminal_reason: 'manual_completed' }), error: null })
+      .mockResolvedValueOnce({ data: result('reminder_defer', { due_at: '2026-07-15T09:00:00+00:00', deferred_at: now, deferred_by: patientId, defer_reason: 'Позже' }), error: null })
+      .mockResolvedValueOnce({ data: result('reminder_skip', { state: 'skipped', skipped_at: now, skipped_by: patientId, terminal_reason: 'Не требуется' }), error: null });
+    const repository = new SupabaseAppointmentReminderRepository(
+      tenantId,
+      { rpc, from: vi.fn() } as unknown as SupabaseClient,
+    );
+
+    await repository.completeReminderJob({
+      jobId: row().id as string,
+      channel: 'phone', outcome: 'no_answer', note: '  Не ответил  ',
+      expectedJobUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      expectedAppointmentUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      operationKey: 'complete-key-001',
+    });
+    await repository.deferReminderJob({
+      jobId: row().id as string,
+      newDueAt: '2026-07-15T09:00:00+00:00', reason: '  Позже  ',
+      expectedJobUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      expectedAppointmentUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      operationKey: 'defer-key-001',
+    });
+    await repository.skipReminderJob({
+      jobId: row().id as string,
+      reason: '  Не требуется  ',
+      expectedJobUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      expectedAppointmentUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      operationKey: 'skip-key-001',
+    });
+
+    expect(rpc).toHaveBeenNthCalledWith(1, 'complete_appointment_reminder_job', expect.objectContaining({
+      p_tenant_id: tenantId, p_operation_key: 'complete-key-001', p_note: 'Не ответил',
+    }));
+    expect(rpc).toHaveBeenNthCalledWith(2, 'defer_appointment_reminder_job', expect.objectContaining({
+      p_tenant_id: tenantId, p_operation_key: 'defer-key-001', p_reason: 'Позже',
+    }));
+    expect(rpc).toHaveBeenNthCalledWith(3, 'skip_appointment_reminder_job', expect.objectContaining({
+      p_tenant_id: tenantId, p_operation_key: 'skip-key-001', p_reason: 'Не требуется',
+    }));
+  });
+
+  it('maps a structured optimistic conflict result without relying on an HTTP error', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        errorCode: 'stale',
+        errorMessage: 'Задача устарела из-за изменения записи. Обновите очередь.',
+      },
+      error: null,
+    });
+    const repository = new SupabaseAppointmentReminderRepository(
+      tenantId,
+      { rpc, from: vi.fn() } as unknown as SupabaseClient,
+    );
+
+    await expect(repository.completeReminderJob({
+      jobId: row().id as string,
+      channel: 'phone',
+      outcome: 'no_answer',
+      expectedJobUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      expectedAppointmentUpdatedAt: '2026-07-11T08:00:00.123456+00:00',
+      operationKey: 'structured-stale-001',
+    })).rejects.toMatchObject({
+      code: 'stale',
+      message: 'Задача устарела из-за изменения записи. Обновите очередь.',
+    });
+  });
+
+  it('recovers a committed reminder operation by the same tenant-scoped key', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        found: true,
+        operationType: 'reminder_skip',
+        reminderJob: row({ state: 'skipped', skipped_at: now, skipped_by: patientId, terminal_reason: 'Причина' }),
+        appointment: {
+          id: appointmentId, patient_id: patientId, doctor_id: '77777777-7777-4777-8777-777777777777',
+          cabinet: 'A1', service: 'Consultation', status: 'new',
+          start_time: '2026-07-20T10:00:00+00:00', end_time: '2026-07-20T11:00:00+00:00',
+          created_at: now, updated_at: now,
+        },
+        confirmationAttempt: null,
+        replayed: true,
+        recovered: true,
+      },
+      error: null,
+    });
+    const repository = new SupabaseAppointmentReminderRepository(
+      tenantId,
+      { rpc, from: vi.fn() } as unknown as SupabaseClient,
+    );
+    const recovered = await repository.getReminderOperation('skip-key-001');
+    expect(rpc).toHaveBeenCalledWith('get_appointment_operation', {
+      p_tenant_id: tenantId,
+      p_operation_key: 'skip-key-001',
+    });
+    expect(recovered).toMatchObject({ replayed: true, recovered: true, operationType: 'reminder_skip' });
+  });
+
+  it('maps all manual-operation domain failures without exposing database details', () => {
+    expect(toSafeAppointmentReminderError({ message: 'Задача устарела из-за изменения записи.' }, 'complete')).toMatchObject({ code: 'stale' });
+    expect(toSafeAppointmentReminderError({ code: '55000', message: 'garbled', hint: 'reminder_stale' }, 'complete')).toMatchObject({ code: 'stale' });
+    expect(toSafeAppointmentReminderError({ message: 'Задача уже завершена.' }, 'complete')).toMatchObject({ code: 'already_completed' });
+    expect(toSafeAppointmentReminderError({ message: 'Эта задача больше не доступна.' }, 'skip')).toMatchObject({ code: 'terminal' });
+    expect(toSafeAppointmentReminderError({ message: 'Укажите причину.' }, 'defer')).toMatchObject({ code: 'reason_required' });
+    expect(toSafeAppointmentReminderError({ message: 'Задача была изменена другим пользователем.' }, 'skip')).toMatchObject({ code: 'concurrent' });
+    expect(toSafeAppointmentReminderError({ code: '55000', message: 'garbled', hint: 'reminder_concurrent' }, 'skip')).toMatchObject({ code: 'concurrent' });
+    expect(toSafeAppointmentReminderError({ message: '23505 secret constraint' }, 'complete'))
+      .toEqual(new AppointmentReminderRepositoryError('idempotency_conflict', 'Эта операция уже выполнена с другими параметрами.'));
+  });
+
   it('contains no direct insert or update path for reminder jobs', () => {
     expect(repositorySource).not.toMatch(/\.insert\s*\(/);
     expect(repositorySource).not.toMatch(/\.update\s*\(/);
     expect(repositorySource).not.toMatch(/service[_-]?role/i);
-    expect(repositorySource).not.toMatch(/sms|whatsapp|email|provider_message_id|delivered/i);
+    expect(repositorySource).not.toMatch(/provider_message_id|delivered|send_sms|send_whatsapp|send_email/i);
   });
 });

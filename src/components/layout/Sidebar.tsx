@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   CalendarDays,
+  BellRing,
   Users,
   ClipboardList,
   FileText,
@@ -47,9 +48,13 @@ const adminNavItems = [
 
 export function Sidebar() {
   const { activeTenant } = useTenant();
+  const reminderItems = !activeTenant || ['clinic_owner', 'clinic_admin', 'registrar'].includes(activeTenant.role ?? '')
+    ? [{ to: '/reminders', icon: BellRing, label: 'Напоминания' }]
+    : [];
+  const operationalItems = [navItems[0], ...reminderItems, ...navItems.slice(1)];
   const visibleItems = canViewAdminAudit(activeTenant?.role)
-    ? [...navItems, ...adminNavItems]
-    : navItems;
+    ? [...operationalItems, ...adminNavItems]
+    : operationalItems;
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col h-full overflow-y-auto shrink-0 border-r border-slate-800">
