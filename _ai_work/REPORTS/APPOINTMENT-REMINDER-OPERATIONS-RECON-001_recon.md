@@ -20,7 +20,7 @@ After timezone is authoritative, the first reminder slice should be a tenant-sco
 
 ## 4. PR URL
 
-Pending at the time of the initial report commit. The PR URL is added in the final report-only update after the branch is pushed.
+https://github.com/NckNA/codex-test/pull/351
 
 ## 5. Baseline
 
@@ -33,7 +33,14 @@ Pending at the time of the initial report commit. The PR URL is added in the fin
 
 ## 6. PR head reviewed before final report update
 
-Pending at the time of the initial report commit. This section is populated after fresh GitHub Actions CI completes on the initial report head.
+- reviewed head: `ecd43743bd6555b1df7f0a07f53c25771b67dc8b`;
+- workflow: `CI`;
+- run number: `#710`;
+- run ID: `29199814576`;
+- conclusion: `success`;
+- tested commit matched the reviewed PR head exactly;
+- pull request: open, non-draft, not merged;
+- changed files: exactly one report.
 
 ## 7. Report update commit
 
@@ -1031,7 +1038,7 @@ Not executable locally in this conversation:
 - local Supabase CTE experiments;
 - local `git diff --check`.
 
-GitHub Actions CI is required on the report head and final report-update head. Its result is recorded after the PR is opened.
+GitHub Actions CI on the initial report head passed lint, tests and build. A second fresh CI run is mandatory on the exact final report-update head; that immutable result is recorded in the final task response because this report cannot reference its own future commit.
 
 ## 47. Cleanup
 
