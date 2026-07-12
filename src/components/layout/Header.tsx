@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { getClinicRoleLabel } from '../../domain/roleLabels';
+import { formatTenantDate } from '../../domain/timezone';
 
 export function Header() {
   const {
@@ -25,10 +26,10 @@ export function Header() {
 
   const { doctors } = useClinicDoctors();
   const { user, authMode, signOut } = useAuth();
-  const { activeTenant } = useTenant();
+  const { activeTenant, availableTenants, setActiveTenant } = useTenant();
   const roleLabel = getClinicRoleLabel(activeTenant?.role);
 
-  const formattedDate = selectedDate.toLocaleDateString('ru-RU', {
+  const formattedDate = formatTenantDate(selectedDate, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -92,6 +93,26 @@ export function Header() {
           <Calendar className="w-4 h-4 text-slate-400" />
           <span className="capitalize">{formattedDate}</span>
         </div>
+
+        {activeTenant && (
+          <label className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="sr-only">Клиника</span>
+            <select
+              data-testid="tenant-switcher"
+              aria-label="Клиника"
+              value={activeTenant.tenantId}
+              onChange={(event) => setActiveTenant(event.target.value)}
+              disabled={availableTenants.length < 2}
+              className="max-w-44 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50"
+            >
+              {availableTenants.map((tenant) => (
+                <option key={tenant.tenantId} value={tenant.tenantId}>
+                  {tenant.tenantName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="h-6 w-px bg-slate-200 mx-2"></div>
 

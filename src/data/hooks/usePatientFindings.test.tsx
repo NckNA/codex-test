@@ -41,7 +41,7 @@ describe('usePatientFindings', () => {
     const factorySpy = vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository');
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       usePatientFindings('patient_1');
@@ -66,7 +66,7 @@ describe('usePatientFindings', () => {
     const factorySpy = vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository');
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'dev' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       usePatientFindings('patient_1');

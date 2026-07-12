@@ -12,6 +12,12 @@ import {
   cancellationSourceLabel,
   isTerminalAppointmentLifecycle,
 } from './appointmentLifecycle';
+import {
+  formatInstantInTenant,
+  instantToTenantDateTimeInput,
+  tenantDateTimeToInstant,
+  TimezoneError,
+} from '../../domain/timezone';
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -29,6 +35,7 @@ interface AppointmentModalProps {
   isReconcilingConfirmation?: boolean;
   onDelete?: (id: string) => Promise<boolean>;
   role?: string;
+  timezone: string;
   initialData?: Partial<Appointment>;
   appointments: Appointment[];
   doctors: Doctor[];
@@ -52,6 +59,13 @@ const defaultForm = (): Partial<Appointment> => ({
   comment: '',
 });
 
+const appointmentToFormData = (appointment: Partial<Appointment> | undefined, timezone: string): Partial<Appointment> => ({
+  ...defaultForm(),
+  ...appointment,
+  start: appointment?.start ? instantToTenantDateTimeInput(appointment.start, timezone) : '',
+  end: appointment?.end ? instantToTenantDateTimeInput(appointment.end, timezone) : '',
+});
+
 export function AppointmentModal({
   isOpen,
   onClose,
@@ -68,6 +82,7 @@ export function AppointmentModal({
   isReconcilingConfirmation = false,
   onDelete,
   role,
+  timezone,
   initialData,
   appointments,
   doctors,
@@ -81,10 +96,9 @@ export function AppointmentModal({
   const submitLockRef = useRef(false);
   const appointmentContextRef = useRef<string | null>(initialData?.id || null);
   const [isSubmittingLocally, setIsSubmittingLocally] = useState(false);
-  const [formData, setFormData] = useState<Partial<Appointment>>({
-    ...defaultForm(),
-    ...initialData,
-  });
+  const [formData, setFormData] = useState<Partial<Appointment>>(
+    () => appointmentToFormData(initialData, timezone),
+  );
   const [localError, setLocalError] = useState<string | null>(null);
   const [lifecycleDialog, setLifecycleDialog] = useState<'cancel' | 'no_show' | null>(null);
   const isBusy = isSaving || isSubmittingLocally || isRecordingConfirmationAttempt || isConfirmingAppointment;
@@ -97,15 +111,12 @@ export function AppointmentModal({
   useEffect(() => {
     appointmentContextRef.current = initialData?.id || null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFormData({
-      ...defaultForm(),
-      ...initialData,
-    });
+    setFormData(appointmentToFormData(initialData, timezone));
     setLocalError(null);
     setIsSubmittingLocally(false);
     setLifecycleDialog(null);
     submitLockRef.current = false;
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, timezone]);
 
   if (!isOpen) return null;
 
@@ -123,10 +134,7 @@ export function AppointmentModal({
     setLocalError(null);
   };
 
-  const checkConflicts = (): boolean => {
-    const proposedStart = new Date(formData.start as string).getTime();
-    const proposedEnd = new Date(formData.end as string).getTime();
-
+  const checkConflicts = (proposedStart: number, proposedEnd: number): boolean => {
     for (const appointment of appointments) {
       if (appointment.id === formData.id || appointment.status === 'cancelled') continue;
 
@@ -168,14 +176,24 @@ export function AppointmentModal({
       return;
     }
 
-    const startTime = new Date(formData.start).getTime();
-    const endTime = new Date(formData.end).getTime();
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
-      setLocalError('Время окончания должно быть позже времени начала.');
+    let startInstant: string;
+    let endInstant: string;
+    try {
+      startInstant = tenantDateTimeToInstant(formData.start, timezone);
+      endInstant = tenantDateTimeToInstant(formData.end, timezone);
+    } catch (error) {
+      setLocalError(error instanceof TimezoneError ? error.message : '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u0430\u0442\u044c \u0432\u0440\u0435\u043c\u044f \u0437\u0430\u043f\u0438\u0441\u0438. \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u0435 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0441\u043d\u043e\u0432\u0430.');
       return;
     }
 
-    if (checkConflicts()) return;
+    const startTime = new Date(startInstant).getTime();
+    const endTime = new Date(endInstant).getTime();
+    if (endTime <= startTime) {
+      setLocalError('\u0412\u0440\u0435\u043c\u044f \u043e\u043a\u043e\u043d\u0447\u0430\u043d\u0438\u044f \u0434\u043e\u043b\u0436\u043d\u043e \u0431\u044b\u0442\u044c \u043f\u043e\u0437\u0436\u0435 \u0432\u0440\u0435\u043c\u0435\u043d\u0438 \u043d\u0430\u0447\u0430\u043b\u0430.');
+      return;
+    }
+
+    if (checkConflicts(startTime, endTime)) return;
 
     const appointmentToSave: Appointment = {
       id: formData.id || crypto.randomUUID(),
@@ -183,8 +201,8 @@ export function AppointmentModal({
       doctorId: formData.doctorId,
       cabinet: formData.cabinet || doctors.find((doctor) => doctor.id === formData.doctorId)?.cabinet || 'Каб. 1',
       service: formData.service || '',
-      start: formData.start,
-      end: formData.end,
+      start: startInstant,
+      end: endInstant,
       status: formData.status as AppointmentStatus,
       paymentType: formData.paymentType as PaymentType,
       source: formData.source as Source,
@@ -230,7 +248,7 @@ export function AppointmentModal({
     const capturedAppointmentId = storedAppointment.id;
     const result = await onCancel(storedAppointment, source, reason);
     if (appointmentContextRef.current !== capturedAppointmentId) return null;
-    if (result) setFormData(result);
+    if (result) setFormData(appointmentToFormData(result, timezone));
     return result;
   };
 
@@ -239,7 +257,7 @@ export function AppointmentModal({
     const capturedAppointmentId = storedAppointment.id;
     const result = await onMarkNoShow(storedAppointment, reason);
     if (appointmentContextRef.current !== capturedAppointmentId) return null;
-    if (result) setFormData(result);
+    if (result) setFormData(appointmentToFormData(result, timezone));
     return result;
   };
 
@@ -252,7 +270,7 @@ export function AppointmentModal({
     const capturedAppointmentId = storedAppointment.id;
     const result = await onRecordConfirmationAttempt(storedAppointment, channel, outcome, note);
     if (appointmentContextRef.current !== capturedAppointmentId) return null;
-    if (result) setFormData(result);
+    if (result) setFormData(appointmentToFormData(result, timezone));
     return result;
   };
 
@@ -264,7 +282,7 @@ export function AppointmentModal({
     const capturedAppointmentId = storedAppointment.id;
     const result = await onConfirmAppointment(storedAppointment, channel, note);
     if (appointmentContextRef.current !== capturedAppointmentId) return null;
-    if (result) setFormData(result);
+    if (result) setFormData(appointmentToFormData(result, timezone));
     return result;
   };
 
@@ -474,7 +492,7 @@ export function AppointmentModal({
               {isEditing && formData.status === 'cancelled' && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" data-testid="appointment-cancellation-metadata">
                   <div className="font-semibold">Запись отменена</div>
-                  <div>Дата: {formData.cancelledAt ? new Date(formData.cancelledAt).toLocaleString('ru-RU') : 'Историческая запись'}</div>
+                  <div>Дата: {formData.cancelledAt ? formatInstantInTenant(formData.cancelledAt, timezone) : 'Историческая запись'}</div>
                   <div>Кто отменил: {cancellationSourceLabel(formData.cancellationSource)}</div>
                   <div>Причина: {formData.cancellationReason || 'Причина не была сохранена в прежней версии системы'}</div>
                   <div>Сотрудник: {formData.cancelledBy ? 'Сотрудник клиники' : 'Не указан'}</div>
@@ -484,15 +502,16 @@ export function AppointmentModal({
               {isEditing && formData.status === 'no_show' && (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" data-testid="appointment-no-show-metadata">
                   <div className="font-semibold">Отмечена неявка</div>
-                  <div>Дата: {formData.noShowAt ? new Date(formData.noShowAt).toLocaleString('ru-RU') : 'Историческая запись'}</div>
+                  <div>Дата: {formData.noShowAt ? formatInstantInTenant(formData.noShowAt, timezone) : 'Историческая запись'}</div>
                   <div>Причина: {formData.noShowReason || 'Причина не была сохранена в прежней версии системы'}</div>
                   <div>Сотрудник: {formData.noShowBy ? 'Сотрудник клиники' : 'Не указан'}</div>
                 </div>
               )}
               {isEditing && storedAppointment && (
                 <AppointmentConfirmationPanel
-                  appointment={formData as Appointment}
+                  appointment={{ ...storedAppointment, ...formData, start: storedAppointment.start, end: storedAppointment.end } as Appointment}
                   role={role}
+                  timezone={timezone}
                   attempts={confirmationAttempts}
                   isLoadingAttempts={isLoadingConfirmationAttempts}
                   attemptsError={confirmationAttemptsError}
@@ -570,6 +589,7 @@ export function AppointmentModal({
     {lifecycleDialog === 'cancel' && storedAppointment && (
       <AppointmentCancellationDialog
         appointment={storedAppointment}
+        timezone={timezone}
         patientName={patientName}
         doctorName={doctorName}
         isSaving={isBusy}
@@ -582,6 +602,7 @@ export function AppointmentModal({
     {lifecycleDialog === 'no_show' && storedAppointment && (
       <AppointmentNoShowDialog
         appointment={storedAppointment}
+        timezone={timezone}
         patientName={patientName}
         doctorName={doctorName}
         isSaving={isBusy}

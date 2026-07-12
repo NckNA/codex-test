@@ -71,7 +71,7 @@ describe('useTreatmentPlans hook', () => {
     Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: false, configurable: true });
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       useTreatmentPlans('patient_1');
@@ -125,7 +125,7 @@ describe('useTreatmentPlans hook', () => {
     Object.defineProperty(SupabaseClientModule, 'isSupabaseConfigured', { value: true, configurable: true });
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       useTreatmentPlans('patient_1');

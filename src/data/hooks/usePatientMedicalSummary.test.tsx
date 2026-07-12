@@ -34,7 +34,7 @@ describe('usePatientMedicalSummary', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     authState = { authMode: 'supabase-active', user: { id: 'user-a' } };
-    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A', timezone: 'Asia/Almaty'} };
     vi.mocked(useAuth).mockImplementation(() => authState);
     vi.mocked(useTenant).mockImplementation(() => tenantState);
   });
@@ -75,7 +75,7 @@ describe('usePatientMedicalSummary', () => {
 
   it('uses local backend only in explicit dev mode', async () => {
     authState = { authMode: 'dev', user: { id: 'dev-user' } };
-    tenantState = { activeTenant: { tenantId: 'dev-tenant', tenantName: 'Dev' } };
+    tenantState = { activeTenant: { tenantId: 'dev-tenant', tenantName: 'Dev', timezone: 'Asia/Almaty'} };
     const spy = vi.spyOn(ClinicalSummary, 'getPatientMedicalSummary').mockResolvedValue(summary(200));
     const { root } = await mount('patient-a');
 
@@ -108,7 +108,7 @@ describe('usePatientMedicalSummary', () => {
       .mockImplementation((_patientId, config) => config.tenantId === 'tenant-a' ? a.promise : b.promise);
     const { root, Harness } = await mount('patient-a');
 
-    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B', timezone: 'Asia/Almaty'} };
     await act(async () => root.render(<Harness id="patient-a" tick={1} />));
     expect(current?.data).toEqual(ClinicalSummary.EMPTY_PATIENT_MEDICAL_SUMMARY);
 

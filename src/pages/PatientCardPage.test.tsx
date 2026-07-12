@@ -45,7 +45,7 @@ function renderPage() {
 describe('PatientCardPage timeline tab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', timezone: 'Asia/Almaty', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(usePatientProfile).mockReturnValue({
       patient: {
         id: 'patient-1',

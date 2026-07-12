@@ -9,6 +9,7 @@ import type {
   Source,
 } from '../../types';
 import { compareAppointmentsByStartThenId } from '../../domain/appointmentSummary';
+import { isOffsetAwareInstant } from '../../domain/timezone';
 import { storage } from '../../utils/storage';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -354,8 +355,8 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
         p_tenant_id: this.tenantId,
         p_patient_id: appointment.patientId || null,
         p_doctor_id: appointment.doctorId,
-        p_start_time: this.normalizeTimeForDb(appointment.start),
-        p_end_time: this.normalizeTimeForDb(appointment.end),
+        p_start_time: this.normalizeInstantForDb(appointment.start),
+        p_end_time: this.normalizeInstantForDb(appointment.end),
         p_cabinet: appointment.cabinet || '',
         p_service: appointment.service || '',
         p_status: appointment.status,
@@ -389,8 +390,8 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
         p_appointment_id: current.id,
         p_patient_id: next.patientId || null,
         p_doctor_id: next.doctorId,
-        p_start_time: this.normalizeTimeForDb(next.start),
-        p_end_time: this.normalizeTimeForDb(next.end),
+        p_start_time: this.normalizeInstantForDb(next.start),
+        p_end_time: this.normalizeInstantForDb(next.end),
         p_cabinet: next.cabinet || '',
         p_service: next.service || '',
         p_status: next.status,
@@ -643,15 +644,24 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     };
   }
 
-  private normalizeTimeForDb(timeStr: string): string {
-    if (!timeStr) return timeStr;
-    if (timeStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(timeStr)) return timeStr;
-    return timeStr.length === 16 ? `${timeStr}:00Z` : `${timeStr}Z`;
+  private normalizeInstantForDb(value: string): string {
+    if (!isOffsetAwareInstant(value)) {
+      throw new AppointmentRepositoryError(
+        'generic',
+        'Не удалось обработать время записи. Обновите страницу и попробуйте снова.',
+      );
+    }
+    return new Date(value).toISOString();
   }
 
-  private normalizeTimeFromDb(timeStr: string): string {
-    if (!timeStr) return timeStr;
-    return timeStr.replace(/(Z|[+-]\d{2}:\d{2})$/, '');
+  private normalizeTimeFromDb(value: string): string {
+    if (!isOffsetAwareInstant(value)) {
+      throw new AppointmentRepositoryError(
+        'generic',
+        'Не удалось обработать время записи. Обновите страницу и попробуйте снова.',
+      );
+    }
+    return value;
   }
 
   private mapToConfirmationAttempt = (row: Record<string, unknown>): AppointmentConfirmationAttempt => ({
@@ -702,7 +712,7 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     start: this.normalizeTimeFromDb(row.start_time as string),
     end: this.normalizeTimeFromDb(row.end_time as string),
     createdAt: this.normalizeTimeFromDb(row.created_at as string),
-    updatedAt: row.updated_at as string,
+    updatedAt: this.normalizeTimeFromDb(row.updated_at as string),
   });
 }
 

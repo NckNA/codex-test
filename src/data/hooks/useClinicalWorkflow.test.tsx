@@ -36,7 +36,7 @@ describe('useClinicalWorkflow', () => {
     const treatmentPlansFactorySpy = vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository');
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       useClinicalWorkflow();
@@ -65,7 +65,7 @@ describe('useClinicalWorkflow', () => {
     const treatmentPlansFactorySpy = vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository');
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'dev' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       useClinicalWorkflow();
@@ -125,7 +125,7 @@ describe('useClinicalWorkflow', () => {
     (globalThis as typeof globalThis & { __IS_SUPABASE_CONFIGURED__?: boolean }).__IS_SUPABASE_CONFIGURED__ = false;
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
     const TestComponent = () => {
       useClinicalWorkflow();

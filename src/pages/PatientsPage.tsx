@@ -5,6 +5,8 @@ import { PatientModal } from '../components/patients/PatientModal';
 import { useNavigate } from 'react-router-dom';
 import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 import { usePatientListVisitSummary } from '../data/hooks/usePatientListVisitSummary';
+import { LEGACY_TENANT_TIMEZONE, useTenant } from '../contexts/TenantContext';
+import { formatInstantInTenant } from '../domain/timezone';
 
 const getSourceLabel = (source?: string) => {
   switch (source) {
@@ -85,6 +87,8 @@ const getLeadStatusLabel = (status?: PatientLeadStatus) => {
 
 export function PatientsPage() {
   const navigate = useNavigate();
+  const { activeTenant } = useTenant();
+  const timezone = activeTenant?.timezone ?? LEGACY_TENANT_TIMEZONE;
   const {
     patients,
     isLoading: isPatientsLoading,
@@ -139,7 +143,7 @@ export function PatientsPage() {
 
   const formatDate = (date?: Date) => {
     if (!date) return '-';
-    return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return formatInstantInTenant(date, timezone, { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   if (isPatientsError && patients.length === 0 && !isModalOpen) {

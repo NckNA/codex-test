@@ -30,10 +30,10 @@ const baseAuth: AuthValue = {
   signOut: vi.fn(),
 };
 
-const tenantRow = (tenantId: string, name: string, role: string) => ({
+const tenantRow = (tenantId: string, name: string, role: string, timezone?: string) => ({
   tenant_id: tenantId,
   role,
-  tenants: { id: tenantId, name, status: 'active' },
+  tenants: { id: tenantId, name, status: 'active', ...(timezone ? { timezone } : {}) },
 });
 
 const renderTenantContext = async (authValue: AuthValue) => {
@@ -144,10 +144,10 @@ describe('TenantContext behavior', () => {
     });
 
     expect(mockFrom).toHaveBeenCalledWith('tenant_users');
-    expect(mockSelect).toHaveBeenCalledWith('role, tenant_id, tenants(id, name, status)');
+    expect(mockSelect).toHaveBeenCalledWith('role, tenant_id, tenants(id, name, status, timezone)');
     expect(mockEq).toHaveBeenCalledWith('user_id', 'real-user-123');
     expect(view.result.availableTenants).toEqual([
-      { tenantId: '11111111-1111-1111-1111-111111111111', tenantName: 'Demo Clinic A', role: 'clinic_admin' },
+      { tenantId: '11111111-1111-1111-1111-111111111111', tenantName: 'Demo Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
     ]);
     expect(view.result.activeTenant?.tenantId).toBe('11111111-1111-1111-1111-111111111111');
     expect(view.result.isLoading).toBe(false);
@@ -222,6 +222,36 @@ describe('TenantContext behavior', () => {
     await unmount(view.root);
   });
 
+  it('switches tenant and timezone together without retaining the previous zone', async () => {
+    mockEq.mockResolvedValue({
+      data: [
+        tenantRow('11111111-1111-1111-1111-111111111111', 'Almaty Clinic', 'clinic_admin', 'Asia/Almaty'),
+        tenantRow('22222222-2222-2222-2222-222222222222', 'Berlin Clinic', 'doctor', 'Europe/Berlin'),
+      ],
+      error: null,
+    });
+
+    const view = await renderTenantContext({
+      ...baseAuth,
+      user: { id: 'timezone-user', email: 'timezone@example.com' },
+      isLoading: false,
+      authMode: 'supabase-active',
+    });
+
+    expect(view.result.activeTenant).toMatchObject({
+      tenantId: '11111111-1111-1111-1111-111111111111',
+      timezone: 'Asia/Almaty',
+    });
+
+    await act(async () => view.result.setActiveTenant('22222222-2222-2222-2222-222222222222'));
+
+    expect(view.result.activeTenant).toMatchObject({
+      tenantId: '22222222-2222-2222-2222-222222222222',
+      timezone: 'Europe/Berlin',
+    });
+    expect(view.result.activeTenant?.timezone).not.toBe('Asia/Almaty');
+    await unmount(view.root);
+  });
   it('does not leak tenants across user switches', async () => {
     let pendingResolve: (value: unknown) => void;
     const pendingPromise = new Promise((resolve) => {

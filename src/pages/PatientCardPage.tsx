@@ -215,6 +215,7 @@ export function PatientCardPage() {
             dentalSummary={dentalSummary}
             lastVisit={lastVisit}
             nextVisit={nextVisit}
+            timezone={activeTenant?.timezone ?? 'Asia/Almaty'}
             onNavigateToSchedule={() => navigate('/')}
           />
         )}

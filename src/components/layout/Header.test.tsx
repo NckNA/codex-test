@@ -23,8 +23,8 @@ const mockAuth = (overrides: Partial<ReturnType<typeof AuthContextModule.useAuth
 
 const mockTenant = (role?: string) => {
   vi.spyOn(TenantContextModule, 'useTenant').mockReturnValue({
-    activeTenant: { tenantId: 'tenant-1', tenantName: 'Demo Clinic', role },
-    availableTenants: [{ tenantId: 'tenant-1', tenantName: 'Demo Clinic', role }],
+    activeTenant: { tenantId: 'tenant-1', tenantName: 'Demo Clinic', timezone: 'Asia/Almaty', role },
+    availableTenants: [{ tenantId: 'tenant-1', tenantName: 'Demo Clinic', timezone: 'Asia/Almaty', role }],
     setActiveTenant: vi.fn(),
     isLoading: false,
     error: null,
@@ -33,7 +33,7 @@ const mockTenant = (role?: string) => {
 
 const mockSchedule = () => {
   vi.spyOn(ScheduleContextModule, 'useScheduleContext').mockReturnValue({
-    selectedDate: new Date('2026-06-15T00:00:00.000Z'),
+    selectedDate: '2026-06-15',
     setSelectedDate: vi.fn(),
     viewMode: 'day',
     setViewMode: vi.fn(),
@@ -181,10 +181,10 @@ describe('Header role label', () => {
   it('updates the visible label when active tenant role changes', async () => {
     const tenantSpy = vi.spyOn(TenantContextModule, 'useTenant');
     tenantSpy.mockReturnValue({
-      activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic A', role: 'clinic_admin' },
+      activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
       availableTenants: [
-        { tenantId: 'tenant-a', tenantName: 'Clinic A', role: 'clinic_admin' },
-        { tenantId: 'tenant-b', tenantName: 'Clinic B', role: 'doctor' },
+        { tenantId: 'tenant-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
+        { tenantId: 'tenant-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
       ],
       setActiveTenant: vi.fn(),
       isLoading: false,
@@ -201,10 +201,10 @@ describe('Header role label', () => {
     expect(roleLabel(container)).toBe('Администратор клиники');
 
     tenantSpy.mockReturnValue({
-      activeTenant: { tenantId: 'tenant-b', tenantName: 'Clinic B', role: 'doctor' },
+      activeTenant: { tenantId: 'tenant-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
       availableTenants: [
-        { tenantId: 'tenant-a', tenantName: 'Clinic A', role: 'clinic_admin' },
-        { tenantId: 'tenant-b', tenantName: 'Clinic B', role: 'doctor' },
+        { tenantId: 'tenant-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
+        { tenantId: 'tenant-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
       ],
       setActiveTenant: vi.fn(),
       isLoading: false,

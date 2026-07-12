@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { formatInstantInTenant } from '../../domain/timezone';
 import type { Appointment, CancellationSource } from '../../types';
 import { CANCELLATION_SOURCE_LABELS } from './appointmentLifecycle';
 
 interface AppointmentCancellationDialogProps {
   appointment: Appointment;
+  timezone: string;
   patientName: string;
   doctorName: string;
   isSaving: boolean;
@@ -16,6 +18,7 @@ interface AppointmentCancellationDialogProps {
 
 export function AppointmentCancellationDialog({
   appointment,
+  timezone,
   patientName,
   doctorName,
   isSaving,
@@ -28,7 +31,6 @@ export function AppointmentCancellationDialog({
   const [reason, setReason] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
-  const start = new Date(appointment.start);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -72,7 +74,7 @@ export function AppointmentCancellationDialog({
             <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-2 rounded-lg bg-slate-50 p-3 text-sm">
               <dt className="text-slate-500">Пациент</dt><dd className="font-medium text-slate-800">{patientName}</dd>
               <dt className="text-slate-500">Врач</dt><dd className="font-medium text-slate-800">{doctorName}</dd>
-              <dt className="text-slate-500">Дата и время</dt><dd className="font-medium text-slate-800">{start.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}</dd>
+              <dt className="text-slate-500">Дата и время</dt><dd className="font-medium text-slate-800">{formatInstantInTenant(appointment.start, timezone, { dateStyle: 'short', timeStyle: 'short' })}</dd>
               <dt className="text-slate-500">Текущий статус</dt><dd className="font-medium text-slate-800">{appointment.status}</dd>
             </dl>
 

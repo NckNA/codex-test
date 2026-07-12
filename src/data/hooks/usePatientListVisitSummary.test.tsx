@@ -41,7 +41,7 @@ describe('usePatientListVisitSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState = { authMode: 'supabase-active', user: { id: 'user-a' } };
-    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A', timezone: 'Asia/Almaty'} };
     vi.mocked(useAuth).mockImplementation(() => authState);
     vi.mocked(useTenant).mockImplementation(() => tenantState);
   });
@@ -102,7 +102,7 @@ describe('usePatientListVisitSummary', () => {
     } as any));
     const { root, Harness } = await mount();
 
-    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B', timezone: 'Asia/Almaty'} };
     await act(async () => root.render(<Harness tick={1} />));
     expect(current?.visitSummaryByPatientId).toEqual({});
 

@@ -109,8 +109,8 @@ const mockUseAuth = (overrides: Partial<ReturnType<typeof AuthContextModule.useA
 
 const mockUseTenant = (role: string | null, tenantId = 'tenant-1') => {
   vi.spyOn(TenantContextModule, 'useTenant').mockReturnValue({
-    activeTenant: tenantId ? { tenantId, tenantName: 'Clinic', role: role ?? undefined } : null,
-    availableTenants: tenantId ? [{ tenantId, tenantName: 'Clinic', role: role ?? undefined }] : [],
+    activeTenant: tenantId ? { tenantId, tenantName: 'Clinic', timezone: 'Asia/Almaty', role: role ?? undefined } : null,
+    availableTenants: tenantId ? [{ tenantId, tenantName: 'Clinic', timezone: 'Asia/Almaty', role: role ?? undefined }] : [],
     setActiveTenant: vi.fn(),
     isLoading: false,
     error: null,

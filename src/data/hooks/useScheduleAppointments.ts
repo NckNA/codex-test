@@ -49,8 +49,9 @@ export function useScheduleAppointments() {
   const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
   const tenantId = activeTenant?.tenantId;
+  const timezone = activeTenant?.timezone;
   const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
-  const contextKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}`;
+  const contextKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${timezone || 'no-timezone'}`;
   const currentContextRef = useRef(contextKey);
   useLayoutEffect(() => {
     currentContextRef.current = contextKey;
@@ -91,7 +92,7 @@ export function useScheduleAppointments() {
   }, [authMode, isSupabaseMode, tenantId, user?.id]);
 
   const queryEnabled = authMode === 'dev'
-    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId));
+    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId) && Boolean(timezone));
 
   const queryFn = useCallback(async (): Promise<Appointment[]> => {
     if (!repository) return [];
@@ -398,14 +399,15 @@ export function useAppointmentConfirmationAttempts(appointmentId?: string) {
   const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
   const tenantId = activeTenant?.tenantId;
+  const timezone = activeTenant?.timezone;
   const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
-  const contextKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${appointmentId || 'no-appointment'}`;
+  const contextKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${timezone || 'no-timezone'}:${appointmentId || 'no-appointment'}`;
   const repository = useMemo<IAppointmentRepository | null>(() => {
     if (authMode === 'dev') return createAppointmentRepository({ backend: 'local' });
     if (isSupabaseMode && user?.id && tenantId) return createAppointmentRepository({ backend: 'supabase', tenantId });
     return null;
   }, [authMode, isSupabaseMode, tenantId, user?.id]);
-  const enabled = Boolean(appointmentId) && (authMode === 'dev' || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId)));
+  const enabled = Boolean(appointmentId) && (authMode === 'dev' || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId) && Boolean(timezone)));
   const queryFn = useCallback(async (): Promise<AppointmentConfirmationAttempt[]> => {
     if (!repository || !appointmentId) return [];
     try {
