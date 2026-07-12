@@ -1,13 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, AlertCircle, ExternalLink } from 'lucide-react';
-import type { Appointment, AppointmentStatus, PaymentType, Source, Doctor, Patient } from '../../types';
+import type { Appointment, AppointmentStatus, CancellationSource, PaymentType, Source, Doctor, Patient } from '../../types';
+import { AppointmentCancellationDialog } from './AppointmentCancellationDialog';
+import { AppointmentNoShowDialog } from './AppointmentNoShowDialog';
+import {
+  canHardDeleteAppointment,
+  canManageAppointmentLifecycle,
+  canTransitionAppointmentLifecycle,
+  cancellationSourceLabel,
+  isTerminalAppointmentLifecycle,
+} from './appointmentLifecycle';
 
 interface AppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (appointment: Appointment) => Promise<boolean>;
+  onCancel?: (appointment: Appointment, source: CancellationSource, reason: string) => Promise<Appointment | null>;
+  onMarkNoShow?: (appointment: Appointment, reason: string) => Promise<Appointment | null>;
   onDelete?: (id: string) => Promise<boolean>;
+  role?: string;
   initialData?: Partial<Appointment>;
   appointments: Appointment[];
   doctors: Doctor[];
@@ -35,7 +47,10 @@ export function AppointmentModal({
   isOpen,
   onClose,
   onSave,
+  onCancel,
+  onMarkNoShow,
   onDelete,
+  role,
   initialData,
   appointments,
   doctors,
@@ -47,16 +62,23 @@ export function AppointmentModal({
   const isEditing = Boolean(initialData?.id);
   const navigate = useNavigate();
   const submitLockRef = useRef(false);
+  const appointmentContextRef = useRef<string | null>(initialData?.id || null);
   const [isSubmittingLocally, setIsSubmittingLocally] = useState(false);
   const [formData, setFormData] = useState<Partial<Appointment>>({
     ...defaultForm(),
     ...initialData,
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  const [lifecycleDialog, setLifecycleDialog] = useState<'cancel' | 'no_show' | null>(null);
   const isBusy = isSaving || isSubmittingLocally;
+  const storedAppointment = isEditing ? initialData as Appointment : null;
+  const isTerminal = Boolean(formData.status && isTerminalAppointmentLifecycle(formData.status));
+  const canManageLifecycle = canManageAppointmentLifecycle(role);
+  const canDelete = canHardDeleteAppointment(role);
   const visibleError = localError || serverError;
 
   useEffect(() => {
+    appointmentContextRef.current = initialData?.id || null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormData({
       ...defaultForm(),
@@ -64,6 +86,7 @@ export function AppointmentModal({
     });
     setLocalError(null);
     setIsSubmittingLocally(false);
+    setLifecycleDialog(null);
     submitLockRef.current = false;
   }, [isOpen, initialData]);
 
@@ -84,8 +107,6 @@ export function AppointmentModal({
   };
 
   const checkConflicts = (): boolean => {
-    if (formData.status === 'cancelled') return false;
-
     const proposedStart = new Date(formData.start as string).getTime();
     const proposedEnd = new Date(formData.end as string).getTime();
 
@@ -187,11 +208,33 @@ export function AppointmentModal({
     }
   };
 
+  const handleCancelAppointment = async (source: CancellationSource, reason: string): Promise<Appointment | null> => {
+    if (!storedAppointment || !onCancel) return null;
+    const capturedAppointmentId = storedAppointment.id;
+    const result = await onCancel(storedAppointment, source, reason);
+    if (appointmentContextRef.current !== capturedAppointmentId) return null;
+    if (result) setFormData(result);
+    return result;
+  };
+
+  const handleMarkNoShow = async (reason: string): Promise<Appointment | null> => {
+    if (!storedAppointment || !onMarkNoShow) return null;
+    const capturedAppointmentId = storedAppointment.id;
+    const result = await onMarkNoShow(storedAppointment, reason);
+    if (appointmentContextRef.current !== capturedAppointmentId) return null;
+    if (result) setFormData(result);
+    return result;
+  };
+
+  const patientName = patients.find((patient) => patient.id === formData.patientId)?.fullName || 'Пациент не указан';
+  const doctorName = doctors.find((doctor) => doctor.id === formData.doctorId)?.fullName || 'Врач не указан';
+
   const closeSafely = () => {
     if (!isBusy) onClose();
   };
 
   return (
+    <>
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-200">
@@ -239,7 +282,7 @@ export function AppointmentModal({
           )}
 
           <form id="appointment-form" onSubmit={handleSubmit} className="space-y-4">
-            <fieldset disabled={isBusy} className="space-y-4 disabled:opacity-70">
+            <fieldset disabled={isBusy || isTerminal} className="space-y-4 disabled:opacity-70">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Пациент</label>
@@ -369,8 +412,6 @@ export function AppointmentModal({
                     { value: 'arrived', label: 'Пришел' },
                     { value: 'in_progress', label: 'В работе' },
                     { value: 'completed', label: 'Завершен' },
-                    { value: 'no_show', label: 'Не пришел' },
-                    { value: 'cancelled', label: 'Отменен' },
                   ].map((status) => (
                     <button
                       key={status.value}
@@ -388,20 +429,62 @@ export function AppointmentModal({
                   ))}
                 </div>
               </div>
+
+              {isEditing && formData.status === 'cancelled' && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" data-testid="appointment-cancellation-metadata">
+                  <div className="font-semibold">Запись отменена</div>
+                  <div>Дата: {formData.cancelledAt ? new Date(formData.cancelledAt).toLocaleString('ru-RU') : 'Историческая запись'}</div>
+                  <div>Кто отменил: {cancellationSourceLabel(formData.cancellationSource)}</div>
+                  <div>Причина: {formData.cancellationReason || 'Причина не была сохранена в прежней версии системы'}</div>
+                  <div>Сотрудник: {formData.cancelledBy ? 'Сотрудник клиники' : 'Не указан'}</div>
+                </div>
+              )}
+
+              {isEditing && formData.status === 'no_show' && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" data-testid="appointment-no-show-metadata">
+                  <div className="font-semibold">Отмечена неявка</div>
+                  <div>Дата: {formData.noShowAt ? new Date(formData.noShowAt).toLocaleString('ru-RU') : 'Историческая запись'}</div>
+                  <div>Причина: {formData.noShowReason || 'Причина не была сохранена в прежней версии системы'}</div>
+                  <div>Сотрудник: {formData.noShowBy ? 'Сотрудник клиники' : 'Не указан'}</div>
+                </div>
+              )}
             </fieldset>
           </form>
         </div>
 
-        <div className="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
-          <div>
-            {isEditing && onDelete && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <div className="flex flex-wrap gap-2">
+            {isEditing && canDelete && onDelete && (
               <button
                 type="button"
                 disabled={isBusy}
                 onClick={() => void handleDelete()}
-                className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                data-testid="appointment-delete-action"
+                className="px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
               >
-                Удалить
+                Удалить запись
+              </button>
+            )}
+            {isEditing && storedAppointment && canManageLifecycle && canTransitionAppointmentLifecycle(storedAppointment.status) && onMarkNoShow && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => setLifecycleDialog('no_show')}
+                data-testid="appointment-no-show-action"
+                className="px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Отметить неявку
+              </button>
+            )}
+            {isEditing && storedAppointment && canManageLifecycle && canTransitionAppointmentLifecycle(storedAppointment.status) && onCancel && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => setLifecycleDialog('cancel')}
+                data-testid="appointment-cancel-action"
+                className="px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Отменить запись
               </button>
             )}
           </div>
@@ -412,19 +495,46 @@ export function AppointmentModal({
               onClick={closeSafely}
               className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
             >
-              Отмена
+              {isTerminal ? 'Закрыть' : 'Отмена'}
             </button>
-            <button
-              type="submit"
-              form="appointment-form"
-              disabled={isBusy}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isBusy ? 'Сохраняем запись…' : 'Сохранить'}
-            </button>
+            {!isTerminal && (
+              <button
+                type="submit"
+                form="appointment-form"
+                disabled={isBusy}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isBusy ? 'Сохраняем запись…' : 'Сохранить'}
+              </button>
+            )}
           </div>
         </div>
       </div>
     </div>
+    {lifecycleDialog === 'cancel' && storedAppointment && (
+      <AppointmentCancellationDialog
+        appointment={storedAppointment}
+        patientName={patientName}
+        doctorName={doctorName}
+        isSaving={isBusy}
+        isReconciling={isReconciling}
+        error={visibleError ? new Error(visibleError) : null}
+        onConfirm={handleCancelAppointment}
+        onClose={() => setLifecycleDialog(null)}
+      />
+    )}
+    {lifecycleDialog === 'no_show' && storedAppointment && (
+      <AppointmentNoShowDialog
+        appointment={storedAppointment}
+        patientName={patientName}
+        doctorName={doctorName}
+        isSaving={isBusy}
+        isReconciling={isReconciling}
+        error={visibleError ? new Error(visibleError) : null}
+        onConfirm={handleMarkNoShow}
+        onClose={() => setLifecycleDialog(null)}
+      />
+    )}
+    </>
   );
 }

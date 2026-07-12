@@ -71,6 +71,51 @@ describe('PatientHistoryTab', () => {
     await act(async () => root.unmount());
   });
 
+  it('shows auditable cancellation metadata without raw actor UUID', async () => {
+    vi.mocked(usePatientAppointments).mockReturnValue({
+      appointments: [row({
+        status: 'cancelled',
+        cancelledAt: '2026-08-01T12:00:00',
+        cancelledBy: 'raw-user-uuid',
+        cancellationSource: 'patient',
+        cancellationReason: 'Пациент попросил отменить',
+        lifecycleMetadataVersion: 1,
+      })],
+      isLoading: false,
+      isError: false,
+    } as any);
+    const { container, root } = await render();
+
+    const metadata = container.querySelector('[data-testid="history-cancellation-appointment-1"]');
+    expect(metadata?.textContent).toContain('Пациент попросил отменить');
+    expect(metadata?.textContent).toContain('Источник: Пациент');
+    expect(metadata?.textContent).toContain('Сотрудник клиники');
+    expect(metadata?.textContent).not.toContain('raw-user-uuid');
+    await act(async () => root.unmount());
+  });
+
+  it('shows auditable no-show metadata without creating treatment wording', async () => {
+    vi.mocked(usePatientAppointments).mockReturnValue({
+      appointments: [row({
+        status: 'no_show',
+        noShowAt: '2026-08-01T12:00:00',
+        noShowBy: 'raw-user-uuid',
+        noShowReason: 'Не отвечает на звонки',
+        lifecycleMetadataVersion: 1,
+      })],
+      isLoading: false,
+      isError: false,
+    } as any);
+    const { container, root } = await render();
+
+    const metadata = container.querySelector('[data-testid="history-no-show-appointment-1"]');
+    expect(metadata?.textContent).toContain('Не отвечает на звонки');
+    expect(metadata?.textContent).toContain('Сотрудник клиники');
+    expect(metadata?.textContent).not.toContain('raw-user-uuid');
+    expect(metadata?.textContent).not.toContain('Лечение выполнено');
+    await act(async () => root.unmount());
+  });
+
   it('shows loading and empty states without demo rows', async () => {
     vi.mocked(usePatientAppointments).mockReturnValue({ appointments: [], isLoading: true, isError: false } as any);
     const loading = await render();

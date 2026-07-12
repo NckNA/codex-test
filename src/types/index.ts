@@ -1,6 +1,7 @@
 // src/types/index.ts
 
 export type AppointmentStatus = 'new' | 'confirmed' | 'arrived' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'blocked';
+export type CancellationSource = 'patient' | 'clinic' | 'doctor' | 'technical' | 'other';
 export type PaymentType = 'cash' | 'card' | 'kaspi' | 'insurance' | 'installment' | 'unpaid';
 export type Source = 'phone' | 'whatsapp' | 'instagram' | 'walk_in' | 'repeat' | 'referral';
 
@@ -65,6 +66,14 @@ export interface Appointment {
   source?: Source;
   comment?: string;
   price?: number;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationSource?: CancellationSource;
+  cancellationReason?: string;
+  noShowAt?: string;
+  noShowBy?: string;
+  noShowReason?: string;
+  lifecycleMetadataVersion?: number;
   createdAt: string;
   updatedAt?: string;
 }

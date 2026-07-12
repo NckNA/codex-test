@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
-import type { Appointment } from '../../types';
+import type { Appointment, CancellationSource } from '../../types';
 import {
   AppointmentRepositoryError,
   createAppointmentRepository,
@@ -62,9 +62,15 @@ export function useScheduleAppointments() {
     isReconciling: false,
     error: null,
   });
+  const [mutationAction, setMutationAction] = useState<{
+    contextKey: string;
+    action: 'save' | 'cancel' | 'no_show' | null;
+  }>({ contextKey, action: null });
 
   const createAttemptRef = useRef<OperationAttempt | null>(null);
   const rescheduleAttemptRef = useRef<OperationAttempt | null>(null);
+  const cancellationAttemptRef = useRef<OperationAttempt | null>(null);
+  const noShowAttemptRef = useRef<OperationAttempt | null>(null);
   const inFlightRef = useRef<{
     contextKey: string;
     signature: string;
@@ -136,11 +142,13 @@ export function useScheduleAppointments() {
     signature: string,
     write: (onRecoveryStateChange: (recovering: boolean) => void) => Promise<AppointmentWriteResult>,
     attemptRef?: MutableRefObject<OperationAttempt | null>,
+    action: 'save' | 'cancel' | 'no_show' = 'save',
   ): Promise<AppointmentWriteResult | null> => {
     const existing = inFlightRef.current;
     if (existing && existing.contextKey === contextKey) return existing.promise;
 
     const capturedContext = contextKey;
+    setMutationAction({ contextKey: capturedContext, action });
     setMutationState({
       contextKey: capturedContext,
       isSaving: true,
@@ -176,6 +184,7 @@ export function useScheduleAppointments() {
         }
 
         if (currentContextRef.current === capturedContext) {
+          setMutationAction({ contextKey: capturedContext, action: null });
           setMutationState({
             contextKey: capturedContext,
             isSaving: false,
@@ -186,6 +195,7 @@ export function useScheduleAppointments() {
         throw parsedError;
       } finally {
         if (currentContextRef.current === capturedContext) {
+          setMutationAction({ contextKey: capturedContext, action: null });
           setMutationState((current) => ({
             contextKey: capturedContext,
             isSaving: false,
@@ -238,11 +248,48 @@ export function useScheduleAppointments() {
     );
   }, [contextKey, getOperationKey, requireRepository, runMutation]);
 
+  const cancelAppointment = useCallback((
+    current: Appointment,
+    source: CancellationSource,
+    reason: string,
+  ) => {
+    const activeRepository = requireRepository();
+    const normalizedReason = reason.trim();
+    const signature = `cancel:${contextKey}:${current.id}:${current.updatedAt || ''}:${source}:${normalizedReason}`;
+    const operationKey = getOperationKey(cancellationAttemptRef, signature);
+    return runMutation(
+      signature,
+      (onRecoveryStateChange) => activeRepository.cancelAppointment(current, source, normalizedReason, {
+        operationKey,
+        onRecoveryStateChange,
+      }),
+      cancellationAttemptRef,
+      'cancel',
+    );
+  }, [contextKey, getOperationKey, requireRepository, runMutation]);
+
+  const markAppointmentNoShow = useCallback((current: Appointment, reason: string) => {
+    const activeRepository = requireRepository();
+    const normalizedReason = reason.trim();
+    const signature = `no-show:${contextKey}:${current.id}:${current.updatedAt || ''}:${normalizedReason}`;
+    const operationKey = getOperationKey(noShowAttemptRef, signature);
+    return runMutation(
+      signature,
+      (onRecoveryStateChange) => activeRepository.markAppointmentNoShow(current, normalizedReason, {
+        operationKey,
+        onRecoveryStateChange,
+      }),
+      noShowAttemptRef,
+      'no_show',
+    );
+  }, [contextKey, getOperationKey, requireRepository, runMutation]);
+
   const deleteAppointment = useCallback(async (appointmentId: string): Promise<boolean> => {
     const activeRepository = requireRepository();
     const capturedContext = contextKey;
     if (inFlightRef.current?.contextKey === capturedContext) return false;
 
+    setMutationAction({ contextKey: capturedContext, action: 'save' });
     setMutationState({ contextKey: capturedContext, isSaving: true, isReconciling: false, error: null });
     try {
       await activeRepository.deleteAppointment(appointmentId);
@@ -252,11 +299,13 @@ export function useScheduleAppointments() {
     } catch (error) {
       const parsedError = safeMutationError(error);
       if (currentContextRef.current === capturedContext) {
+        setMutationAction({ contextKey: capturedContext, action: null });
         setMutationState({ contextKey: capturedContext, isSaving: false, isReconciling: false, error: parsedError });
       }
       throw parsedError;
     } finally {
       if (currentContextRef.current === capturedContext) {
+        setMutationAction({ contextKey: capturedContext, action: null });
         setMutationState((current) => ({
           contextKey: capturedContext,
           isSaving: false,
@@ -270,6 +319,7 @@ export function useScheduleAppointments() {
   const mutationForCurrentContext = mutationState.contextKey === contextKey
     ? mutationState
     : { contextKey, isSaving: false, isReconciling: false, error: null };
+  const actionForCurrentContext = mutationAction.contextKey === contextKey ? mutationAction.action : null;
   const isError = isQueryError || mutationForCurrentContext.error !== null;
   const error = mutationForCurrentContext.error || queryError;
 
@@ -280,9 +330,15 @@ export function useScheduleAppointments() {
     error,
     isSaving: mutationForCurrentContext.isSaving,
     isReconciling: mutationForCurrentContext.isReconciling,
+    isCancelling: actionForCurrentContext === 'cancel' && mutationForCurrentContext.isSaving,
+    isMarkingNoShow: actionForCurrentContext === 'no_show' && mutationForCurrentContext.isSaving,
+    isLifecycleReconciling: (actionForCurrentContext === 'cancel' || actionForCurrentContext === 'no_show')
+      && mutationForCurrentContext.isReconciling,
     saveError: mutationForCurrentContext.error,
     createAppointment,
     updateAppointment,
+    cancelAppointment,
+    markAppointmentNoShow,
     deleteAppointment,
     refetch,
   };

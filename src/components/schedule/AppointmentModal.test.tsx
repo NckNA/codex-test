@@ -36,6 +36,10 @@ interface RenderOptions {
   appointments?: Appointment[];
   onSave?: any;
   onClose?: any;
+  onCancel?: any;
+  onMarkNoShow?: any;
+  onDelete?: any;
+  role?: string;
   isSaving?: boolean;
   isReconciling?: boolean;
   serverError?: string | null;
@@ -55,6 +59,10 @@ const renderModal = async (options: RenderOptions = {}) => {
           isOpen
           onClose={onClose}
           onSave={onSave}
+          onCancel={options.onCancel}
+          onMarkNoShow={options.onMarkNoShow}
+          onDelete={options.onDelete}
+          role={options.role}
           initialData={{ ...baseInitial, ...options.initialData }}
           appointments={options.appointments || []}
           doctors={doctors}
@@ -255,6 +263,172 @@ describe('AppointmentModal', () => {
     expect(container.textContent).toContain('У врача уже есть запись на это время.');
     const service = container.querySelector('input[name="service"]') as HTMLInputElement;
     expect(service.value).toBe('Осмотр');
+    await cleanup(root, container);
+  });
+
+  it('removes cancelled and no-show from generic status controls', async () => {
+    const view = await renderModal({
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      role: 'clinic_admin',
+      onCancel: vi.fn(),
+      onMarkNoShow: vi.fn(),
+    });
+    expect(view.container.querySelector('[data-testid="appointment-status-cancelled"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-status-no_show"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-cancel-action"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-no-show-action"]')).not.toBeNull();
+    await cleanup(view.root, view.container);
+  });
+
+  it('keeps cancellation and hard delete visually separate for owner/admin', async () => {
+    const view = await renderModal({
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      role: 'clinic_owner',
+      onCancel: vi.fn(),
+      onMarkNoShow: vi.fn(),
+      onDelete: vi.fn().mockResolvedValue(true),
+    });
+    expect(view.container.textContent).toContain('Отменить запись');
+    expect(view.container.textContent).toContain('Удалить запись');
+    expect(view.container.querySelector('[data-testid="appointment-cancel-action"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-delete-action"]')).not.toBeNull();
+    await cleanup(view.root, view.container);
+  });
+
+  it('allows registrar lifecycle actions but hides hard delete', async () => {
+    const view = await renderModal({
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      role: 'registrar',
+      onCancel: vi.fn(),
+      onMarkNoShow: vi.fn(),
+      onDelete: vi.fn(),
+    });
+    expect(view.container.querySelector('[data-testid="appointment-cancel-action"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-no-show-action"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-delete-action"]')).toBeNull();
+    await cleanup(view.root, view.container);
+  });
+
+  it.each(['doctor', 'cashier', 'unknown'] as const)('hides lifecycle and delete actions for %s', async (role) => {
+    const view = await renderModal({
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      role,
+      onCancel: vi.fn(),
+      onMarkNoShow: vi.fn(),
+      onDelete: vi.fn(),
+    });
+    expect(view.container.querySelector('[data-testid="appointment-cancel-action"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-no-show-action"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-delete-action"]')).toBeNull();
+    await cleanup(view.root, view.container);
+  });
+
+  it('opens separate cancellation and no-show dialogs from lifecycle actions', async () => {
+    const view = await renderModal({
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      role: 'clinic_admin',
+      onCancel: vi.fn().mockResolvedValue({ ...baseInitial, id: 'existing-id', status: 'cancelled', createdAt: '', updatedAt: '' }),
+      onMarkNoShow: vi.fn().mockResolvedValue({ ...baseInitial, id: 'existing-id', status: 'no_show', createdAt: '', updatedAt: '' }),
+    });
+    await act(async () => (view.container.querySelector('[data-testid="appointment-cancel-action"]') as HTMLButtonElement).click());
+    expect(document.body.querySelector('[data-testid="appointment-cancellation-dialog"]')).not.toBeNull();
+    await act(async () => (document.body.querySelector('[data-testid="appointment-cancellation-dialog"] button[aria-label="Закрыть"]') as HTMLButtonElement).click());
+    await act(async () => (view.container.querySelector('[data-testid="appointment-no-show-action"]') as HTMLButtonElement).click());
+    expect(document.body.querySelector('[data-testid="appointment-no-show-dialog"]')).not.toBeNull();
+    await cleanup(view.root, view.container);
+  });
+
+  it('renders terminal lifecycle metadata and hides generic save', async () => {
+    const view = await renderModal({
+      initialData: {
+        id: 'cancelled-id',
+        status: 'cancelled',
+        cancelledAt: '2026-08-01T12:00:00',
+        cancelledBy: 'user-id',
+        cancellationSource: 'patient',
+        cancellationReason: 'Пациент попросил',
+        lifecycleMetadataVersion: 1,
+        createdAt: '2026-07-01T09:00:00',
+        updatedAt: '2026-08-01T12:00:00+00:00',
+      },
+      role: 'clinic_admin',
+      onDelete: vi.fn(),
+    });
+    expect(view.container.querySelector('[data-testid="appointment-cancellation-metadata"]')?.textContent).toContain('Пациент попросил');
+    expect(view.container.querySelector('button[form="appointment-form"]')).toBeNull();
+    expect(view.container.textContent).toContain('Сотрудник клиники');
+    await cleanup(view.root, view.container);
+  });
+
+  it('ignores a delayed lifecycle result after the appointment context changes', async () => {
+    let resolveLifecycle!: (value: Appointment | null) => void;
+    const lifecycleResult = new Promise<Appointment | null>((resolve) => {
+      resolveLifecycle = resolve;
+    });
+    const onMarkNoShow = vi.fn(() => lifecycleResult);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    const renderAppointment = async (id: string, service: string) => {
+      await act(async () => {
+        root.render(
+          <MemoryRouter>
+            <AppointmentModal
+              isOpen
+              onClose={vi.fn()}
+              onSave={vi.fn().mockResolvedValue(true)}
+              onMarkNoShow={onMarkNoShow}
+              role="clinic_admin"
+              initialData={{
+                ...baseInitial,
+                id,
+                service,
+                createdAt: '2026-07-01T09:00:00',
+                updatedAt: '2026-07-01T09:30:00+00:00',
+              }}
+              appointments={[]}
+              doctors={doctors}
+              patients={patients}
+            />
+          </MemoryRouter>,
+        );
+      });
+    };
+
+    await renderAppointment('appointment-a', 'Приём A');
+    await act(async () => {
+      (container.querySelector('[data-testid="appointment-no-show-action"]') as HTMLButtonElement).click();
+    });
+
+    const reason = document.body.querySelector('[data-testid="appointment-no-show-reason"]') as HTMLTextAreaElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(reason, 'Задержанный ответ');
+      reason.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      (document.body.querySelector('[data-testid="appointment-no-show-submit"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    expect(onMarkNoShow).toHaveBeenCalledTimes(1);
+
+    await renderAppointment('appointment-b', 'Приём B');
+    await act(async () => {
+      resolveLifecycle({
+        ...baseInitial,
+        id: 'appointment-a',
+        service: 'Приём A',
+        status: 'no_show',
+        noShowReason: 'Задержанный ответ',
+        createdAt: '2026-07-01T09:00:00',
+        updatedAt: '2026-07-01T10:00:00+00:00',
+      } as Appointment);
+      await lifecycleResult;
+    });
+
+    expect((container.querySelector('input[name="service"]') as HTMLInputElement).value).toBe('Приём B');
+    expect(container.textContent).not.toContain('Задержанный ответ');
+    expect(container.querySelector('[data-testid="appointment-no-show-metadata"]')).toBeNull();
     await cleanup(root, container);
   });
 });

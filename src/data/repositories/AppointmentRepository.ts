@@ -1,10 +1,10 @@
-import type { Appointment, AppointmentStatus, PaymentType, Source } from '../../types';
+import type { Appointment, AppointmentStatus, CancellationSource, PaymentType, Source } from '../../types';
 import { compareAppointmentsByStartThenId } from '../../domain/appointmentSummary';
 import { storage } from '../../utils/storage';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type AppointmentOperationType = 'create' | 'reschedule' | 'details';
+export type AppointmentOperationType = 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show';
 export type AppointmentRepositoryErrorCode =
   | 'doctor_conflict'
   | 'patient_conflict'
@@ -13,6 +13,11 @@ export type AppointmentRepositoryErrorCode =
   | 'doctor_unavailable'
   | 'idempotency_conflict'
   | 'concurrent_change'
+  | 'already_cancelled'
+  | 'already_no_show'
+  | 'invalid_transition'
+  | 'reason_required'
+  | 'source_required'
   | 'permission'
   | 'tenant_required'
   | 'schedule_read_failed'
@@ -45,7 +50,7 @@ export interface AppointmentWriteResult {
 
 export interface AppointmentRecoveryResult {
   found: boolean;
-  operationType?: 'create' | 'reschedule';
+  operationType?: 'create' | 'reschedule' | 'cancel' | 'no_show';
   appointment?: Appointment;
   replayed?: boolean;
   recovered?: boolean;
@@ -57,6 +62,8 @@ export interface IAppointmentRepository {
   createAppointment(appointment: Appointment, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
   rescheduleAppointment(current: Appointment, next: Appointment, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
   updateAppointmentDetails(current: Appointment, next: Appointment): Promise<AppointmentWriteResult>;
+  cancelAppointment(current: Appointment, source: CancellationSource, reason: string, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
+  markAppointmentNoShow(current: Appointment, reason: string, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
   recoverAppointmentOperation(operationKey: string): Promise<AppointmentRecoveryResult>;
   deleteAppointment(appointmentId: string): Promise<void>;
 }
@@ -71,6 +78,12 @@ export interface CreateAppointmentRepositoryOptions {
 const genericSaveError = () => new AppointmentRepositoryError(
   'generic',
   'Не удалось сохранить запись. Обновите расписание и проверьте результат.',
+  true,
+);
+
+const genericLifecycleError = () => new AppointmentRepositoryError(
+  'generic',
+  'Не удалось изменить статус записи. Обновите расписание и проверьте результат.',
   true,
 );
 
@@ -114,11 +127,28 @@ export const toSafeAppointmentError = (error: unknown): AppointmentRepositoryErr
   if (text.includes('запись была изменена другим пользователем')) {
     return new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
   }
+  if (text.includes('запись уже отменена')) {
+    return new AppointmentRepositoryError('already_cancelled', 'Запись уже отменена.');
+  }
+  if (text.includes('неявка уже отмечена')) {
+    return new AppointmentRepositoryError('already_no_show', 'Неявка уже отмечена.');
+  }
+  if (text.includes('текущий статус записи не позволяет выполнить это действие')) {
+    return new AppointmentRepositoryError('invalid_transition', 'Текущий статус записи не позволяет выполнить это действие.');
+  }
+  if (text.includes('укажите причину')) {
+    return new AppointmentRepositoryError('reason_required', 'Укажите причину.');
+  }
+  if (text.includes('укажите, кто отменил запись')) {
+    return new AppointmentRepositoryError('source_required', 'Укажите, кто отменил запись.');
+  }
   if (text.includes('недостаточно прав для изменения записи') || text.includes('permission denied') || text.includes('42501')) {
     return new AppointmentRepositoryError('permission', 'Недостаточно прав для изменения записи.');
   }
-  if (text.includes('операция с этим идентификатором уже выполнена с другими параметрами') || text.includes('appointment_operations_tenant_key_key')) {
-    return new AppointmentRepositoryError('idempotency_conflict', 'Операция с этим идентификатором уже выполнена с другими параметрами.');
+  if (text.includes('операция с этим идентификатором уже выполнена с другими параметрами')
+      || text.includes('эта операция уже была выполнена с другими параметрами')
+      || text.includes('appointment_operations_tenant_key_key')) {
+    return new AppointmentRepositoryError('idempotency_conflict', 'Эта операция уже была выполнена с другими параметрами.');
   }
 
   return genericSaveError();
@@ -174,6 +204,42 @@ export const LocalStorageAppointmentRepository: IAppointmentRepository = {
     return localWriteResult(next, 'details');
   },
 
+  cancelAppointment: async (current: Appointment, source: CancellationSource, reason: string): Promise<AppointmentWriteResult> => {
+    const timestamp = new Date().toISOString();
+    const next: Appointment = {
+      ...current,
+      status: 'cancelled',
+      cancelledAt: timestamp,
+      cancelledBy: 'local-user',
+      cancellationSource: source,
+      cancellationReason: reason.trim(),
+      noShowAt: undefined,
+      noShowBy: undefined,
+      noShowReason: undefined,
+      lifecycleMetadataVersion: 1,
+    };
+    storage.updateAppointment(next);
+    return localWriteResult(next, 'cancel');
+  },
+
+  markAppointmentNoShow: async (current: Appointment, reason: string): Promise<AppointmentWriteResult> => {
+    const timestamp = new Date().toISOString();
+    const next: Appointment = {
+      ...current,
+      status: 'no_show',
+      noShowAt: timestamp,
+      noShowBy: 'local-user',
+      noShowReason: reason.trim(),
+      cancelledAt: undefined,
+      cancelledBy: undefined,
+      cancellationSource: undefined,
+      cancellationReason: undefined,
+      lifecycleMetadataVersion: 1,
+    };
+    storage.updateAppointment(next);
+    return localWriteResult(next, 'no_show');
+  },
+
   recoverAppointmentOperation: async (): Promise<AppointmentRecoveryResult> => ({ found: false }),
 
   deleteAppointment: async (appointmentId: string): Promise<void> => {
@@ -216,6 +282,9 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
   }
 
   async createAppointment(appointment: Appointment, options: AppointmentWriteOptions): Promise<AppointmentWriteResult> {
+    if (appointment.status === 'cancelled' || appointment.status === 'no_show') {
+      throw new AppointmentRepositoryError('invalid_transition', 'Текущий статус записи не позволяет выполнить это действие.');
+    }
     return this.executeRecoverableWrite(options, async () => {
       const { data, error } = await this.client.rpc('create_appointment', {
         p_tenant_id: this.tenantId,
@@ -246,6 +315,9 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     if (!current.updatedAt) {
       throw new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
     }
+    if (next.status === 'cancelled' || next.status === 'no_show') {
+      throw new AppointmentRepositoryError('invalid_transition', 'Текущий статус записи не позволяет выполнить это действие.');
+    }
 
     return this.executeRecoverableWrite(options, async () => {
       const { data, error } = await this.client.rpc('reschedule_appointment', {
@@ -272,6 +344,9 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
   }
 
   async updateAppointmentDetails(current: Appointment, next: Appointment): Promise<AppointmentWriteResult> {
+    if (next.status === 'cancelled' || next.status === 'no_show') {
+      throw new AppointmentRepositoryError('invalid_transition', 'Текущий статус записи не позволяет выполнить это действие.');
+    }
     if (!current.updatedAt) {
       throw new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
     }
@@ -297,6 +372,50 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     }
   }
 
+  async cancelAppointment(
+    current: Appointment,
+    source: CancellationSource,
+    reason: string,
+    options: AppointmentWriteOptions,
+  ): Promise<AppointmentWriteResult> {
+    if (!current.updatedAt) {
+      throw new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
+    }
+    return this.executeRecoverableWrite(options, async () => {
+      const { data, error } = await this.client.rpc('cancel_appointment', {
+        p_tenant_id: this.tenantId,
+        p_appointment_id: current.id,
+        p_cancellation_source: source,
+        p_cancellation_reason: reason.trim(),
+        p_expected_updated_at: current.updatedAt,
+        p_operation_key: options.operationKey,
+      });
+      if (error) throw error;
+      return this.parseWriteResult(data, 'cancel');
+    }, genericLifecycleError);
+  }
+
+  async markAppointmentNoShow(
+    current: Appointment,
+    reason: string,
+    options: AppointmentWriteOptions,
+  ): Promise<AppointmentWriteResult> {
+    if (!current.updatedAt) {
+      throw new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
+    }
+    return this.executeRecoverableWrite(options, async () => {
+      const { data, error } = await this.client.rpc('mark_appointment_no_show', {
+        p_tenant_id: this.tenantId,
+        p_appointment_id: current.id,
+        p_no_show_reason: reason.trim(),
+        p_expected_updated_at: current.updatedAt,
+        p_operation_key: options.operationKey,
+      });
+      if (error) throw error;
+      return this.parseWriteResult(data, 'no_show');
+    }, genericLifecycleError);
+  }
+
   async recoverAppointmentOperation(operationKey: string): Promise<AppointmentRecoveryResult> {
     try {
       const { data, error } = await this.client.rpc('get_appointment_operation', {
@@ -313,7 +432,11 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
 
       return {
         found: true,
-        operationType: payload.operationType === 'reschedule' ? 'reschedule' : 'create',
+        operationType: payload.operationType === 'reschedule'
+          || payload.operationType === 'cancel'
+          || payload.operationType === 'no_show'
+          ? payload.operationType
+          : 'create',
         appointment: this.mapToAppointment(payload.appointment as Record<string, unknown>),
         replayed: payload.replayed === true,
         recovered: payload.recovered === true,
@@ -336,11 +459,13 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
   private async executeRecoverableWrite(
     options: AppointmentWriteOptions,
     write: () => Promise<AppointmentWriteResult>,
+    fallbackError: () => AppointmentRepositoryError = genericSaveError,
   ): Promise<AppointmentWriteResult> {
     try {
       return await write();
     } catch (error) {
-      const safeError = toSafeAppointmentError(error);
+      let safeError = toSafeAppointmentError(error);
+      if (safeError.code === 'generic') safeError = fallbackError();
       if (!safeError.ambiguous) throw safeError;
 
       options.onRecoveryStateChange?.(true);
@@ -355,7 +480,8 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
           };
         }
       } catch (recoveryError) {
-        const recoverySafeError = toSafeAppointmentError(recoveryError);
+        let recoverySafeError = toSafeAppointmentError(recoveryError);
+        if (recoverySafeError.code === 'generic') recoverySafeError = fallbackError();
         if (!recoverySafeError.ambiguous) throw recoverySafeError;
       } finally {
         options.onRecoveryStateChange?.(false);
@@ -373,6 +499,8 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     const operationType = payload.operationType === 'create'
       || payload.operationType === 'reschedule'
       || payload.operationType === 'details'
+      || payload.operationType === 'cancel'
+      || payload.operationType === 'no_show'
       ? payload.operationType
       : fallbackType;
 
@@ -406,6 +534,16 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     source: (row.source as Source) || undefined,
     price: row.price !== null && row.price !== undefined ? Number(row.price) : undefined,
     comment: (row.comment as string) || undefined,
+    cancelledAt: row.cancelled_at ? this.normalizeTimeFromDb(row.cancelled_at as string) : undefined,
+    cancelledBy: (row.cancelled_by as string) || undefined,
+    cancellationSource: (row.cancellation_source as CancellationSource) || undefined,
+    cancellationReason: (row.cancellation_reason as string) || undefined,
+    noShowAt: row.no_show_at ? this.normalizeTimeFromDb(row.no_show_at as string) : undefined,
+    noShowBy: (row.no_show_by as string) || undefined,
+    noShowReason: (row.no_show_reason as string) || undefined,
+    lifecycleMetadataVersion: row.lifecycle_metadata_version !== null && row.lifecycle_metadata_version !== undefined
+      ? Number(row.lifecycle_metadata_version)
+      : undefined,
     start: this.normalizeTimeFromDb(row.start_time as string),
     end: this.normalizeTimeFromDb(row.end_time as string),
     createdAt: this.normalizeTimeFromDb(row.created_at as string),

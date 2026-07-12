@@ -6,7 +6,8 @@ import { useScheduleAppointments } from '../data/hooks/useScheduleAppointments';
 import { useClinicDoctors } from '../data/hooks/useClinicDoctors';
 import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 import { AppointmentModal } from '../components/schedule/AppointmentModal';
-import type { Appointment, Doctor, AppointmentStatus } from '../types';
+import { useTenant } from '../contexts/TenantContext';
+import type { Appointment, CancellationSource, Doctor, AppointmentStatus } from '../types';
 
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
   const hour = Math.floor(i / 2) + 9;
@@ -60,6 +61,8 @@ export function SchedulePage() {
     appointments,
     createAppointment,
     updateAppointment,
+    cancelAppointment,
+    markAppointmentNoShow,
     deleteAppointment,
     isSaving,
     isReconciling,
@@ -68,6 +71,7 @@ export function SchedulePage() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
+  const { activeTenant } = useTenant();
 
   const { doctors: allDoctors } = useClinicDoctors();
   const { patients } = usePatientsCollection();
@@ -126,6 +130,28 @@ export function SchedulePage() {
       return true;
     } catch {
       return false;
+    }
+  };
+
+  const handleCancelAppointment = async (
+    appointment: Appointment,
+    source: CancellationSource,
+    reason: string,
+  ): Promise<Appointment | null> => {
+    try {
+      const result = await cancelAppointment(appointment, source, reason);
+      return result?.appointment || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleMarkNoShow = async (appointment: Appointment, reason: string): Promise<Appointment | null> => {
+    try {
+      const result = await markAppointmentNoShow(appointment, reason);
+      return result?.appointment || null;
+    } catch {
+      return null;
     }
   };
 
@@ -305,7 +331,10 @@ export function SchedulePage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveAppointment}
+        onCancel={handleCancelAppointment}
+        onMarkNoShow={handleMarkNoShow}
         onDelete={handleDeleteAppointment}
+        role={activeTenant?.role}
         initialData={editingAppointment}
         appointments={appointments}
         doctors={allDoctors}

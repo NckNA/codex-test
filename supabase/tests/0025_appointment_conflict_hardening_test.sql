@@ -140,12 +140,14 @@ SELECT public.create_appointment(:'tenant_a',:'patient_a2',:'doctor_a2','2026-08
 SELECT pg_temp.assert_true(:'different_resources' IS NOT NULL,'different doctor and patient may share interval');
 
 -- Cancelled releases slots; every other current status blocks.
-SELECT public.create_appointment(:'tenant_a',:'patient_a1',:'doctor_a1','2026-08-04 08:00+00','2026-08-04 09:00+00','A1','Cancelled','cancelled','unpaid','phone',1,NULL,'ach-cancelled-anchor');
+SELECT public.create_appointment(:'tenant_a',:'patient_a1',:'doctor_a1','2026-08-04 08:00+00','2026-08-04 09:00+00','A1','Cancelled','new','unpaid','phone',1,NULL,'ach-cancelled-anchor-create')::text AS cancelled_anchor_created \gset
+SELECT public.cancel_appointment(:'tenant_a',(:'cancelled_anchor_created'::jsonb#>>'{appointment,id}')::uuid,'clinic','Conflict regression fixture',(:'cancelled_anchor_created'::jsonb#>>'{appointment,updated_at}')::timestamptz,'ach-cancelled-anchor');
 SELECT public.create_appointment(:'tenant_a',:'patient_a2',:'doctor_a1','2026-08-04 08:00+00','2026-08-04 09:00+00','A1','Cancelled released','new','unpaid','phone',1,NULL,'ach-cancelled-reuse')->'appointment'->>'id' AS cancelled_reuse \gset
 SELECT pg_temp.assert_true(:'cancelled_reuse' IS NOT NULL,'cancelled appointment releases doctor slot');
 SELECT public.create_appointment(:'tenant_a',:'patient_a1',:'doctor_a1','2026-08-04 10:00+00','2026-08-04 11:00+00','A1','Completed','completed','unpaid','phone',1,NULL,'ach-completed-anchor');
 SELECT pg_temp.expect_error(format('select public.create_appointment(%L::uuid,%L::uuid,%L::uuid,%L::timestamptz,%L::timestamptz,%L,%L,%L,%L,%L,%L::numeric,%L,%L)',:'tenant_a',:'patient_a2',:'doctor_a1','2026-08-04 10:00+00','2026-08-04 11:00+00','A1','Completed blocks','new','unpaid','phone','1','','ach-completed-overlap'),'У врача уже есть запись');
-SELECT public.create_appointment(:'tenant_a',:'patient_a1',:'doctor_a1','2026-08-04 11:00+00','2026-08-04 12:00+00','A1','No show','no_show','unpaid','phone',1,NULL,'ach-noshow-anchor');
+SELECT public.create_appointment(:'tenant_a',:'patient_a1',:'doctor_a1','2026-08-04 11:00+00','2026-08-04 12:00+00','A1','No show','new','unpaid','phone',1,NULL,'ach-noshow-anchor-create')::text AS noshow_anchor_created \gset
+SELECT public.mark_appointment_no_show(:'tenant_a',(:'noshow_anchor_created'::jsonb#>>'{appointment,id}')::uuid,'Conflict regression fixture',(:'noshow_anchor_created'::jsonb#>>'{appointment,updated_at}')::timestamptz,'ach-noshow-anchor');
 SELECT pg_temp.expect_error(format('select public.create_appointment(%L::uuid,%L::uuid,%L::uuid,%L::timestamptz,%L::timestamptz,%L,%L,%L,%L,%L,%L::numeric,%L,%L)',:'tenant_a',:'patient_a2',:'doctor_a1','2026-08-04 11:00+00','2026-08-04 12:00+00','A1','No show blocks','new','unpaid','phone','1','','ach-noshow-overlap'),'У врача уже есть запись');
 SELECT public.create_appointment(:'tenant_a',NULL,:'doctor_a2','2026-08-04 12:00+00','2026-08-04 13:00+00','A2','Blocked','blocked',NULL,NULL,NULL,NULL,'ach-blocked-anchor');
 SELECT pg_temp.expect_error(format('select public.create_appointment(%L::uuid,%L::uuid,%L::uuid,%L::timestamptz,%L::timestamptz,%L,%L,%L,%L,%L,%L::numeric,%L,%L)',:'tenant_a',:'patient_a3',:'doctor_a2','2026-08-04 12:00+00','2026-08-04 13:00+00','A2','Blocked blocks','new','unpaid','phone','1','','ach-blocked-overlap'),'У врача уже есть запись');
@@ -197,13 +199,14 @@ SELECT pg_temp.assert_true((:'res_adjacent'::jsonb#>>'{appointment,start_time}')
 SELECT (:'res_adjacent'::jsonb#>>'{appointment,updated_at}') AS res_adjacent_updated \gset
 SELECT pg_temp.expect_error(format('select public.reschedule_appointment(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%L::timestamptz,%L::timestamptz,%L,%L,%L,%L,%L,%L::numeric,%L,%L::timestamptz,%L)',:'tenant_b',:'res_id',:'patient_b1',:'doctor_b1','2026-08-06 14:00+00','2026-08-06 15:00+00','B1','Cross tenant res','new','unpaid','phone','1','',:'res_adjacent_updated','ach-cross-res'),'Недостаточно прав');
 
--- Details/status update cannot mutate protected fields and reactivation checks conflicts.
-SELECT public.update_appointment_details(:'tenant_a',:'res_id','A1','Details only','cancelled','unpaid','phone',30,'cancelled',:'res_adjacent_updated')::text AS details_cancel \gset
-SELECT pg_temp.assert_true((:'details_cancel'::jsonb#>>'{appointment,status}')='cancelled','details RPC updates status');
+-- Dedicated cancellation releases the slot; generic details cannot enter or leave lifecycle terminal states.
+SELECT pg_temp.expect_error(format('select public.update_appointment_details(%L::uuid,%L::uuid,%L,%L,%L,%L,%L,%L::numeric,%L,%L::timestamptz)',:'tenant_a',:'res_id','A1','Details only','cancelled','unpaid','phone','30','cancelled',:'res_adjacent_updated'),'Текущий статус');
+SELECT public.cancel_appointment(:'tenant_a',:'res_id','clinic','Conflict regression cancellation',:'res_adjacent_updated','ach-details-cancel')::text AS details_cancel \gset
+SELECT pg_temp.assert_true((:'details_cancel'::jsonb#>>'{appointment,status}')='cancelled','dedicated cancellation updates status');
 SELECT (:'details_cancel'::jsonb#>>'{appointment,updated_at}') AS details_cancel_updated \gset
 SELECT public.create_appointment(:'tenant_a',:'patient_a3',:'doctor_a1','2026-08-06 12:00+00','2026-08-06 13:00+00','A1','Released by cancel','new','unpaid','phone',1,NULL,'ach-released-after-cancel')->'appointment'->>'id' AS released_after_cancel \gset
 SELECT pg_temp.assert_true(:'released_after_cancel' IS NOT NULL,'controlled cancellation releases slot');
-SELECT pg_temp.expect_error(format('select public.update_appointment_details(%L::uuid,%L::uuid,%L,%L,%L,%L,%L,%L::numeric,%L,%L::timestamptz)',:'tenant_a',:'res_id','A1','Reactivate','new','unpaid','phone','30','reactivate',:'details_cancel_updated'),'У врача уже есть запись');
+SELECT pg_temp.expect_error(format('select public.update_appointment_details(%L::uuid,%L::uuid,%L,%L,%L,%L,%L,%L::numeric,%L,%L::timestamptz)',:'tenant_a',:'res_id','A1','Reactivate','new','unpaid','phone','30','reactivate',:'details_cancel_updated'),'Текущий статус');
 
 -- Concurrent-change message from optimistic expected_updated_at.
 SELECT public.create_appointment(:'tenant_a',:'patient_a1',:'doctor_a2','2026-08-07 08:00+00','2026-08-07 09:00+00','A2','Concurrent version','new','unpaid','phone',1,NULL,'ach-version-create')::text AS version_create \gset
