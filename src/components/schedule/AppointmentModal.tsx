@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, AlertCircle, ExternalLink } from 'lucide-react';
-import type { Appointment, AppointmentStatus, CancellationSource, PaymentType, Source, Doctor, Patient } from '../../types';
+import type { Appointment, AppointmentConfirmationAttempt, AppointmentContactChannel, AppointmentContactOutcome, AppointmentStatus, CancellationSource, PaymentType, Source, Doctor, Patient } from '../../types';
 import { AppointmentCancellationDialog } from './AppointmentCancellationDialog';
 import { AppointmentNoShowDialog } from './AppointmentNoShowDialog';
+import { AppointmentConfirmationPanel } from './AppointmentConfirmationPanel';
 import {
   canHardDeleteAppointment,
   canManageAppointmentLifecycle,
@@ -18,6 +19,14 @@ interface AppointmentModalProps {
   onSave: (appointment: Appointment) => Promise<boolean>;
   onCancel?: (appointment: Appointment, source: CancellationSource, reason: string) => Promise<Appointment | null>;
   onMarkNoShow?: (appointment: Appointment, reason: string) => Promise<Appointment | null>;
+  onRecordConfirmationAttempt?: (appointment: Appointment, channel: AppointmentContactChannel, outcome: AppointmentContactOutcome, note: string) => Promise<Appointment | null>;
+  onConfirmAppointment?: (appointment: Appointment, channel: AppointmentContactChannel, note: string) => Promise<Appointment | null>;
+  confirmationAttempts?: AppointmentConfirmationAttempt[];
+  isLoadingConfirmationAttempts?: boolean;
+  confirmationAttemptsError?: string | null;
+  isRecordingConfirmationAttempt?: boolean;
+  isConfirmingAppointment?: boolean;
+  isReconcilingConfirmation?: boolean;
   onDelete?: (id: string) => Promise<boolean>;
   role?: string;
   initialData?: Partial<Appointment>;
@@ -49,6 +58,14 @@ export function AppointmentModal({
   onSave,
   onCancel,
   onMarkNoShow,
+  onRecordConfirmationAttempt,
+  onConfirmAppointment,
+  confirmationAttempts = [],
+  isLoadingConfirmationAttempts = false,
+  confirmationAttemptsError = null,
+  isRecordingConfirmationAttempt = false,
+  isConfirmingAppointment = false,
+  isReconcilingConfirmation = false,
   onDelete,
   role,
   initialData,
@@ -70,7 +87,7 @@ export function AppointmentModal({
   });
   const [localError, setLocalError] = useState<string | null>(null);
   const [lifecycleDialog, setLifecycleDialog] = useState<'cancel' | 'no_show' | null>(null);
-  const isBusy = isSaving || isSubmittingLocally;
+  const isBusy = isSaving || isSubmittingLocally || isRecordingConfirmationAttempt || isConfirmingAppointment;
   const storedAppointment = isEditing ? initialData as Appointment : null;
   const isTerminal = Boolean(formData.status && isTerminalAppointmentLifecycle(formData.status));
   const canManageLifecycle = canManageAppointmentLifecycle(role);
@@ -221,6 +238,31 @@ export function AppointmentModal({
     if (!storedAppointment || !onMarkNoShow) return null;
     const capturedAppointmentId = storedAppointment.id;
     const result = await onMarkNoShow(storedAppointment, reason);
+    if (appointmentContextRef.current !== capturedAppointmentId) return null;
+    if (result) setFormData(result);
+    return result;
+  };
+
+  const handleRecordConfirmationAttempt = async (
+    channel: AppointmentContactChannel,
+    outcome: AppointmentContactOutcome,
+    note: string,
+  ): Promise<Appointment | null> => {
+    if (!storedAppointment || !onRecordConfirmationAttempt) return null;
+    const capturedAppointmentId = storedAppointment.id;
+    const result = await onRecordConfirmationAttempt(storedAppointment, channel, outcome, note);
+    if (appointmentContextRef.current !== capturedAppointmentId) return null;
+    if (result) setFormData(result);
+    return result;
+  };
+
+  const handleConfirmAppointment = async (
+    channel: AppointmentContactChannel,
+    note: string,
+  ): Promise<Appointment | null> => {
+    if (!storedAppointment || !onConfirmAppointment) return null;
+    const capturedAppointmentId = storedAppointment.id;
+    const result = await onConfirmAppointment(storedAppointment, channel, note);
     if (appointmentContextRef.current !== capturedAppointmentId) return null;
     if (result) setFormData(result);
     return result;
@@ -408,7 +450,6 @@ export function AppointmentModal({
                 <div className="flex flex-wrap gap-2">
                   {[
                     { value: 'new', label: 'Новая' },
-                    { value: 'confirmed', label: 'Подтвержден' },
                     { value: 'arrived', label: 'Пришел' },
                     { value: 'in_progress', label: 'В работе' },
                     { value: 'completed', label: 'Завершен' },
@@ -447,6 +488,21 @@ export function AppointmentModal({
                   <div>Причина: {formData.noShowReason || 'Причина не была сохранена в прежней версии системы'}</div>
                   <div>Сотрудник: {formData.noShowBy ? 'Сотрудник клиники' : 'Не указан'}</div>
                 </div>
+              )}
+              {isEditing && storedAppointment && (
+                <AppointmentConfirmationPanel
+                  appointment={formData as Appointment}
+                  role={role}
+                  attempts={confirmationAttempts}
+                  isLoadingAttempts={isLoadingConfirmationAttempts}
+                  attemptsError={confirmationAttemptsError}
+                  isRecordingAttempt={isRecordingConfirmationAttempt}
+                  isConfirming={isConfirmingAppointment}
+                  isReconciling={isReconcilingConfirmation}
+                  error={serverError}
+                  onRecordAttempt={onRecordConfirmationAttempt ? handleRecordConfirmationAttempt : undefined}
+                  onConfirm={onConfirmAppointment ? handleConfirmAppointment : undefined}
+                />
               )}
             </fieldset>
           </form>

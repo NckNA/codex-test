@@ -360,6 +360,20 @@ describe('AppointmentModal', () => {
     await cleanup(view.root, view.container);
   });
 
+  it('shows the confirmation block and does not expose legacy confirmed as a generic status action', async () => {
+    const view = await renderModal({
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      role: 'clinic_admin',
+    });
+    expect(view.container.querySelector('[data-testid="appointment-confirmation-panel"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-testid="appointment-status-confirmed"]')).toBeNull();
+    expect(view.container.textContent).toContain('Подтверждение не означает приход пациента');
+    await act(async () => (view.container.querySelector('[data-testid="appointment-record-confirmation-attempt-action"]') as HTMLButtonElement).click());
+    expect(view.container.querySelectorAll('form')).toHaveLength(1);
+    expect(view.container.querySelector('[data-testid="appointment-confirmation-attempt-form"]')).not.toBeNull();
+    await cleanup(view.root, view.container);
+  });
+
   it('ignores a delayed lifecycle result after the appointment context changes', async () => {
     let resolveLifecycle!: (value: Appointment | null) => void;
     const lifecycleResult = new Promise<Appointment | null>((resolve) => {

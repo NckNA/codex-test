@@ -4,6 +4,12 @@ import { Stethoscope, ClipboardList } from 'lucide-react';
 import { useClinicDoctors } from '../../../data/hooks/useClinicDoctors';
 import { usePatientAppointments } from '../../../data/hooks/usePatientAppointments';
 import { cancellationSourceLabel } from '../../schedule/appointmentLifecycle';
+import {
+  confirmationStateClassName,
+  confirmationStateLabel,
+  CONTACT_CHANNEL_LABELS,
+  CONTACT_OUTCOME_LABELS,
+} from '../../schedule/appointmentConfirmation';
 
 interface PatientHistoryTabProps {
   patientId: string;
@@ -111,6 +117,20 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
                         <div>Сотрудник: {appt.noShowBy ? 'Сотрудник клиники' : 'Не указан'}</div>
                       </div>
                     )}
+                    <div className="mt-2 max-w-sm rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700" data-testid={`history-confirmation-${appt.id}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">Подтверждение</span>
+                        <span className={`rounded border px-1.5 py-0.5 ${confirmationStateClassName(appt.confirmationState)}`}>
+                          {confirmationStateLabel(appt.confirmationState)}
+                        </span>
+                      </div>
+                      <div>Попыток связи: {appt.confirmationAttemptCount || 0}</div>
+                      <div>Последняя попытка: {appt.lastConfirmationAttemptAt ? new Date(appt.lastConfirmationAttemptAt).toLocaleString('ru-RU') : 'Нет'}</div>
+                      <div>Результат: {appt.lastConfirmationOutcome ? CONTACT_OUTCOME_LABELS[appt.lastConfirmationOutcome] : 'Нет'}</div>
+                      <div>Подтверждена: {appt.confirmedAt ? new Date(appt.confirmedAt).toLocaleString('ru-RU') : 'Нет'}</div>
+                      <div>Канал: {appt.confirmationChannel ? CONTACT_CHANNEL_LABELS[appt.confirmationChannel] : 'Нет'}</div>
+                      {appt.lastConfirmationNote && <div>Примечание: {appt.lastConfirmationNote}</div>}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-slate-600">{appt.cabinet}</td>
                   <td className="py-3 px-4">
