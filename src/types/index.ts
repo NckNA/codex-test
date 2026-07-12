@@ -66,6 +66,7 @@ export interface Appointment {
   comment?: string;
   price?: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type ToothNumber =
