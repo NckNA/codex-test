@@ -1,10 +1,19 @@
-import type { Appointment, AppointmentStatus, CancellationSource, PaymentType, Source } from '../../types';
+import type {
+  Appointment,
+  AppointmentConfirmationAttempt,
+  AppointmentContactChannel,
+  AppointmentContactOutcome,
+  AppointmentStatus,
+  CancellationSource,
+  PaymentType,
+  Source,
+} from '../../types';
 import { compareAppointmentsByStartThenId } from '../../domain/appointmentSummary';
 import { storage } from '../../utils/storage';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type AppointmentOperationType = 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show';
+export type AppointmentOperationType = 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' | 'confirmation_attempt' | 'confirm';
 export type AppointmentRepositoryErrorCode =
   | 'doctor_conflict'
   | 'patient_conflict'
@@ -18,6 +27,9 @@ export type AppointmentRepositoryErrorCode =
   | 'invalid_transition'
   | 'reason_required'
   | 'source_required'
+  | 'channel_required'
+  | 'outcome_required'
+  | 'already_confirmed'
   | 'permission'
   | 'tenant_required'
   | 'schedule_read_failed'
@@ -43,6 +55,7 @@ export interface AppointmentWriteOptions {
 
 export interface AppointmentWriteResult {
   appointment: Appointment;
+  confirmationAttempt?: AppointmentConfirmationAttempt;
   replayed: boolean;
   recovered: boolean;
   operationType: AppointmentOperationType;
@@ -50,8 +63,9 @@ export interface AppointmentWriteResult {
 
 export interface AppointmentRecoveryResult {
   found: boolean;
-  operationType?: 'create' | 'reschedule' | 'cancel' | 'no_show';
+  operationType?: 'create' | 'reschedule' | 'cancel' | 'no_show' | 'confirmation_attempt' | 'confirm';
   appointment?: Appointment;
+  confirmationAttempt?: AppointmentConfirmationAttempt;
   replayed?: boolean;
   recovered?: boolean;
 }
@@ -64,6 +78,9 @@ export interface IAppointmentRepository {
   updateAppointmentDetails(current: Appointment, next: Appointment): Promise<AppointmentWriteResult>;
   cancelAppointment(current: Appointment, source: CancellationSource, reason: string, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
   markAppointmentNoShow(current: Appointment, reason: string, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
+  recordConfirmationAttempt(current: Appointment, channel: AppointmentContactChannel, outcome: AppointmentContactOutcome, note: string, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
+  confirmAppointment(current: Appointment, channel: AppointmentContactChannel, note: string, options: AppointmentWriteOptions): Promise<AppointmentWriteResult>;
+  listConfirmationAttempts(appointmentId: string): Promise<AppointmentConfirmationAttempt[]>;
   recoverAppointmentOperation(operationKey: string): Promise<AppointmentRecoveryResult>;
   deleteAppointment(appointmentId: string): Promise<void>;
 }
@@ -84,6 +101,12 @@ const genericSaveError = () => new AppointmentRepositoryError(
 const genericLifecycleError = () => new AppointmentRepositoryError(
   'generic',
   'Не удалось изменить статус записи. Обновите расписание и проверьте результат.',
+  true,
+);
+
+const genericConfirmationError = () => new AppointmentRepositoryError(
+  'generic',
+  'Не удалось сохранить подтверждение. Обновите расписание и проверьте результат.',
   true,
 );
 
@@ -141,6 +164,18 @@ export const toSafeAppointmentError = (error: unknown): AppointmentRepositoryErr
   }
   if (text.includes('укажите, кто отменил запись')) {
     return new AppointmentRepositoryError('source_required', 'Укажите, кто отменил запись.');
+  }
+  if (text.includes('выберите способ связи')) {
+    return new AppointmentRepositoryError('channel_required', 'Выберите способ связи.');
+  }
+  if (text.includes('выберите результат связи')) {
+    return new AppointmentRepositoryError('outcome_required', 'Выберите результат связи.');
+  }
+  if (text.includes('запись уже подтверждена')) {
+    return new AppointmentRepositoryError('already_confirmed', 'Запись уже подтверждена.');
+  }
+  if (text.includes('недостаточно прав для подтверждения записи')) {
+    return new AppointmentRepositoryError('permission', 'Недостаточно прав для подтверждения записи.');
   }
   if (text.includes('недостаточно прав для изменения записи') || text.includes('permission denied') || text.includes('42501')) {
     return new AppointmentRepositoryError('permission', 'Недостаточно прав для изменения записи.');
@@ -239,6 +274,35 @@ export const LocalStorageAppointmentRepository: IAppointmentRepository = {
     storage.updateAppointment(next);
     return localWriteResult(next, 'no_show');
   },
+
+  recordConfirmationAttempt: async (current, channel, outcome, note) => {
+    const timestamp = new Date().toISOString();
+    const state = outcome === 'confirmed' ? 'confirmed'
+      : outcome === 'callback_requested' ? 'callback_requested'
+      : ['unreachable', 'wrong_number', 'declined'].includes(outcome) ? 'unreachable'
+      : 'contact_in_progress';
+    const next: Appointment = {
+      ...current,
+      confirmationState: state,
+      confirmedAt: state === 'confirmed' ? timestamp : undefined,
+      confirmedBy: state === 'confirmed' ? 'local-user' : undefined,
+      confirmationChannel: state === 'confirmed' ? channel : undefined,
+      confirmationNote: state === 'confirmed' ? note.trim() || undefined : undefined,
+      lastConfirmationAttemptAt: timestamp,
+      confirmationAttemptCount: (current.confirmationAttemptCount || 0) + 1,
+      confirmationMetadataVersion: 1,
+      lastConfirmationOutcome: outcome,
+      lastConfirmationNote: note.trim() || undefined,
+    };
+    storage.updateAppointment(next);
+    return localWriteResult(next, outcome === 'confirmed' ? 'confirm' : 'confirmation_attempt');
+  },
+
+  confirmAppointment: async (current, channel, note) => LocalStorageAppointmentRepository.recordConfirmationAttempt(
+    current, channel, 'confirmed', note, { operationKey: crypto.randomUUID() },
+  ),
+
+  listConfirmationAttempts: async () => [],
 
   recoverAppointmentOperation: async (): Promise<AppointmentRecoveryResult> => ({ found: false }),
 
@@ -416,6 +480,62 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     }, genericLifecycleError);
   }
 
+  async recordConfirmationAttempt(
+    current: Appointment,
+    channel: AppointmentContactChannel,
+    outcome: AppointmentContactOutcome,
+    note: string,
+    options: AppointmentWriteOptions,
+  ): Promise<AppointmentWriteResult> {
+    if (!current.updatedAt) throw new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
+    return this.executeRecoverableWrite(options, async () => {
+      const { data, error } = await this.client.rpc('record_appointment_confirmation_attempt', {
+        p_tenant_id: this.tenantId,
+        p_appointment_id: current.id,
+        p_channel: channel,
+        p_outcome: outcome,
+        p_note: note.trim() || null,
+        p_expected_updated_at: current.updatedAt,
+        p_operation_key: options.operationKey,
+      });
+      if (error) throw error;
+      return this.parseWriteResult(data, 'confirmation_attempt');
+    }, genericConfirmationError);
+  }
+
+  async confirmAppointment(
+    current: Appointment,
+    channel: AppointmentContactChannel,
+    note: string,
+    options: AppointmentWriteOptions,
+  ): Promise<AppointmentWriteResult> {
+    if (!current.updatedAt) throw new AppointmentRepositoryError('concurrent_change', 'Запись была изменена другим пользователем. Обновите расписание.');
+    return this.executeRecoverableWrite(options, async () => {
+      const { data, error } = await this.client.rpc('confirm_appointment', {
+        p_tenant_id: this.tenantId,
+        p_appointment_id: current.id,
+        p_channel: channel,
+        p_note: note.trim() || null,
+        p_expected_updated_at: current.updatedAt,
+        p_operation_key: options.operationKey,
+      });
+      if (error) throw error;
+      return this.parseWriteResult(data, 'confirm');
+    }, genericConfirmationError);
+  }
+
+  async listConfirmationAttempts(appointmentId: string): Promise<AppointmentConfirmationAttempt[]> {
+    const { data, error } = await this.client
+      .from('appointment_confirmation_attempts')
+      .select('*')
+      .eq('tenant_id', this.tenantId)
+      .eq('appointment_id', appointmentId)
+      .order('attempted_at', { ascending: false })
+      .order('id', { ascending: true });
+    if (error) throw toSafeAppointmentReadError('schedule');
+    return (data || []).map(this.mapToConfirmationAttempt);
+  }
+
   async recoverAppointmentOperation(operationKey: string): Promise<AppointmentRecoveryResult> {
     try {
       const { data, error } = await this.client.rpc('get_appointment_operation', {
@@ -435,8 +555,13 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
         operationType: payload.operationType === 'reschedule'
           || payload.operationType === 'cancel'
           || payload.operationType === 'no_show'
+          || payload.operationType === 'confirmation_attempt'
+          || payload.operationType === 'confirm'
           ? payload.operationType
           : 'create',
+        confirmationAttempt: payload.confirmationAttempt && typeof payload.confirmationAttempt === 'object'
+          ? this.mapToConfirmationAttempt(payload.confirmationAttempt as Record<string, unknown>)
+          : undefined,
         appointment: this.mapToAppointment(payload.appointment as Record<string, unknown>),
         replayed: payload.replayed === true,
         recovered: payload.recovered === true,
@@ -474,6 +599,7 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
         if (recovered.found && recovered.appointment && recovered.operationType) {
           return {
             appointment: recovered.appointment,
+            confirmationAttempt: recovered.confirmationAttempt,
             replayed: recovered.replayed === true,
             recovered: true,
             operationType: recovered.operationType,
@@ -501,11 +627,16 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
       || payload.operationType === 'details'
       || payload.operationType === 'cancel'
       || payload.operationType === 'no_show'
+      || payload.operationType === 'confirmation_attempt'
+      || payload.operationType === 'confirm'
       ? payload.operationType
       : fallbackType;
 
     return {
       appointment: this.mapToAppointment(payload.appointment as Record<string, unknown>),
+      confirmationAttempt: payload.confirmationAttempt && typeof payload.confirmationAttempt === 'object'
+        ? this.mapToConfirmationAttempt(payload.confirmationAttempt as Record<string, unknown>)
+        : undefined,
       replayed: payload.replayed === true,
       recovered: payload.recovered === true,
       operationType,
@@ -522,6 +653,20 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     if (!timeStr) return timeStr;
     return timeStr.replace(/(Z|[+-]\d{2}:\d{2})$/, '');
   }
+
+  private mapToConfirmationAttempt = (row: Record<string, unknown>): AppointmentConfirmationAttempt => ({
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    appointmentId: (row.appointment_id as string) || undefined,
+    patientId: row.patient_id as string,
+    actorUserId: row.actor_user_id as string,
+    channel: row.channel as AppointmentContactChannel,
+    outcome: row.outcome as AppointmentContactOutcome,
+    note: (row.note as string) || undefined,
+    attemptedAt: this.normalizeTimeFromDb(row.attempted_at as string),
+    operationKey: (row.operation_key as string) || undefined,
+    createdAt: this.normalizeTimeFromDb(row.created_at as string),
+  });
 
   private mapToAppointment = (row: Record<string, unknown>): Appointment => ({
     id: row.id as string,
@@ -544,6 +689,16 @@ export class SupabaseAppointmentRepository implements IAppointmentRepository {
     lifecycleMetadataVersion: row.lifecycle_metadata_version !== null && row.lifecycle_metadata_version !== undefined
       ? Number(row.lifecycle_metadata_version)
       : undefined,
+    confirmationState: (row.confirmation_state as Appointment['confirmationState']) || 'unconfirmed',
+    confirmedAt: row.confirmed_at ? this.normalizeTimeFromDb(row.confirmed_at as string) : undefined,
+    confirmedBy: (row.confirmed_by as string) || undefined,
+    confirmationChannel: (row.confirmation_channel as AppointmentContactChannel) || undefined,
+    confirmationNote: (row.confirmation_note as string) || undefined,
+    lastConfirmationAttemptAt: row.last_confirmation_attempt_at ? this.normalizeTimeFromDb(row.last_confirmation_attempt_at as string) : undefined,
+    confirmationAttemptCount: row.confirmation_attempt_count !== null && row.confirmation_attempt_count !== undefined ? Number(row.confirmation_attempt_count) : 0,
+    confirmationMetadataVersion: row.confirmation_metadata_version !== null && row.confirmation_metadata_version !== undefined ? Number(row.confirmation_metadata_version) : 0,
+    lastConfirmationOutcome: (row.last_confirmation_outcome as AppointmentContactOutcome) || undefined,
+    lastConfirmationNote: (row.last_confirmation_note as string) || undefined,
     start: this.normalizeTimeFromDb(row.start_time as string),
     end: this.normalizeTimeFromDb(row.end_time as string),
     createdAt: this.normalizeTimeFromDb(row.created_at as string),

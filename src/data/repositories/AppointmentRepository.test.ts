@@ -62,7 +62,7 @@ const databaseRow = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const rpcResult = (
-  operationType: 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' = 'create',
+  operationType: 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' | 'confirmation_attempt' | 'confirm' = 'create',
   overrides: Record<string, unknown> = {},
 ) => ({
   appointment: databaseRow(overrides),
@@ -496,6 +496,116 @@ describe('AppointmentRepository', () => {
     expect(finalEq).toHaveBeenCalledWith('id', appointmentId);
   });
 
+  it('records a confirmation attempt through tenant-scoped RPC and maps attempt metadata', async () => {
+    const { client, rpc } = createClient();
+    rpc.mockResolvedValue({
+      data: {
+        ...rpcResult('confirmation_attempt', {
+          confirmation_state: 'contact_in_progress',
+          confirmation_attempt_count: 1,
+          last_confirmation_outcome: 'no_answer',
+        }),
+        confirmationAttempt: {
+          id: 'attempt-1', tenant_id: tenantId, appointment_id: appointmentId, patient_id: patientId,
+          actor_user_id: 'actor-1', channel: 'phone', outcome: 'no_answer', note: 'Trimmed note',
+          attempted_at: '2026-08-01T09:30:00+00:00', operation_key: operationKey,
+          created_at: '2026-08-01T09:30:00+00:00',
+        },
+      },
+      error: null,
+    });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const result = await repository.recordConfirmationAttempt(appointment, 'phone', 'no_answer', '  Trimmed note  ', { operationKey });
+
+    expect(rpc).toHaveBeenCalledWith('record_appointment_confirmation_attempt', {
+      p_tenant_id: tenantId,
+      p_appointment_id: appointmentId,
+      p_channel: 'phone',
+      p_outcome: 'no_answer',
+      p_note: 'Trimmed note',
+      p_expected_updated_at: appointment.updatedAt,
+      p_operation_key: operationKey,
+    });
+    expect(result).toMatchObject({
+      operationType: 'confirmation_attempt',
+      appointment: { confirmationState: 'contact_in_progress', confirmationAttemptCount: 1, lastConfirmationOutcome: 'no_answer' },
+      confirmationAttempt: { id: 'attempt-1', channel: 'phone', outcome: 'no_answer', note: 'Trimmed note' },
+    });
+  });
+
+  it('confirms through confirm_appointment and preserves the operation key during recovery', async () => {
+    const { client, rpc } = createClient();
+    rpc
+      .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+      .mockResolvedValueOnce({
+        data: {
+          found: true,
+          operationType: 'confirm',
+          appointment: databaseRow({ confirmation_state: 'confirmed', confirmed_at: '2026-08-01T09:40:00+00:00', confirmed_by: 'actor-1', confirmation_channel: 'whatsapp', confirmation_attempt_count: 1 }),
+          confirmationAttempt: {
+            id: 'attempt-confirm', tenant_id: tenantId, appointment_id: appointmentId, patient_id: patientId,
+            actor_user_id: 'actor-1', channel: 'whatsapp', outcome: 'confirmed', note: null,
+            attempted_at: '2026-08-01T09:40:00+00:00', operation_key: operationKey,
+            created_at: '2026-08-01T09:40:00+00:00',
+          },
+          replayed: true,
+          recovered: true,
+        },
+        error: null,
+      });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+    const states: boolean[] = [];
+
+    const result = await repository.confirmAppointment(appointment, 'whatsapp', '', {
+      operationKey,
+      onRecoveryStateChange: (value) => states.push(value),
+    });
+
+    expect(rpc.mock.calls[0]).toEqual(['confirm_appointment', expect.objectContaining({ p_operation_key: operationKey })]);
+    expect(rpc.mock.calls[1]).toEqual(['get_appointment_operation', { p_tenant_id: tenantId, p_operation_key: operationKey }]);
+    expect(states).toEqual([true, false]);
+    expect(result).toMatchObject({ operationType: 'confirm', recovered: true, appointment: { confirmationState: 'confirmed' }, confirmationAttempt: { id: 'attempt-confirm' } });
+  });
+
+  it('reads confirmation attempt history with tenant and appointment scope', async () => {
+    const { client, from } = createClient();
+    const result = Promise.resolve({
+      data: [{
+        id: 'attempt-1', tenant_id: tenantId, appointment_id: appointmentId, patient_id: patientId,
+        actor_user_id: 'actor-1', channel: 'phone', outcome: 'callback_requested', note: 'After lunch',
+        attempted_at: '2026-08-01T09:30:00+00:00', operation_key: operationKey,
+        created_at: '2026-08-01T09:30:00+00:00',
+      }],
+      error: null,
+    });
+    const order = vi.fn().mockImplementation(() => Object.assign(result, { order }));
+    const secondEq = vi.fn().mockReturnValue({ order });
+    const firstEq = vi.fn().mockReturnValue({ eq: secondEq });
+    const select = vi.fn().mockReturnValue({ eq: firstEq });
+    from.mockReturnValue({ select });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const attempts = await repository.listConfirmationAttempts(appointmentId);
+
+    expect(from).toHaveBeenCalledWith('appointment_confirmation_attempts');
+    expect(firstEq).toHaveBeenCalledWith('tenant_id', tenantId);
+    expect(secondEq).toHaveBeenCalledWith('appointment_id', appointmentId);
+    expect(attempts[0]).toMatchObject({ id: 'attempt-1', channel: 'phone', outcome: 'callback_requested', note: 'After lunch' });
+  });
+
+  it.each([
+    ['Выберите способ связи.', 'channel_required', 'Выберите способ связи.'],
+    ['Выберите результат связи.', 'outcome_required', 'Выберите результат связи.'],
+    ['Запись уже подтверждена.', 'already_confirmed', 'Запись уже подтверждена.'],
+    ['Недостаточно прав для подтверждения записи.', 'permission', 'Недостаточно прав для подтверждения записи.'],
+  ])('maps confirmation error safely: %s', (rawMessage, code, safeMessage) => {
+    const mapped = toSafeAppointmentError({ message: rawMessage, details: 'SQLSTATE 42501 public.confirm_appointment' });
+    expect(mapped.code).toBe(code);
+    expect(mapped.message).toBe(safeMessage);
+    expect(mapped.message).not.toContain('SQLSTATE');
+  });
+
   it('source contains no protected direct INSERT/UPDATE, service role, or Supabase localStorage fallback', () => {
     const supabaseClass = repositorySource.slice(
       repositorySource.indexOf('export class SupabaseAppointmentRepository'),
@@ -511,6 +621,9 @@ describe('AppointmentRepository', () => {
     expect(supabaseClass).toContain("rpc('reschedule_appointment'");
     expect(supabaseClass).toContain("rpc('cancel_appointment'");
     expect(supabaseClass).toContain("rpc('mark_appointment_no_show'");
+    expect(supabaseClass).toContain("rpc('record_appointment_confirmation_attempt'");
+    expect(supabaseClass).toContain("rpc('confirm_appointment'");
+    expect(supabaseClass).toContain("from('appointment_confirmation_attempts'");
     expect(supabaseClass).toContain("rpc('get_appointment_operation'");
   });
 });

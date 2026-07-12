@@ -51,7 +51,7 @@ const appointment: Appointment = {
   updatedAt: '2026-07-01T09:00:00+00:00',
 };
 
-const writeResult = (value: Appointment = appointment, operationType: 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' = 'create') => ({
+const writeResult = (value: Appointment = appointment, operationType: 'create' | 'reschedule' | 'details' | 'cancel' | 'no_show' | 'confirmation_attempt' | 'confirm' = 'create') => ({
   appointment: value,
   replayed: false,
   recovered: false,
@@ -76,6 +76,9 @@ const makeRepository = (): IAppointmentRepository => ({
   updateAppointmentDetails: vi.fn().mockResolvedValue(writeResult(appointment, 'details')),
   cancelAppointment: vi.fn().mockResolvedValue(writeResult({ ...appointment, status: 'cancelled' }, 'cancel')),
   markAppointmentNoShow: vi.fn().mockResolvedValue(writeResult({ ...appointment, status: 'no_show' }, 'no_show')),
+  recordConfirmationAttempt: vi.fn().mockResolvedValue(writeResult({ ...appointment, confirmationState: 'contact_in_progress' }, 'confirmation_attempt')),
+  confirmAppointment: vi.fn().mockResolvedValue(writeResult({ ...appointment, confirmationState: 'confirmed' }, 'confirm')),
+  listConfirmationAttempts: vi.fn().mockResolvedValue([]),
   recoverAppointmentOperation: vi.fn().mockResolvedValue({ found: false }),
   deleteAppointment: vi.fn().mockResolvedValue(undefined),
 });
@@ -419,6 +422,99 @@ describe('useScheduleAppointments', () => {
     });
 
     expect(keys[1]).not.toBe(keys[0]);
+    await harness.unmount();
+  });
+
+  it('blocks duplicate attempt and simultaneous direct confirmation with one refresh', async () => {
+    const save = deferred<ReturnType<typeof writeResult>>();
+    const attempt = vi.fn((...args: Parameters<IAppointmentRepository['recordConfirmationAttempt']>) => {
+      void args;
+      return save.promise;
+    });
+    const confirm = vi.fn().mockResolvedValue(writeResult({ ...appointment, confirmationState: 'confirmed' }, 'confirm'));
+    repository.recordConfirmationAttempt = attempt;
+    repository.confirmAppointment = confirm;
+    const harness = await renderHook();
+
+    let first!: Promise<unknown>;
+    let second!: Promise<unknown>;
+    let competing!: Promise<unknown>;
+    await act(async () => {
+      first = harness.getResult().recordConfirmationAttempt(appointment, 'phone', 'no_answer', '  First call  ');
+      second = harness.getResult().recordConfirmationAttempt(appointment, 'phone', 'no_answer', '  First call  ');
+      competing = harness.getResult().confirmAppointment(appointment, 'whatsapp', 'Competing');
+      await Promise.resolve();
+    });
+
+    expect(first).toBe(second);
+    expect(competing).toBe(first);
+    expect(attempt).toHaveBeenCalledTimes(1);
+    expect(attempt.mock.calls[0][3]).toBe('First call');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(harness.getResult()).toMatchObject({ isRecordingConfirmationAttempt: true, isConfirmingAppointment: false });
+
+    await act(async () => save.resolve(writeResult({ ...appointment, confirmationState: 'contact_in_progress' }, 'confirmation_attempt')));
+    await first;
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    await harness.unmount();
+  });
+
+  it('retains confirmation operation key through ambiguous retry and exposes reconciliation', async () => {
+    const keys: string[] = [];
+    const confirm = vi.fn()
+      .mockImplementationOnce((_current: Appointment, _channel: string, _note: string, options: AppointmentWriteOptions) => {
+        keys.push(options.operationKey);
+        options.onRecoveryStateChange?.(true);
+        options.onRecoveryStateChange?.(false);
+        return Promise.reject(new AppointmentRepositoryError('generic', 'Не удалось сохранить подтверждение. Обновите расписание и проверьте результат.', true));
+      })
+      .mockImplementationOnce((_current: Appointment, _channel: string, _note: string, options: AppointmentWriteOptions) => {
+        keys.push(options.operationKey);
+        return Promise.resolve(writeResult({ ...appointment, confirmationState: 'confirmed' }, 'confirm'));
+      });
+    repository.confirmAppointment = confirm;
+    const harness = await renderHook();
+
+    await act(async () => {
+      await expect(harness.getResult().confirmAppointment(appointment, 'phone', 'Confirmed')).rejects.toMatchObject({ ambiguous: true });
+    });
+    await act(async () => {
+      await expect(harness.getResult().confirmAppointment(appointment, 'phone', 'Confirmed')).resolves.toMatchObject({ operationType: 'confirm' });
+    });
+
+    expect(keys[1]).toBe(keys[0]);
+    expect(refetchMock).toHaveBeenCalledTimes(1);
+    await harness.unmount();
+  });
+
+  it('clears confirmation key after definitive error and ignores stale tenant success', async () => {
+    const keys: string[] = [];
+    const save = deferred<ReturnType<typeof writeResult>>();
+    repository.recordConfirmationAttempt = vi.fn()
+      .mockImplementationOnce((_current, _channel, _outcome, _note, options) => {
+        keys.push(options.operationKey);
+        return Promise.reject(new AppointmentRepositoryError('channel_required', 'Выберите способ связи.'));
+      })
+      .mockImplementationOnce((_current, _channel, _outcome, _note, options) => {
+        keys.push(options.operationKey);
+        return save.promise;
+      });
+    const harness = await renderHook();
+
+    await act(async () => {
+      await expect(harness.getResult().recordConfirmationAttempt(appointment, 'phone', 'no_answer', 'Bad')).rejects.toThrow('Выберите способ связи');
+    });
+    let pending!: Promise<unknown>;
+    await act(async () => {
+      pending = harness.getResult().recordConfirmationAttempt(appointment, 'phone', 'no_answer', 'Corrected');
+      await Promise.resolve();
+    });
+    expect(keys[1]).not.toBe(keys[0]);
+    activeTenant = { tenantId: 'tenant-b' };
+    await harness.rerender();
+    await act(async () => save.resolve(writeResult({ ...appointment, confirmationState: 'contact_in_progress' }, 'confirmation_attempt')));
+    await expect(pending).resolves.toBeNull();
+    expect(refetchMock).not.toHaveBeenCalled();
     await harness.unmount();
   });
 

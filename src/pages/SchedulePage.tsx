@@ -2,12 +2,13 @@ import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, CheckSquare, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useScheduleContext } from '../hooks/useScheduleContext';
-import { useScheduleAppointments } from '../data/hooks/useScheduleAppointments';
+import { useAppointmentConfirmationAttempts, useScheduleAppointments } from '../data/hooks/useScheduleAppointments';
 import { useClinicDoctors } from '../data/hooks/useClinicDoctors';
 import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 import { AppointmentModal } from '../components/schedule/AppointmentModal';
 import { useTenant } from '../contexts/TenantContext';
-import type { Appointment, CancellationSource, Doctor, AppointmentStatus } from '../types';
+import type { Appointment, AppointmentContactChannel, AppointmentContactOutcome, CancellationSource, Doctor, AppointmentStatus } from '../types';
+import { appointmentNeedsConfirmationAttention, confirmationStateClassName, confirmationStateLabel } from '../components/schedule/appointmentConfirmation';
 
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
   const hour = Math.floor(i / 2) + 9;
@@ -63,15 +64,28 @@ export function SchedulePage() {
     updateAppointment,
     cancelAppointment,
     markAppointmentNoShow,
+    recordConfirmationAttempt,
+    confirmAppointment,
     deleteAppointment,
     isSaving,
     isReconciling,
+    isRecordingConfirmationAttempt,
+    isConfirmingAppointment,
+    isReconcilingConfirmation,
     saveError,
   } = useScheduleAppointments();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
+  const [showConfirmationAttentionOnly, setShowConfirmationAttentionOnly] = useState(false);
   const { activeTenant } = useTenant();
+  const {
+    attempts: confirmationAttempts,
+    isLoading: isLoadingConfirmationAttempts,
+    isError: isConfirmationAttemptsError,
+    error: confirmationAttemptsError,
+    refetch: refetchConfirmationAttempts,
+  } = useAppointmentConfirmationAttempts(editingAppointment?.id);
 
   const { doctors: allDoctors } = useClinicDoctors();
   const { patients } = usePatientsCollection();
@@ -96,9 +110,14 @@ export function SchedulePage() {
       if (!a.start.startsWith(selectedDateStr)) return false;
       if (statusFilter && a.status !== statusFilter) return false;
       if (sourceFilter && a.source !== sourceFilter) return false;
+      if (showConfirmationAttentionOnly && !appointmentNeedsConfirmationAttention(a)) return false;
       return true;
     });
-  }, [appointments, selectedDateStr, statusFilter, sourceFilter]);
+  }, [appointments, selectedDateStr, statusFilter, sourceFilter, showConfirmationAttentionOnly]);
+
+  const confirmationAttentionCount = useMemo(() => appointments.filter((appointment) => (
+    appointment.start.startsWith(selectedDateStr) && appointmentNeedsConfirmationAttention(appointment)
+  )).length, [appointments, selectedDateStr]);
 
   const handleOpenModal = (doctor?: Doctor, timeSlot?: string) => {
     let initialData: Partial<Appointment> = {};
@@ -150,6 +169,37 @@ export function SchedulePage() {
     try {
       const result = await markAppointmentNoShow(appointment, reason);
       return result?.appointment || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleRecordConfirmationAttempt = async (
+    appointment: Appointment,
+    channel: AppointmentContactChannel,
+    outcome: AppointmentContactOutcome,
+    note: string,
+  ): Promise<Appointment | null> => {
+    try {
+      const result = await recordConfirmationAttempt(appointment, channel, outcome, note);
+      if (!result) return null;
+      await refetchConfirmationAttempts();
+      return result.appointment;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleConfirmAppointment = async (
+    appointment: Appointment,
+    channel: AppointmentContactChannel,
+    note: string,
+  ): Promise<Appointment | null> => {
+    try {
+      const result = await confirmAppointment(appointment, channel, note);
+      if (!result) return null;
+      await refetchConfirmationAttempts();
+      return result.appointment;
     } catch {
       return null;
     }
@@ -229,16 +279,20 @@ export function SchedulePage() {
             Задачи на сегодня
           </h3>
           <div className="space-y-2 overflow-y-auto pr-2">
-            {[
-              'Позвонить Петрову (перенос)',
-              'Заказать материалы',
-              'Подтвердить записи на завтра',
-            ].map((task, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <input type="checkbox" className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span>{task}</span>
-              </div>
-            ))}
+            <button
+              type="button"
+              data-testid="schedule-confirmation-attention-filter"
+              onClick={() => setShowConfirmationAttentionOnly((current) => !current)}
+              className={clsx(
+                'w-full rounded-lg border p-3 text-left text-sm transition-colors',
+                showConfirmationAttentionOnly
+                  ? 'border-amber-400 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+              )}
+            >
+              <div className="font-semibold">Требуют подтверждения: {confirmationAttentionCount}</div>
+              <div className="mt-1 text-xs opacity-75">Не подтверждены, недоступны или просят перезвонить</div>
+            </button>
           </div>
         </div>
       </div>
@@ -310,6 +364,14 @@ export function SchedulePage() {
                           <span className="opacity-75 text-[10px]">{getStatusLabel(apt.status)}</span>
                         </div>
                         {apt.status !== 'blocked' && (
+                          <span
+                            data-testid={`schedule-confirmation-${apt.id}`}
+                            className={`mb-1 w-fit rounded border px-1.5 py-0.5 text-[9px] font-semibold ${confirmationStateClassName(apt.confirmationState)}`}
+                          >
+                            {confirmationStateLabel(apt.confirmationState)}
+                          </span>
+                        )}
+                        {apt.status !== 'blocked' && (
                           <>
                             <div className="truncate opacity-90">{apt.service}</div>
                             <div className="mt-auto flex justify-between items-end">
@@ -333,6 +395,14 @@ export function SchedulePage() {
         onSave={handleSaveAppointment}
         onCancel={handleCancelAppointment}
         onMarkNoShow={handleMarkNoShow}
+        onRecordConfirmationAttempt={handleRecordConfirmationAttempt}
+        onConfirmAppointment={handleConfirmAppointment}
+        confirmationAttempts={confirmationAttempts}
+        isLoadingConfirmationAttempts={isLoadingConfirmationAttempts}
+        confirmationAttemptsError={isConfirmationAttemptsError ? (confirmationAttemptsError?.message || 'Не удалось загрузить историю подтверждения.') : null}
+        isRecordingConfirmationAttempt={isRecordingConfirmationAttempt}
+        isConfirmingAppointment={isConfirmingAppointment}
+        isReconcilingConfirmation={isReconcilingConfirmation}
         onDelete={handleDeleteAppointment}
         role={activeTenant?.role}
         initialData={editingAppointment}

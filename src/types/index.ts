@@ -2,6 +2,9 @@
 
 export type AppointmentStatus = 'new' | 'confirmed' | 'arrived' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'blocked';
 export type CancellationSource = 'patient' | 'clinic' | 'doctor' | 'technical' | 'other';
+export type AppointmentConfirmationState = 'unconfirmed' | 'contact_in_progress' | 'confirmed' | 'unreachable' | 'callback_requested';
+export type AppointmentContactChannel = 'phone' | 'whatsapp' | 'sms' | 'email' | 'in_person' | 'other';
+export type AppointmentContactOutcome = 'confirmed' | 'no_answer' | 'unreachable' | 'callback_requested' | 'declined' | 'wrong_number' | 'message_sent' | 'other';
 export type PaymentType = 'cash' | 'card' | 'kaspi' | 'insurance' | 'installment' | 'unpaid';
 export type Source = 'phone' | 'whatsapp' | 'instagram' | 'walk_in' | 'repeat' | 'referral';
 
@@ -74,8 +77,32 @@ export interface Appointment {
   noShowBy?: string;
   noShowReason?: string;
   lifecycleMetadataVersion?: number;
+  confirmationState?: AppointmentConfirmationState;
+  confirmedAt?: string;
+  confirmedBy?: string;
+  confirmationChannel?: AppointmentContactChannel;
+  confirmationNote?: string;
+  lastConfirmationAttemptAt?: string;
+  confirmationAttemptCount?: number;
+  confirmationMetadataVersion?: number;
+  lastConfirmationOutcome?: AppointmentContactOutcome;
+  lastConfirmationNote?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface AppointmentConfirmationAttempt {
+  id: string;
+  tenantId: string;
+  appointmentId?: string;
+  patientId: string;
+  actorUserId: string;
+  channel: AppointmentContactChannel;
+  outcome: AppointmentContactOutcome;
+  note?: string;
+  attemptedAt: string;
+  operationKey?: string;
+  createdAt: string;
 }
 
 export type ToothNumber =

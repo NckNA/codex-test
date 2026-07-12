@@ -116,6 +116,32 @@ describe('PatientHistoryTab', () => {
     await act(async () => root.unmount());
   });
 
+  it('shows confirmation facts without presenting contact as clinical treatment', async () => {
+    vi.mocked(usePatientAppointments).mockReturnValue({
+      appointments: [row({
+        confirmationState: 'confirmed',
+        confirmedAt: '2026-08-01T09:30:00',
+        confirmationChannel: 'whatsapp',
+        confirmationAttemptCount: 2,
+        lastConfirmationAttemptAt: '2026-08-01T09:30:00',
+        lastConfirmationOutcome: 'confirmed',
+        lastConfirmationNote: 'Пациент подтвердил',
+      })],
+      isLoading: false,
+      isError: false,
+    } as any);
+    const { container, root } = await render();
+
+    const metadata = container.querySelector('[data-testid="history-confirmation-appointment-1"]');
+    expect(metadata?.textContent).toContain('Подтверждена');
+    expect(metadata?.textContent).toContain('Попыток связи: 2');
+    expect(metadata?.textContent).toContain('Подтвердил');
+    expect(metadata?.textContent).toContain('WhatsApp');
+    expect(metadata?.textContent).toContain('Пациент подтвердил');
+    expect(metadata?.textContent).not.toContain('Лечение выполнено');
+    await act(async () => root.unmount());
+  });
+
   it('shows loading and empty states without demo rows', async () => {
     vi.mocked(usePatientAppointments).mockReturnValue({ appointments: [], isLoading: true, isError: false } as any);
     const loading = await render();

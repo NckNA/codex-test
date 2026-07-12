@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { useAsyncQuery } from './useAsyncQuery';
-import type { Appointment, CancellationSource } from '../../types';
+import type { Appointment, AppointmentConfirmationAttempt, AppointmentContactChannel, AppointmentContactOutcome, CancellationSource } from '../../types';
 import {
   AppointmentRepositoryError,
   createAppointmentRepository,
@@ -64,13 +64,15 @@ export function useScheduleAppointments() {
   });
   const [mutationAction, setMutationAction] = useState<{
     contextKey: string;
-    action: 'save' | 'cancel' | 'no_show' | null;
+    action: 'save' | 'cancel' | 'no_show' | 'confirmation_attempt' | 'confirm' | null;
   }>({ contextKey, action: null });
 
   const createAttemptRef = useRef<OperationAttempt | null>(null);
   const rescheduleAttemptRef = useRef<OperationAttempt | null>(null);
   const cancellationAttemptRef = useRef<OperationAttempt | null>(null);
   const noShowAttemptRef = useRef<OperationAttempt | null>(null);
+  const confirmationAttemptRef = useRef<OperationAttempt | null>(null);
+  const directConfirmationRef = useRef<OperationAttempt | null>(null);
   const inFlightRef = useRef<{
     contextKey: string;
     signature: string;
@@ -142,7 +144,7 @@ export function useScheduleAppointments() {
     signature: string,
     write: (onRecoveryStateChange: (recovering: boolean) => void) => Promise<AppointmentWriteResult>,
     attemptRef?: MutableRefObject<OperationAttempt | null>,
-    action: 'save' | 'cancel' | 'no_show' = 'save',
+    action: 'save' | 'cancel' | 'no_show' | 'confirmation_attempt' | 'confirm' = 'save',
   ): Promise<AppointmentWriteResult | null> => {
     const existing = inFlightRef.current;
     if (existing && existing.contextKey === contextKey) return existing.promise;
@@ -284,6 +286,47 @@ export function useScheduleAppointments() {
     );
   }, [contextKey, getOperationKey, requireRepository, runMutation]);
 
+  const recordConfirmationAttempt = useCallback((
+    current: Appointment,
+    channel: AppointmentContactChannel,
+    outcome: AppointmentContactOutcome,
+    note: string,
+  ) => {
+    const activeRepository = requireRepository();
+    const normalizedNote = note.trim();
+    const signature = `confirmation-attempt:${contextKey}:${current.id}:${current.updatedAt || ''}:${channel}:${outcome}:${normalizedNote}`;
+    const operationKey = getOperationKey(confirmationAttemptRef, signature);
+    return runMutation(
+      signature,
+      (onRecoveryStateChange) => activeRepository.recordConfirmationAttempt(current, channel, outcome, normalizedNote, {
+        operationKey,
+        onRecoveryStateChange,
+      }),
+      confirmationAttemptRef,
+      'confirmation_attempt',
+    );
+  }, [contextKey, getOperationKey, requireRepository, runMutation]);
+
+  const confirmAppointment = useCallback((
+    current: Appointment,
+    channel: AppointmentContactChannel,
+    note: string,
+  ) => {
+    const activeRepository = requireRepository();
+    const normalizedNote = note.trim();
+    const signature = `confirm:${contextKey}:${current.id}:${current.updatedAt || ''}:${channel}:${normalizedNote}`;
+    const operationKey = getOperationKey(directConfirmationRef, signature);
+    return runMutation(
+      signature,
+      (onRecoveryStateChange) => activeRepository.confirmAppointment(current, channel, normalizedNote, {
+        operationKey,
+        onRecoveryStateChange,
+      }),
+      directConfirmationRef,
+      'confirm',
+    );
+  }, [contextKey, getOperationKey, requireRepository, runMutation]);
+
   const deleteAppointment = useCallback(async (appointmentId: string): Promise<boolean> => {
     const activeRepository = requireRepository();
     const capturedContext = contextKey;
@@ -334,12 +377,55 @@ export function useScheduleAppointments() {
     isMarkingNoShow: actionForCurrentContext === 'no_show' && mutationForCurrentContext.isSaving,
     isLifecycleReconciling: (actionForCurrentContext === 'cancel' || actionForCurrentContext === 'no_show')
       && mutationForCurrentContext.isReconciling,
+    isRecordingConfirmationAttempt: actionForCurrentContext === 'confirmation_attempt' && mutationForCurrentContext.isSaving,
+    isConfirmingAppointment: actionForCurrentContext === 'confirm' && mutationForCurrentContext.isSaving,
+    isReconcilingConfirmation: (actionForCurrentContext === 'confirmation_attempt' || actionForCurrentContext === 'confirm')
+      && mutationForCurrentContext.isReconciling,
     saveError: mutationForCurrentContext.error,
     createAppointment,
     updateAppointment,
     cancelAppointment,
     markAppointmentNoShow,
+    recordConfirmationAttempt,
+    confirmAppointment,
     deleteAppointment,
     refetch,
+  };
+}
+
+
+export function useAppointmentConfirmationAttempts(appointmentId?: string) {
+  const { authMode, user } = useAuth();
+  const { activeTenant } = useTenant();
+  const tenantId = activeTenant?.tenantId;
+  const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
+  const contextKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${appointmentId || 'no-appointment'}`;
+  const repository = useMemo<IAppointmentRepository | null>(() => {
+    if (authMode === 'dev') return createAppointmentRepository({ backend: 'local' });
+    if (isSupabaseMode && user?.id && tenantId) return createAppointmentRepository({ backend: 'supabase', tenantId });
+    return null;
+  }, [authMode, isSupabaseMode, tenantId, user?.id]);
+  const enabled = Boolean(appointmentId) && (authMode === 'dev' || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId)));
+  const queryFn = useCallback(async (): Promise<AppointmentConfirmationAttempt[]> => {
+    if (!repository || !appointmentId) return [];
+    try {
+      return await repository.listConfirmationAttempts(appointmentId);
+    } catch {
+      throw new Error('Не удалось загрузить историю подтверждения.');
+    }
+  }, [appointmentId, repository]);
+  const query = useAsyncQuery<AppointmentConfirmationAttempt[]>({
+    queryFn,
+    initialData: [],
+    enabled,
+    queryKey: contextKey,
+    resetOnDisable: true,
+  });
+  return {
+    attempts: enabled ? query.data : [],
+    isLoading: enabled ? query.isLoading : false,
+    isError: enabled ? query.isError : false,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
