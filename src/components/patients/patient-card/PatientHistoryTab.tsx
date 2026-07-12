@@ -44,7 +44,7 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
   if (isError) {
     return (
       <div className="bg-white rounded-xl border border-red-200 shadow-sm p-8 text-center text-red-500">
-        <p>Ошибка при загрузке истории приёмов.</p>
+        <p>Не удалось загрузить записи пациента.</p>
       </div>
     );
   }

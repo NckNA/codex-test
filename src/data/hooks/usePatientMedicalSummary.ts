@@ -4,28 +4,56 @@ import {
   getPatientMedicalSummary,
   EMPTY_PATIENT_MEDICAL_SUMMARY,
   type PatientMedicalSummaryData,
-  type ClinicalSummaryRepositoryConfig
+  type ClinicalSummaryRepositoryConfig,
 } from '../aggregators/ClinicalSummaryAggregator';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
 
 export function usePatientMedicalSummary(patientId: string) {
-  const { authMode } = useAuth();
+  const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
+  const tenantId = activeTenant?.tenantId;
+  const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
 
-  const config = useMemo<ClinicalSummaryRepositoryConfig>(() => {
-    return {
-      backend: authMode === 'supabase-active' && activeTenant?.tenantId && isSupabaseConfigured ? 'supabase' : 'local',
-      tenantId: activeTenant?.tenantId,
-    };
-  }, [authMode, activeTenant?.tenantId]);
+  const config = useMemo<ClinicalSummaryRepositoryConfig | null>(() => {
+    if (authMode === 'dev') {
+      return { backend: 'local', tenantId };
+    }
+    if (isSupabaseMode && user?.id && tenantId) {
+      return { backend: 'supabase', tenantId };
+    }
+    return null;
+  }, [authMode, isSupabaseMode, tenantId, user?.id]);
 
-  const queryFn = useCallback(() => getPatientMedicalSummary(patientId, config), [patientId, config]);
+  const queryFn = useCallback(async (): Promise<PatientMedicalSummaryData> => {
+    if (!patientId || !config) return EMPTY_PATIENT_MEDICAL_SUMMARY;
+    try {
+      return await getPatientMedicalSummary(patientId, config);
+    } catch {
+      throw new Error('Не удалось загрузить сводку пациента.');
+    }
+  }, [patientId, config]);
 
-  return useAsyncQuery<PatientMedicalSummaryData>({
+  const enabled = Boolean(patientId) && (
+    authMode === 'dev'
+    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId))
+  );
+  const queryKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${patientId || 'no-patient'}:medical-summary`;
+
+  const result = useAsyncQuery<PatientMedicalSummaryData>({
     queryFn,
     initialData: EMPTY_PATIENT_MEDICAL_SUMMARY,
-    enabled: Boolean(patientId),
+    enabled,
+    queryKey,
+    resetOnDisable: true,
   });
+
+  return {
+    ...result,
+    data: enabled ? result.data : EMPTY_PATIENT_MEDICAL_SUMMARY,
+    isLoading: enabled ? result.isLoading : false,
+    isError: enabled ? result.isError : false,
+    error: enabled ? result.error : null,
+  };
 }

@@ -268,15 +268,15 @@ export function PatientOverviewTab({
         {/* Visits Info */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
            <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-slate-400" /> Визиты
+            <ClipboardList className="w-4 h-4 text-slate-400" /> Записи
            </h3>
            <div className="space-y-3">
              <div className="flex justify-between items-center text-sm">
-               <span className="text-slate-500">Последний</span>
+               <span className="text-slate-500">Предыдущая</span>
                <span className="font-medium text-slate-800">{lastVisit ? lastVisit.toLocaleDateString('ru-RU') : '-'}</span>
              </div>
              <div className="flex justify-between items-center text-sm">
-               <span className="text-slate-500">Следующий</span>
+               <span className="text-slate-500">Следующая</span>
                <span className="font-medium text-slate-800">{nextVisit ? nextVisit.toLocaleDateString('ru-RU') : '-'}</span>
              </div>
            </div>

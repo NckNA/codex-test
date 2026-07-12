@@ -87,9 +87,13 @@ describe('AppointmentRepository', () => {
   });
 
   describe('factory', () => {
-    it('uses local storage only when local backend is selected', () => {
+    it('uses local storage only when the explicit local backend is selected', () => {
       expect(createAppointmentRepository({ backend: 'local' })).toBe(LocalStorageAppointmentRepository);
-      expect(createAppointmentRepository({ backend: 'supabase', tenantId: null })).toBe(LocalStorageAppointmentRepository);
+    });
+
+    it('does not silently fall back when Supabase tenant context is missing', () => {
+      expect(() => createAppointmentRepository({ backend: 'supabase', tenantId: null }))
+        .toThrow('Клиника не выбрана.');
     });
 
     it('creates Supabase repository for configured tenant backend', () => {
@@ -99,9 +103,10 @@ describe('AppointmentRepository', () => {
     });
   });
 
-  it('reads appointments through tenant-scoped table SELECT', async () => {
+  it('reads appointments through tenant and patient scoped deterministic SELECTs', async () => {
     const { client, from } = createClient();
-    const order = vi.fn().mockResolvedValue({ data: [databaseRow()], error: null });
+    const result = Promise.resolve({ data: [databaseRow()], error: null });
+    const order = vi.fn().mockImplementation(() => Object.assign(result, { order }));
     const secondEq = vi.fn().mockReturnValue({ order });
     const firstEq = vi.fn().mockReturnValue({ eq: secondEq, order });
     const select = vi.fn().mockReturnValue({ eq: firstEq });
@@ -114,16 +119,60 @@ describe('AppointmentRepository', () => {
     expect(from).toHaveBeenCalledWith('appointments');
     expect(firstEq).toHaveBeenCalledWith('tenant_id', tenantId);
     expect(secondEq).toHaveBeenCalledWith('patient_id', patientId);
+    expect(order).toHaveBeenCalledWith('start_time', { ascending: true });
+    expect(order).toHaveBeenCalledWith('start_time', { ascending: false });
+    expect(order).toHaveBeenCalledWith('id', { ascending: true });
     expect(all[0]).toMatchObject({
       id: appointmentId,
       patientId,
       doctorId,
+      status: 'new',
       start: '2026-08-01T10:00:00',
       end: '2026-08-01T11:00:00',
       updatedAt: '2026-07-01T09:00:00+00:00',
       price: 1500,
     });
     expect(byPatient).toHaveLength(1);
+  });
+
+  it('maps empty reads to empty arrays and returns cancelled history rows unchanged', async () => {
+    const { client, from } = createClient();
+    const result = Promise.resolve({ data: [databaseRow({ status: 'cancelled' })], error: null });
+    const order = vi.fn().mockImplementation(() => Object.assign(result, { order }));
+    const secondEq = vi.fn().mockReturnValue({ order });
+    const firstEq = vi.fn().mockReturnValue({ eq: secondEq, order });
+    from.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: firstEq }) });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const rows = await repository.listAppointmentsByPatient(patientId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('cancelled');
+
+    const emptyResult = Promise.resolve({ data: null, error: null });
+    order.mockImplementation(() => Object.assign(emptyResult, { order }));
+    await expect(repository.listAppointments()).resolves.toEqual([]);
+  });
+
+  it('maps Supabase read failures to safe consumer-specific messages', async () => {
+    const { client, from } = createClient();
+    const result = Promise.resolve({
+      data: null,
+      error: { message: 'permission denied', details: 'SQLSTATE 42501 public.appointments' },
+    });
+    const order = vi.fn().mockImplementation(() => Object.assign(result, { order }));
+    const secondEq = vi.fn().mockReturnValue({ order });
+    const firstEq = vi.fn().mockReturnValue({ eq: secondEq, order });
+    from.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: firstEq }) });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    await expect(repository.listAppointments()).rejects.toMatchObject({
+      code: 'schedule_read_failed',
+      message: 'Не удалось загрузить расписание.',
+    });
+    await expect(repository.listAppointmentsByPatient(patientId)).rejects.toMatchObject({
+      code: 'patient_read_failed',
+      message: 'Не удалось загрузить записи пациента.',
+    });
   });
 
   it('creates through create_appointment RPC and preserves operation key unchanged', async () => {

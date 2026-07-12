@@ -6,6 +6,7 @@ import {
   createAppointmentRepository,
   isProtectedAppointmentChange,
   type AppointmentWriteResult,
+  type IAppointmentRepository,
 } from '../repositories/AppointmentRepository';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
@@ -45,10 +46,11 @@ const safeMutationError = (error: unknown): Error => (
 );
 
 export function useScheduleAppointments() {
-  const { authMode } = useAuth();
+  const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
   const tenantId = activeTenant?.tenantId;
-  const contextKey = `${authMode}:${tenantId || 'no-tenant'}`;
+  const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
+  const contextKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}`;
   const currentContextRef = useRef(contextKey);
   useLayoutEffect(() => {
     currentContextRef.current = contextKey;
@@ -70,15 +72,27 @@ export function useScheduleAppointments() {
     promise: Promise<AppointmentWriteResult | null>;
   } | null>(null);
 
-  const repository = useMemo(() => createAppointmentRepository({
-    backend: (authMode === 'supabase-active' && tenantId && isSupabaseConfigured) ? 'supabase' : 'local',
-    tenantId,
-  }), [authMode, tenantId]);
+  const repository = useMemo<IAppointmentRepository | null>(() => {
+    if (authMode === 'dev') {
+      return createAppointmentRepository({ backend: 'local' });
+    }
+    if (isSupabaseMode && user?.id && tenantId) {
+      return createAppointmentRepository({ backend: 'supabase', tenantId });
+    }
+    return null;
+  }, [authMode, isSupabaseMode, tenantId, user?.id]);
 
-  const queryFn = useCallback(
-    () => repository.listAppointments(),
-    [repository],
-  );
+  const queryEnabled = authMode === 'dev'
+    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId));
+
+  const queryFn = useCallback(async (): Promise<Appointment[]> => {
+    if (!repository) return [];
+    try {
+      return await repository.listAppointments();
+    } catch {
+      throw new Error('Не удалось загрузить расписание.');
+    }
+  }, [repository]);
 
   const {
     data: appointments,
@@ -89,9 +103,17 @@ export function useScheduleAppointments() {
   } = useAsyncQuery<Appointment[]>({
     queryFn,
     initialData: [],
-    enabled: true,
+    enabled: queryEnabled,
     queryKey: contextKey,
+    resetOnDisable: true,
   });
+
+  const requireRepository = useCallback((): IAppointmentRepository => {
+    if (!repository) {
+      throw new AppointmentRepositoryError('tenant_required', 'Клиника не выбрана.');
+    }
+    return repository;
+  }, [repository]);
 
   const getOperationKey = useCallback((
     ref: MutableRefObject<OperationAttempt | null>,
@@ -180,26 +202,28 @@ export function useScheduleAppointments() {
   }, [contextKey, refetch]);
 
   const createAppointment = useCallback((appointment: Appointment) => {
+    const activeRepository = requireRepository();
     const signature = `create:${contextKey}:${appointmentBusinessSignature(appointment)}`;
     const operationKey = getOperationKey(createAttemptRef, signature);
 
     return runMutation(
       signature,
-      (onRecoveryStateChange) => repository.createAppointment(appointment, {
+      (onRecoveryStateChange) => activeRepository.createAppointment(appointment, {
         operationKey,
         onRecoveryStateChange,
       }),
       createAttemptRef,
     );
-  }, [contextKey, getOperationKey, repository, runMutation]);
+  }, [contextKey, getOperationKey, requireRepository, runMutation]);
 
   const updateAppointment = useCallback((current: Appointment, next: Appointment) => {
+    const activeRepository = requireRepository();
     if (isProtectedAppointmentChange(current, next)) {
       const signature = `reschedule:${contextKey}:${current.id}:${current.updatedAt || ''}:${appointmentBusinessSignature(next)}`;
       const operationKey = getOperationKey(rescheduleAttemptRef, signature);
       return runMutation(
         signature,
-        (onRecoveryStateChange) => repository.rescheduleAppointment(current, next, {
+        (onRecoveryStateChange) => activeRepository.rescheduleAppointment(current, next, {
           operationKey,
           onRecoveryStateChange,
         }),
@@ -210,17 +234,18 @@ export function useScheduleAppointments() {
     const signature = `details:${contextKey}:${current.id}:${current.updatedAt || ''}:${appointmentBusinessSignature(next)}`;
     return runMutation(
       signature,
-      () => repository.updateAppointmentDetails(current, next),
+      () => activeRepository.updateAppointmentDetails(current, next),
     );
-  }, [contextKey, getOperationKey, repository, runMutation]);
+  }, [contextKey, getOperationKey, requireRepository, runMutation]);
 
   const deleteAppointment = useCallback(async (appointmentId: string): Promise<boolean> => {
+    const activeRepository = requireRepository();
     const capturedContext = contextKey;
     if (inFlightRef.current?.contextKey === capturedContext) return false;
 
     setMutationState({ contextKey: capturedContext, isSaving: true, isReconciling: false, error: null });
     try {
-      await repository.deleteAppointment(appointmentId);
+      await activeRepository.deleteAppointment(appointmentId);
       if (currentContextRef.current !== capturedContext) return false;
       await refetch();
       return currentContextRef.current === capturedContext;
@@ -240,7 +265,7 @@ export function useScheduleAppointments() {
         }));
       }
     }
-  }, [contextKey, refetch, repository]);
+  }, [contextKey, refetch, requireRepository]);
 
   const mutationForCurrentContext = mutationState.contextKey === contextKey
     ? mutationState
@@ -249,9 +274,9 @@ export function useScheduleAppointments() {
   const error = mutationForCurrentContext.error || queryError;
 
   return {
-    appointments: appointments || [],
-    isLoading,
-    isError,
+    appointments: queryEnabled ? appointments : [],
+    isLoading: queryEnabled ? isLoading : false,
+    isError: queryEnabled ? isError : mutationForCurrentContext.error !== null,
     error,
     isSaving: mutationForCurrentContext.isSaving,
     isReconciling: mutationForCurrentContext.isReconciling,

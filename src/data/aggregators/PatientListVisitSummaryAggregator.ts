@@ -1,4 +1,5 @@
-import { LocalStorageAppointmentRepository } from '../repositories/AppointmentRepository';
+import type { Appointment } from '../../types';
+import { buildPatientAppointmentSummaryByPatientId } from '../../domain/appointmentSummary';
 
 export interface PatientVisitSummary {
   lastVisit?: Date;
@@ -8,29 +9,22 @@ export interface PatientVisitSummary {
 export type PatientVisitSummaryByPatientId = Record<string, PatientVisitSummary>;
 
 export const PatientListVisitSummaryAggregator = {
-  async getVisitSummaryByPatientId(now = new Date()): Promise<PatientVisitSummaryByPatientId> {
+  getVisitSummaryByPatientId(
+    appointments: Appointment[],
+    now = new Date(),
+  ): PatientVisitSummaryByPatientId {
+    const summaries = buildPatientAppointmentSummaryByPatientId(appointments, now);
     const visits: PatientVisitSummaryByPatientId = {};
-    const appointments = await LocalStorageAppointmentRepository.listAppointments();
 
-    const sortedAppts = [...appointments].sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-    );
-
-    for (const appt of sortedAppts) {
-      if (!appt.patientId || appt.status === 'blocked' || appt.status === 'cancelled') continue;
-
-      const apptDate = new Date(appt.start);
-      if (!visits[appt.patientId]) {
-        visits[appt.patientId] = {};
-      }
-
-      if (apptDate < now) {
-        visits[appt.patientId].lastVisit = apptDate;
-      } else {
-        if (!visits[appt.patientId].nextVisit) {
-          visits[appt.patientId].nextVisit = apptDate;
-        }
-      }
+    for (const [patientId, summary] of Object.entries(summaries)) {
+      visits[patientId] = {
+        lastVisit: summary.previousAppointment
+          ? new Date(summary.previousAppointment.start)
+          : undefined,
+        nextVisit: summary.nextAppointment
+          ? new Date(summary.nextAppointment.start)
+          : undefined,
+      };
     }
 
     return visits;

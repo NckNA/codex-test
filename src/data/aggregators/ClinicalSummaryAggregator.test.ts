@@ -119,6 +119,29 @@ describe('ClinicalSummaryAggregator', () => {
       // It should not have queried local storage or anything
     });
 
+    it('uses the patient-scoped appointment read contract', async () => {
+      vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository').mockReturnValue({
+        listFindingsByPatient: vi.fn().mockResolvedValue([]),
+      } as unknown as ReturnType<typeof FindingsRepositoryModule.createFindingsRepository>);
+      vi.spyOn(DentalChartRepositoryModule, 'createDentalChartRepository').mockReturnValue({
+        getDentalChart: vi.fn().mockResolvedValue({ teeth: [] }),
+      } as unknown as ReturnType<typeof DentalChartRepositoryModule.createDentalChartRepository>);
+      vi.spyOn(TreatmentPlansRepositoryModule, 'createTreatmentPlansRepository').mockReturnValue({
+        listTreatmentPlansByPatient: vi.fn().mockResolvedValue([]),
+      } as unknown as ReturnType<typeof TreatmentPlansRepositoryModule.createTreatmentPlansRepository>);
+      vi.spyOn(ChiefComplaintRepositoryModule, 'createChiefComplaintRepository').mockReturnValue({
+        getChiefComplaint: vi.fn().mockResolvedValue(null),
+      } as unknown as ReturnType<typeof ChiefComplaintRepositoryModule.createChiefComplaintRepository>);
+      const listAppointmentsByPatient = vi.fn().mockResolvedValue([]);
+      vi.spyOn(AppointmentRepositoryModule, 'createAppointmentRepository').mockReturnValue({
+        listAppointmentsByPatient,
+      } as unknown as ReturnType<typeof AppointmentRepositoryModule.createAppointmentRepository>);
+
+      await getPatientMedicalSummary('patient_1', { backend: 'supabase', tenantId: 't1' });
+
+      expect(listAppointmentsByPatient).toHaveBeenCalledWith('patient_1');
+    });
+
     it('propagates Supabase errors instead of falling back to local storage', async () => {
       vi.spyOn(FindingsRepositoryModule, 'createFindingsRepository').mockReturnValue({
         listFindingsByPatient: vi.fn().mockRejectedValue(new Error('Supabase network error')),
@@ -137,7 +160,7 @@ describe('ClinicalSummaryAggregator', () => {
       } as unknown as ReturnType<typeof ChiefComplaintRepositoryModule.createChiefComplaintRepository>);
 
       vi.spyOn(AppointmentRepositoryModule, 'createAppointmentRepository').mockReturnValue({
-        listAppointments: vi.fn().mockResolvedValue([]),
+        listAppointmentsByPatient: vi.fn().mockResolvedValue([]),
       } as unknown as ReturnType<typeof AppointmentRepositoryModule.createAppointmentRepository>);
 
       await expect(getPatientMedicalSummary('patient_1', { backend: 'supabase', tenantId: 't1' })).rejects.toThrow('Supabase network error');

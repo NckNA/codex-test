@@ -122,7 +122,7 @@ describe('useScheduleAppointments', () => {
     createRepositorySpy.mockReturnValue(repository);
     activeTenant = { tenantId: 'tenant-a' };
     authMode = 'supabase-active';
-    vi.mocked(useAuth).mockImplementation(() => ({ authMode } as any));
+    vi.mocked(useAuth).mockImplementation(() => ({ authMode, user: { id: 'user-a' } } as any));
     vi.mocked(useTenant).mockImplementation(() => ({ activeTenant } as any));
   });
 
@@ -143,8 +143,18 @@ describe('useScheduleAppointments', () => {
     authMode = 'dev';
     activeTenant = null;
     const localHarness = await renderHook();
-    expect(createRepositorySpy).toHaveBeenLastCalledWith({ backend: 'local', tenantId: undefined });
+    expect(createRepositorySpy).toHaveBeenLastCalledWith({ backend: 'local' });
     await localHarness.unmount();
+  });
+
+  it('does not select local storage when Supabase mode has no tenant', async () => {
+    activeTenant = null;
+    const harness = await renderHook();
+
+    expect(createRepositorySpy).not.toHaveBeenCalled();
+    expect(harness.getResult()).toMatchObject({ appointments: [], isLoading: false });
+    expect(() => harness.getResult().createAppointment(appointment)).toThrow('Клиника не выбрана.');
+    await harness.unmount();
   });
 
   it('rapid duplicate create calls share one logical operation, one key, and one refetch', async () => {
