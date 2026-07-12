@@ -31,3 +31,21 @@ jobs:
 
     - name: Build project
       run: npm run build
+  merge_guard:
+    name: Merge guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Block explicitly protected pull requests
+      env:
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_BODY: ${{ github.event.pull_request.body }}
+      shell: bash
+      run: |
+        text="$PR_TITLE
+        $PR_BODY"
+        if printf '%s' "$text" | grep -Eiq '(DO[[:space:]]+NOT[[:space:]]+MERGE|MUST[[:space:]]+REMAIN[[:space:]]+OPEN[[:space:]]+AND[[:space:]]+UNMERGED|НЕ[[:space:]]+СЛИВАТЬ|НЕ[[:space:]]+ОБЪЕДИНЯТЬ)'; then
+          echo 'Merge blocked because the pull request is explicitly marked as protected.'
+          exit 1
+        fi
+        echo 'No explicit merge prohibition found.'
