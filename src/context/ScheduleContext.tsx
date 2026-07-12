@@ -3,8 +3,8 @@ import { createContext } from 'react';
 export type ViewMode = 'day' | 'week' | 'month';
 
 export interface ScheduleContextType {
-  selectedDate: Date;
-  setSelectedDate: (date: Date) => void;
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   doctorFilter: string | null;

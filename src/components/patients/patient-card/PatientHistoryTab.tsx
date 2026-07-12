@@ -4,6 +4,8 @@ import { Stethoscope, ClipboardList } from 'lucide-react';
 import { useClinicDoctors } from '../../../data/hooks/useClinicDoctors';
 import { usePatientAppointments } from '../../../data/hooks/usePatientAppointments';
 import { cancellationSourceLabel } from '../../schedule/appointmentLifecycle';
+import { LEGACY_TENANT_TIMEZONE, useTenant } from '../../../contexts/TenantContext';
+import { formatInstantInTenant } from '../../../domain/timezone';
 import {
   confirmationStateClassName,
   confirmationStateLabel,
@@ -44,6 +46,8 @@ const getStatusColor = (status: string) => {
 export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
   const { appointments, isLoading: isAppointmentsLoading, isError: isAppointmentsError } = usePatientAppointments(patientId);
   const { doctors, isLoading: isDoctorsLoading, isError: isDoctorsError } = useClinicDoctors();
+  const { activeTenant } = useTenant();
+  const timezone = activeTenant?.timezone ?? LEGACY_TENANT_TIMEZONE;
 
   const isLoading = isAppointmentsLoading || isDoctorsLoading;
   const isError = isAppointmentsError || isDoctorsError;
@@ -91,12 +95,11 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
           <tbody className="divide-y divide-slate-100">
             {appointments.map(appt => {
               const doctor = doctors.find(d => d.id === appt.doctorId);
-              const apptDate = new Date(appt.start);
               return (
                 <tr key={appt.id} className="hover:bg-slate-50 transition-colors">
                   <td className="py-3 px-4">
-                    <div className="font-medium text-slate-800">{apptDate.toLocaleDateString('ru-RU')}</div>
-                    <div className="text-xs text-slate-500">{apptDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div className="font-medium text-slate-800">{formatInstantInTenant(appt.start, timezone, { dateStyle: 'short' })}</div>
+                    <div className="text-xs text-slate-500">{formatInstantInTenant(appt.start, timezone, { hour: '2-digit', minute: '2-digit' })}</div>
                   </td>
                   <td className="py-3 px-4 text-slate-700">{doctor ? doctor.fullName : '-'}</td>
                   <td className="py-3 px-4">
@@ -104,7 +107,7 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
                     {appt.comment && <div className="text-xs text-slate-500 truncate max-w-[200px] mt-0.5">{appt.comment}</div>}
                     {appt.status === 'cancelled' && (
                       <div className="mt-2 max-w-sm rounded bg-red-50 p-2 text-xs text-red-800" data-testid={`history-cancellation-${appt.id}`}>
-                        <div>Отменено: {appt.cancelledAt ? new Date(appt.cancelledAt).toLocaleString('ru-RU') : 'историческая запись'}</div>
+                        <div>Отменено: {appt.cancelledAt ? formatInstantInTenant(appt.cancelledAt, timezone) : 'историческая запись'}</div>
                         <div>Источник: {cancellationSourceLabel(appt.cancellationSource)}</div>
                         <div>Причина: {appt.cancellationReason || 'Не была сохранена в прежней версии системы'}</div>
                         <div>Сотрудник: {appt.cancelledBy ? 'Сотрудник клиники' : 'Не указан'}</div>
@@ -112,7 +115,7 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
                     )}
                     {appt.status === 'no_show' && (
                       <div className="mt-2 max-w-sm rounded bg-rose-50 p-2 text-xs text-rose-800" data-testid={`history-no-show-${appt.id}`}>
-                        <div>Неявка: {appt.noShowAt ? new Date(appt.noShowAt).toLocaleString('ru-RU') : 'историческая запись'}</div>
+                        <div>Неявка: {appt.noShowAt ? formatInstantInTenant(appt.noShowAt, timezone) : 'историческая запись'}</div>
                         <div>Причина: {appt.noShowReason || 'Не была сохранена в прежней версии системы'}</div>
                         <div>Сотрудник: {appt.noShowBy ? 'Сотрудник клиники' : 'Не указан'}</div>
                       </div>
@@ -125,9 +128,9 @@ export function PatientHistoryTab({ patientId }: PatientHistoryTabProps) {
                         </span>
                       </div>
                       <div>Попыток связи: {appt.confirmationAttemptCount || 0}</div>
-                      <div>Последняя попытка: {appt.lastConfirmationAttemptAt ? new Date(appt.lastConfirmationAttemptAt).toLocaleString('ru-RU') : 'Нет'}</div>
+                      <div>Последняя попытка: {appt.lastConfirmationAttemptAt ? formatInstantInTenant(appt.lastConfirmationAttemptAt, timezone) : 'Нет'}</div>
                       <div>Результат: {appt.lastConfirmationOutcome ? CONTACT_OUTCOME_LABELS[appt.lastConfirmationOutcome] : 'Нет'}</div>
-                      <div>Подтверждена: {appt.confirmedAt ? new Date(appt.confirmedAt).toLocaleString('ru-RU') : 'Нет'}</div>
+                      <div>Подтверждена: {appt.confirmedAt ? formatInstantInTenant(appt.confirmedAt, timezone) : 'Нет'}</div>
                       <div>Канал: {appt.confirmationChannel ? CONTACT_CHANNEL_LABELS[appt.confirmationChannel] : 'Нет'}</div>
                       {appt.lastConfirmationNote && <div>Примечание: {appt.lastConfirmationNote}</div>}
                     </div>

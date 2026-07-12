@@ -8,9 +8,11 @@ import { PatientHistoryTab } from './PatientHistoryTab';
 import { usePatientAppointments } from '../../../data/hooks/usePatientAppointments';
 import { useClinicDoctors } from '../../../data/hooks/useClinicDoctors';
 import type { Appointment } from '../../../types';
+import { useTenant } from '../../../contexts/TenantContext';
 
 vi.mock('../../../data/hooks/usePatientAppointments', () => ({ usePatientAppointments: vi.fn() }));
 vi.mock('../../../data/hooks/useClinicDoctors', () => ({ useClinicDoctors: vi.fn() }));
+vi.mock('../../../contexts/TenantContext', () => ({ useTenant: vi.fn(), LEGACY_TENANT_TIMEZONE: 'Asia/Almaty' }));
 
 const row = (overrides: Partial<Appointment> = {}): Appointment => ({
   id: 'appointment-1',
@@ -19,9 +21,9 @@ const row = (overrides: Partial<Appointment> = {}): Appointment => ({
   cabinet: 'A1',
   service: 'Осмотр',
   status: 'confirmed',
-  start: '2026-08-01T10:00:00',
-  end: '2026-08-01T11:00:00',
-  createdAt: '2026-07-01T10:00:00',
+  start: '2026-08-01T05:00:00.000Z',
+  end: '2026-08-01T06:00:00.000Z',
+  createdAt: '2026-07-01T05:00:00.000Z',
   updatedAt: '2026-07-01T10:00:00+00:00',
   ...overrides,
 });
@@ -29,6 +31,7 @@ const row = (overrides: Partial<Appointment> = {}): Appointment => ({
 describe('PatientHistoryTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic', timezone: 'Asia/Almaty' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(useClinicDoctors).mockReturnValue({
       doctors: [{ id: 'doctor-1', fullName: 'Доктор Один', specialization: '', cabinet: 'A1', color: '', active: true }],
       isLoading: false,
@@ -75,7 +78,7 @@ describe('PatientHistoryTab', () => {
     vi.mocked(usePatientAppointments).mockReturnValue({
       appointments: [row({
         status: 'cancelled',
-        cancelledAt: '2026-08-01T12:00:00',
+        cancelledAt: '2026-08-01T12:00:00Z',
         cancelledBy: 'raw-user-uuid',
         cancellationSource: 'patient',
         cancellationReason: 'Пациент попросил отменить',
@@ -98,7 +101,7 @@ describe('PatientHistoryTab', () => {
     vi.mocked(usePatientAppointments).mockReturnValue({
       appointments: [row({
         status: 'no_show',
-        noShowAt: '2026-08-01T12:00:00',
+        noShowAt: '2026-08-01T12:00:00Z',
         noShowBy: 'raw-user-uuid',
         noShowReason: 'Не отвечает на звонки',
         lifecycleMetadataVersion: 1,
@@ -120,10 +123,10 @@ describe('PatientHistoryTab', () => {
     vi.mocked(usePatientAppointments).mockReturnValue({
       appointments: [row({
         confirmationState: 'confirmed',
-        confirmedAt: '2026-08-01T09:30:00',
+        confirmedAt: '2026-08-01T09:30:00Z',
         confirmationChannel: 'whatsapp',
         confirmationAttemptCount: 2,
-        lastConfirmationAttemptAt: '2026-08-01T09:30:00',
+        lastConfirmationAttemptAt: '2026-08-01T09:30:00Z',
         lastConfirmationOutcome: 'confirmed',
         lastConfirmationNote: 'Пациент подтвердил',
       })],
@@ -181,7 +184,7 @@ describe('PatientHistoryTab', () => {
     await act(async () => root.render(<PatientHistoryTab patientId="patient-1" />));
     expect(container.textContent).toContain('10:00');
 
-    appointments = [row({ start: '2026-08-01T12:30:00', end: '2026-08-01T13:30:00', status: 'arrived' })];
+    appointments = [row({ start: '2026-08-01T07:30:00.000Z', end: '2026-08-01T08:30:00.000Z', status: 'arrived' })];
     await act(async () => root.render(<PatientHistoryTab patientId="patient-1" />));
 
     expect(container.textContent).toContain('12:30');

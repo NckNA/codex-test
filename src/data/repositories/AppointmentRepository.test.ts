@@ -36,10 +36,10 @@ const appointment: Appointment = {
   source: 'phone',
   price: 1500,
   comment: 'Комментарий',
-  start: '2026-08-01T10:00:00',
-  end: '2026-08-01T11:00:00',
-  createdAt: '2026-07-01T09:00:00',
-  updatedAt: '2026-07-01T09:00:00+00:00',
+  start: '2026-08-01T10:00:00.000Z',
+  end: '2026-08-01T11:00:00.000Z',
+  createdAt: '2026-07-01T09:00:00Z',
+  updatedAt: '2026-07-01T09:00:00.000Z',
 };
 
 const databaseRow = (overrides: Record<string, unknown> = {}) => ({
@@ -56,8 +56,8 @@ const databaseRow = (overrides: Record<string, unknown> = {}) => ({
   comment: 'Комментарий',
   start_time: '2026-08-01T10:00:00+00:00',
   end_time: '2026-08-01T11:00:00+00:00',
-  created_at: '2026-07-01T09:00:00+00:00',
-  updated_at: '2026-07-01T09:00:00+00:00',
+  created_at: '2026-07-01T09:00:00.000Z',
+  updated_at: '2026-07-01T09:00:00.000Z',
   ...overrides,
 });
 
@@ -127,9 +127,9 @@ describe('AppointmentRepository', () => {
       patientId,
       doctorId,
       status: 'new',
-      start: '2026-08-01T10:00:00',
-      end: '2026-08-01T11:00:00',
-      updatedAt: '2026-07-01T09:00:00+00:00',
+      start: '2026-08-01T10:00:00+00:00',
+      end: '2026-08-01T11:00:00+00:00',
+      updatedAt: '2026-07-01T09:00:00.000Z',
       price: 1500,
     });
     expect(byPatient).toHaveLength(1);
@@ -187,12 +187,50 @@ describe('AppointmentRepository', () => {
       p_tenant_id: tenantId,
       p_patient_id: patientId,
       p_doctor_id: doctorId,
-      p_start_time: '2026-08-01T10:00:00Z',
-      p_end_time: '2026-08-01T11:00:00Z',
+      p_start_time: '2026-08-01T10:00:00.000Z',
+      p_end_time: '2026-08-01T11:00:00.000Z',
       p_operation_key: operationKey,
     }));
     expect(from).not.toHaveBeenCalled();
     expect(result).toMatchObject({ operationType: 'create', replayed: false, recovered: false });
+  });
+
+  it('preserves explicit offsets as instants instead of stripping suffixes', async () => {
+    const { client, rpc } = createClient();
+    rpc.mockResolvedValue({
+      data: rpcResult('create', {
+        start_time: '2026-08-01T15:00:00+05:00',
+        end_time: '2026-08-01T16:00:00+05:00',
+      }),
+      error: null,
+    });
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    const result = await repository.createAppointment({
+      ...appointment,
+      start: '2026-08-01T15:00:00+05:00',
+      end: '2026-08-01T16:00:00+05:00',
+    }, { operationKey });
+
+    expect(rpc).toHaveBeenCalledWith('create_appointment', expect.objectContaining({
+      p_start_time: '2026-08-01T10:00:00.000Z',
+      p_end_time: '2026-08-01T11:00:00.000Z',
+    }));
+    expect(result.appointment.start).toBe('2026-08-01T15:00:00+05:00');
+    expect(result.appointment.end).toBe('2026-08-01T16:00:00+05:00');
+  });
+
+  it('rejects ambiguous offset-free timestamps instead of blindly appending Z', async () => {
+    const { client, rpc } = createClient();
+    const repository = new SupabaseAppointmentRepository(tenantId, client);
+
+    await expect(repository.createAppointment({
+      ...appointment,
+      start: '2026-08-01T10:00:00',
+    }, { operationKey })).rejects.toMatchObject({
+      code: 'generic',
+    });
+    expect(rpc).not.toHaveBeenCalledWith('create_appointment', expect.anything());
   });
 
   it('reschedules through reschedule_appointment RPC with optimistic version and unchanged key', async () => {
@@ -209,8 +247,8 @@ describe('AppointmentRepository', () => {
     const next: Appointment = {
       ...appointment,
       doctorId: '55555555-5555-4555-8555-555555555555',
-      start: '2026-08-01T12:00:00',
-      end: '2026-08-01T13:00:00',
+      start: '2026-08-01T12:00:00Z',
+      end: '2026-08-01T13:00:00Z',
     };
 
     const result = await repository.rescheduleAppointment(appointment, next, { operationKey });
@@ -224,7 +262,7 @@ describe('AppointmentRepository', () => {
       p_operation_key: operationKey,
     }));
     expect(from).not.toHaveBeenCalled();
-    expect(result.appointment.start).toBe('2026-08-01T12:00:00');
+    expect(result.appointment.start).toBe('2026-08-01T12:00:00+00:00');
   });
 
   it('updates non-protected details only through update_appointment_details RPC', async () => {
@@ -325,7 +363,7 @@ describe('AppointmentRepository', () => {
       .rejects.toMatchObject({ code: 'invalid_transition' });
     await expect(repository.updateAppointmentDetails(appointment, { ...appointment, status: 'no_show' }))
       .rejects.toMatchObject({ code: 'invalid_transition' });
-    await expect(repository.rescheduleAppointment(appointment, { ...appointment, status: 'cancelled', start: '2026-08-01T12:00:00' }, { operationKey }))
+    await expect(repository.rescheduleAppointment(appointment, { ...appointment, status: 'cancelled', start: '2026-08-01T12:00:00Z' }, { operationKey }))
       .rejects.toMatchObject({ code: 'invalid_transition' });
     expect(rpc).not.toHaveBeenCalled();
   });
@@ -475,7 +513,7 @@ describe('AppointmentRepository', () => {
 
   it('marks protected scheduling changes and ignores details-only edits', () => {
     expect(isProtectedAppointmentChange(appointment, { ...appointment, comment: 'Другое' })).toBe(false);
-    expect(isProtectedAppointmentChange(appointment, { ...appointment, start: '2026-08-01T10:30:00' })).toBe(true);
+    expect(isProtectedAppointmentChange(appointment, { ...appointment, start: '2026-08-01T10:30:00Z' })).toBe(true);
     expect(isProtectedAppointmentChange(appointment, { ...appointment, patientId: 'other' })).toBe(true);
     expect(isProtectedAppointmentChange(appointment, { ...appointment, doctorId: 'other' })).toBe(true);
   });

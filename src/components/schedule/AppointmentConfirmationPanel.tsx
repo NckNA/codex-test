@@ -14,10 +14,12 @@ import {
   CONTACT_CHANNEL_LABELS,
   CONTACT_OUTCOME_LABELS,
 } from './appointmentConfirmation';
+import { formatInstantInTenant } from '../../domain/timezone';
 
 interface AppointmentConfirmationPanelProps {
   appointment: Appointment;
   role?: string;
+  timezone: string;
   attempts: AppointmentConfirmationAttempt[];
   isLoadingAttempts?: boolean;
   attemptsError?: string | null;
@@ -35,13 +37,14 @@ interface AppointmentConfirmationPanelProps {
 
 type FormMode = 'attempt' | 'confirm' | null;
 
-const formatDate = (value?: string) => value
-  ? new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
+const formatDate = (value: string | undefined, timezone: string) => value
+  ? formatInstantInTenant(value, timezone, { dateStyle: 'short', timeStyle: 'short' })
   : 'Нет';
 
 export function AppointmentConfirmationPanel({
   appointment,
   role,
+  timezone,
   attempts,
   isLoadingAttempts = false,
   attemptsError = null,
@@ -132,11 +135,11 @@ export function AppointmentConfirmationPanel({
         <dt className="text-slate-500">Попыток связи</dt>
         <dd className="font-medium text-slate-800" data-testid="appointment-confirmation-attempt-count">{appointment.confirmationAttemptCount || 0}</dd>
         <dt className="text-slate-500">Последняя попытка</dt>
-        <dd className="font-medium text-slate-800">{formatDate(appointment.lastConfirmationAttemptAt)}</dd>
+        <dd className="font-medium text-slate-800">{formatDate(appointment.lastConfirmationAttemptAt, timezone)}</dd>
         <dt className="text-slate-500">Последний результат</dt>
         <dd className="font-medium text-slate-800">{appointment.lastConfirmationOutcome ? CONTACT_OUTCOME_LABELS[appointment.lastConfirmationOutcome] : 'Нет'}</dd>
         <dt className="text-slate-500">Подтверждена</dt>
-        <dd className="font-medium text-slate-800">{formatDate(appointment.confirmedAt)}</dd>
+        <dd className="font-medium text-slate-800">{formatDate(appointment.confirmedAt, timezone)}</dd>
         <dt className="text-slate-500">Канал подтверждения</dt>
         <dd className="font-medium text-slate-800">{appointment.confirmationChannel ? CONTACT_CHANNEL_LABELS[appointment.confirmationChannel] : 'Нет'}</dd>
       </dl>
@@ -144,7 +147,7 @@ export function AppointmentConfirmationPanel({
       {latestAttempt && (
         <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-700" data-testid="appointment-confirmation-latest-attempt">
           <div className="font-medium">Последняя попытка: {CONTACT_OUTCOME_LABELS[latestAttempt.outcome]}</div>
-          <div>{CONTACT_CHANNEL_LABELS[latestAttempt.channel]} · {formatDate(latestAttempt.attemptedAt)}</div>
+          <div>{CONTACT_CHANNEL_LABELS[latestAttempt.channel]} · {formatDate(latestAttempt.attemptedAt, timezone)}</div>
           {latestAttempt.note && <div className="mt-1 text-slate-600">{latestAttempt.note}</div>}
         </div>
       )}
@@ -157,7 +160,7 @@ export function AppointmentConfirmationPanel({
             {sortedAttempts.map((attempt) => (
               <div key={attempt.id} className="rounded-lg border border-slate-200 p-2">
                 <div className="font-medium text-slate-800">{CONTACT_OUTCOME_LABELS[attempt.outcome]}</div>
-                <div className="text-xs text-slate-500">{CONTACT_CHANNEL_LABELS[attempt.channel]} · {formatDate(attempt.attemptedAt)}</div>
+                <div className="text-xs text-slate-500">{CONTACT_CHANNEL_LABELS[attempt.channel]} · {formatDate(attempt.attemptedAt, timezone)}</div>
                 {attempt.note && <div className="mt-1 text-xs text-slate-600">{attempt.note}</div>}
               </div>
             ))}

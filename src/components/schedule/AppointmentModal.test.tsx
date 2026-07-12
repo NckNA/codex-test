@@ -27,8 +27,8 @@ const baseInitial: Partial<Appointment> = {
   status: 'new',
   paymentType: 'unpaid',
   source: 'phone',
-  start: '2026-08-01T10:00:00',
-  end: '2026-08-01T11:00:00',
+  start: '2026-08-01T10:00:00Z',
+  end: '2026-08-01T11:00:00Z',
 };
 
 interface RenderOptions {
@@ -43,6 +43,7 @@ interface RenderOptions {
   isSaving?: boolean;
   isReconciling?: boolean;
   serverError?: string | null;
+  timezone?: string;
 }
 
 const renderModal = async (options: RenderOptions = {}) => {
@@ -63,6 +64,7 @@ const renderModal = async (options: RenderOptions = {}) => {
           onMarkNoShow={options.onMarkNoShow}
           onDelete={options.onDelete}
           role={options.role}
+          timezone={options.timezone ?? 'Asia/Almaty'}
           initialData={{ ...baseInitial, ...options.initialData }}
           appointments={options.appointments || []}
           doctors={doctors}
@@ -108,11 +110,30 @@ describe('AppointmentModal', () => {
     await cleanup(root, container);
   });
 
+  it('round trips tenant-local wall time through an authoritative instant', async () => {
+    const { container, root, onSave } = await renderModal({
+      initialData: {
+        start: '2026-08-01T04:00:00.000Z',
+        end: '2026-08-01T05:00:00.000Z',
+      },
+    });
+
+    expect((container.querySelector('input[name="start"]') as HTMLInputElement).value).toBe('2026-08-01T09:00');
+    expect((container.querySelector('input[name="end"]') as HTMLInputElement).value).toBe('2026-08-01T10:00');
+
+    await submit(container);
+
+    const saved = onSave.mock.calls[0][0] as Appointment;
+    expect(saved.start).toBe('2026-08-01T04:00:00.000Z');
+    expect(saved.end).toBe('2026-08-01T05:00:00.000Z');
+    await cleanup(root, container);
+  });
+
   it('preserves existing appointment id and updatedAt for optimistic reschedule', async () => {
     const { container, root, onSave } = await renderModal({
       initialData: {
         id: 'existing-id',
-        createdAt: '2026-07-01T09:00:00',
+        createdAt: '2026-07-01T09:00:00Z',
         updatedAt: '2026-07-01T09:30:00+00:00',
       },
     });
@@ -181,12 +202,12 @@ describe('AppointmentModal', () => {
       ...baseInitial,
       id: 'existing-doctor',
       patientId: 'p2',
-      start: '2026-08-01T10:00:00',
-      end: '2026-08-01T11:00:00',
-      createdAt: '2026-07-01T09:00:00',
+      start: '2026-08-01T10:00:00Z',
+      end: '2026-08-01T11:00:00Z',
+      createdAt: '2026-07-01T09:00:00Z',
     } as Appointment;
     const { container, root, onSave } = await renderModal({
-      initialData: { start: '2026-08-01T10:30:00', end: '2026-08-01T11:30:00' },
+      initialData: { start: '2026-08-01T10:30:00Z', end: '2026-08-01T11:30:00Z' },
       appointments: [existing],
     });
 
@@ -203,7 +224,7 @@ describe('AppointmentModal', () => {
       id: 'existing-patient',
       doctorId: 'd2',
       patientId: 'p1',
-      createdAt: '2026-07-01T09:00:00',
+      createdAt: '2026-07-01T09:00:00Z',
     } as Appointment;
     const { container, root, onSave } = await renderModal({ appointments: [existing] });
 
@@ -219,12 +240,12 @@ describe('AppointmentModal', () => {
       ...baseInitial,
       id: 'active',
       patientId: 'p2',
-      start: '2026-08-01T10:00:00',
-      end: '2026-08-01T11:00:00',
-      createdAt: '2026-07-01T09:00:00',
+      start: '2026-08-01T10:00:00Z',
+      end: '2026-08-01T11:00:00Z',
+      createdAt: '2026-07-01T09:00:00Z',
     } as Appointment;
     const adjacent = await renderModal({
-      initialData: { start: '2026-08-01T11:00:00', end: '2026-08-01T12:00:00' },
+      initialData: { start: '2026-08-01T11:00:00Z', end: '2026-08-01T12:00:00Z' },
       appointments: [active],
     });
     await submit(adjacent.container);
@@ -240,13 +261,13 @@ describe('AppointmentModal', () => {
   });
 
   it('rejects zero and negative intervals before repository call', async () => {
-    const zero = await renderModal({ initialData: { end: '2026-08-01T10:00:00' } });
+    const zero = await renderModal({ initialData: { end: '2026-08-01T10:00:00Z' } });
     await submit(zero.container);
     expect(zero.onSave).not.toHaveBeenCalled();
     expect(zero.container.textContent).toContain('Время окончания должно быть позже времени начала.');
     await cleanup(zero.root, zero.container);
 
-    const negative = await renderModal({ initialData: { end: '2026-08-01T09:00:00' } });
+    const negative = await renderModal({ initialData: { end: '2026-08-01T09:00:00Z' } });
     await submit(negative.container);
     expect(negative.onSave).not.toHaveBeenCalled();
     expect(negative.container.textContent).toContain('Время окончания должно быть позже времени начала.');
@@ -268,7 +289,7 @@ describe('AppointmentModal', () => {
 
   it('removes cancelled and no-show from generic status controls', async () => {
     const view = await renderModal({
-      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00Z', updatedAt: '2026-07-01T09:30:00+00:00' },
       role: 'clinic_admin',
       onCancel: vi.fn(),
       onMarkNoShow: vi.fn(),
@@ -282,7 +303,7 @@ describe('AppointmentModal', () => {
 
   it('keeps cancellation and hard delete visually separate for owner/admin', async () => {
     const view = await renderModal({
-      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00Z', updatedAt: '2026-07-01T09:30:00+00:00' },
       role: 'clinic_owner',
       onCancel: vi.fn(),
       onMarkNoShow: vi.fn(),
@@ -297,7 +318,7 @@ describe('AppointmentModal', () => {
 
   it('allows registrar lifecycle actions but hides hard delete', async () => {
     const view = await renderModal({
-      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00Z', updatedAt: '2026-07-01T09:30:00+00:00' },
       role: 'registrar',
       onCancel: vi.fn(),
       onMarkNoShow: vi.fn(),
@@ -311,7 +332,7 @@ describe('AppointmentModal', () => {
 
   it.each(['doctor', 'cashier', 'unknown'] as const)('hides lifecycle and delete actions for %s', async (role) => {
     const view = await renderModal({
-      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00Z', updatedAt: '2026-07-01T09:30:00+00:00' },
       role,
       onCancel: vi.fn(),
       onMarkNoShow: vi.fn(),
@@ -325,7 +346,7 @@ describe('AppointmentModal', () => {
 
   it('opens separate cancellation and no-show dialogs from lifecycle actions', async () => {
     const view = await renderModal({
-      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00Z', updatedAt: '2026-07-01T09:30:00+00:00' },
       role: 'clinic_admin',
       onCancel: vi.fn().mockResolvedValue({ ...baseInitial, id: 'existing-id', status: 'cancelled', createdAt: '', updatedAt: '' }),
       onMarkNoShow: vi.fn().mockResolvedValue({ ...baseInitial, id: 'existing-id', status: 'no_show', createdAt: '', updatedAt: '' }),
@@ -343,12 +364,12 @@ describe('AppointmentModal', () => {
       initialData: {
         id: 'cancelled-id',
         status: 'cancelled',
-        cancelledAt: '2026-08-01T12:00:00',
+        cancelledAt: '2026-08-01T12:00:00Z',
         cancelledBy: 'user-id',
         cancellationSource: 'patient',
         cancellationReason: 'Пациент попросил',
         lifecycleMetadataVersion: 1,
-        createdAt: '2026-07-01T09:00:00',
+        createdAt: '2026-07-01T09:00:00Z',
         updatedAt: '2026-08-01T12:00:00+00:00',
       },
       role: 'clinic_admin',
@@ -362,7 +383,7 @@ describe('AppointmentModal', () => {
 
   it('shows the confirmation block and does not expose legacy confirmed as a generic status action', async () => {
     const view = await renderModal({
-      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00', updatedAt: '2026-07-01T09:30:00+00:00' },
+      initialData: { id: 'existing-id', createdAt: '2026-07-01T09:00:00Z', updatedAt: '2026-07-01T09:30:00+00:00' },
       role: 'clinic_admin',
     });
     expect(view.container.querySelector('[data-testid="appointment-confirmation-panel"]')).not.toBeNull();
@@ -394,11 +415,12 @@ describe('AppointmentModal', () => {
               onSave={vi.fn().mockResolvedValue(true)}
               onMarkNoShow={onMarkNoShow}
               role="clinic_admin"
+              timezone="Asia/Almaty"
               initialData={{
                 ...baseInitial,
                 id,
                 service,
-                createdAt: '2026-07-01T09:00:00',
+                createdAt: '2026-07-01T09:00:00Z',
                 updatedAt: '2026-07-01T09:30:00+00:00',
               }}
               appointments={[]}
@@ -434,7 +456,7 @@ describe('AppointmentModal', () => {
         service: 'Приём A',
         status: 'no_show',
         noShowReason: 'Задержанный ответ',
-        createdAt: '2026-07-01T09:00:00',
+        createdAt: '2026-07-01T09:00:00Z',
         updatedAt: '2026-07-01T10:00:00+00:00',
       } as Appointment);
       await lifecycleResult;

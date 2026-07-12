@@ -13,6 +13,7 @@ export function usePatientListVisitSummary() {
   const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
   const tenantId = activeTenant?.tenantId;
+  const timezone = activeTenant?.timezone;
   const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
 
   const repository = useMemo(() => {
@@ -36,8 +37,8 @@ export function usePatientListVisitSummary() {
   }, [repository]);
 
   const enabled = authMode === 'dev'
-    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId));
-  const queryKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:patient-list-summary`;
+    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId) && Boolean(timezone));
+  const queryKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${timezone || 'no-timezone'}:patient-list-summary`;
 
   const { data, isLoading, isError, error, refetch } = useAsyncQuery<PatientVisitSummaryByPatientId>({
     queryFn,

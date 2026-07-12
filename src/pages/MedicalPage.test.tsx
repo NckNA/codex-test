@@ -42,7 +42,7 @@ describe('MedicalPage dictionary bootstrap and restored editor behavior', () => 
     bootstrapDefaultsMock = vi.fn().mockResolvedValue({ insertedCount: 43, skippedExistingCount: 0, templateKey: 'default_dental_v1' });
 
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(useDictionaries).mockReturnValue({
       diagnoses: mockDiagnoses,
       works: mockWorks,
@@ -145,7 +145,7 @@ describe('MedicalPage dictionary bootstrap and restored editor behavior', () => 
   });
 
   it('shows explicit import button for admin/owner empty dictionaries only', async () => {
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'clinic_owner' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_owner' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(useDictionaries).mockReturnValue({
       diagnoses: [],
       works: [],
@@ -168,7 +168,7 @@ describe('MedicalPage dictionary bootstrap and restored editor behavior', () => 
   });
 
   it('does not show import/edit actions for doctor or no-tenant state', async () => {
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', role: 'doctor' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'doctor' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(useDictionaries).mockReturnValue({
       diagnoses: [],
       works: [],

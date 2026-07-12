@@ -89,7 +89,7 @@ describe('usePatientTimeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active', user: { id: 'user-a' } } as unknown as ReturnType<typeof useAuth>);
-    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-1', tenantName: 'Clinic', timezone: 'Asia/Almaty', role: 'clinic_admin' } } as unknown as ReturnType<typeof useTenant>);
     mocks.getChiefComplaint.mockResolvedValue(null);
     mocks.listFindingsByPatient.mockResolvedValue([]);
     mocks.listTreatmentPlansByPatient.mockResolvedValue([]);

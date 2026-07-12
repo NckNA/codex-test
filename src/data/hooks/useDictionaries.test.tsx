@@ -91,7 +91,7 @@ describe('useDictionaries', () => {
   describe('A. Local/dev mode & backend routing', () => {
     it('uses local backend when authMode is dev', async () => {
       vi.mocked(useAuth).mockReturnValue({ authMode: 'dev' } as unknown as ReturnType<typeof useAuth>);
-      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
       const { unmount } = await setup();
       
@@ -101,7 +101,7 @@ describe('useDictionaries', () => {
 
     it('uses supabase backend when authMode is supabase-active, configured, and tenant exists', async () => {
       vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
       const { unmount } = await setup();
       
@@ -112,7 +112,7 @@ describe('useDictionaries', () => {
     it('uses local backend when authMode is supabase-active, activeTenant exists, but isSupabaseConfigured is false', async () => {
       mockSupabaseConfigured.value = false;
       vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic' } } as unknown as ReturnType<typeof useTenant>);
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'real-tenant-id', tenantName: 'Clinic', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
 
       const { unmount } = await setup();
       
@@ -146,7 +146,7 @@ describe('useDictionaries', () => {
   describe('B. Async loading and behavior', () => {
     beforeEach(() => {
       vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'C1' } } as unknown as ReturnType<typeof useTenant>);
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'C1', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
     });
 
     it('loads data initially and transitions loading state', async () => {
@@ -286,7 +286,7 @@ describe('useDictionaries', () => {
   describe('D. Error handling', () => {
     beforeEach(() => {
       vi.mocked(useAuth).mockReturnValue({ authMode: 'supabase-active' } as unknown as ReturnType<typeof useAuth>);
-      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'C1' } } as unknown as ReturnType<typeof useTenant>);
+      vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 't1', tenantName: 'C1', timezone: 'Asia/Almaty'} } as unknown as ReturnType<typeof useTenant>);
     });
 
     it('surfaces repository load errors and settles loading', async () => {

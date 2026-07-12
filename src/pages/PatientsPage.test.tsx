@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PatientsPage } from './PatientsPage';
 import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 import { usePatientListVisitSummary } from '../data/hooks/usePatientListVisitSummary';
+import { useTenant } from '../contexts/TenantContext';
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
@@ -14,6 +15,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('../data/hooks/usePatientsCollection', () => ({ usePatientsCollection: vi.fn() }));
 vi.mock('../data/hooks/usePatientListVisitSummary', () => ({ usePatientListVisitSummary: vi.fn() }));
+vi.mock('../contexts/TenantContext', () => ({ useTenant: vi.fn(), LEGACY_TENANT_TIMEZONE: 'Asia/Almaty' }));
 vi.mock('../components/patients/PatientModal', () => ({ PatientModal: () => null }));
 
 const patient = {
@@ -36,6 +38,7 @@ function renderPage() {
 describe('PatientsPage appointment summary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useTenant).mockReturnValue({ activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic', timezone: 'Asia/Almaty' } } as unknown as ReturnType<typeof useTenant>);
     vi.mocked(usePatientsCollection).mockReturnValue({
       patients: [patient],
       isLoading: false,

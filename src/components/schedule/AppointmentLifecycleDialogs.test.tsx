@@ -16,9 +16,9 @@ const appointment: Appointment = {
   cabinet: 'A1',
   service: 'Осмотр',
   status: 'confirmed',
-  start: '2026-08-01T10:00:00',
-  end: '2026-08-01T11:00:00',
-  createdAt: '2026-07-01T09:00:00',
+  start: '2026-08-01T10:00:00Z',
+  end: '2026-08-01T11:00:00Z',
+  createdAt: '2026-07-01T09:00:00Z',
   updatedAt: '2026-07-01T09:30:00+00:00',
 };
 
@@ -52,6 +52,7 @@ const renderCancellation = async (overrides: Record<string, unknown> = {}) => {
   const onClose = vi.fn();
   await act(async () => root.render(
     <AppointmentCancellationDialog
+      timezone="Asia/Almaty"
       appointment={appointment}
       patientName="Пациент Один"
       doctorName="Врач Один"
@@ -73,6 +74,7 @@ const renderNoShow = async (overrides: Record<string, unknown> = {}) => {
   const onClose = vi.fn();
   await act(async () => root.render(
     <AppointmentNoShowDialog
+      timezone="Asia/Almaty"
       appointment={appointment}
       patientName="Пациент Один"
       doctorName="Врач Один"

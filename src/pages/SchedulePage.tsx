@@ -6,9 +6,16 @@ import { useAppointmentConfirmationAttempts, useScheduleAppointments } from '../
 import { useClinicDoctors } from '../data/hooks/useClinicDoctors';
 import { usePatientsCollection } from '../data/hooks/usePatientsCollection';
 import { AppointmentModal } from '../components/schedule/AppointmentModal';
-import { useTenant } from '../contexts/TenantContext';
+import { LEGACY_TENANT_TIMEZONE, useTenant } from '../contexts/TenantContext';
 import type { Appointment, AppointmentContactChannel, AppointmentContactOutcome, CancellationSource, Doctor, AppointmentStatus } from '../types';
 import { appointmentNeedsConfirmationAttention, confirmationStateClassName, confirmationStateLabel } from '../components/schedule/appointmentConfirmation';
+import {
+  addTenantCalendarDays,
+  compareInstantToTenantDay,
+  formatTenantDate,
+  instantToTenantDateTimeInput,
+  tenantDateTimeToInstant,
+} from '../domain/timezone';
 
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
   const hour = Math.floor(i / 2) + 9;
@@ -79,6 +86,7 @@ export function SchedulePage() {
   const [editingAppointment, setEditingAppointment] = useState<Partial<Appointment> | undefined>();
   const [showConfirmationAttentionOnly, setShowConfirmationAttentionOnly] = useState(false);
   const { activeTenant } = useTenant();
+  const timezone = activeTenant?.timezone ?? LEGACY_TENANT_TIMEZONE;
   const {
     attempts: confirmationAttempts,
     isLoading: isLoadingConfirmationAttempts,
@@ -98,35 +106,35 @@ export function SchedulePage() {
   }, [allDoctors, doctorFilter]);
 
   const changeDate = (days: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
-    setSelectedDate(newDate);
+    setSelectedDate(addTenantCalendarDays(selectedDate, days));
   };
 
-  const selectedDateStr = selectedDate.toISOString().split('T')[0];
+  const selectedDateStr = selectedDate;
 
   const dailyAppointments = useMemo(() => {
     return appointments.filter(a => {
-      if (!a.start.startsWith(selectedDateStr)) return false;
+      if (compareInstantToTenantDay(a.start, selectedDateStr, timezone) !== 0) return false;
       if (statusFilter && a.status !== statusFilter) return false;
       if (sourceFilter && a.source !== sourceFilter) return false;
       if (showConfirmationAttentionOnly && !appointmentNeedsConfirmationAttention(a)) return false;
       return true;
     });
-  }, [appointments, selectedDateStr, statusFilter, sourceFilter, showConfirmationAttentionOnly]);
+  }, [appointments, selectedDateStr, statusFilter, sourceFilter, showConfirmationAttentionOnly, timezone]);
 
   const confirmationAttentionCount = useMemo(() => appointments.filter((appointment) => (
-    appointment.start.startsWith(selectedDateStr) && appointmentNeedsConfirmationAttention(appointment)
-  )).length, [appointments, selectedDateStr]);
+    compareInstantToTenantDay(appointment.start, selectedDateStr, timezone) === 0 && appointmentNeedsConfirmationAttention(appointment)
+  )).length, [appointments, selectedDateStr, timezone]);
 
   const handleOpenModal = (doctor?: Doctor, timeSlot?: string) => {
     let initialData: Partial<Appointment> = {};
     if (doctor && timeSlot) {
+      const start = tenantDateTimeToInstant(`${selectedDateStr}T${timeSlot}`, timezone);
+      const end = new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
       initialData = {
         doctorId: doctor.id,
         cabinet: doctor.cabinet,
-        start: `${selectedDateStr}T${timeSlot}:00`,
-        end: `${selectedDateStr}T${String(parseInt(timeSlot.split(':')[0]) + 1).padStart(2, '0')}:${timeSlot.split(':')[1]}:00`,
+        start,
+        end,
       };
     }
     setEditingAppointment(initialData);
@@ -233,11 +241,11 @@ export function SchedulePage() {
   const hourHeight = slotHeight * 2; // 96px per hour
 
   const getCardStyle = (startStr: string, endStr: string) => {
-    const startDate = new Date(startStr);
-    const endDate = new Date(endStr);
-
-    const startMins = (startDate.getHours() - startHour) * 60 + startDate.getMinutes();
-    const durationMins = (endDate.getTime() - startDate.getTime()) / 60000;
+    const tenantStart = instantToTenantDateTimeInput(startStr, timezone);
+    const [, time] = tenantStart.split('T');
+    const [hour, minute] = time.split(':').map(Number);
+    const startMins = (hour - startHour) * 60 + minute;
+    const durationMins = (new Date(endStr).getTime() - new Date(startStr).getTime()) / 60000;
 
     const top = (startMins / 60) * hourHeight;
     const height = (durationMins / 60) * hourHeight;
@@ -252,7 +260,7 @@ export function SchedulePage() {
         <div className="p-4 border-b border-slate-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-medium text-slate-800 capitalize">
-              {selectedDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
+              {formatTenantDate(selectedDate, { month: 'long', year: 'numeric' })}
             </h3>
             <div className="flex gap-1">
               <button onClick={() => changeDate(-1)} className="p-1 hover:bg-slate-100 rounded text-slate-500">
@@ -267,7 +275,7 @@ export function SchedulePage() {
             <input
               type="date"
               value={selectedDateStr}
-              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              onChange={(e) => setSelectedDate(e.target.value)}
               className="text-sm p-1 border border-slate-200 rounded text-slate-700"
             />
           </div>
@@ -360,7 +368,7 @@ export function SchedulePage() {
                         style={style}
                       >
                         <div className="font-medium truncate mb-0.5 flex justify-between">
-                          <span>{apt.start.split('T')[1].slice(0,5)} {patient?.fullName || apt.service}</span>
+                          <span>{instantToTenantDateTimeInput(apt.start, timezone).slice(11, 16)} {patient?.fullName || apt.service}</span>
                           <span className="opacity-75 text-[10px]">{getStatusLabel(apt.status)}</span>
                         </div>
                         {apt.status !== 'blocked' && (
@@ -405,6 +413,7 @@ export function SchedulePage() {
         isReconcilingConfirmation={isReconcilingConfirmation}
         onDelete={handleDeleteAppointment}
         role={activeTenant?.role}
+        timezone={timezone}
         initialData={editingAppointment}
         appointments={appointments}
         doctors={allDoctors}

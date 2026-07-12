@@ -51,7 +51,7 @@ describe('usePatientAppointments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState = { authMode: 'supabase-active', user: { id: 'user-a' } };
-    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-a', tenantName: 'A', timezone: 'Asia/Almaty'} };
     vi.mocked(useAuth).mockImplementation(() => authState);
     vi.mocked(useTenant).mockImplementation(() => tenantState);
   });
@@ -159,7 +159,7 @@ describe('usePatientAppointments', () => {
     ));
     const { root, Harness } = await mount('patient-a');
 
-    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B' } };
+    tenantState = { activeTenant: { tenantId: 'tenant-b', tenantName: 'B', timezone: 'Asia/Almaty'} };
     await act(async () => root.render(<Harness id="patient-a" tick={1} />));
     expect(current?.appointments).toEqual([]);
 

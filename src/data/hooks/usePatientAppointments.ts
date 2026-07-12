@@ -12,6 +12,7 @@ export function usePatientAppointments(patientId: string) {
   const { authMode, user } = useAuth();
   const { activeTenant } = useTenant();
   const tenantId = activeTenant?.tenantId;
+  const timezone = activeTenant?.timezone;
   const isSupabaseMode = authMode === 'supabase-active' && isSupabaseConfigured;
 
   const repository = useMemo(() => {
@@ -35,9 +36,9 @@ export function usePatientAppointments(patientId: string) {
 
   const enabled = Boolean(patientId) && (
     authMode === 'dev'
-    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId))
+    || (isSupabaseMode && Boolean(user?.id) && Boolean(tenantId) && Boolean(timezone))
   );
-  const queryKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${patientId || 'no-patient'}`;
+  const queryKey = `${authMode}:${user?.id || 'no-user'}:${tenantId || 'no-tenant'}:${timezone || 'no-timezone'}:${patientId || 'no-patient'}`;
 
   const {
     data: appointments,

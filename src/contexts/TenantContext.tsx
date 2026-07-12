@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { isValidIanaTimezone } from '../domain/timezone';
 import { useAuth } from './AuthContext';
+
+export const LEGACY_TENANT_TIMEZONE = 'Asia/Almaty';
 
 export interface ActiveTenant {
   tenantId: string;
   tenantName: string;
+  timezone: string;
   role?: string;
 }
 
@@ -19,6 +23,7 @@ interface TenantContextType {
 interface TenantRelation {
   id?: string | null;
   name?: string | null;
+  timezone?: string | null;
 }
 
 interface TenantUserRow {
@@ -37,6 +42,7 @@ interface LoadedTenantState {
 const devTenant: ActiveTenant = {
   tenantId: '11111111-1111-1111-1111-111111111111',
   tenantName: 'Demo Clinic',
+  timezone: LEGACY_TENANT_TIMEZONE,
   role: 'clinic_admin',
 };
 
@@ -50,34 +56,34 @@ const emptyLoadedTenantState: LoadedTenantState = {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 const normalizeTenantRelation = (relation: TenantUserRow['tenants']) => {
-  if (Array.isArray(relation)) {
-    return relation[0] ?? null;
-  }
-
+  if (Array.isArray(relation)) return relation[0] ?? null;
   return relation ?? null;
 };
 
-const mapTenantRows = (rows: TenantUserRow[]): ActiveTenant[] => {
-  return rows.flatMap((row) => {
-    const tenant = normalizeTenantRelation(row.tenants);
-    const tenantId = tenant?.id ?? row.tenant_id;
+const mapTenantRows = (rows: TenantUserRow[]): ActiveTenant[] => rows.flatMap((row) => {
+  const tenant = normalizeTenantRelation(row.tenants);
+  const tenantId = tenant?.id ?? row.tenant_id;
+  if (!tenantId || !tenant?.name) return [];
 
-    if (!tenantId || !tenant?.name) {
-      return [];
-    }
+  const timezone = tenant.timezone ?? LEGACY_TENANT_TIMEZONE;
+  if (!isValidIanaTimezone(timezone)) {
+    throw new Error('Не удалось определить часовой пояс клиники.');
+  }
 
-    return [{ tenantId, tenantName: tenant.name, role: row.role ?? undefined }];
-  });
-};
+  return [{
+    tenantId,
+    tenantName: tenant.name,
+    timezone,
+    role: row.role ?? undefined,
+  }];
+});
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { authMode, isLoading: authLoading, user } = useAuth();
   const [loadedTenantState, setLoadedTenantState] = useState<LoadedTenantState>(emptyLoadedTenantState);
 
   useEffect(() => {
-    if (authMode !== 'supabase-active' || authLoading || !user || !supabase) {
-      return;
-    }
+    if (authMode !== 'supabase-active' || authLoading || !user || !supabase) return;
 
     let mounted = true;
     const currentUserId = user.id;
@@ -86,60 +92,41 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const { data, error } = await supabase!
           .from('tenant_users')
-          .select('role, tenant_id, tenants(id, name, status)')
+          .select('role, tenant_id, tenants(id, name, status, timezone)')
           .eq('user_id', currentUserId);
 
-        if (error) {
-          throw error;
-        }
-
+        if (error) throw error;
         const tenants = mapTenantRows((data ?? []) as TenantUserRow[]);
-
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         setLoadedTenantState((current) => {
           const selectedTenantId = tenants.some((tenant) => tenant.tenantId === current.selectedTenantId)
             ? current.selectedTenantId
             : tenants[0]?.tenantId ?? null;
-
           return { userId: currentUserId, tenants, selectedTenantId, error: null };
         });
       } catch (err) {
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         setLoadedTenantState({
           userId: currentUserId,
           tenants: [],
           selectedTenantId: null,
-          error: err instanceof Error ? err : new Error('Failed to load tenants'),
+          error: err instanceof Error ? err : new Error('Не удалось загрузить клиники.'),
         });
       }
     }
 
     loadTenants();
-
     return () => {
       mounted = false;
     };
   }, [authMode, authLoading, user]);
 
   const setActiveTenant = (tenantId: string) => {
-    if (authMode === 'dev') {
-      return;
-    }
-
+    if (authMode === 'dev') return;
     setLoadedTenantState((current) => {
-      const tenantExists = current.tenants.some((tenant) => tenant.tenantId === tenantId);
-
-      if (!tenantExists) {
-        return current;
-      }
-
-      return { ...current, selectedTenantId: tenantId };
+      if (!current.tenants.some((tenant) => tenant.tenantId === tenantId)) return current;
+      return { ...current, selectedTenantId: tenantId, error: null };
     });
   };
 
@@ -168,22 +155,17 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   const isLoading = loadedTenantState.userId !== user.id;
-
   if (isLoading) {
     return (
-      <TenantContext.Provider value={{
-        activeTenant: null,
-        availableTenants: [],
-        setActiveTenant,
-        isLoading: true,
-        error: null,
-      }}>
+      <TenantContext.Provider value={{ activeTenant: null, availableTenants: [], setActiveTenant, isLoading: true, error: null }}>
         {children}
       </TenantContext.Provider>
     );
   }
 
-  const activeTenant = loadedTenantState.tenants.find((tenant) => tenant.tenantId === loadedTenantState.selectedTenantId) ?? null;
+  const activeTenant = loadedTenantState.tenants.find(
+    (tenant) => tenant.tenantId === loadedTenantState.selectedTenantId,
+  ) ?? null;
 
   return (
     <TenantContext.Provider value={{
@@ -201,8 +183,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 // eslint-disable-next-line react-refresh/only-export-components
 export const useTenant = () => {
   const context = useContext(TenantContext);
-  if (context === undefined) {
-    throw new Error('useTenant must be used within a TenantProvider');
-  }
+  if (context === undefined) throw new Error('useTenant must be used within a TenantProvider');
   return context;
 };

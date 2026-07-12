@@ -71,7 +71,7 @@ afterEach(() => {
 describe('App Auth & Tenant Gate', () => {
   it('1. dev mode renders app routes, not LoginPage, not no-tenant screen', async () => {
     mockUseAuth({ authMode: 'dev', isLoading: false });
-    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Dev', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Dev', role: 'clinic_admin' }], isLoading: false });
+    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Dev', timezone: 'Asia/Almaty', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Dev', timezone: 'Asia/Almaty', role: 'clinic_admin' }], isLoading: false });
 
     const { container, root } = await renderApp();
 
@@ -164,7 +164,7 @@ describe('App Auth & Tenant Gate', () => {
 
   it('7. supabase-active + user + activeTenant renders normal app routes', async () => {
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
-    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Real', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Real', role: 'clinic_admin' }], isLoading: false });
+    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role: 'clinic_admin' }], isLoading: false });
 
     const { container, root } = await renderApp();
 
@@ -185,8 +185,8 @@ describe('App Auth & Tenant Gate', () => {
   ])('renders active clinic role label for %s', async (role, expectedLabel) => {
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
     mockUseTenant({
-      activeTenant: { tenantId: '123', tenantName: 'Real', role },
-      availableTenants: [{ tenantId: '123', tenantName: 'Real', role }],
+      activeTenant: { tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role },
+      availableTenants: [{ tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role }],
       isLoading: false,
     });
 
@@ -204,10 +204,10 @@ describe('App Auth & Tenant Gate', () => {
     mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
 
     tenantSpy.mockReturnValue({
-      activeTenant: { tenantId: 'clinic-a', tenantName: 'Clinic A', role: 'clinic_admin' },
+      activeTenant: { tenantId: 'clinic-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
       availableTenants: [
-        { tenantId: 'clinic-a', tenantName: 'Clinic A', role: 'clinic_admin' },
-        { tenantId: 'clinic-b', tenantName: 'Clinic B', role: 'doctor' },
+        { tenantId: 'clinic-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
+        { tenantId: 'clinic-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
       ],
       setActiveTenant: vi.fn(),
       isLoading: false,
@@ -224,10 +224,10 @@ describe('App Auth & Tenant Gate', () => {
     expect(currentRoleLabel(container)).toBe('Администратор клиники');
 
     tenantSpy.mockReturnValue({
-      activeTenant: { tenantId: 'clinic-b', tenantName: 'Clinic B', role: 'doctor' },
+      activeTenant: { tenantId: 'clinic-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
       availableTenants: [
-        { tenantId: 'clinic-a', tenantName: 'Clinic A', role: 'clinic_admin' },
-        { tenantId: 'clinic-b', tenantName: 'Clinic B', role: 'doctor' },
+        { tenantId: 'clinic-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
+        { tenantId: 'clinic-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
       ],
       setActiveTenant: vi.fn(),
       isLoading: false,

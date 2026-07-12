@@ -11,13 +11,13 @@ import { appointmentNeedsConfirmationAttention } from './appointmentConfirmation
 
 const appointment: Appointment = {
   id: 'appointment-1', patientId: 'patient-1', doctorId: 'doctor-1', cabinet: 'A1', service: 'Осмотр',
-  start: '2026-08-01T10:00:00', end: '2026-08-01T11:00:00', status: 'new', createdAt: '2026-07-01T09:00:00',
+  start: '2026-08-01T10:00:00Z', end: '2026-08-01T11:00:00Z', status: 'new', createdAt: '2026-07-01T09:00:00Z',
   updatedAt: '2026-07-01T09:00:00+00:00', confirmationState: 'unconfirmed', confirmationAttemptCount: 0,
 };
 
 const attempt: AppointmentConfirmationAttempt = {
   id: 'attempt-1', tenantId: 'tenant-1', appointmentId: appointment.id, patientId: 'patient-1', actorUserId: 'actor-1',
-  channel: 'phone', outcome: 'callback_requested', note: 'После обеда', attemptedAt: '2026-08-01T09:30:00', createdAt: '2026-08-01T09:30:00',
+  channel: 'phone', outcome: 'callback_requested', note: 'После обеда', attemptedAt: '2026-08-01T09:30:00Z', createdAt: '2026-08-01T09:30:00Z',
 };
 
 interface RenderOptions {
@@ -50,7 +50,8 @@ const renderPanel = async (options: RenderOptions = {}) => {
     onRecordAttempt: options.onRecordAttempt || vi.fn().mockResolvedValue({ ...appointment, confirmationState: 'contact_in_progress' }),
     onConfirm: options.onConfirm || vi.fn().mockResolvedValue({ ...appointment, confirmationState: 'confirmed' }),
   };
-  await act(async () => root.render(<AppointmentConfirmationPanel {...props} />));
+  await act(async () => root.render(<AppointmentConfirmationPanel
+      timezone="Asia/Almaty" {...props} />));
   return { container, root, props };
 };
 

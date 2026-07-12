@@ -1,5 +1,7 @@
 import { FileText, Wallet, Cloud, Stethoscope, ClipboardList } from 'lucide-react';
 import type { Patient } from '../../../types';
+import { LEGACY_TENANT_TIMEZONE } from '../../../contexts/TenantContext';
+import { formatInstantInTenant } from '../../../domain/timezone';
 
 interface PatientOverviewTabProps {
   patient: Patient;
@@ -15,6 +17,7 @@ interface PatientOverviewTabProps {
   };
   lastVisit?: Date;
   nextVisit?: Date;
+  timezone?: string;
   onNavigateToSchedule: () => void;
 }
 
@@ -63,6 +66,7 @@ export function PatientOverviewTab({
   dentalSummary,
   lastVisit,
   nextVisit,
+  timezone = LEGACY_TENANT_TIMEZONE,
   onNavigateToSchedule
 }: PatientOverviewTabProps) {
   return (
@@ -273,11 +277,11 @@ export function PatientOverviewTab({
            <div className="space-y-3">
              <div className="flex justify-between items-center text-sm">
                <span className="text-slate-500">Предыдущая</span>
-               <span className="font-medium text-slate-800">{lastVisit ? lastVisit.toLocaleDateString('ru-RU') : '-'}</span>
+               <span className="font-medium text-slate-800">{lastVisit ? formatInstantInTenant(lastVisit, timezone, { dateStyle: 'short' }) : '-'}</span>
              </div>
              <div className="flex justify-between items-center text-sm">
                <span className="text-slate-500">Следующая</span>
-               <span className="font-medium text-slate-800">{nextVisit ? nextVisit.toLocaleDateString('ru-RU') : '-'}</span>
+               <span className="font-medium text-slate-800">{nextVisit ? formatInstantInTenant(nextVisit, timezone, { dateStyle: 'short' }) : '-'}</span>
              </div>
            </div>
            <div className="pt-3 border-t border-slate-100">
