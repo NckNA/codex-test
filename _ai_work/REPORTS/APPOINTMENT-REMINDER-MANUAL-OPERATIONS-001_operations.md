@@ -1,14 +1,20 @@
-# QA Report: APPOINTMENT-REMINDER-MANUAL-OPERATIONS-001
+# APPOINTMENT-REMINDER-MANUAL-OPERATIONS-001
 
-- Verdict: **PASSED**
+## 1. Final verdict
+
+Final verdict: **PASS**
+
+Task verdict: **MANUAL APPOINTMENT REMINDER OPERATIONS IMPLEMENTED AND VERIFIED**
 
 ## Branch
 
 feature/appointment-reminder-manual-operations-001
 
-## Pr Url
+## PR URL
 
+https://github.com/NckNA/codex-test/pull/355
 
+The pull request is a draft, remains open and unmerged, and is explicitly protected by `DO NOT MERGE`.
 
 ## Environment
 
@@ -167,30 +173,51 @@ Implemented and verified a tenant-scoped manual reminder operations queue at /re
 - Automated delivery remains blocked until normalized contact, language, consent, suppression, and opt-out facts exist.
 - Build still emits the pre-existing large-chunk warning; it is unrelated to reminder correctness.
 
-## Ci
+## Browser smoke
 
-```json
-{
-  "status": "pending until branch is pushed and PR checks run"
-}
-```
+- admin: `no_answer`, `confirmed`, manual `message_sent`, explicit defer, skip, and history verified;
+- registrar: tenant A queue access verified;
+- clinic owner: tenant B data visible, tenant A data absent;
+- doctor and cashier: direct `/reminders` access blocked;
+- no-tenant user: blocked at clinic assignment;
+- stale optimistic conflict: safe Russian message shown without console error or failed request;
+- all final role scenarios: console errors `0`, failed requests `0`, secrets visible `false`;
+- database proof: operations `5`, confirmation attempts `3`, audit/activity `5/5`;
+- clinical and financial side effects: `0`.
 
-## Recommended Next Task
+## CI on implementation head
 
-APPOINTMENT-REMINDER-CONTACT-CONSENT-FOUNDATION-001: add normalized patient contact channels, preferred language, consent provenance, suppression/opt-out records, tenant-scoped RLS and audit, without provider sending.
+- workflow: `CI`;
+- run number: `#722`;
+- run ID: `29212262930`;
+- tested commit: `b99e85bd28eac57987885d01a3294ee9d6e04b31`;
+- validate job: **success**;
+- ESLint: **success**;
+- tests: **success**;
+- build: **success**;
+- Merge guard: **expected failure**, because the draft PR is explicitly protected by `DO NOT MERGE`;
+- overall workflow conclusion: `failure` only because the merge protection worked as designed;
+- PR merge state: `BLOCKED`;
+- implementation correctness checks passed.
 
-## Implementation Head
+## Recommended next task
 
+Recommended next task: **APPOINTMENT-REMINDER-CONTACT-CONSENT-FOUNDATION-001**
 
+Add normalized patient contact channels, preferred language, consent provenance, suppression/opt-out records, tenant-scoped RLS and audit, without provider sending.
 
-## Reviewed Head
+## Implementation head
 
+`b99e85bd28eac57987885d01a3294ee9d6e04b31`
 
+## Reviewed head
 
-## Final Report Update Head
+`b99e85bd28eac57987885d01a3294ee9d6e04b31`
 
+The reviewed head exactly matched CI run #722 and the locally validated implementation.
 
+## Report update commit
 
-## Latest Ci After Update
+Report update commit: N/A because a report-only commit cannot contain its own future SHA or the fresh CI result that tests it.
 
-
+The exact final report-only commit and fresh CI run are recorded in the final task response.
