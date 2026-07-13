@@ -1,6 +1,18 @@
 import { AlertCircle, Beaker, ShieldCheck } from 'lucide-react';
 import { CommunicationOperationsPanel } from '../components/communications/CommunicationOperationsPanel';
 import { useAppointmentReminderQueue } from '../data/hooks/useAppointmentReminderQueue';
+import type { PatientCommunicationEligibilitySummary } from '../types';
+
+const automatedBlockedReasons = (
+  eligibility?: PatientCommunicationEligibilitySummary,
+): string[] => {
+  if (!eligibility) return [];
+  return [...new Set([
+    ...eligibility.sms.blockedReasons,
+    ...eligibility.whatsapp.blockedReasons,
+    ...eligibility.email.blockedReasons,
+  ])];
+};
 
 export function CommunicationDiagnosticsPage() {
   const { jobs, loading, error, canAccess, refresh } = useAppointmentReminderQueue();
@@ -79,26 +91,29 @@ export function CommunicationDiagnosticsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {jobs.slice(0, 50).map((item) => (
-                  <tr key={item.job.id}>
-                    <td className="px-3 py-3 font-medium text-slate-900">{item.patient.fullName}</td>
-                    <td className="px-3 py-3 text-slate-600">{item.job.reminderType}</td>
-                    <td className="px-3 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        item.communicationEligibility?.status === 'available'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : item.communicationEligibility?.status === 'manual_only'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {item.communicationEligibility?.status ?? 'blocked'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-slate-500">
-                      {item.communicationEligibility?.blockedReasons?.join(', ') || 'нет'}
-                    </td>
-                  </tr>
-                ))}
+                {jobs.slice(0, 50).map((item) => {
+                  const blockedReasons = automatedBlockedReasons(item.communicationEligibility);
+                  return (
+                    <tr key={item.job.id}>
+                      <td className="px-3 py-3 font-medium text-slate-900">{item.patient.fullName}</td>
+                      <td className="px-3 py-3 text-slate-600">{item.job.reminderType}</td>
+                      <td className="px-3 py-3">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          item.communicationEligibility?.status === 'available'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : item.communicationEligibility?.status === 'manual_only'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {item.communicationEligibility?.status ?? 'blocked'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-slate-500">
+                        {blockedReasons.join(', ') || 'нет'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
