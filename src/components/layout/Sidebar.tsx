@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import {
   CalendarDays,
   BellRing,
+  FlaskConical,
   Users,
   ClipboardList,
   FileText,
@@ -48,8 +49,13 @@ const adminNavItems = [
 
 export function Sidebar() {
   const { activeTenant } = useTenant();
-  const reminderItems = !activeTenant || ['clinic_owner', 'clinic_admin', 'registrar'].includes(activeTenant.role ?? '')
-    ? [{ to: '/reminders', icon: BellRing, label: 'Напоминания' }]
+  const canUseReminderOperations = !activeTenant
+    || ['clinic_owner', 'clinic_admin', 'registrar'].includes(activeTenant.role ?? '');
+  const reminderItems = canUseReminderOperations
+    ? [
+        { to: '/reminders', icon: BellRing, label: 'Напоминания' },
+        { to: '/communications', icon: FlaskConical, label: 'Коммуникации' },
+      ]
     : [];
   const operationalItems = [navItems[0], ...reminderItems, ...navItems.slice(1)];
   const visibleItems = canViewAdminAudit(activeTenant?.role)

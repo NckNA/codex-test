@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage';
 import { Layout } from './components/layout/Layout';
 import { SchedulePage } from './pages/SchedulePage';
 import { ReminderOperationsPage } from './pages/ReminderOperationsPage';
+import { CommunicationDiagnosticsPage } from './pages/CommunicationDiagnosticsPage';
 import { CrmPage } from './pages/CrmPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
@@ -100,6 +101,7 @@ function AppContent() {
         <Route path="/" element={<Layout />}>
           <Route index element={<SchedulePage />} />
           <Route path="reminders" element={<ReminderOperationsPage />} />
+          <Route path="communications" element={<CommunicationDiagnosticsPage />} />
           <Route path="crm" element={<CrmPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
