@@ -1,0 +1,10 @@
+exit_status=2
+head=dad62a1f1e093f58812417877e813c878b2cac7a
+--- build output ---
+
+> app@0.0.0 build
+> tsc -b && vite build
+
+src/data/repositories/CommunicationOrchestrationRepository.ts(259,5): error TS1294: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.
+src/data/repositories/CommunicationOrchestrationRepository.ts(260,5): error TS1294: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.
+src/pages/CommunicationDiagnosticsPage.tsx(98,55): error TS2339: Property 'blockedReasons' does not exist on type 'PatientCommunicationEligibilitySummary'.
