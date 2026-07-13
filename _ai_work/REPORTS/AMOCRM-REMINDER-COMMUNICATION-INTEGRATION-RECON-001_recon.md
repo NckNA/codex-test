@@ -46,9 +46,9 @@ https://github.com/NckNA/codex-test/pull/357
 
 ## Final head
 
-- reviewed report head before this update: `d64ff6295dcb0bba2ec39a16063911291c25d32c`;
+- reviewed report head before this update: `2eff9c5361bdc6cc435ec43e0e55fc0e95170c30`;
 - workflow: `CI`;
-- run ID: `29250107482`;
+- run ID: `29250618691`;
 - conclusion: `success`;
 - final report-update head and fresh CI are recorded by the immutable finalization receipt because a commit cannot contain its own future SHA.
 
@@ -744,8 +744,8 @@ A real amoCRM adapter remains blocked by:
 Reviewed pre-update CI:
 
 - workflow: `CI`;
-- run ID: `29250107482`;
-- tested SHA: `d64ff6295dcb0bba2ec39a16063911291c25d32c`;
+- run ID: `29250618691`;
+- tested SHA: `2eff9c5361bdc6cc435ec43e0e55fc0e95170c30`;
 - validate: `success`;
 - merge guard: `success`.
 
