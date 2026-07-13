@@ -38,10 +38,11 @@ describe('CommunicationCommand', () => {
     expect(deriveCommunicationPurpose('day_before_reminder')).toBe('appointment_day_before_reminder');
     expect(deriveCommunicationPurpose('same_day_reminder')).toBe('appointment_same_day_reminder');
     expect(deriveCommunicationPurpose('control_call_task')).toBe('appointment_control_call_task');
+    expect(deriveCommunicationPurpose('callback_task')).toBe('appointment_control_call_task');
   });
 
   it('rejects unsupported reminder types', () => {
-    expect(() => deriveCommunicationPurpose('callback_task')).toThrow(/Unsupported/);
+    expect(() => deriveCommunicationPurpose('marketing_blast')).toThrow(/Unsupported/);
   });
 
   it('accepts only allowlisted variables', () => {

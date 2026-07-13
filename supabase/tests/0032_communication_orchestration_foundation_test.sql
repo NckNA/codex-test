@@ -218,6 +218,34 @@ SELECT set_config('request.jwt.claim.sub',:'owner_a',true);
 SELECT pg_temp.assert_true((SELECT count(*)=2 FROM public.communication_routes),'tenant A sees own historical disabled and active routes');
 SELECT pg_temp.assert_true((SELECT count(*)=0 FROM public.communication_routes WHERE tenant_id=:'tenant_b'),'cross-tenant route read blocked');
 
+-- Template foundation prerequisite for orchestration regression.
+SELECT public.create_communication_template(
+  :'tenant_a','appointment_confirmation_request','sms','ru','Orchestration RU SMS',NULL,
+  'Здравствуйте, {{patient_first_name}}. Запись в {{clinic_name}} на {{appointment_date}} в {{appointment_time}}.',
+  'orch-template-a-create'
+) AS template_a_result \gset
+SELECT (:'template_a_result'::jsonb->'template'->>'id') AS template_a_id,
+       (:'template_a_result'::jsonb->'version'->>'id') AS template_a_version_id,
+       (:'template_a_result'::jsonb->'version'->>'updatedAt') AS template_a_version_updated \gset
+SELECT public.publish_communication_template_version(
+  :'tenant_a',:'template_a_id',:'template_a_version_id',:'template_a_version_updated'::timestamptz,
+  'orch-template-a-publish'
+);
+SELECT set_config('request.jwt.claim.sub',:'owner_b',true);
+SELECT public.create_communication_template(
+  :'tenant_b','appointment_confirmation_request','sms','en','Orchestration EN SMS',NULL,
+  'Hello, {{patient_first_name}}. Appointment at {{clinic_name}} on {{appointment_date}} at {{appointment_time}}.',
+  'orch-template-b-create'
+) AS template_b_result \gset
+SELECT (:'template_b_result'::jsonb->'template'->>'id') AS template_b_id,
+       (:'template_b_result'::jsonb->'version'->>'id') AS template_b_version_id,
+       (:'template_b_result'::jsonb->'version'->>'updatedAt') AS template_b_version_updated \gset
+SELECT public.publish_communication_template_version(
+  :'tenant_b',:'template_b_id',:'template_b_version_id',:'template_b_version_updated'::timestamptz,
+  'orch-template-b-publish'
+);
+SELECT set_config('request.jwt.claim.sub',:'owner_a',true);
+
 -- No route safely blocks whatsapp.
 SELECT pg_temp.expect_error(format(
   'select public.prepare_communication_operation(%L::uuid,%L::uuid,%L,%L,%L::timestamptz,%L::timestamptz)',
@@ -260,12 +288,12 @@ SELECT pg_temp.expect_error(format(
   :'job_version'::timestamptz,:'appointment_a_updated'::timestamptz
 ),'duplicate');
 
--- Unsupported callback purpose.
+-- Supported callback purpose remains blocked without an exact active template.
 SELECT pg_temp.expect_error(format(
   'select public.prepare_communication_operation(%L::uuid,%L::uuid,%L,%L,%L::timestamptz,%L::timestamptz)',
-  :'tenant_a','d3270000-0000-4000-8000-000000000008','sms','orch-callback-unsupported',
+  :'tenant_a','d3270000-0000-4000-8000-000000000008','sms','orch-callback-no-template',
   :'job_version'::timestamptz,:'appointment_a_updated'::timestamptz
-),'не поддерживает');
+),'нет активного шаблона');
 
 -- Role and direct write protections.
 SELECT set_config('request.jwt.claim.sub',:'registrar_a',true);

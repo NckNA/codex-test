@@ -61,6 +61,23 @@ export interface CommunicationCommand {
   operationKey: string;
   variables: CommunicationVariableMap;
   requestedAt: string;
+  template?: {
+    templateId: string;
+    templateVersionId: string;
+    versionNumber: number;
+    contentFingerprint: string;
+    renderedContentFingerprint: string;
+    language: CommunicationLanguage;
+    channel: CommunicationChannel;
+    purposeCode: CommunicationPurpose;
+    variableKeys: string[];
+  };
+  renderedContent?: {
+    subject?: string;
+    body: string;
+    renderedCharacterCount: number;
+    renderedFingerprint: string;
+  };
 }
 
 const PURPOSES: Record<string, CommunicationPurpose | undefined> = {
@@ -68,6 +85,7 @@ const PURPOSES: Record<string, CommunicationPurpose | undefined> = {
   day_before_reminder: 'appointment_day_before_reminder',
   same_day_reminder: 'appointment_same_day_reminder',
   control_call_task: 'appointment_control_call_task',
+  callback_task: 'appointment_control_call_task',
 };
 
 export function deriveCommunicationPurpose(reminderType: string): CommunicationPurpose {

@@ -279,8 +279,17 @@ export function CommunicationOperationsPanel({
                       <span>Назначение: {operation.purposeCode}</span>
                       <span>Адресат: {operation.contactSnapshot.maskedDestination ?? '***'}</span>
                       <span>Маршрут: v{operation.routeVersion}</span>
+                      <span>Шаблон: {operation.templateVersionNumber ? `v${operation.templateVersionNumber}` : 'legacy'}</span>
                       <span>Результат: {operation.adapterResultCode ?? 'не запускался'}</span>
+                      <span>Fingerprint: {operation.renderedContentFingerprint?.slice(0, 12) ?? '—'}</span>
                     </div>
+                    {operation.renderedBody && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-white/70 p-3" data-testid={`rendered-template-${operation.id}`}>
+                        {operation.renderedSubject && <div className="text-sm font-medium text-slate-900">{operation.renderedSubject}</div>}
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{operation.renderedBody}</p>
+                        <p className="mt-2 text-xs text-slate-500">Символов: {operation.renderedCharacterCount ?? 0}</p>
+                      </div>
+                    )}
                     {operation.uncertain && (
                       <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-900">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
