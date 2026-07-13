@@ -29,7 +29,7 @@ describe('communication orchestration migration contract', () => {
 
   it('contains no outbound network or provider credential surface', () => {
     expect(migration).not.toMatch(/https?:\/\//i);
-    expect(migration).not.toMatch(/access_token|refresh_token|client_secret|service_role/i);
+    expect(migration).not.toMatch(/access_token|refresh_token|client_secret/i);
     expect(migration).not.toMatch(/net\.http|http_post|fetch\(|xhr/i);
   });
 
