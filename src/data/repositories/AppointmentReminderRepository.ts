@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabaseClient';
 import { isOffsetAwareInstant } from '../../domain/timezone';
+import { SupabasePatientCommunicationRepository } from './PatientCommunicationRepository';
 import type {
   Appointment,
   AppointmentConfirmationAttempt,
@@ -16,6 +17,7 @@ import type {
   DeferAppointmentReminderJobInput,
   Doctor,
   Patient,
+  PatientCommunicationEligibilitySummary,
   SkipAppointmentReminderJobInput,
   TenantReminderReconcileResult,
 } from '../../types';
@@ -588,6 +590,13 @@ export class SupabaseAppointmentReminderRepository implements AppointmentReminde
         }
       }
 
+      const communicationRepository = new SupabasePatientCommunicationRepository(this.tenantId, this.client);
+      const eligibilityEntries = await Promise.all(patientIds.map(async (patientId) => [
+        patientId,
+        await communicationRepository.getEligibilitySummary(patientId),
+      ] as const));
+      const eligibilityMap = new Map<string, PatientCommunicationEligibilitySummary>(eligibilityEntries);
+
       return jobs.flatMap((job) => {
         const appointment = appointmentMap.get(job.appointmentId);
         const patient = patientMap.get(job.patientId);
@@ -600,6 +609,7 @@ export class SupabaseAppointmentReminderRepository implements AppointmentReminde
           doctor,
           attemptCount: appointment.confirmationAttemptCount ?? 0,
           lastAttempt: lastAttemptMap.get(appointment.id),
+          communicationEligibility: eligibilityMap.get(job.patientId),
         }];
       });
     } catch (error) {

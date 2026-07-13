@@ -160,6 +160,7 @@ export interface AppointmentReminderQueueItem {
   doctor: Pick<Doctor, 'id' | 'fullName' | 'specialization' | 'cabinet'>;
   attemptCount: number;
   lastAttempt?: AppointmentConfirmationAttempt;
+  communicationEligibility?: PatientCommunicationEligibilitySummary;
 }
 
 export type AppointmentReminderOperationType = 'reminder_complete' | 'reminder_defer' | 'reminder_skip';
@@ -220,6 +221,142 @@ export interface TenantReminderReconcileResult {
   superseded: number;
   cancelled: number;
   skipped: number;
+}
+
+export type PatientCommunicationContactType = 'phone' | 'email';
+export type PatientCommunicationOwnerType = 'patient' | 'representative';
+export type PatientRepresentativeRelation = 'parent' | 'guardian' | 'spouse' | 'child' | 'caregiver' | 'other';
+export type PatientCommunicationLanguage = 'ru' | 'kk' | 'en';
+export type PatientPreferredCommunicationChannel = 'phone' | 'whatsapp' | 'sms' | 'email' | 'none';
+export type PatientAutomatedCommunicationChannel = 'sms' | 'whatsapp' | 'email';
+export type PatientCommunicationChannel = 'phone' | PatientAutomatedCommunicationChannel;
+export type PatientCommunicationConsentState = 'unknown' | 'granted' | 'denied' | 'withdrawn';
+export type PatientCommunicationConsentSource =
+  | 'patient_verbal'
+  | 'patient_written'
+  | 'representative_verbal'
+  | 'representative_written'
+  | 'staff_correction'
+  | 'import_legacy'
+  | 'system';
+export type PatientCommunicationSuppressionReason =
+  | 'patient_request'
+  | 'representative_request'
+  | 'invalid_contact'
+  | 'wrong_number'
+  | 'duplicate_contact'
+  | 'legal_restriction'
+  | 'staff_decision'
+  | 'other';
+export type PatientCommunicationEligibilityStatus =
+  | 'available'
+  | 'blocked'
+  | 'manual_only'
+  | 'consent_unknown'
+  | 'invalid_contact'
+  | 'suppressed';
+export type PatientCommunicationBlockedReason =
+  | 'no_contact'
+  | 'invalid_contact'
+  | 'unverified_contact'
+  | 'consent_unknown'
+  | 'consent_denied'
+  | 'consent_withdrawn'
+  | 'channel_suppressed'
+  | 'global_suppression'
+  | 'no_preferred_channel'
+  | 'representative_review_required';
+
+export interface PatientCommunicationContact {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  contactType: PatientCommunicationContactType;
+  contactValueRaw: string;
+  contactValueNormalized?: string;
+  countryCode?: string;
+  isPrimary: boolean;
+  isVerified: boolean;
+  verificationSource?: string;
+  ownerType: PatientCommunicationOwnerType;
+  representativeName?: string;
+  representativeRelation?: PatientRepresentativeRelation;
+  language?: PatientCommunicationLanguage;
+  possibleDuplicate: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface PatientCommunicationPreferences {
+  tenantId: string;
+  patientId: string;
+  preferredLanguage: PatientCommunicationLanguage;
+  preferredChannel: PatientPreferredCommunicationChannel;
+  allowManualPhone: boolean;
+  smsConsentState: PatientCommunicationConsentState;
+  whatsappConsentState: PatientCommunicationConsentState;
+  emailConsentState: PatientCommunicationConsentState;
+  phoneSuppressed: boolean;
+  phoneSuppressionReason?: PatientCommunicationSuppressionReason;
+  smsSuppressed: boolean;
+  smsSuppressionReason?: PatientCommunicationSuppressionReason;
+  whatsappSuppressed: boolean;
+  whatsappSuppressionReason?: PatientCommunicationSuppressionReason;
+  emailSuppressed: boolean;
+  emailSuppressionReason?: PatientCommunicationSuppressionReason;
+  globalSuppression: boolean;
+  globalSuppressionReason?: PatientCommunicationSuppressionReason;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface PatientCommunicationConsentEvent {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  channel: PatientAutomatedCommunicationChannel;
+  previousState: PatientCommunicationConsentState;
+  newState: PatientCommunicationConsentState;
+  source: PatientCommunicationConsentSource;
+  actorUserId?: string;
+  reason?: string;
+  occurredAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface PatientCommunicationEligibility {
+  eligible: boolean;
+  automatedEligible: boolean;
+  manualEligible: boolean;
+  status: PatientCommunicationEligibilityStatus;
+  channel: PatientCommunicationChannel;
+  selectedContactId?: string;
+  normalizedDestination?: string;
+  language: PatientCommunicationLanguage;
+  blockedReasons: PatientCommunicationBlockedReason[];
+  consentState: PatientCommunicationConsentState | 'not_required';
+  suppressionState: { global: boolean; channel: boolean };
+  representative: boolean;
+  requiresManualReview: boolean;
+}
+
+export interface PatientCommunicationEligibilitySummary {
+  phone: PatientCommunicationEligibility;
+  sms: PatientCommunicationEligibility;
+  whatsapp: PatientCommunicationEligibility;
+  email: PatientCommunicationEligibility;
+  status: PatientCommunicationEligibilityStatus;
+}
+
+export interface PatientCommunicationProfile {
+  contacts: PatientCommunicationContact[];
+  preferences: PatientCommunicationPreferences;
+  consentEvents: PatientCommunicationConsentEvent[];
+  eligibility: PatientCommunicationEligibilitySummary;
 }
 
 export type ToothNumber =

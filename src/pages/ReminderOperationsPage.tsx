@@ -64,6 +64,15 @@ const CONFIRMATION_LABELS: Record<string, string> = {
   unreachable: 'Недоступен',
 };
 
+const COMMUNICATION_STATUS = {
+  available: { label: 'Автоканал доступен', className: 'bg-emerald-100 text-emerald-700' },
+  manual_only: { label: 'Только вручную', className: 'bg-blue-100 text-blue-700' },
+  consent_unknown: { label: 'Нет согласия', className: 'bg-amber-100 text-amber-800' },
+  invalid_contact: { label: 'Контакт не готов', className: 'bg-orange-100 text-orange-800' },
+  suppressed: { label: 'Связь подавлена', className: 'bg-red-100 text-red-700' },
+  blocked: { label: 'Автосвязь заблокирована', className: 'bg-slate-200 text-slate-700' },
+} as const;
+
 type QueueBucket = 'all' | 'overdue' | 'today' | 'upcoming';
 type PageTab = 'active' | 'history';
 
@@ -298,6 +307,9 @@ export function ReminderOperationsPage() {
   const renderCard = (item: AppointmentReminderQueueItem) => {
     const itemBucket = bucketForItem(item, timezone, nowMillis);
     const busy = [completingJobId, deferringJobId, skippingJobId].includes(item.job.id);
+    const communicationStatus = item.communicationEligibility
+      ? COMMUNICATION_STATUS[item.communicationEligibility.status]
+      : COMMUNICATION_STATUS.blocked;
     return (
       <article key={item.job.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-testid={`reminder-job-${item.job.id}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -316,6 +328,9 @@ export function ReminderOperationsPage() {
               {item.job.deferredAt && (
                 <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700">Отложена вручную</span>
               )}
+              <span data-testid={`communication-eligibility-${item.job.id}`} className={`rounded-full px-2.5 py-1 text-xs font-medium ${communicationStatus.className}`}>
+                {communicationStatus.label}
+              </span>
             </div>
             <h3 className="mt-3 truncate text-lg font-semibold text-slate-900">{item.patient.fullName}</h3>
             <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600">
