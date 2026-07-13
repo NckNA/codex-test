@@ -20,7 +20,9 @@ Patient cards now include a minimal communication section for authorized staff. 
 
 ## 4. PR URL
 
-Pending until the implementation branch is pushed and the pull request is opened.
+https://github.com/NckNA/codex-test/pull/356
+
+PR #356 is open, ready for review and remains unmerged.
 
 ## 5. Baseline
 
@@ -35,9 +37,15 @@ Pending until the implementation branch is pushed and the pull request is opened
 
 ## 6. PR head reviewed before final report update
 
-Pending until the implementation commit is pushed and fresh CI completes.
-
-The exact implementation head and CI run will be inserted after GitHub validates the branch.
+- implementation head: `7a9e5c4397fb5cd44037e36b9bd4464a4553b9f3`;
+- workflow: `CI`;
+- run number: `#726`;
+- run ID: `29229999819`;
+- conclusion: `success`;
+- tested commit: `7a9e5c4397fb5cd44037e36b9bd4464a4553b9f3`;
+- tested commit matched the implementation head exactly;
+- ESLint, tests, build and Merge guard passed;
+- PR #356 remained open and unmerged.
 
 ## 7. Report update commit
 
@@ -572,6 +580,10 @@ Completed:
 
 Baseline seed patients and their unverified legacy contacts remain because they are part of normal migration/seed behavior, not QA residue.
 
+## Checks
+
+All required local implementation, schema, SQL, concurrency, TypeScript, browser, network, cleanup and side-effect checks passed. Detailed evidence follows in sections 30–38.
+
 ## 37. Lint/test/build
 
 Final local quality gate:
@@ -584,16 +596,24 @@ Final local quality gate:
 
 ## 38. Fresh CI
 
-Pending until the branch is pushed and GitHub Actions tests the exact implementation head.
+Implementation CI completed successfully on the exact reviewed head:
 
-Required final checks:
+- workflow: `CI`;
+- run number: `#726`;
+- run ID: `29229999819`;
+- tested commit: `7a9e5c4397fb5cd44037e36b9bd4464a4553b9f3`;
+- ESLint: passed;
+- tests: passed;
+- build: passed;
+- Merge guard: passed;
+- conclusion: `success`;
+- PR remained open and unmerged.
 
-- exact PR head tested;
-- ESLint passed;
-- tests passed;
-- build passed;
-- merge guard passed;
-- PR remains open and unmerged.
+A second fresh CI run will validate the report-only metadata commit. Its exact head and run are recorded outside this self-referential report in the final task response and immutable receipt.
+
+## Limitations
+
+The known limitations are explicit and do not invalidate the verified contact/consent foundation. They are listed below.
 
 ## 39. Known limitations
 
