@@ -255,10 +255,13 @@ export interface CommunicationOrchestrationRepository {
 }
 
 export class SupabaseCommunicationOrchestrationRepository implements CommunicationOrchestrationRepository {
-  constructor(
-    private readonly tenantId: string,
-    private readonly client: SupabaseClient,
-  ) {}
+  private readonly tenantId: string;
+  private readonly client: SupabaseClient;
+
+  constructor(tenantId: string, client: SupabaseClient) {
+    this.tenantId = tenantId;
+    this.client = client;
+  }
 
   async listCommunicationRoutes(): Promise<CommunicationRoute[]> {
     try {
