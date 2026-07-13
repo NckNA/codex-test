@@ -138,7 +138,7 @@ foreach ($n in 1..12) {
   $appointment = AppointmentId $n
   $job = JobId $n
   $appointmentValues += "('$appointment','$tenantA','$patientA','$doctorA','A1','Orchestration concurrency','new','2099-08-{0:d2} 10:00+00','2099-08-{0:d2} 11:00+00')" -f $n
-  $jobValues += "('$job','$tenantA','$appointment','$patientA','confirmation_request','manual','2099-08-{0:d2} 08:00+00','scheduled',(SELECT updated_at FROM public.appointments WHERE id='$appointment'),1,encode(extensions.digest('orch-conc-plan-$n','sha256'),'hex'),encode(extensions.digest('orch-conc-payload-$n','sha256'),'hex'),100,'2099-08-{0:d2} 08:00+00','{}')" -f $n
+  $jobValues += "('$job','$tenantA','$appointment','$patientA','confirmation_request','manual','2099-08-{0:d2} 08:00+00','scheduled',(SELECT updated_at FROM public.appointments WHERE id='$appointment'),1,encode(extensions.digest('orch-conc-plan-$n','sha256'),'hex'),encode(extensions.digest('orch-conc-payload-$n','sha256'),'hex'),100,'2099-08-{0:d2} 08:00+00','{{}}')" -f $n
 }
 $appointmentValues += "('$(AppointmentId 1 $true)','$tenantB','$patientB','$doctorB','B1','Orchestration concurrency B','new','2099-09-01 10:00+00','2099-09-01 11:00+00')"
 $jobValues += "('$(JobId 1 $true)','$tenantB','$(AppointmentId 1 $true)','$patientB','confirmation_request','manual','2099-09-01 08:00+00','scheduled',(SELECT updated_at FROM public.appointments WHERE id='$(AppointmentId 1 $true)'),1,encode(extensions.digest('orch-conc-plan-b','sha256'),'hex'),encode(extensions.digest('orch-conc-payload-b','sha256'),'hex'),100,'2099-09-01 08:00+00','{}')"

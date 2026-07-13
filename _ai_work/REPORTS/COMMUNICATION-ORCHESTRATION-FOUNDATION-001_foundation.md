@@ -2,258 +2,280 @@
 
 ## 1. Final verdict
 
-**PARTIAL: local Supabase SQL regression/concurrency suites and authenticated browser/network smoke could not be executed because the local Hermes/Supabase runtime is unavailable; implementation, isolated domain tests and repository CI validation are otherwise complete**
+**COMMUNICATION ORCHESTRATION FOUNDATION IMPLEMENTED AND VERIFIED**
 
-## 2. Summary
+Local migration, SQL regression, concurrency, authenticated browser, network, database-invariant, cleanup, lint, full test and build validation all passed. The PR must remain open and unmerged. No cloud Supabase migration or real provider operation was performed.
 
-This task adds a tenant-scoped, provider-neutral communication orchestration foundation. An eligible reminder job can be transformed into one immutable communication operation that snapshots the exact appointment, reminder job, selected contact, consent, suppression and simulation-route facts used at preparation time.
-
-A communication operation is not a message. Simulation acceptance is not sending or delivery. Simulation never completes the reminder job, confirms the appointment or creates a confirmation attempt. Only deterministic `noop` and `mock` adapters exist; no external provider is contacted.
-
-## 3. Branch
-
-`feature/communication-orchestration-foundation-001`
-
-## 4. PR URL
-
-https://github.com/NckNA/codex-test/pull/358
-
-PR #358 is open as a draft and remains unmerged.
-
-## 5. Baseline
+## 2. Repository and PR
 
 - repository: `NckNA/codex-test`;
-- base branch: `main`;
-- required and verified baseline: `1789e6e7bc0af276effff9087148f96ea544fe05`;
-- PR #357 is merged at that exact baseline;
-- no duplicate open or merged task PR was found;
-- the feature branch was created from the exact baseline.
+- PR: https://github.com/NckNA/codex-test/pull/358;
+- branch: `feature/communication-orchestration-foundation-001`;
+- baseline: `1789e6e7bc0af276effff9087148f96ea544fe05`;
+- validation starting head: `c939112363fe8263ba7295818e716a0dcc142485`;
+- starting worktree: clean;
+- PR/branch/head association: confirmed before validation;
+- final head and fresh CI run: recorded in the PR body and final task response because a commit cannot contain its own future SHA or future CI run ID.
 
-## 6. Final head
+## 3. Validation-only changed files
 
-The exact final head is recorded in the final task response because a commit cannot contain its own future SHA.
+The resumed validation changed only:
 
-## 7. Changed files
-
-Exactly 20 files belong to the final diff:
-
-- `_ai_work/REPORTS/COMMUNICATION-ORCHESTRATION-FOUNDATION-001_foundation.md`;
 - `supabase/migrations/0032_communication_orchestration_foundation.sql`;
 - `supabase/tests/0032_communication_orchestration_foundation_test.sql`;
 - `supabase/tests/0032_communication_orchestration_concurrency.ps1`;
-- `src/domain/communications/CommunicationCommand.ts` and tests;
-- `src/domain/communications/CommunicationAdapter.ts` and tests;
-- `src/domain/communications/CommunicationMigration.test.ts`;
-- `src/domain/communications/adapters/NoopCommunicationAdapter.ts`;
-- `src/domain/communications/adapters/MockCommunicationAdapter.ts`;
-- `src/data/repositories/CommunicationOrchestrationRepository.ts` and tests;
-- `src/data/hooks/useCommunicationOperations.ts` and tests;
-- `src/components/communications/CommunicationOperationsPanel.tsx` and tests;
-- `src/pages/CommunicationDiagnosticsPage.tsx`;
-- `src/App.tsx`;
-- `src/components/layout/Sidebar.tsx`.
+- `_ai_work/REPORTS/COMMUNICATION-ORCHESTRATION-FOUNDATION-001_foundation.md`.
 
-No historical migration, package, lockfile, generated type, provider SDK, environment file, diagnostic log, temporary workflow or cloud configuration remains changed.
+No earlier migration, dependency, lockfile, environment file, workflow, provider implementation or unrelated feature file was changed.
 
-## 8. Pre-read
+## 4. Defects found and corrected
 
-Reviewed the reminder operations reconnaissance, reminder queue foundation, manual reminder operations, communication contact/consent foundation and amoCRM reminder communication reconnaissance. Reconciled migrations `0029` through `0031`, reminder RPCs, communication eligibility, tenant roles, RLS, audit/activity helpers, integration-token skeleton, placeholders and CI.
+### 4.1 RLS helper execute grant
 
-## 9. Orchestration gap map
+Authenticated reads failed with `permission denied for function communication_tenant_role` because the RLS helper was revoked from `authenticated` without a matching execute grant.
 
-Before this task, reminder jobs represented durable manual work and communication eligibility represented provider-neutral readiness, but no durable object bound an exact reminder version to an exact contact, consent, suppression, route and structured command. No route snapshot, normalized simulation result, uncertain state or recovery contract existed.
+Correction:
 
-Reusable foundations are reminder identity/versioning, eligibility, contacts, consent, suppression, tenant roles, RLS and audit/activity. Provider placeholders and the global amoCRM OAuth skeleton are unrelated and intentionally unused.
+- granted execute on `public.communication_tenant_role(uuid)` to `authenticated`;
+- added an explicit SQL regression assertion for the grant.
 
-## 10. Purpose model
+### 4.2 Route history was overwritten
 
-Stable purpose codes:
+Calling `create_or_update_communication_route` with `p_route_id = NULL` selected and mutated the existing active route. This destroyed route history instead of creating a new route and disabling the previous one.
 
-- `appointment_confirmation_request`;
-- `appointment_day_before_reminder`;
-- `appointment_same_day_reminder`;
-- `appointment_control_call_task`.
+Correction:
 
-Purpose is derived from reminder type. Unsupported, marketing, billing, clinical and free-form purposes are rejected.
+- `NULL` route ID now means create a new route;
+- explicit route ID still means update that route;
+- the existing route-reconciliation path disables the previous active route;
+- added regression assertions for distinct route IDs and preserved disabled history.
 
-## 11. Channel model
+### 4.3 SQL test reused an invalidated operation
 
-Supported channels are `sms`, `whatsapp` and `email`. Manual phone remains outside automated orchestration. One operation has exactly one immutable channel.
+The SQL suite correctly invalidated a prepared operation after preference/contact changes, then incorrectly tried to simulate that cancelled operation.
 
-## 12. Operation schema
+Correction:
 
-`public.communication_operations` binds tenant, reminder job, appointment, patient, contact, purpose, channel, language, operation key, fingerprint, exact entity versions, policy/eligibility versions, route/version and normalized simulation result. Composite foreign keys prevent cross-tenant references.
+- retained the original ID and asserted it became `cancelled`;
+- prepared a fresh operation after restoring eligible conditions;
+- ran normalized simulation scenarios against the fresh operation.
 
-## 13. Snapshot model
+### 4.4 Concurrency script format-string failure
 
-Immutable validated JSON snapshots store:
+The 0032 PowerShell suite failed before issuing SQL because literal JSON `{}` was interpreted as a PowerShell format placeholder.
 
-- eligibility and blocked reasons;
-- channel-specific consent state and evidence reference;
-- global and channel suppression;
-- masked contact metadata and destination fingerprint;
-- appointment date/time, doctor, clinic and callback variables;
-- route ID, adapter and configuration version;
-- provider-neutral structured command.
+Correction:
 
-No clinical or financial facts are snapshotted.
+- escaped it as `{{}}`;
+- reran the complete concurrency suite.
 
-## 14. Destination privacy
+## 5. Local runtime
 
-Operations store only the selected contact ID, masked destination and SHA-256 destination fingerprint. Raw and normalized destinations are not copied into operation rows, command snapshots, audit or activity. The trusted adapter runtime must resolve the authoritative contact later.
+- Docker client/server: `29.5.3`, Docker Desktop;
+- Supabase CLI: `2.105.0`;
+- PostgreSQL: `17.6`;
+- Node: `v24.15.0`;
+- npm: `11.12.1`.
 
-## 15. Route model
+Docker and local Supabase were available. Only localhost resources were used.
 
-`public.communication_routes` is tenant/channel scoped. Only `noop` and `mock` are accepted, `simulation_only` must be true, one enabled primary route per tenant/channel is enforced, disabled routes are not selected, and no global or cross-tenant fallback exists.
+## 6. Clean migration application
 
-## 16. State model
+Command:
 
-- `prepared`;
-- `simulation_running`;
-- `simulation_succeeded`;
-- `simulation_failed`;
-- `simulation_uncertain`;
-- `cancelled`.
+`npx supabase db reset --no-seed`
 
-No `queued`, `sending`, `sent`, `delivered`, `read` or `replied` state exists.
+Result: **PASS**.
 
-## 17. Result model
+- migration chain applied from `0001` through `0032`;
+- no syntax or dependency error;
+- no manual database patch outside migrations;
+- no cloud project connection or mutation.
 
-Normalized result codes:
+Object verification after reset:
 
-- `accepted`;
-- `rejected`;
-- `temporary_failure`;
-- `permanent_failure`;
-- `timeout_before_acceptance`;
-- `timeout_after_acceptance`;
-- `unknown`.
+- required tables: `3/3`;
+- RLS-enabled required tables: `3/3`;
+- communication policies: `2`;
+- non-internal triggers on orchestration tables: `3`;
+- indexes: `11`;
+- composite foreign keys on communication operations: `5`;
+- authenticated direct INSERT/UPDATE/DELETE grants: `0`;
+- authenticated public orchestration RPC grants checked: `6/6`.
 
-`timeout_after_acceptance` and `unknown` remain uncertain and are never blindly retried.
+## 7. SQL regression 0024-0032
 
-## 18. Structured command
+Result: **PASS**, 9 suites, 611 explicit assertions.
 
-The command contains tenant, operation, reminder, appointment, patient and contact IDs; purpose; channel; language; masked destination; destination fingerprint; operation key; requested timestamp; and an allowlisted variable map.
+| Suite | Assertions | Result |
+|---|---:|---|
+| 0024 legacy core grants | 37 | PASS |
+| 0025 appointment conflict hardening | 88 | PASS |
+| 0026 cancellation/no-show | 97 | PASS |
+| 0027 confirmation workflow | 70 | PASS |
+| 0028 timezone scheduling | 33 | PASS |
+| 0029 reminder queue | 62 | PASS |
+| 0030 manual reminder operations | 81 | PASS |
+| 0031 contact/consent foundation | 76 | PASS |
+| 0032 communication orchestration | 67 | PASS |
 
-Allowed variables are `patient_first_name`, `clinic_name`, `appointment_date`, `appointment_time`, `doctor_display_name` and `clinic_callback_phone`. Unknown, clinical and financial variables are rejected.
+The suites validated roles, RLS, tenant isolation, noop/mock-only routes, blocked direct writes, eligibility, consent, suppression, masking, immutable snapshots, idempotency/replay, fingerprint conflicts, duplicate prevention, normalized results, uncertain persistence, recovery, and absence of reminder/appointment/clinical/financial side effects.
 
-## 19. Preparation RPC
+## 8. Concurrency
 
-`prepare_communication_operation` authenticates owner/admin, locks and validates reminder/appointment/contact/preference rows, checks exact versions, derives purpose, re-runs eligibility, requires granted channel consent and no suppression, rejects representative review, selects one simulation route, builds snapshots/command/fingerprint, persists one immutable operation and records audit/activity once. It performs no adapter execution.
+All required concurrency suites passed.
 
-## 20. Operation identity
+### 8.1 Existing suites
+
+- 0025: success operations `13`, doctor overlap pairs `0`, patient overlap pairs `0`, invalid intervals `0`, audit/activity `13/13`, deadlocks `0`;
+- 0026: successes `13`, replays `2`, conflicts `5`, cancelled `8`, no-show `2`, audit/activity `10/10`, deadlocks `0`;
+- 0027: successes `12`, replays `2`, conflicts `7`, attempts `10`, confirmations `6`, duplicate keys `0`, audit/activity `10/10`, deadlocks `0`;
+- 0029: jobs created `34`, superseded `19`, cancelled `6`, active stale jobs `0`, audit/activity `59/59`, deadlocks `0`;
+- 0030: completed `8`, skipped `1`, deferred `1`, replays `1`, conflicts `5`, duplicate active `0`, active stale `0`, audit/activity `10/10`, deadlocks `0`.
+
+### 8.2 Communication orchestration 0032
+
+- operations: `12`;
+- preparation/simulation replays observed: `2`;
+- conflicts: `2`;
+- uncertain operations: `1`;
+- cancelled operations: `8`;
+- duplicate active operations: `0`;
+- unsafe prepared operations: `0`;
+- route snapshot mismatches: `0`;
+- audit/activity: `29/29`;
+- deadlocks: `0`.
+
+Scenarios A-K passed, including same/different operation keys, consent/suppression/contact/reschedule races, simulation races, timeout-after-acceptance, tenant-isolated operation keys and route-version consistency.
+
+## 9. Authenticated browser smoke
+
+Browser: headless Chromium/Playwright against the local Vite server and local Supabase with real Supabase Auth sessions.
+
+Result: **PASS**.
+
+- owner: tenant A queue and communication controls available;
+- admin: tenant A queue and communication controls available;
+- registrar: queue/status visible, management buttons `0`, prepare buttons `0`, simulate buttons `0`, recovery buttons `0`;
+- doctor: communication data unavailable;
+- cashier: communication data unavailable;
+- tenant B admin: tenant B fixture visible, tenant A patients/routes/results not visible.
 
-`(tenant_id, operation_key)` is unique. Same key plus same fingerprint replays. Same key plus changed payload is rejected. A second logically identical active operation is prevented by tenant/reminder/channel/fingerprint uniqueness.
+Functional scenarios:
 
-## 21. Simulation RPC
+- A role visibility: PASS;
+- B no route: safe RPC failure, routes `0`, operations created `0`;
+- C noop route: route created through RPC, operation prepared, no external request;
+- D mock success: `simulation_succeeded`, result `accepted`;
+- E rejection: `simulation_failed`, result `rejected`;
+- F timeout after acceptance: `simulation_uncertain`, persisted `timeout_after_acceptance`, recovery returned the same result without retry/duplicate;
+- G consent withdrawal: prepared operation became `cancelled/preferences_changed`; new preparation was blocked;
+- H SMS suppression: new preparation was blocked and created `0` operations;
+- I contact archive: prepared operation became `cancelled/contact_changed`;
+- J appointment reschedule: prepared operation became `cancelled/appointment_changed`; stale reminder job was cancelled;
+- K tenant isolation: tenant B could not read tenant A patients, routes or simulation results.
 
-`simulate_communication_operation` permits only declared scenarios and `noop/mock` routes. It revalidates current source facts, normalizes one deterministic simulation result, stores a deterministic simulation external ID and never changes reminder, appointment or confirmation state.
+The expected safe 500 responses in no-route/consent/suppression negative scenarios were treated as successful negative tests and verified against database counters.
 
-## 22. Recovery
+## 10. Browser network proof
 
-`recover_communication_operation` reads the persisted normalized result. It does not call an adapter, create another operation or retry uncertain work. Uncertain remains uncertain until an explicit later recovery design exists.
+A fresh authenticated admin preparation and simulation captured 445 browser requests.
 
-## 23. Cancellation/invalidation
+- request hosts: only `127.0.0.1:5185` and `127.0.0.1:54321`;
+- external requests: `0`;
+- external provider calls: `0`;
+- amoCRM calls: `0`;
+- SMS calls: `0`;
+- WhatsApp calls: `0`;
+- email calls: `0`;
+- direct `communication_routes` writes: `0`;
+- direct `communication_operations` writes: `0`;
+- controlled Supabase RPC requests: `45`;
+- service-role value exposed: `false`;
+- provider secret exposed: `false`.
 
-Prepared operations are reconciled when reminder jobs, appointments, contacts, communication preferences or routes change. Cancellation, supersession, reschedule, consent withdrawal, suppression, contact archive and route disable invalidate stale prepared operations. Completed simulation history remains immutable.
+Observed orchestration RPC paths were limited to eligibility, route listing, preparation and simulation. No provider hostname or external HTTP target was contacted.
 
-## 24. Adapter contract
+## 11. Database counters after browser/concurrency validation
 
-`CommunicationAdapter` exposes `validateCommand`, `prepare`, `simulate` and `recover`. `NoopCommunicationAdapter` and `MockCommunicationAdapter` are deterministic and contain no fetch, XHR, provider SDK or outbound HTTP path.
+- browser fixture operations: `9`;
+- duplicate active operations: `0`;
+- unsafe active operations without granted consent: `0`;
+- operations created under suppression: `0`;
+- operations containing raw destination: `0`;
+- operations containing clinical/financial variables: `0`;
+- operations with cross-tenant references: `0`;
+- uncertain operations: `1`;
+- cancelled operations: `4`;
+- communication audit/activity events: `26/26`;
+- audit/activity mismatch: `0`;
+- deadlocks: `0`.
 
-## 25. Role matrix
+## 12. Side-effect counters
 
-- owner/admin: read, configure test routes, prepare, simulate and recover;
-- registrar: safe read-only readiness and operation status;
-- doctor/cashier/unknown/no tenant: blocked.
+- reminder jobs completed by simulation: `0`;
+- appointments confirmed by simulation: `0`;
+- confirmation attempts created by simulation: `0`;
+- visits created: `0`;
+- encounters created: `0`;
+- completed services created: `0`;
+- invoices created: `0`;
+- payments created: `0`;
+- patient balance changes: `0`;
+- provider network calls: `0`.
 
-## 26. RLS
+## 13. Cleanup
 
-RLS is enabled on routes, route-operation idempotency storage and communication operations. Direct authenticated inserts, updates and deletes are revoked. Mutations use controlled RPCs only.
+Explicit local cleanup removed QA tenants, users and cascaded fixtures before the final reset:
 
-## 27. Audit/activity
+- QA users: `0`;
+- QA tenants: `0`;
+- QA communication operations: `0`.
 
-Preparation, simulation start/result, cancellation and route changes create paired audit/activity facts once per logical transition. Metadata contains safe IDs, purpose/channel, adapter, state, masked destination and safe error only. Raw destinations, secrets, message bodies and clinical data are excluded.
+The Vite process was stopped and port 5185 was no longer listening.
 
-## 28. Repository integration
+Final command:
 
-The Supabase repository provides tenant-scoped route/operation reads and RPC-only route, preparation, simulation and recovery mutations. Errors are mapped to safe user messages. Supabase-active mode has no localStorage fallback and frontend code never executes an adapter.
+`npx supabase db reset --no-seed`
 
-## 29. Hook integration
+Final reset result: **PASS**.
 
-`useCommunicationOperations` performs no fetch without a tenant, clears state on tenant switch, ignores stale responses, blocks duplicate actions, retains operation keys across ambiguous failures, attempts recovery before a user retry and preserves uncertain state visibly.
+Post-reset:
 
-## 30. Diagnostic UI
+- QA users: `0`;
+- QA tenants: `0`;
+- communication routes: `0`;
+- communication operations: `0`;
+- temporary screenshots/logs/workflows/env files: none added;
+- worktree contained only the intended migration, two test corrections and this report.
 
-`/communications` provides an owner/admin diagnostic panel for noop/mock routes, preparation, scenario simulation and recovery. Registrar receives read-only status. The UI warns: “Это тестовая операция. Сообщение пациенту не отправляется.” No “Отправить”, “Доставить” or real-send control exists.
+## 14. Final repository checks
 
-## 31. Reminder queue integration
+- `npm run lint`: PASS;
+- `npm run test -- --run`: PASS, `102` files and `1103` tests;
+- `npm run build`: PASS, `1963` modules transformed.
 
-The diagnostics page reads the existing reminder queue and eligibility summary. Preparation receives exact reminder and appointment versions from the queue. Simulation does not alter reminder state.
+Existing non-failing React `act(...)` diagnostics and the Vite chunk-size warning remain unrelated warnings, not task failures.
 
-## 32. SQL tests
+## 15. Fresh CI and PR status
 
-`0032_communication_orchestration_foundation_test.sql` contains the required role/RLS, route, eligibility, consent, suppression, contact, snapshot, privacy, idempotency, result, recovery, audit/activity and side-effect scenarios.
+The validation commit must trigger fresh GitHub Actions on its exact head. The exact final head, run ID, job conclusions and final PR ready/draft status are recorded in the PR body and final task response after GitHub Actions completes.
 
-Execution status: **not executed**, because local Supabase/Hermes is unavailable and cloud apply is forbidden.
+The PR must remain open and unmerged.
 
-## 33. Concurrency tests
+## 16. Scope boundaries preserved
 
-`0032_communication_orchestration_concurrency.ps1` covers same-key replay, competing logical operations, consent/suppression/contact/reschedule races, simulation races, uncertain timeout, tenant-isolated keys, route-version races and deadlock counters.
+Not implemented or changed:
 
-Execution status: **not executed**, because the local Supabase runtime is unavailable.
+- communication templates;
+- amoCRM adapter;
+- provider implementation;
+- OAuth;
+- SMS, WhatsApp or email sending;
+- outbound HTTP;
+- worker, cron, webhook or retry engine;
+- cloud Supabase migration;
+- HEP-V2;
+- unrelated refactoring.
 
-## 34. TypeScript tests
-
-Added domain, adapter, migration-contract, repository, hook and diagnostic-panel tests. An isolated local run passed **3 files / 17 tests** for command, adapter and migration contracts. The full repository Vitest step passed in CI after whitespace-tolerant migration assertions were corrected.
-
-## 35. Browser smoke
-
-Authenticated local browser smoke was not executed because the local Hermes/Supabase runtime is unavailable. No browser result is fabricated from static inspection.
-
-## 36. Network proof
-
-Static implementation and adapter tests prove there is no real provider implementation, amoCRM call, SMS/WhatsApp/email request, fetch/XHR or provider credential surface. Fresh authenticated browser network counters remain unclaimed without the local runtime.
-
-## 37. Database counters
-
-Required database counters could not be measured locally. The migration/tests define target zero invariants for duplicate active operations, unsafe consent operations, raw destinations, clinical variables, reminder changes, appointment confirmations, confirmation attempts, cross-tenant leaks and deadlocks.
-
-## 38. Side-effect validation
-
-No clinical, finance, stock, document, provider, amoCRM or credential mutation path was introduced. Runtime database before/after counters remain unclaimed because local Supabase could not be started.
-
-## 39. Cleanup
-
-Temporary bundle chunks, reconstruction workflows, diagnostic workflows/logs and package/CI modifications were removed. The final PR diff contains only the 20 intended implementation files. No cloud operation was performed. `supabase db reset --no-seed` could not be run without local Supabase.
-
-## 40. Lint/test/build
-
-- ESLint: passed on repository CI;
-- full Vitest: passed on repository CI;
-- isolated communication tests: 3 files / 17 tests passed;
-- production build: TypeScript diagnostics found three integration errors, which were corrected before the final report commit;
-- final production build result is recorded by fresh CI on the exact final head in the final task response.
-
-## 41. Fresh CI
-
-The report commit triggers fresh GitHub Actions CI on the exact final head. Its run ID and exact results are recorded in the final task response because this report cannot contain evidence from its own future commit.
-
-## 42. Known limitations
-
-- no real provider or delivery state;
-- no template/content versioning;
-- no inbound reply processing;
-- no worker, scheduler, webhook or retry engine;
-- callback phone remains optional until an authoritative tenant setting exists;
-- local SQL, concurrency, authenticated browser, database counters and reset remain unavailable.
-
-## 43. What was intentionally not implemented
-
-No amoCRM adapter, OAuth change, provider credential, secret manager, external HTTP request, SMS, WhatsApp, email, worker, cron, webhook, retry engine, message editor, bulk messaging, automatic reminder completion, appointment confirmation, cloud migration apply or HEP-V2 was implemented.
-
-## 44. Recommended next task
-
-`COMMUNICATION-TEMPLATE-FOUNDATION-001`
-
-Once durable operations, immutable snapshots, routes and normalized simulation outcomes exist, content must become tenant-scoped, language-aware, versioned and privacy-safe before any real adapter may be considered.
+No message was sent.

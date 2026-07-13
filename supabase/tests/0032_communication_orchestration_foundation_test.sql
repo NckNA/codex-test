@@ -161,6 +161,8 @@ SELECT count(*)::text AS payments_before FROM public.payments \gset
 SELECT count(*)::text AS confirmations_before FROM public.appointment_confirmation_attempts \gset
 SELECT balance::text AS balance_before FROM public.patients WHERE id=:'patient_a' \gset
 
+SELECT pg_temp.assert_true(has_function_privilege('authenticated','public.communication_tenant_role(uuid)','EXECUTE'),'authenticated can execute RLS role helper');
+
 -- 1-9 role/read isolation before route setup.
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',:'owner_a',true);
@@ -196,6 +198,8 @@ SELECT public.create_or_update_communication_route(
 SELECT (:'route_mock_result'::jsonb->'route'->>'id') AS route_sms_id \gset
 SELECT (:'route_mock_result'::jsonb->'route'->>'updatedAt') AS route_sms_updated \gset
 SELECT pg_temp.assert_true((SELECT count(*)=1 FROM public.communication_routes WHERE tenant_id=:'tenant_a' AND channel='sms' AND enabled AND archived_at IS NULL),'one active route per channel');
+SELECT pg_temp.assert_true(:'route_noop_id'::uuid <> :'route_sms_id'::uuid,'new route creation preserves prior route history');
+SELECT pg_temp.assert_true((SELECT NOT enabled FROM public.communication_routes WHERE id=:'route_noop_id'),'prior route disabled when replacement becomes active');
 SELECT pg_temp.expect_error(format(
   'select public.create_or_update_communication_route(%L::uuid,NULL,%L,%L,true,100,NULL,%L)',
   :'tenant_a','whatsapp','amocrm','orch-real-adapter'
@@ -228,6 +232,7 @@ SELECT public.prepare_communication_operation(
 ) AS prepare_result \gset
 SELECT (:'prepare_result'::jsonb->'operation'->>'id') AS operation_1 \gset
 SELECT (:'prepare_result'::jsonb->'operation'->>'updatedAt') AS operation_1_updated \gset
+SELECT :'operation_1' AS operation_1_original \gset
 SELECT pg_temp.assert_true(:'prepare_result'::jsonb->'operation'->>'purposeCode'='appointment_confirmation_request','purpose derived');
 SELECT pg_temp.assert_true(:'prepare_result'::jsonb->'operation'->>'state'='prepared','prepared state');
 SELECT pg_temp.assert_true(:'prepare_result'::jsonb->'operation'->'eligibilitySnapshot'->>'eligible'='true','eligibility snapshot');
@@ -304,6 +309,15 @@ SELECT pg_temp.expect_error(format(
 ),'Контакт или согласие');
 RESET ROLE;
 UPDATE public.patient_communication_contacts SET is_verified=true WHERE id=:'contact_phone_a';
+SELECT pg_temp.assert_true((SELECT state='cancelled' FROM public.communication_operations WHERE id=:'operation_1_original'::uuid),'stale prepared operation is cancelled after consent suppression or contact changes');
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub',:'owner_a',true);
+SELECT public.prepare_communication_operation(
+  :'tenant_a','d3270000-0000-4000-8000-000000000001','sms','orch-prepare-after-reconciliation',
+  :'job_version'::timestamptz,:'appointment_a_updated'::timestamptz
+) AS prepare_after_reconciliation \gset
+SELECT (:'prepare_after_reconciliation'::jsonb->'operation'->>'id') AS operation_1 \gset
+SELECT (:'prepare_after_reconciliation'::jsonb->'operation'->>'updatedAt') AS operation_1_updated \gset
 
 -- 42-52 normalized simulation scenarios and recovery.
 SET LOCAL ROLE authenticated;

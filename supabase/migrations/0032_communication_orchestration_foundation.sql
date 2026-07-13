@@ -417,10 +417,6 @@ BEGIN
   IF p_route_id IS NOT NULL THEN
     SELECT * INTO v_route FROM public.communication_routes
     WHERE tenant_id=p_tenant_id AND id=p_route_id FOR UPDATE;
-  ELSE
-    SELECT * INTO v_route FROM public.communication_routes
-    WHERE tenant_id=p_tenant_id AND channel=p_channel AND archived_at IS NULL
-    ORDER BY enabled DESC,priority,id LIMIT 1 FOR UPDATE;
   END IF;
   IF v_route.id IS NOT NULL THEN
     IF p_expected_updated_at IS NOT NULL AND v_route.updated_at<>p_expected_updated_at THEN
@@ -1054,6 +1050,7 @@ FOR EACH ROW EXECUTE FUNCTION public.communication_reconcile_route_trigger();
 REVOKE ALL ON FUNCTION public.communication_hash(text) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.communication_mask_destination(text,text) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.communication_tenant_role(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.communication_tenant_role(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.communication_require_manager(uuid) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.communication_route_json(public.communication_routes) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION public.communication_operation_json(public.communication_operations) FROM PUBLIC,anon,authenticated;
