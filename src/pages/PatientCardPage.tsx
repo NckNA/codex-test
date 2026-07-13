@@ -9,6 +9,7 @@ import { TreatmentPlansTab } from '../components/treatment/TreatmentPlansTab';
 import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
+import { PatientCommunicationSection } from '../components/patients/patient-card/PatientCommunicationSection';
 import { PatientTimelineTab } from '../components/patient/PatientTimelineTab';
 import { VisitCheckInPanel } from '../components/visits/VisitCheckInPanel';
 import { ClinicalEncounterPanel } from '../components/encounters/ClinicalEncounterPanel';
@@ -22,6 +23,7 @@ import type { PatientTimelineEventCategory } from '../data/aggregators/PatientTi
 
 const TABS = [
   { id: 'overview', label: 'Обзор' },
+  { id: 'communications', label: 'Связь' },
   { id: 'timeline', label: 'История' },
   { id: 'history', label: 'История приёмов' },
   { id: 'visits', label: 'Визиты' },
@@ -220,6 +222,10 @@ export function PatientCardPage() {
           />
         )}
 
+        {activeTab === 'communications' && (
+          <PatientCommunicationSection patientId={patient.id} />
+        )}
+
         {activeTab === 'timeline' && (
           <PatientTimelineTab
             events={timelineEvents}
@@ -275,7 +281,7 @@ export function PatientCardPage() {
         {activeTab === 'plan' && <TreatmentPlansTab patientId={patient.id} />}
         {activeTab === 'files' && <DentalPhotosPanel patientId={patient.id} />}
 
-        {['docs', 'communications'].includes(activeTab) && (
+        {['docs'].includes(activeTab) && (
           <div className="p-8 h-[400px] flex flex-col items-center justify-center text-slate-400 bg-white rounded-xl border border-slate-200 border-dashed">
             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
               <span className="text-2xl">🚧</span>
