@@ -5,7 +5,7 @@ describe('communication orchestration migration contract', () => {
   it('creates tenant-scoped route and immutable operation foundations', () => {
     expect(migration).toContain('CREATE TABLE public.communication_routes');
     expect(migration).toContain('CREATE TABLE public.communication_operations');
-    expect(migration).toContain('UNIQUE (tenant_id, operation_key)');
+    expect(migration).toMatch(/UNIQUE\s*\(tenant_id\s*,\s*operation_key\)/);
     expect(migration).toContain('FOREIGN KEY (tenant_id, reminder_job_id)');
     expect(migration).toContain('FOREIGN KEY (tenant_id, contact_id)');
     expect(migration).toContain('ENABLE ROW LEVEL SECURITY');
