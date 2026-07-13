@@ -6,8 +6,8 @@ describe('communication orchestration migration contract', () => {
     expect(migration).toContain('CREATE TABLE public.communication_routes');
     expect(migration).toContain('CREATE TABLE public.communication_operations');
     expect(migration).toMatch(/UNIQUE\s*\(tenant_id\s*,\s*operation_key\)/);
-    expect(migration).toContain('FOREIGN KEY (tenant_id, reminder_job_id)');
-    expect(migration).toContain('FOREIGN KEY (tenant_id, contact_id)');
+    expect(migration).toMatch(/FOREIGN KEY\s*\(tenant_id\s*,\s*reminder_job_id\)/);
+    expect(migration).toMatch(/FOREIGN KEY\s*\(tenant_id\s*,\s*contact_id\)/);
     expect(migration).toContain('ENABLE ROW LEVEL SECURITY');
   });
 
