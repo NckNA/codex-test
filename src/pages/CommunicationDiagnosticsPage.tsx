@@ -95,7 +95,7 @@ export function CommunicationDiagnosticsPage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-xs text-slate-500">
-                      {item.communicationEligibility?.blockedReasons.join(', ') || 'нет'}
+                      {item.communicationEligibility?.blockedReasons?.join(', ') || 'нет'}
                     </td>
                   </tr>
                 ))}
