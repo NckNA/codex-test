@@ -18,7 +18,9 @@ Operation preparation now resolves one exact active template only after eligibil
 
 ## 4. PR URL
 
-The PR URL is added to the task final response after the branch is pushed and the pull request is opened. The PR must remain open and unmerged.
+https://github.com/NckNA/codex-test/pull/360
+
+PR #360 remains open, must not be merged, and is moved from draft to ready only after fresh CI succeeds on the exact final head.
 
 ## 5. Baseline
 
