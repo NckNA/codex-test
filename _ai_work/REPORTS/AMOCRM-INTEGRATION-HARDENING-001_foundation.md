@@ -2,7 +2,7 @@
 
 ## 1. Final verdict
 
-PARTIAL: pull request publication and fresh GitHub Actions CI are pending.
+AMOCRM INTEGRATION HARDENING IMPLEMENTED AND VERIFIED
 
 ## 2. Summary
 
@@ -16,7 +16,7 @@ This task performs no contact, lead, deal, task, note, message, or conversation 
 
 ## 4. PR URL
 
-Pending publication.
+https://github.com/NckNA/codex-test/pull/360
 
 ## 5. Baseline
 
@@ -29,7 +29,8 @@ Pending publication.
 
 ## 6. Final head
 
-Pending final report commit and publication.
+- Final implementation head: `29d26c1763b3ec6ed6acc547eb752acf3de85831`
+- The report-only metadata commit necessarily follows the implementation head. A commit cannot embed its own SHA without changing that SHA; the exact final PR head is therefore recorded in PR #360 metadata and the final task response.
 
 ## 7. Changed files
 
@@ -654,14 +655,17 @@ Non-failing existing warnings:
 
 ## 41. Fresh CI
 
-Pending pull request publication and a fresh GitHub Actions run on the exact final head.
+GitHub Actions CI run #763 (run ID `29332792739`) completed successfully on the exact final implementation head `29d26c1763b3ec6ed6acc547eb752acf3de85831`.
 
-Required checks to confirm:
+Passed jobs/checks:
 
-- ESLint
-- full tests
-- build
-- Merge guard
+- validate: SUCCESS
+  - ESLint: SUCCESS
+  - full tests: SUCCESS
+  - build: SUCCESS
+- Merge guard: SUCCESS
+
+A report-only metadata commit follows this verified implementation head. Its exact PR head and fresh CI result are recorded in PR #360 metadata and the final task response, avoiding the impossible self-reference of embedding a commit SHA inside the commit whose SHA it determines.
 
 ## 42. Known limitations
 
