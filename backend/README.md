@@ -1,35 +1,38 @@
-
 # DentalFlow Integration Proxy
 
-## Purpose
-This backend acts as a secure integration proxy bridging DentalFlow with external CRMs (like amoCRM). It ensures that medical data is safely separated from commercial sync operations and manages third-party authentication securely.
+Tenant-safe server boundary for external integrations. This implementation only provides the amoCRM OAuth/account security foundation.
 
-## Why this backend exists
-- The frontend must NOT store amoCRM access or refresh tokens.
-- Exposing the OAuth `client_secret` in the frontend is a critical security vulnerability.
-- Server-side proxies can reliably handle rate-limiting, webhook processing, retries, and token rotation without depending on the user's browser state.
+## Security boundary
 
-## How to configure
-Copy `.env.example` to `.env` and fill in your integration variables.
-**Warning:** Never commit real secrets or tokens into version control.
+- Every browser request is authenticated through the Supabase session access token.
+- Tenant selection is carried as `X-Tenant-Id`, then independently verified against `tenant_users` by service-role-only database functions.
+- OAuth state is random, short-lived, one-time, tenant-bound, user-bound and integration-bound. Only its SHA-256 hash is stored.
+- Authorization codes, access credentials, refresh credentials and client secrets are never returned to the frontend or written to logs/audit.
+- Credentials are encrypted server-side with AES-256-GCM before protected database storage.
+- Refresh uses a database lease plus expected credential version so rotated refresh credentials cannot be overwritten by a parallel stale request.
+- There is no process-global token or OAuth state store.
 
-## How to run locally
-1. Ensure Node.js is installed.
-2. Inside the `backend/` directory, run `npm run start` or `npm run dev`.
-3. The server will start on port 4000 (or the port defined in `.env`).
+## Routes
 
-## Available endpoints
-- `GET /health` -> Returns simple health status.
-- `GET /api/integrations/amocrm/status` -> Returns connected status and domain. No tokens.
-- `POST /api/integrations/amocrm/connect` -> Generates OAuth state and returns the `authorizationUrl` if configured.
-- `GET /api/integrations/amocrm/callback` -> Validates state, exchanges the authorization code for tokens, and stores them in memory.
-- `POST /api/integrations/amocrm/disconnect` -> Clears the in-memory token store.
-- Various `POST /api/integrations/amocrm/sync-*` -> Return 501 Not Implemented placeholders.
+- `GET /health`
+- `GET /api/integrations/amocrm/status`
+- `POST /api/integrations/amocrm/connect`
+- `GET /api/integrations/amocrm/callback`
+- `POST /api/integrations/amocrm/refresh`
+- `POST /api/integrations/amocrm/reconnect`
+- `POST /api/integrations/amocrm/disconnect`
+- `GET|POST /api/integrations/amocrm/external-references`
+- `POST /api/integrations/amocrm/external-references/:id/archive`
 
-## Warning: Dev-Only Token Store
-The current `AMOCRM_TOKEN_STORE_MODE=memory` is strictly for the AMO-004 development skeleton. Tokens will disappear immediately if the server restarts. Production deployment requires encrypted, persistent, server-side database storage.
+Authenticated routes require:
 
-## Security rules
-- No tokens in the frontend codebase.
-- No `client_secret` exposed or logged anywhere.
-- No medical data (e.g., findings, diagnoses) should ever be sent to amoCRM. Only commercial and administrative data is allowed.
+- `Authorization: Bearer <Supabase access token>`
+- `X-Tenant-Id: <current tenant UUID>`
+
+## Intentionally absent
+
+No contact, lead, deal, task, note or message synchronization. No Chats API. No webhook. No worker. No cron. No provider message sending. No cloud migration apply.
+
+## Local configuration
+
+Copy `.env.example` into a local environment source without committing real values. The encryption key must be exactly 32 random bytes encoded as base64 or 64 hexadecimal characters. Server-only values must never use a `VITE_` prefix.

@@ -1,13 +1,14 @@
 {
-  "name": "dentalflow-integration-proxy",
-  "version": "1.0.0",
-  "description": "Backend proxy skeleton for DentalFlow CRM",
-  "main": "src/server.js",
-  "scripts": {
-    "start": "node src/server.js",
-    "dev": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/config.js && node --check src/routes/healthRoutes.js && node --check src/routes/amoCrmRoutes.js && node --check src/services/amoCrmTokenStore.js && node --check src/services/amoCrmClient.js && node --check src/utils/jsonResponse.js"
-  },
-  "author": "",
-  "license": "ISC"
+    "name":  "dentalflow-integration-proxy",
+    "version":  "2.0.0",
+    "private":  true,
+    "description":  "Tenant-safe DentalFlow external integration boundary",
+    "main":  "src/server.js",
+    "scripts":  {
+                    "start":  "node src/server.js",
+                    "dev":  "node src/server.js",
+                    "check":  "node --check src/server.js \u0026\u0026 node --check src/config.js \u0026\u0026 node --check src/routes/healthRoutes.js \u0026\u0026 node --check src/routes/amoCrmRoutes.js \u0026\u0026 node --check src/services/requestContext.js \u0026\u0026 node --check src/services/supabaseGateway.js \u0026\u0026 node --check src/services/credentialVault.js \u0026\u0026 node --check src/services/amoCrmProviderClient.js \u0026\u0026 node --check src/services/amoCrmIntegrationService.js \u0026\u0026 node --check src/services/amoCrmMockTransport.js \u0026\u0026 node --check src/mockAmoCrmServer.js \u0026\u0026 node --check src/utils/jsonResponse.js",
+                    "mock:amocrm":  "node src/mockAmoCrmServer.js"
+                },
+    "license":  "ISC"
 }
