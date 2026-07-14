@@ -13,6 +13,10 @@ export type QaLoginShortcutUser = Readonly<{
 export const QA_LOGIN_SECRET_ENV_NAME = `VITE_QA_USER_${'PASS'}${'WORD'}`;
 
 export const QA_LOGIN_SHORTCUT_USERS: readonly QaLoginShortcutUser[] = [
+  { email: 'qa.platform.admin@example.local', label: 'Platform Superadmin', roleLabel: 'DentalFlow platform_superadmin / без клиники' },
+  { email: 'qa.platform.disabled@example.local', label: 'Disabled Platform Admin', roleLabel: 'Отключённый platform_superadmin / без клиники' },
+  { email: 'qa.owner.c@example.local', label: 'Owner C', roleLabel: 'Владелец созданной browser-smoke клиники' },
+  { email: 'qa.owner.a@example.local', label: 'Owner A', roleLabel: 'Demo Clinic A + созданная browser-smoke клиника' },
   { email: 'qa.admin.a@example.local', label: 'Admin A', roleLabel: 'Demo Clinic A / Администратор клиники' },
   { email: 'qa.doctor.a@example.local', label: 'Doctor A', roleLabel: 'Demo Clinic A / Врач' },
   { email: 'qa.receptionist.a@example.local', label: 'Registrar A', roleLabel: 'Demo Clinic A / Регистратор' },

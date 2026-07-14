@@ -52,6 +52,38 @@ function buildPersonas() {
       memberships: [],
     },
     {
+      email: 'qa.platform.admin@example.local',
+      firstName: 'QA Platform',
+      lastName: 'Admin',
+      platformStatus: 'active',
+      memberships: [],
+    },
+    {
+      email: 'qa.platform.disabled@example.local',
+      firstName: 'QA Platform',
+      lastName: 'Disabled',
+      platformStatus: 'disabled',
+      memberships: [],
+    },
+    {
+      email: 'qa.owner.a@example.local',
+      firstName: 'QA Owner',
+      lastName: 'A',
+      memberships: [{ tenantId: TENANT_A, role: 'clinic_owner' }],
+    },
+    {
+      email: 'qa.owner.b@example.local',
+      firstName: 'QA Owner',
+      lastName: 'B',
+      memberships: [{ tenantId: TENANT_B, role: 'clinic_owner' }],
+    },
+    {
+      email: 'qa.owner.c@example.local',
+      firstName: 'QA Owner',
+      lastName: 'C',
+      memberships: [],
+    },
+    {
       email: 'qa.multitenant@example.local',
       firstName: 'QA Multi',
       lastName: 'Tenant',
@@ -186,6 +218,7 @@ async function run() {
   let passwordUpdatedCount = 0;
   let profilesUpserted = 0;
   let tenantUsersInserted = 0;
+  let platformAdministratorsUpserted = 0;
 
   for (const persona of personas) {
     console.log(`Processing ${persona.email}...`);
@@ -264,6 +297,73 @@ async function run() {
     } else {
       console.log('  No tenant memberships required.');
     }
+
+    if (persona.platformStatus) {
+      console.log(`  Upserting platform administrator status: ${persona.platformStatus}...`);
+      const { error: platformError } = await supabase.from('platform_administrators').upsert({
+        user_id: userId,
+        status: persona.platformStatus,
+        display_name: `${persona.firstName} ${persona.lastName}`,
+        disabled_at: persona.platformStatus === 'disabled' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      });
+      if (platformError) {
+        console.error('  Failed to upsert platform administrator:', platformError.message);
+        process.exit(1);
+      }
+      platformAdministratorsUpserted++;
+    }
+  }
+
+  const subscriptionStartedAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const subscriptionExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  const graceExpiresAt = new Date(Date.now() + 372 * 24 * 60 * 60 * 1000).toISOString();
+
+  const lifecycleFixtures = [
+    { tenantId: TENANT_A, status: 'active', suspendedAt: null, reason: null, note: null },
+    { tenantId: TENANT_B, status: 'suspended', suspendedAt: new Date().toISOString(), reason: 'administrative', note: 'Local browser fixture' },
+  ];
+
+  for (const fixture of lifecycleFixtures) {
+    const { error: lifecycleError } = await supabase.from('tenant_lifecycle').update({
+      status: fixture.status,
+      subscription_started_at: subscriptionStartedAt,
+      subscription_expires_at: subscriptionExpiresAt,
+      grace_expires_at: graceExpiresAt,
+      suspended_at: fixture.suspendedAt,
+      suspended_until: null,
+      suspension_reason_code: fixture.reason,
+      suspension_note: fixture.note,
+      resumed_at: null,
+      expired_at: null,
+      archived_at: null,
+      updated_at: new Date().toISOString(),
+    }).eq('tenant_id', fixture.tenantId);
+    if (lifecycleError) {
+      console.error('Failed to update tenant lifecycle fixture:', lifecycleError.message);
+      process.exit(1);
+    }
+
+    const { error: tenantStatusError } = await supabase.from('tenants').update({
+      status: fixture.status,
+      updated_at: new Date().toISOString(),
+    }).eq('id', fixture.tenantId);
+    if (tenantStatusError) {
+      console.error('Failed to update tenant status fixture:', tenantStatusError.message);
+      process.exit(1);
+    }
+
+    const { error: subscriptionError } = await supabase.from('tenant_subscription_periods').update({
+      starts_at: subscriptionStartedAt,
+      expires_at: subscriptionExpiresAt,
+      grace_expires_at: graceExpiresAt,
+      status: 'active',
+      reason_code: 'local_qa_fixture',
+    }).eq('tenant_id', fixture.tenantId).is('superseded_at', null);
+    if (subscriptionError) {
+      console.error('Failed to update subscription fixture:', subscriptionError.message);
+      process.exit(1);
+    }
   }
 
   console.log('\n--- QA USER FIXTURE SUMMARY ---');
@@ -272,11 +372,17 @@ async function run() {
   console.log(`Passwords reset:        ${passwordUpdatedCount}`);
   console.log(`Profiles upserted:      ${profilesUpserted}`);
   console.log(`Tenant users inserted:  ${tenantUsersInserted}`);
+  console.log(`Platform admins upserted: ${platformAdministratorsUpserted}`);
   console.log('\nMemberships:');
   console.log('qa.admin.a@example.local          => Demo Clinic A / clinic_admin');
   console.log('qa.doctor.a@example.local         => Demo Clinic A / doctor');
   console.log('qa.admin.b@example.local          => Demo Clinic B / clinic_admin');
   console.log('qa.notenant@example.local         => no tenant');
+  console.log('qa.platform.admin@example.local   => platform_superadmin active / no tenant');
+  console.log('qa.platform.disabled@example.local=> platform_superadmin disabled / no tenant');
+  console.log('qa.owner.a@example.local          => Demo Clinic A / clinic_owner');
+  console.log('qa.owner.b@example.local          => Demo Clinic B / clinic_owner');
+  console.log('qa.owner.c@example.local          => no tenant (tenant-create target)');
   console.log('qa.multitenant@example.local      => Demo Clinic A / clinic_admin + Demo Clinic B / doctor');
   console.log('qa.receptionist.a@example.local   => Demo Clinic A / registrar');
   console.log('qa.cashier.a@example.local        => Demo Clinic A / cashier');
