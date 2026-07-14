@@ -55,6 +55,7 @@ export function Sidebar() {
     ? [
         { to: '/reminders', icon: BellRing, label: 'Напоминания' },
         { to: '/communications', icon: FlaskConical, label: 'Коммуникации' },
+        { to: '/communication-templates', icon: FileText, label: 'Шаблоны сообщений' },
       ]
     : [];
   const operationalItems = [navItems[0], ...reminderItems, ...navItems.slice(1)];

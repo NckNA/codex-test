@@ -192,6 +192,36 @@ Invoke-Sql $setup | Out-Null
 Invoke-Sql ((AuthContext $adminA) + "SELECT public.create_or_update_communication_route('$tenantA',NULL,'sms','mock',true,100,NULL,'orch-conc-route-a'); COMMIT;") | Out-Null
 Invoke-Sql ((AuthContext $adminB) + "SELECT public.create_or_update_communication_route('$tenantB',NULL,'sms','mock',true,100,NULL,'orch-conc-route-b'); COMMIT;") | Out-Null
 
+# Publish exact tenant/language SMS templates required by the 0033 preparation contract.
+Invoke-Sql ((AuthContext $adminA) + @"
+WITH created AS (
+  SELECT public.create_communication_template(
+    '$tenantA','appointment_confirmation_request','sms','ru','Concurrency RU SMS',NULL,
+    'Здравствуйте, {{patient_first_name}}. Запись в {{clinic_name}} на {{appointment_date}} в {{appointment_time}}.',
+    'orch-conc-template-a-create'
+  ) AS result
+)
+SELECT public.publish_communication_template_version(
+  '$tenantA',(result->'template'->>'id')::uuid,(result->'version'->>'id')::uuid,
+  (result->'version'->>'updatedAt')::timestamptz,'orch-conc-template-a-publish'
+) FROM created;
+COMMIT;
+"@) | Out-Null
+Invoke-Sql ((AuthContext $adminB) + @"
+WITH created AS (
+  SELECT public.create_communication_template(
+    '$tenantB','appointment_confirmation_request','sms','ru','Concurrency B RU SMS',NULL,
+    'Здравствуйте, {{patient_first_name}}. Запись в {{clinic_name}} на {{appointment_date}} в {{appointment_time}}.',
+    'orch-conc-template-b-create'
+  ) AS result
+)
+SELECT public.publish_communication_template_version(
+  '$tenantB',(result->'template'->>'id')::uuid,(result->'version'->>'id')::uuid,
+  (result->'version'->>'updatedAt')::timestamptz,'orch-conc-template-b-publish'
+) FROM created;
+COMMIT;
+"@) | Out-Null
+
 $allResults = @()
 
 # A. Same preparation key: one insert and one replay.

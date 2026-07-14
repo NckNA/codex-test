@@ -48,6 +48,15 @@ export interface CommunicationOperation {
   routeId: string;
   routeVersion: number;
   adapterCode: CommunicationAdapterCode;
+  templateId?: string;
+  templateVersionId?: string;
+  templateVersionNumber?: number;
+  templateContentFingerprint?: string;
+  renderedContentFingerprint?: string;
+  renderedSubject?: string;
+  renderedBody?: string;
+  renderedCharacterCount?: number;
+  templateSnapshot?: Record<string, unknown>;
   externalOperationId?: string;
   adapterResultCode?: CommunicationAdapterResultCode;
   retryable?: boolean;
@@ -112,6 +121,7 @@ export interface SimulateCommunicationOperationInput {
 export type CommunicationRepositoryErrorCode =
   | 'permission'
   | 'no_route'
+  | 'no_template'
   | 'not_eligible'
   | 'stale'
   | 'conflict'
@@ -123,6 +133,7 @@ export type CommunicationRepositoryErrorCode =
 const SAFE_MESSAGES: Record<CommunicationRepositoryErrorCode, string> = {
   permission: 'Недостаточно прав для работы с коммуникациями.',
   no_route: 'Для этого канала не настроен тестовый маршрут.',
+  no_template: 'Для выбранного канала и языка нет активного шаблона.',
   not_eligible: 'Контакт или согласие больше не позволяют подготовить коммуникацию.',
   stale: 'Данные записи или контакта изменились. Обновите задачу.',
   conflict: 'Операция уже выполнена с другими параметрами.',
@@ -164,6 +175,9 @@ export const toSafeCommunicationRepositoryError = (
   }
   if (normalized.includes('не настроен тестовый маршрут')) {
     return new CommunicationOrchestrationRepositoryError('no_route');
+  }
+  if (normalized.includes('нет активного шаблона')) {
+    return new CommunicationOrchestrationRepositoryError('no_template');
   }
   if (normalized.includes('контакт или согласие')) {
     return new CommunicationOrchestrationRepositoryError('not_eligible');
@@ -218,6 +232,17 @@ export const mapCommunicationOperation = (row: Row): CommunicationOperation => (
   routeId: String(value(row, 'routeId', 'route_id')),
   routeVersion: Number(value(row, 'routeVersion', 'route_version')),
   adapterCode: value(row, 'adapterCode', 'adapter_code') as CommunicationAdapterCode,
+  templateId: optionalString(value(row, 'templateId', 'template_id')),
+  templateVersionId: optionalString(value(row, 'templateVersionId', 'template_version_id')),
+  templateVersionNumber: value(row, 'templateVersionNumber', 'template_version_number') == null
+    ? undefined : Number(value(row, 'templateVersionNumber', 'template_version_number')),
+  templateContentFingerprint: optionalString(value(row, 'templateContentFingerprint', 'template_content_fingerprint')),
+  renderedContentFingerprint: optionalString(value(row, 'renderedContentFingerprint', 'rendered_content_fingerprint')),
+  renderedSubject: optionalString(value(row, 'renderedSubject', 'rendered_subject')),
+  renderedBody: optionalString(value(row, 'renderedBody', 'rendered_body')),
+  renderedCharacterCount: value(row, 'renderedCharacterCount', 'rendered_character_count') == null
+    ? undefined : Number(value(row, 'renderedCharacterCount', 'rendered_character_count')),
+  templateSnapshot: (value(row, 'templateSnapshot', 'template_snapshot') ?? undefined) as Record<string, unknown> | undefined,
   externalOperationId: optionalString(value(row, 'externalOperationId', 'external_operation_id')),
   adapterResultCode: optionalString(value(row, 'adapterResultCode', 'adapter_result_code')) as CommunicationAdapterResultCode | undefined,
   retryable: value(row, 'retryable', 'retryable') == null ? undefined : Boolean(value(row, 'retryable', 'retryable')),
