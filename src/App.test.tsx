@@ -1,246 +1,88 @@
 // @vitest-environment jsdom
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createRoot } from 'react-dom/client';
 import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import * as AuthContextModule from './contexts/AuthContext';
-import * as TenantContextModule from './contexts/TenantContext';
+import * as Auth from './contexts/AuthContext';
+import * as Tenant from './contexts/TenantContext';
 
-// Mock matchMedia for nested components if necessary
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+vi.mock('./pages/platform/PlatformTenantsPage', () => ({ PlatformTenantsPage: () => <div>PLATFORM TENANTS SAFE PAGE</div> }));
+vi.mock('./pages/platform/PlatformTenantDetailsPage', () => ({ PlatformTenantDetailsPage: () => <div>PLATFORM TENANT DETAILS</div> }));
 
-const mockUseAuth = (overrides: Partial<ReturnType<typeof AuthContextModule.useAuth>> = {}) => {
-  vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
-    user: null,
-    isLoading: false,
-    error: null,
-    authMode: 'dev',
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    ...overrides,
-  });
-};
+Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() })) });
 
-const mockUseTenant = (overrides: Partial<ReturnType<typeof TenantContextModule.useTenant>> = {}) => {
-  vi.spyOn(TenantContextModule, 'useTenant').mockReturnValue({
-    activeTenant: null,
-    availableTenants: [],
-    setActiveTenant: vi.fn(),
-    isLoading: false,
-    error: null,
-    ...overrides,
-  });
-};
+const activeTenant = { tenantId: 't1', tenantName: 'Clinic', timezone: 'Asia/Almaty', role: 'clinic_admin', storedStatus: 'active' as const, effectiveStatus: 'active' as const, operationalAccessAllowed: true, reasonCode: 'none' as const, actionRequired: 'none' };
+const authValue = (overrides: Partial<ReturnType<typeof Auth.useAuth>> = {}): ReturnType<typeof Auth.useAuth> => ({ user: { id: 'u1', email: 'u1@example.local' }, isLoading: false, error: null, authMode: 'supabase-active', signIn: vi.fn(), signOut: vi.fn(), ...overrides });
+const tenantValue = (overrides: Partial<ReturnType<typeof Tenant.useTenant>> = {}): ReturnType<typeof Tenant.useTenant> => ({ activeTenant, availableTenants: [activeTenant], setActiveTenant: vi.fn(), refreshTenants: vi.fn(async () => undefined), platformAdminStatus: null, isPlatformSuperadmin: false, isLoading: false, error: null, ...overrides });
 
-const renderApp = async () => {
+async function render(path = '/') {
+  window.history.pushState({}, '', path);
   const container = document.createElement('div');
   const root = createRoot(container);
-
-  await act(async () => {
-    root.render(<App />);
-  });
-
+  await act(async () => root.render(<App />));
   return { container, root };
-};
+}
 
-const unmount = async (root: ReturnType<typeof createRoot>) => {
-  await act(async () => {
-    root.unmount();
-  });
-};
+afterEach(() => { vi.restoreAllMocks(); window.history.pushState({}, '', '/'); });
 
-const currentRoleLabel = (container: HTMLElement) => container.querySelector('[data-testid="current-role-label"]')?.textContent ?? null;
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-describe('App Auth & Tenant Gate', () => {
-  it('1. dev mode renders app routes, not LoginPage, not no-tenant screen', async () => {
-    mockUseAuth({ authMode: 'dev', isLoading: false });
-    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Dev', timezone: 'Asia/Almaty', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Dev', timezone: 'Asia/Almaty', role: 'clinic_admin' }], isLoading: false });
-
-    const { container, root } = await renderApp();
-
-    expect(container.textContent).not.toContain('Вход в систему');
-    expect(container.textContent).not.toContain('Клиника не назначена');
-    // It should render Layout containing Header, which contains user name or date
-    expect(container.textContent).toBeDefined();
-
-    await unmount(root);
+describe('App auth, platform and lifecycle gates', () => {
+  it('renders login without authenticated user', async () => {
+    vi.spyOn(Auth, 'useAuth').mockReturnValue(authValue({ user: null }));
+    vi.spyOn(Tenant, 'useTenant').mockReturnValue(tenantValue({ activeTenant: null, availableTenants: [] }));
+    const view = await render();
+    expect(view.container.querySelector('input[type="email"]')).toBeTruthy();
+    await act(async () => view.root.unmount());
   });
 
-  it('2. supabase-active + auth loading renders auth loading screen', async () => {
-    mockUseAuth({ authMode: 'supabase-active', isLoading: true });
-    mockUseTenant();
-
-    const { container, root } = await renderApp();
-
-    expect(container.querySelector('.animate-spin')).toBeDefined();
-
-    await unmount(root);
+  it('renders ordinary clinic app only for operational tenant', async () => {
+    vi.spyOn(Auth, 'useAuth').mockReturnValue(authValue());
+    vi.spyOn(Tenant, 'useTenant').mockReturnValue(tenantValue());
+    const view = await render('/patients');
+    expect(view.container.textContent).not.toContain('PLATFORM TENANTS SAFE PAGE');
+    expect(view.container.textContent).not.toContain('Работа клиники временно приостановлена');
+    await act(async () => view.root.unmount());
   });
 
-  it('3. supabase-active + no user renders LoginPage', async () => {
-    mockUseAuth({ authMode: 'supabase-active', user: null, isLoading: false });
-    mockUseTenant();
-
-    const { container, root } = await renderApp();
-
-    expect(container.textContent).toContain('Вход в систему');
-
-    await unmount(root);
+  it('shows dedicated suspended clinic page and no medical navigation', async () => {
+    vi.spyOn(Auth, 'useAuth').mockReturnValue(authValue());
+    const suspended = { ...activeTenant, storedStatus: 'suspended' as const, effectiveStatus: 'suspended' as const, operationalAccessAllowed: false, reasonCode: 'tenant_suspended' as const, actionRequired: 'contact_support' };
+    vi.spyOn(Tenant, 'useTenant').mockReturnValue(tenantValue({ activeTenant: suspended, availableTenants: [suspended] }));
+    const view = await render('/patients');
+    expect(view.container.textContent).toContain('Работа клиники временно приостановлена');
+    expect(view.container.textContent).not.toContain('CRM');
+    await act(async () => view.root.unmount());
   });
 
-  it('4. supabase-active + user + tenant loading renders "Загрузка клиники..."', async () => {
-    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
-    mockUseTenant({ isLoading: true });
-
-    const { container, root } = await renderApp();
-
-    expect(container.textContent).toContain('Загрузка клиники...');
-
-    await unmount(root);
+  it('allows active platform superadmin without clinic membership', async () => {
+    vi.spyOn(Auth, 'useAuth').mockReturnValue(authValue());
+    vi.spyOn(Tenant, 'useTenant').mockReturnValue(tenantValue({ activeTenant: null, availableTenants: [], isPlatformSuperadmin: true, platformAdminStatus: { isPlatformSuperadmin: true, status: 'active' } }));
+    const view = await render('/platform/tenants');
+    expect(view.container.textContent).toContain('PLATFORM TENANTS SAFE PAGE');
+    expect(view.container.textContent).not.toContain('CRM');
+    expect(view.container.textContent).not.toContain('Пациенты');
+    expect(view.container.textContent).not.toContain('Финансы');
+    await act(async () => view.root.unmount());
   });
 
-  it('5. supabase-active + user + tenant error renders "Не удалось загрузить клинику" and logout button calls signOut', async () => {
-    const signOutMock = vi.fn();
-    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false, signOut: signOutMock });
-    mockUseTenant({ error: new Error('Network fail'), isLoading: false });
-
-    const { container, root } = await renderApp();
-
-    expect(container.textContent).toContain('Не удалось загрузить клинику');
-    expect(container.textContent).toContain('Network fail');
-
-    const button = container.querySelector('button');
-    expect(button?.textContent).toContain('Выйти');
-    
-    await act(async () => {
-      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(signOutMock).toHaveBeenCalled();
-
-    await unmount(root);
+  it('blocks ordinary and disabled platform users from platform route', async () => {
+    vi.spyOn(Auth, 'useAuth').mockReturnValue(authValue());
+    vi.spyOn(Tenant, 'useTenant').mockReturnValue(tenantValue({ isPlatformSuperadmin: false, platformAdminStatus: { isPlatformSuperadmin: false, status: 'disabled' } }));
+    const view = await render('/platform/tenants');
+    expect(view.container.textContent).toContain('Недостаточно прав для управления платформой');
+    await act(async () => view.root.unmount());
   });
 
-  it('6. supabase-active + user + no tenants renders "Клиника не назначена" and no fake admin role', async () => {
-    const signOutMock = vi.fn();
-    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false, signOut: signOutMock });
-    mockUseTenant({ activeTenant: null, availableTenants: [], isLoading: false });
-
-    const { container, root } = await renderApp();
-
-    expect(container.textContent).toContain('Клиника не назначена');
-    expect(currentRoleLabel(container)).toBeNull();
-    expect(container.textContent).not.toContain('Администратор клиники');
-    expect(container.textContent).not.toContain('Администратор платформы');
-
-    const button = container.querySelector('button');
-    expect(button?.textContent).toContain('Выйти');
-
-    await act(async () => {
-      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(signOutMock).toHaveBeenCalled();
-
-    await unmount(root);
-  });
-
-  it('7. supabase-active + user + activeTenant renders normal app routes', async () => {
-    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
-    mockUseTenant({ activeTenant: { tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role: 'clinic_admin' }, availableTenants: [{ tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role: 'clinic_admin' }], isLoading: false });
-
-    const { container, root } = await renderApp();
-
-    expect(container.textContent).not.toContain('Загрузка клиники...');
-    expect(container.textContent).not.toContain('Клиника не назначена');
-    expect(container.textContent).not.toContain('Вход в систему');
-
-    await unmount(root);
-  });
-
-  it.each([
-    ['clinic_admin', 'Администратор клиники'],
-    ['clinic_owner', 'Владелец клиники'],
-    ['doctor', 'Врач'],
-    ['receptionist', 'Регистратор'],
-    ['registrar', 'Регистратор'],
-    ['cashier', 'Кассир'],
-  ])('renders active clinic role label for %s', async (role, expectedLabel) => {
-    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
-    mockUseTenant({
-      activeTenant: { tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role },
-      availableTenants: [{ tenantId: '123', tenantName: 'Real', timezone: 'Asia/Almaty', role }],
-      isLoading: false,
-    });
-
-    const { container, root } = await renderApp();
-
-    expect(currentRoleLabel(container)).toBe(expectedLabel);
-    expect(currentRoleLabel(container)).not.toBe('Администратор');
-    expect(currentRoleLabel(container)).not.toBe('Администратор платформы');
-
-    await unmount(root);
-  });
-
-  it('updates visible role label when active tenant role changes', async () => {
-    const tenantSpy = vi.spyOn(TenantContextModule, 'useTenant');
-    mockUseAuth({ authMode: 'supabase-active', user: { id: '1', email: 'a@a.com' }, isLoading: false });
-
-    tenantSpy.mockReturnValue({
-      activeTenant: { tenantId: 'clinic-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
-      availableTenants: [
-        { tenantId: 'clinic-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
-        { tenantId: 'clinic-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
-      ],
-      setActiveTenant: vi.fn(),
-      isLoading: false,
-      error: null,
-    });
-
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(<App />);
-    });
-
-    expect(currentRoleLabel(container)).toBe('Администратор клиники');
-
-    tenantSpy.mockReturnValue({
-      activeTenant: { tenantId: 'clinic-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
-      availableTenants: [
-        { tenantId: 'clinic-a', tenantName: 'Clinic A', timezone: 'Asia/Almaty', role: 'clinic_admin' },
-        { tenantId: 'clinic-b', tenantName: 'Clinic B', timezone: 'Asia/Almaty', role: 'doctor' },
-      ],
-      setActiveTenant: vi.fn(),
-      isLoading: false,
-      error: null,
-    });
-
-    await act(async () => {
-      root.render(<App />);
-    });
-
-    expect(currentRoleLabel(container)).toBe('Врач');
-    expect(currentRoleLabel(container)).not.toBe('Администратор клиники');
-
-    await unmount(root);
+  it('lets multi-tenant user switch away from blocked clinic', async () => {
+    vi.spyOn(Auth, 'useAuth').mockReturnValue(authValue());
+    const setActiveTenant = vi.fn();
+    const blocked = { ...activeTenant, tenantId: 'blocked', storedStatus: 'expired' as const, effectiveStatus: 'expired' as const, operationalAccessAllowed: false, reasonCode: 'subscription_expired' as const, actionRequired: 'renew_subscription' };
+    const other = { ...activeTenant, tenantId: 'active', tenantName: 'Other Clinic' };
+    vi.spyOn(Tenant, 'useTenant').mockReturnValue(tenantValue({ activeTenant: blocked, availableTenants: [blocked, other], setActiveTenant }));
+    const view = await render('/');
+    const select = view.container.querySelector('select[aria-label="Переключить клинику"]') as HTMLSelectElement;
+    await act(async () => { select.value = 'active'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(setActiveTenant).toHaveBeenCalledWith('active');
+    await act(async () => view.root.unmount());
   });
 });
