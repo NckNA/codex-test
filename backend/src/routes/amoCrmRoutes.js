@@ -1,139 +1,133 @@
-const { sendJson } = require('../utils/jsonResponse');
-const { isAmoCrmConfigured } = require('../config');
-const { createOAuthState, validateOAuthState } = require('../services/amoCrmStateStore');
-const { getConnectionStatus, saveTokenSet, clearTokenSet } = require('../services/amoCrmTokenStore');
-const { buildAuthorizationUrl, exchangeAuthorizationCode } = require('../services/amoCrmClient');
+const { applyCors, sendJson, readJsonBody } = require('../utils/jsonResponse');
+const { authenticateTenantRequest } = require('../services/requestContext');
+const { toSafeServiceError } = require('../services/amoCrmIntegrationService');
 
-/**
- * Handles all /api/integrations/amocrm/* routes.
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {string} pathname
- * @param {URL} url 
- * @returns {boolean} true if handled, false otherwise
- */
-async function handleAmoCrmRoutes(req, res, pathname, url) {
-  if (!pathname.startsWith('/api/integrations/amocrm')) {
-    return false;
-  }
+function callbackParams(url) {
+  return {
+    code: url.searchParams.get('code') || '',
+    state: url.searchParams.get('state') || '',
+    referer: url.searchParams.get('referer') || '',
+  };
+}
 
-  // GET /api/integrations/amocrm/status
-  if (req.method === 'GET' && pathname === '/api/integrations/amocrm/status') {
-    const status = getConnectionStatus();
-    sendJson(res, 200, {
-      ...status,
-      provider: 'amocrm',
-      configured: isAmoCrmConfigured(),
-      message: status.connected 
-        ? 'amoCRM is connected.' 
-        : 'amoCRM integration backend skeleton is available. Ready to connect.'
-    });
-    return true;
-  }
-
-  // POST /api/integrations/amocrm/connect
-  if (req.method === 'POST' && pathname === '/api/integrations/amocrm/connect') {
-    if (!isAmoCrmConfigured()) {
-      sendJson(res, 400, {
-        ok: false,
-        message: 'amoCRM integration is not configured.'
-      });
-      return true;
-    }
-
-    const state = createOAuthState();
-    const authorizationUrl = buildAuthorizationUrl(state);
-
-    sendJson(res, 200, {
-      ok: true,
-      provider: 'amocrm',
-      authorizationUrl: authorizationUrl,
-      message: 'Open authorizationUrl to connect amoCRM.'
-    });
-    return true;
-  }
-
-  // GET /api/integrations/amocrm/callback
-  if (req.method === 'GET' && pathname === '/api/integrations/amocrm/callback') {
-    const code = url.searchParams.get('code');
-    const referer = url.searchParams.get('referer');
-    const state = url.searchParams.get('state');
-
-    if (!code) {
-      sendJson(res, 400, { ok: false, message: 'Missing authorization code in callback.' });
-      return true;
-    }
-
-    if (!validateOAuthState(state)) {
-      sendJson(res, 400, { ok: false, message: 'Invalid or expired OAuth state.' });
-      return true;
-    }
-
-    try {
-      const tokenSet = await exchangeAuthorizationCode({ code, referer });
-      const saved = saveTokenSet(tokenSet);
-      
-      if (!saved) {
-        throw new Error('Failed to save token set locally.');
-      }
-
-      sendJson(res, 200, {
-        ok: true,
-        provider: 'amocrm',
-        connected: true,
-        accountDomain: tokenSet.accountDomain,
-        message: 'amoCRM connected successfully.'
-      });
-    } catch (err) {
-      sendJson(res, 400, {
-        ok: false,
-        message: err.message || 'Failed to exchange tokens during callback.'
-      });
-    }
-    return true;
-  }
-
-  // POST /api/integrations/amocrm/disconnect
-  if (req.method === 'POST' && pathname === '/api/integrations/amocrm/disconnect') {
-    clearTokenSet();
-    sendJson(res, 200, {
-      ok: true,
-      provider: 'amocrm',
-      connected: false,
-      message: 'amoCRM disconnected.'
-    });
-    return true;
-  }
-
-  // POST /api/integrations/amocrm/webhook
-  if (req.method === 'POST' && pathname === '/api/integrations/amocrm/webhook') {
-    sendJson(res, 202, {
-      ok: true,
-      message: 'ignored placeholder webhook'
-    });
-    return true;
-  }
-
-  // Still placeholders
-  const syncEndpoints = [
-    '/api/integrations/amocrm/sync-patient',
-    '/api/integrations/amocrm/sync-treatment-plan'
-  ];
-
-  if (syncEndpoints.includes(pathname)) {
-    sendJson(res, 501, {
+function safeErrorPayload(error) {
+  const safe = toSafeServiceError(error);
+  return {
+    status: safe.status,
+    body: {
       ok: false,
-      provider: 'amocrm',
-      message: 'Patient and treatment plan sync is not implemented in AMO-004. This endpoint is a placeholder.'
-    });
+      providerCode: 'amocrm',
+      errorCode: safe.code,
+      message: safe.message,
+    },
+  };
+}
+
+async function handleAmoCrmRoutes(req, res, pathname, url, dependencies) {
+  if (!pathname.startsWith('/api/integrations/amocrm')) return false;
+
+  const { service, gateway, frontendUrl } = dependencies;
+  if (req.method === 'OPTIONS') {
+    applyCors(res, frontendUrl);
+    res.writeHead(204);
+    res.end();
     return true;
   }
 
-  // If it starts with the prefix but doesn't match known routes
-  sendJson(res, 404, { error: 'amoCRM endpoint not found' });
-  return true;
+  if (req.method === 'GET' && pathname === '/api/integrations/amocrm/callback') {
+    try {
+      const result = await service.completeCallback(callbackParams(url));
+      res.writeHead(302, {
+        Location: result.redirectUrl,
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+      });
+      res.end();
+    } catch (error) {
+      const safe = toSafeServiceError(error);
+      res.writeHead(302, {
+        Location: service.callbackRedirect('error', safe.code),
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+      });
+      res.end();
+    }
+    return true;
+  }
+
+  try {
+    const context = await authenticateTenantRequest(req, gateway);
+
+    if (req.method === 'GET' && pathname === '/api/integrations/amocrm/status') {
+      sendJson(res, 200, await service.getHealth(context), frontendUrl);
+      return true;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/integrations/amocrm/connect') {
+      const body = await readJsonBody(req);
+      const result = await service.startConnection(context, {
+        expectedExternalAccountId: body.expectedExternalAccountId,
+        expectedDomain: body.expectedDomain,
+      });
+      sendJson(res, 200, { ok: true, providerCode: 'amocrm', ...result }, frontendUrl);
+      return true;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/integrations/amocrm/reconnect') {
+      const result = await service.reconnect(context);
+      sendJson(res, 200, { ok: true, providerCode: 'amocrm', ...result }, frontendUrl);
+      return true;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/integrations/amocrm/refresh') {
+      const result = await service.refreshCredentials(context);
+      sendJson(res, 200, result, frontendUrl);
+      return true;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/integrations/amocrm/disconnect') {
+      const result = await service.disconnect(context);
+      sendJson(res, 200, result, frontendUrl);
+      return true;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/integrations/amocrm/external-references') {
+      const entityType = url.searchParams.get('entityType') || undefined;
+      const result = await service.listExternalReferences(context, entityType);
+      sendJson(res, 200, { items: result }, frontendUrl);
+      return true;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/integrations/amocrm/external-references') {
+      const body = await readJsonBody(req);
+      const result = await service.createExternalReference(context, body);
+      sendJson(res, 201, result, frontendUrl);
+      return true;
+    }
+
+    const archiveMatch = pathname.match(/^\/api\/integrations\/amocrm\/external-references\/([0-9a-f-]+)\/archive$/i);
+    if (req.method === 'POST' && archiveMatch) {
+      const result = await service.archiveExternalReference(context, archiveMatch[1]);
+      sendJson(res, 200, result, frontendUrl);
+      return true;
+    }
+
+    sendJson(res, 404, {
+      ok: false,
+      errorCode: 'not_found',
+      message: 'amoCRM endpoint not found.',
+    }, frontendUrl);
+    return true;
+  } catch (error) {
+    const safe = safeErrorPayload(error);
+    console.warn('amoCRM API request failed', { method: req.method, path: pathname, status: safe.status, errorCode: safe.body.errorCode });
+    sendJson(res, safe.status, safe.body, frontendUrl);
+    return true;
+  }
 }
 
 module.exports = {
-  handleAmoCrmRoutes
+  handleAmoCrmRoutes,
+  callbackParams,
+  safeErrorPayload,
 };

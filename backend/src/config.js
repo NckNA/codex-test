@@ -1,42 +1,46 @@
-// Safe config loader for backend proxy skeleton
+const PORT = Number(process.env.PORT || 4000);
 
-const PORT = process.env.PORT || 4000;
-const AMOCRM_BASE_URL = process.env.AMOCRM_BASE_URL || '';
-const AMOCRM_CLIENT_ID = process.env.AMOCRM_CLIENT_ID || '';
-const AMOCRM_CLIENT_SECRET = process.env.AMOCRM_CLIENT_SECRET || '';
-const AMOCRM_REDIRECT_URI = process.env.AMOCRM_REDIRECT_URI || '';
-const AMOCRM_ALLOWED_ACCOUNT_DOMAIN = process.env.AMOCRM_ALLOWED_ACCOUNT_DOMAIN || '';
-const AMOCRM_TOKEN_STORE_MODE = process.env.AMOCRM_TOKEN_STORE_MODE || 'memory';
+const config = Object.freeze({
+  port: Number.isFinite(PORT) ? PORT : 4000,
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  supabaseUrl: process.env.SUPABASE_URL || '',
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  amoCrmClientId: process.env.AMOCRM_CLIENT_ID || '',
+  amoCrmClientSecret: process.env.AMOCRM_CLIENT_SECRET || '',
+  amoCrmRedirectUri: process.env.AMOCRM_REDIRECT_URI || '',
+  amoCrmAuthorizeUrl: process.env.AMOCRM_AUTHORIZE_URL || 'https://www.amocrm.ru/oauth',
+  amoCrmProviderBaseUrl: process.env.AMOCRM_PROVIDER_BASE_URL || '',
+  amoCrmAllowedAccountDomain: process.env.AMOCRM_ALLOWED_ACCOUNT_DOMAIN || '',
+  credentialEncryptionKey: process.env.AMOCRM_CREDENTIAL_ENCRYPTION_KEY || '',
+  credentialEncryptionKeyVersion: Number(process.env.AMOCRM_CREDENTIAL_KEY_VERSION || 1),
+  requestTimeoutMs: Number(process.env.AMOCRM_REQUEST_TIMEOUT_MS || 10000),
+  oauthStateTtlSeconds: Number(process.env.AMOCRM_OAUTH_STATE_TTL_SECONDS || 600),
+});
 
-/**
- * Checks if the minimal required amoCRM variables are set for OAuth exchange.
- */
-function isAmoCrmConfigured() {
+function isSupabaseServerConfigured(runtime = config) {
   return Boolean(
-    AMOCRM_BASE_URL &&
-    AMOCRM_CLIENT_ID &&
-    AMOCRM_CLIENT_SECRET &&
-    AMOCRM_REDIRECT_URI
+    runtime.supabaseUrl &&
+    runtime.supabaseAnonKey &&
+    runtime.supabaseServiceRoleKey
   );
 }
 
-/**
- * Returns configuration values needed for amoCRM integrations.
- * Never logs or exposes the client secret unnecessarily.
- */
-function getAmoCrmConfig() {
-  return {
-    baseUrl: AMOCRM_BASE_URL,
-    clientId: AMOCRM_CLIENT_ID,
-    clientSecret: AMOCRM_CLIENT_SECRET, // Must be handled securely
-    redirectUri: AMOCRM_REDIRECT_URI,
-    allowedDomain: AMOCRM_ALLOWED_ACCOUNT_DOMAIN,
-    storeMode: AMOCRM_TOKEN_STORE_MODE
-  };
+function isAmoCrmConfigured(runtime = config) {
+  return Boolean(
+    isSupabaseServerConfigured(runtime) &&
+    runtime.amoCrmClientId &&
+    runtime.amoCrmClientSecret &&
+    runtime.amoCrmRedirectUri &&
+    runtime.credentialEncryptionKey &&
+    Number.isInteger(runtime.credentialEncryptionKeyVersion) &&
+    runtime.credentialEncryptionKeyVersion > 0
+  );
 }
 
 module.exports = {
-  PORT,
+  PORT: config.port,
+  config,
+  isSupabaseServerConfigured,
   isAmoCrmConfigured,
-  getAmoCrmConfig
 };

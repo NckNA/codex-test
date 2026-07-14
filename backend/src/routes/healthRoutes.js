@@ -1,18 +1,12 @@
 const { sendJson } = require('../utils/jsonResponse');
 
-/**
- * Handles the GET /health route.
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- * @param {string} pathname
- * @returns {boolean} true if handled, false otherwise
- */
-function handleHealthRoutes(req, res, pathname) {
+function handleHealthRoutes(req, res, pathname, status = {}) {
   if (req.method === 'GET' && pathname === '/health') {
     sendJson(res, 200, {
       ok: true,
-      service: "dentalflow-integration-proxy",
-      status: "healthy"
+      service: 'dentalflow-integration-proxy',
+      status: 'healthy',
+      amoCrmConfigured: Boolean(status.configured),
     });
     return true;
   }
@@ -20,5 +14,5 @@ function handleHealthRoutes(req, res, pathname) {
 }
 
 module.exports = {
-  handleHealthRoutes
+  handleHealthRoutes,
 };
