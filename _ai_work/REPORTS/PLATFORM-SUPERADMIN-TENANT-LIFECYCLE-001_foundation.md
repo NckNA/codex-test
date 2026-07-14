@@ -16,7 +16,7 @@ Operational tenant access is enforced in PostgreSQL, not merely hidden in the fr
 
 ## 4. PR URL
 
-Pending until the implementation commit is pushed.
+https://github.com/NckNA/codex-test/pull/361
 
 ## 5. Baseline
 
@@ -29,8 +29,8 @@ Pending until the implementation commit is pushed.
 
 ## 6. Final head
 
-- Final implementation head: pending commit.
-- The exact final PR head and fresh CI run will be added in a report-only metadata commit after the implementation commit is tested by GitHub Actions.
+- Final implementation head: `f8c8df06cbc82bc65ffe8079e470a4ba48f91735`.
+- The report-only metadata commit necessarily follows the implementation head. A commit cannot embed its own SHA without changing that SHA; the exact final PR head is recorded in PR #361 metadata and the final task response.
 
 ## 7. Changed files
 
@@ -373,7 +373,15 @@ Existing unrelated React `act(...)` warnings and the Vite large-chunk warning re
 
 ## 44. Fresh CI
 
-Pending first GitHub Actions run on the implementation commit. Exact run ID, run number, conclusion and tested commit will be added after push.
+GitHub Actions CI run #766 (run ID `29355581738`) completed successfully on the exact implementation head `f8c8df06cbc82bc65ffe8079e470a4ba48f91735`.
+
+- validate: SUCCESS;
+- ESLint: SUCCESS;
+- full tests: SUCCESS;
+- build: SUCCESS;
+- Merge guard: SUCCESS.
+
+A fresh CI run on the report-only final PR head is recorded in PR #361 metadata and the final task response.
 
 ## 45. Known limitations
 
