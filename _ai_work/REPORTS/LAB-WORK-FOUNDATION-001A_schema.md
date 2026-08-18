@@ -1,32 +1,23 @@
 # LAB-WORK-FOUNDATION-001A — Laboratory Work Schema Foundation
 
-Date: 2026-08-19
-Mode: HERMES SKILL FIRST / BOUNDED SCHEMA IMPLEMENTATION
-Repository: `NckNA/codex-test`
-Branch: `feature/lab-work-foundation-001a`
-Base: current `origin/main` after merged `MACDENT-LAB-WORKFLOW-RECON-001`
-Cloud Supabase changes: `0`
-MacDent writes: `0`
-amoCRM writes: `0`
-Application/UI changes: `0`
+## 1. Final verdict
 
-## Verdict
+Task verdict: **LABORATORY WORK SCHEMA FOUNDATION IMPLEMENTED AND VERIFIED LOCALLY**
 
-**PASS — bounded tenant-scoped laboratory-work schema foundation implemented and validated locally.**
+Machine-readable final verdict: **PASS**
 
-This task implements only the database foundation accepted by `MACDENT-LAB-WORKFLOW-RECON-001`. It does not implement repository/API/UI behavior and does not connect laboratory operations to patient finance, warehouse, treatment-plan truth or completed-service truth.
+The bounded tenant-scoped laboratory-work schema accepted by `MACDENT-LAB-WORKFLOW-RECON-001` is implemented without UI, application, cloud Supabase, finance, warehouse, amoCRM or MacDent mutations.
 
-## Scope
+## 2. Summary
 
-Changed files are intentionally limited to:
+Added four tenant-safe schema entities:
 
-1. `supabase/migrations/0035_create_laboratory_work_foundation.sql`
-2. `supabase/tests/0035_laboratory_work_foundation_test.sql`
-3. `_ai_work/REPORTS/LAB-WORK-FOUNDATION-001A_schema.md`
+- `public.laboratories`;
+- `public.laboratory_work_types`;
+- `public.laboratory_work_orders`;
+- `public.laboratory_work_order_types`.
 
-No `src/*`, package, seed, existing migration, finance, warehouse or amoCRM files were changed.
-
-## Domain boundary preserved
+The implementation preserves the semantic boundary:
 
 ```text
 LaboratoryWorkOrder = operational laboratory production/coordination fact
@@ -42,9 +33,55 @@ LaboratoryWorkOrder != WarehouseMovement
 LaboratoryWorkOrder != Document
 ```
 
-The MacDent-observed `paid` flag and payment amount were intentionally NOT copied because their payer/payee/accounting semantics remain unverified.
+The MacDent-observed `paid` flag and payment amount are intentionally not modeled because their payer/payee/accounting semantics remain unverified.
 
-## Tables added
+## 3. Branch
+
+`feature/lab-work-foundation-001a`
+
+## 4. PR URL
+
+https://github.com/NckNA/codex-test/pull/364
+
+## 5. Baseline
+
+- Repository: `NckNA/codex-test`.
+- Base branch: `main`.
+- Verified baseline after merged MacDent laboratory RECON: `a9eb5a83e79f9a046918d1eca2609858f455ee0d`.
+- Work performed in clean isolated worktree `D:\hermes\lab-work-foundation-001a-work`.
+- Cloud Supabase writes: `0`.
+- MacDent writes: `0`.
+- amoCRM writes: `0`.
+- Application/UI changes: `0`.
+
+## 6. Implementation head reviewed before final report update
+
+- Implementation head: `8e4cdaa4142014276137f48863181e6f00cd5349`.
+- Workflow: `CI`.
+- Run number: `#773`.
+- Run ID: `32195377057`.
+- Conclusion: `success`.
+- Tested commit: `8e4cdaa4142014276137f48863181e6f00cd5349`.
+- Tested commit matched the implementation head exactly.
+- GitHub PR #364 was mergeable after CI.
+
+## 7. Report update commit
+
+Report update commit: N/A because a report-only commit cannot contain its own future SHA or the CI result that tests it.
+
+The exact final report-only commit and fresh final CI run must be recorded in the immutable finalization receipt and final task response.
+
+## 8. Changed files
+
+Exactly three task files:
+
+1. `supabase/migrations/0035_create_laboratory_work_foundation.sql`;
+2. `supabase/tests/0035_laboratory_work_foundation_test.sql`;
+3. `_ai_work/REPORTS/LAB-WORK-FOUNDATION-001A_schema.md`.
+
+No `src/*`, package, lockfile, seed, historical migration, finance, warehouse or amoCRM file belongs in the final diff.
+
+## 9. Schema design
 
 ### `public.laboratories`
 
@@ -52,10 +89,11 @@ Tenant-scoped laboratory reference data:
 
 - UUID identity;
 - `tenant_id`;
-- name;
+- non-empty name;
 - active flag;
 - notes;
-- timestamps.
+- timestamps;
+- tenant-safe identity uniqueness.
 
 ### `public.laboratory_work_types`
 
@@ -63,7 +101,8 @@ Tenant-configurable laboratory vocabulary:
 
 - UUID identity;
 - `tenant_id`;
-- name/code;
+- non-empty name;
+- optional non-empty code;
 - active flag;
 - sort order;
 - timestamps.
@@ -72,19 +111,19 @@ MacDent work-type labels are not hard-coded as a global enum.
 
 ### `public.laboratory_work_orders`
 
-Operational laboratory order:
+Operational laboratory order contains:
 
 - canonical tenant and patient;
 - optional responsible canonical doctor;
 - optional laboratory;
-- order number/title;
-- small lifecycle: `in_progress | completed`;
-- independent operational milestones:
-  - sent to laboratory;
-  - planned ready;
-  - received from laboratory;
-  - try-in;
-  - final delivery to patient;
+- optional order number;
+- title;
+- lifecycle state `in_progress | completed`;
+- `sent_to_lab_at`;
+- `planned_ready_at`;
+- `received_from_lab_at`;
+- `try_in_at`;
+- `delivered_to_patient_at`;
 - shade;
 - anatomical scope;
 - selected teeth;
@@ -95,24 +134,22 @@ Operational laboratory order:
 
 ### `public.laboratory_work_order_types`
 
-Tenant-safe many-to-many relation allowing one laboratory order to use multiple configurable laboratory work types.
+Tenant-safe many-to-many relation lets one laboratory order carry multiple configurable laboratory work types.
 
-## Tenant isolation / FK design
+## 10. Tenant isolation and FK hardening
 
 Composite foreign keys prevent cross-tenant references for:
 
 - patient;
 - responsible doctor;
 - laboratory;
-- work-order/work-type relation.
+- work-order/work-type membership.
 
-Important hardening found during implementation review:
+Implementation review found and fixed an important composite-FK edge case: optional doctor/laboratory links use column-targeted `ON DELETE SET NULL`, so deleting a doctor or laboratory clears only `responsible_doctor_id` / `laboratory_id` and never attempts to clear non-null `tenant_id`.
 
-Composite optional references use column-targeted `ON DELETE SET NULL` so deleting a doctor or laboratory clears only `responsible_doctor_id` / `laboratory_id` and never attempts to clear the non-null `tenant_id`.
+The SQL test explicitly proves the order keeps its tenant ownership after those reference deletions.
 
-The SQL test explicitly verifies that the laboratory order retains its tenant ownership after those reference deletions.
-
-## RLS role model
+## 11. RLS role model
 
 Read laboratory references/orders:
 
@@ -138,9 +175,9 @@ Hard-delete laboratory orders:
 - `clinic_owner`;
 - `clinic_admin`.
 
-`cashier` is intentionally outside the first laboratory operational role set. This can be revisited only with a concrete workflow requirement.
+`cashier` is intentionally outside the first laboratory operational role set.
 
-## Validation performed
+## 12. Checks
 
 ### Local Supabase reset
 
@@ -148,20 +185,21 @@ Hard-delete laboratory orders:
 
 All migrations through `0035_create_laboratory_work_foundation.sql` applied successfully on the local Supabase stack.
 
-### SQL behavior / RLS / tenant tests
+### SQL behavior / RLS / tenant validation
 
 **PASS**
 
 `supabase/tests/0035_laboratory_work_foundation_test.sql` verifies:
 
-- all four tables and RLS exist;
+- all four tables exist;
+- RLS is enabled;
 - finance/warehouse shortcut columns are absent;
 - owner/admin dictionary administration boundary;
-- registrar operational order creation/update and work-type membership;
+- registrar operational order create/update/type-membership behavior;
 - doctor read/update/completion behavior;
 - cashier exclusion;
 - no-tenant isolation;
-- cross-tenant read isolation;
+- tenant-B isolation from tenant-A data;
 - cross-tenant patient FK rejection;
 - cross-tenant doctor FK rejection;
 - cross-tenant laboratory FK rejection;
@@ -180,7 +218,7 @@ All migrations through `0035_create_laboratory_work_foundation.sql` applied succ
 
 **PASS — 81/81**
 
-Validated locally:
+Validated:
 
 - tables;
 - required columns;
@@ -190,23 +228,37 @@ Validated locally:
 - updated-at triggers;
 - RLS enablement.
 
-### Repository quality checks
+### TypeScript repository quality gate
 
-- `npm run lint`: **PASS**
-- `npm test`: **PASS — 114 test files / 1192 tests**
-- `npm run build`: **PASS**
+- `npm run lint`: **PASS**;
+- `npm test`: **PASS — 114 test files / 1192 tests**;
+- `npm run build`: **PASS**.
 
-Existing non-blocking test-console `act(...)` warnings and the existing Vite large-chunk warning remain outside this task. No dependency or application change was made to suppress unrelated warnings.
+### GitHub CI
 
-### Browser smoke
+Implementation head `8e4cdaa4142014276137f48863181e6f00cd5349` passed CI run `32195377057` / `#773` with:
+
+- Merge guard: success;
+- ESLint: success;
+- Tests: success;
+- Build: success.
+
+## 13. Browser smoke
 
 **NOT REQUIRED**
 
-Reason: schema-only implementation; no UI or application behavior changed.
+Reason: this is a schema-only implementation. No UI route, component, hook, repository or browser behavior changed.
 
-## Explicitly deferred
+## 14. Issues / Limitations
 
-Not implemented in this task:
+Known non-blocking baseline warnings observed during the quality gate:
+
+- existing React test `act(...)` warnings;
+- existing Vite large-chunk warning.
+
+They are unrelated to this schema task and were not suppressed with scope-creep changes.
+
+Explicitly deferred:
 
 - repository/API layer;
 - UI;
@@ -221,7 +273,9 @@ Not implemented in this task:
 - remake/cancellation/archive lifecycle;
 - live MacDent mutation testing.
 
-## Safety result
+No dependency update, cloud migration or production write was performed.
+
+## 15. Safety result
 
 ```text
 TENANT ISOLATION: VALIDATED LOCALLY
@@ -232,9 +286,18 @@ COMPLETED-SERVICE SIDE EFFECTS: 0
 WAREHOUSE COUPLING: 0
 CLOUD SUPABASE WRITES: 0
 MACDENT WRITES: 0
+AMOCRM WRITES: 0
 APPLICATION/UI CHANGES: 0
 ```
 
-## Recommended next task
+## 16. Recommended next task
 
-`LAB-WORK-REPOSITORY-001B` — add a typed tenant-aware repository/data-access layer for laboratories, laboratory work types and laboratory work orders against the new schema, with unit tests only. No UI, no finance, no warehouse and no treatment/completed-service coupling.
+`LAB-WORK-REPOSITORY-001B` — add a typed tenant-aware repository/data-access layer for laboratories, laboratory work types and laboratory work orders against the new schema, with unit tests only.
+
+Keep out of scope:
+
+- UI;
+- finance;
+- warehouse;
+- treatment/completed-service coupling;
+- MacDent mutations.
