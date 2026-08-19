@@ -42,7 +42,10 @@ https://github.com/NckNA/codex-test/pull/382
 - Baseline: `540065480e7461a7df06ebf0d27ec71491ed9255`.
 - Implementation commit: `52b7ef0c97c2b4e2eb0d801159b0c2effb226c07`.
 - Implementation CI: run `#827` / `32238823704`, **SUCCESS** on `52b7ef0c97c2b4e2eb0d801159b0c2effb226c07`.
-- Report update commit: N/A because a report cannot truthfully contain its own future commit SHA; final PR/CI evidence is verified after publication and stored in the finalization receipt.
+- Final PR #382 report head: `eb3b21e913407f5ad0d1798e1178c37c21626fac`.
+- Final PR #382 CI: run `#828` / `32239121251`, **SUCCESS** on `eb3b21e913407f5ad0d1798e1178c37c21626fac`.
+- PR #382 merge commit: `9dafba2b5a775fbf357466216c3938300905afd1`.
+- Report correction commit: N/A because this correction exists only to persist the already verified final PR #382 evidence in `main`.
 
 ## Changed files
 
