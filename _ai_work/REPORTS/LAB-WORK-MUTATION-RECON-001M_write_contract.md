@@ -4,7 +4,7 @@
 
 Report-only reconnaissance for the first safe laboratory work write path after the read-only laboratory queue was frozen in 001L.
 
-Final verdict:
+Final verdict: **PASS** for the reconnaissance itself. The product write gate remains intentionally closed:
 
 ```text
 DIRECT CURRENT REPOSITORY MUTATIONS IN UI: NOT READY
@@ -20,11 +20,23 @@ No application code, migration, schema or browser state is changed by this task.
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/380
 
 - Base: `main`.
 - Baseline: `466d6252a686e3c4506754be7c0c954418a7fef0` (merged 001L read-only laboratory queue surface).
+- Initial report head: `f0b2556f939416cbd33f3fb2f9cb722f58598ce1`.
+- Initial CI: run `#819` / `32230973576`, **SUCCESS** on `f0b2556f939416cbd33f3fb2f9cb722f58598ce1`.
 - Report update commit: N/A because a report cannot truthfully contain its own future SHA; final PR/CI metadata is recorded after publication.
+
+## Changed files
+
+This is a strict report-only task. The live PR may contain exactly one project file:
+
+```text
+_ai_work/REPORTS/LAB-WORK-MUTATION-RECON-001M_write_contract.md
+```
+
+No `src/*`, migration, seed, package, helper-script, environment or screenshot files are allowed in this PR.
 
 ## Sources inspected
 
@@ -482,16 +494,24 @@ This keeps each failure domain reviewable.
 
 ## Checks
 
-Report-only task. Required local quality commands before publication:
+- `npm ci`: PASS; dependencies installed from the existing lockfile only.
+- `npm run lint`: PASS.
+- Full Vitest: **122 files / 1253 tests PASS**.
+- `npm run build`: PASS.
+- `git diff --check`: PASS.
+- Initial GitHub CI #819: SUCCESS on `f0b2556f939416cbd33f3fb2f9cb722f58598ce1`.
 
-```text
-npm run lint
-npm test -- --run
-npm run build
-git diff --check
-```
+## Browser smoke
 
-No browser smoke is required because 001M changes no UI or application behavior.
+**NOT REQUIRED.** 001M is a strict report-only reconnaissance task and changes no route, component, DOM, application behavior or database schema. Real browser mutation QA is explicitly deferred to the later UI task after the atomic RPC foundation and typed client are independently frozen.
+
+## Issues / limitations
+
+- Current direct repository writes remain individually tenant-scoped but are not an approved UI transaction boundary.
+- The project audit taxonomy currently has no `laboratory` category.
+- This RECON defines required mutation semantics but intentionally does not implement SQL/RPC signatures.
+- Hard delete remains outside the recommended first mutation workflow.
+- Existing unrelated React `act(...)` warnings and npm audit findings are outside this task.
 
 ## Final verdict
 
