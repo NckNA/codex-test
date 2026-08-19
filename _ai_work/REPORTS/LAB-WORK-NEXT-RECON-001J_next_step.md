@@ -16,11 +16,13 @@ Recommended next implementation: `LAB-WORK-QUEUE-READ-001K`.
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/376
 
 - Base branch: `main`.
 - Verified baseline: `07f22fc44270305b1a8263b9c3cde7a85a63d2e8`.
 - Baseline contains the completed read-only patient laboratory surface with resolved doctor/laboratory/work-type labels.
+- Initial report head: `0b24c7571396ce8f6e26c2789750dd4928aa8de7`.
+- Initial CI: run `#805` / `32227328012`, **SUCCESS**.
 - Report update commit: N/A because the report commit cannot contain its own future SHA; the immutable finalization receipt records the final commit and CI.
 
 ## Changed files summary
