@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -6,15 +6,24 @@ import {
   CheckCircle2,
   Clock3,
   FlaskConical,
+  Pencil,
+  Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Tags,
   UserRound,
 } from 'lucide-react';
 import { useTenant } from '../contexts/TenantContext';
 import { useLaboratoryWorkQueue } from '../data/hooks/useLaboratoryWorkQueue';
+import { useLaboratoryWorkMutations } from '../data/hooks/useLaboratoryWorkMutations';
 import { usePatientLaboratoryWorkReferences } from '../data/hooks/usePatientLaboratoryWorkReferences';
 import type { LaboratoryWorkOrderRecord, LaboratoryWorkOrderStatus } from '../data/repositories/LaboratoryWorkRepository';
+import type { PatientLookupRecord } from '../data/repositories/PatientRepository';
+import { LaboratoryPatientPicker } from '../components/laboratory/LaboratoryPatientPicker';
+import { LaboratoryWorkOrderDialog, type LaboratoryWorkOrderDialogSubmit } from '../components/patients/patient-card/LaboratoryWorkOrderDialog';
+import { LaboratoryWorkCompleteDialog, LaboratoryWorkReopenDialog } from '../components/patients/patient-card/LaboratoryWorkLifecycleDialogs';
+import { getLaboratoryWorkRoleCapabilities } from '../components/patients/patient-card/laboratoryWorkPermissions';
 import { compareInstantToTenantDay, formatInstantInTenant, tenantNowDate } from '../domain/timezone';
 
 type DueFilter = 'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled';
@@ -68,9 +77,21 @@ function safeTimestamp(value: string | null, timezone: string): string | null {
   return formatInstantInTenant(value, timezone, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function hasValidVersion(order: LaboratoryWorkOrderRecord) {
+  return Number.isInteger(order.mutationVersion) && (order.mutationVersion ?? 0) > 0;
+}
+
+type QueueMutationDialog =
+  | { type: 'patient-picker' }
+  | { type: 'create'; patient: PatientLookupRecord }
+  | { type: 'edit' | 'complete' | 'reopen'; order: LaboratoryWorkOrderRecord }
+  | null;
+
 export function LaboratoryPage() {
   const { activeTenant } = useTenant();
   const timezone = activeTenant?.timezone ?? 'Asia/Almaty';
+  const capabilities = getLaboratoryWorkRoleCapabilities(activeTenant?.role);
+  const [dialog, setDialog] = useState<QueueMutationDialog>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | LaboratoryWorkOrderStatus>('all');
   const [doctorFilter, setDoctorFilter] = useState('all');
   const [laboratoryFilter, setLaboratoryFilter] = useState('all');
@@ -95,6 +116,37 @@ export function LaboratoryPage() {
     isError: areReferencesError,
     refetch: refetchReferences,
   } = usePatientLaboratoryWorkReferences(orders);
+  const mutations = useLaboratoryWorkMutations({ refresh: refetch });
+
+  const handleFormSubmit = async (submission: LaboratoryWorkOrderDialogSubmit) => {
+    try {
+      if (submission.mode === 'create') await mutations.createOrder(submission.input);
+      else await mutations.updateOrder(submission.input);
+      setDialog(null);
+    } catch {
+      // Hook exposes the bounded error and refresh/retry state.
+    }
+  };
+
+  const handleComplete = async (order: LaboratoryWorkOrderRecord) => {
+    if (!hasValidVersion(order)) return;
+    try {
+      await mutations.completeOrder({ orderId: order.id, expectedVersion: order.mutationVersion! });
+      setDialog(null);
+    } catch {
+      // Hook exposes the bounded error and canonical refresh state.
+    }
+  };
+
+  const handleReopen = async (order: LaboratoryWorkOrderRecord, reason: string) => {
+    if (!hasValidVersion(order)) return;
+    try {
+      await mutations.reopenOrder({ orderId: order.id, expectedVersion: order.mutationVersion!, reason });
+      setDialog(null);
+    } catch {
+      // Hook exposes the bounded error and canonical refresh state.
+    }
+  };
 
   const doctors = useMemo(() => {
     const map = new Map<string, string>();
@@ -156,10 +208,18 @@ export function LaboratoryPage() {
     completed: orders.filter((order) => order.status === 'completed').length,
   }), [nowMillis, orders, timezone]);
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async () => {
     await refetch();
     await Promise.all([refetchPatientNames(), refetchReferences()]);
-  };
+  }, [refetch, refetchPatientNames, refetchReferences]);
+
+  if (!capabilities.canView) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8" data-testid="laboratory-page-no-access">
+        <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">Недостаточно прав для лабораторных работ.</div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -197,13 +257,25 @@ export function LaboratoryPage() {
             </div>
             <h1 className="mt-2 text-3xl font-bold text-slate-900">Лаборатория</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Общая read-only очередь лабораторных работ клиники. Изменение заказов и статусов на этом экране недоступно.
+              Общая операционная очередь лабораторных работ клиники. Создание начинается с явного поиска и выбора пациента.
             </p>
           </div>
-          <button type="button" onClick={() => void refreshAll()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-            <RefreshCw className="h-4 w-4" /> Обновить
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {capabilities.canCreate && mutations.available && (
+              <button type="button" data-testid="laboratory-queue-create" onClick={() => setDialog({ type: 'patient-picker' })} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                <Plus className="h-4 w-4" /> Новая работа
+              </button>
+            )}
+            <button type="button" onClick={() => void refreshAll()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+              <RefreshCw className="h-4 w-4" /> Обновить
+            </button>
+          </div>
         </header>
+
+        {capabilities.canCreate && !mutations.available && <div data-testid="laboratory-queue-mutations-unavailable" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Изменения доступны только в активной клинике с серверным подключением.</div>}
+        {mutations.error && <div data-testid="laboratory-queue-mutation-error" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{mutations.error.message}</div>}
+        {mutations.refreshWarning && <div data-testid="laboratory-queue-refresh-warning" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{mutations.refreshWarning}</div>}
+        {mutations.pendingRetryAction && <div data-testid="laboratory-queue-uncertain-warning" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900"><span><strong>Результат операции пока не подтверждён.</strong> Не создавайте новую операцию.</span><button type="button" data-testid="laboratory-queue-retry-pending" disabled={mutations.loading} onClick={() => void mutations.retryPendingMutation().catch(() => undefined)} className="rounded-lg border border-orange-300 bg-white px-3 py-1.5 font-medium">Повторить ту же операцию</button></div>}
 
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Сводка лабораторной очереди">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="text-sm text-amber-800">В работе</div><div className="mt-1 text-2xl font-bold text-amber-900">{summary.inProgress}</div></div>
@@ -272,6 +344,10 @@ export function LaboratoryPage() {
               const patientName = patientNamesById[order.patientId] ?? null;
               const bucket = dueBucket(order, timezone, nowMillis);
               const plannedReady = safeTimestamp(order.plannedReadyAt, timezone);
+              const validVersion = hasValidVersion(order);
+              const canEdit = mutations.available && capabilities.canEdit && order.status === 'in_progress' && validVersion;
+              const canComplete = mutations.available && capabilities.canComplete && order.status === 'in_progress' && validVersion;
+              const canReopen = mutations.available && capabilities.canReopen && order.status === 'completed' && validVersion;
               return (
                 <article key={order.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-testid={`laboratory-queue-order-${order.id}`}>
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -302,6 +378,14 @@ export function LaboratoryPage() {
                         </div>
                       )}
                       {order.comment && <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">{order.comment}</div>}
+                      {!validVersion && (capabilities.canEdit || capabilities.canComplete || capabilities.canReopen) && <div data-testid={`laboratory-queue-version-warning-${order.id}`} className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Обновите текущие данные перед изменением этой лабораторной работы.</div>}
+                      {(canEdit || canComplete || canReopen) && (
+                        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                          {canEdit && <button type="button" data-testid={`laboratory-queue-edit-${order.id}`} onClick={() => setDialog({ type: 'edit', order })} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium"><Pencil className="h-4 w-4" />Изменить</button>}
+                          {canComplete && <button type="button" data-testid={`laboratory-queue-complete-${order.id}`} onClick={() => setDialog({ type: 'complete', order })} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 px-3 py-1.5 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" />Завершить работу</button>}
+                          {canReopen && <button type="button" data-testid={`laboratory-queue-reopen-${order.id}`} onClick={() => setDialog({ type: 'reopen', order })} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-800"><RotateCcw className="h-4 w-4" />Вернуть в работу</button>}
+                        </div>
+                      )}
                     </div>
                     <div className="shrink-0 text-sm text-slate-500">
                       {bucket === 'overdue' ? <span className="inline-flex items-center gap-1.5 font-medium text-red-700"><AlertTriangle className="h-4 w-4" />Требует внимания</span>
@@ -315,6 +399,12 @@ export function LaboratoryPage() {
             })}
           </div>
         )}
+
+        {dialog?.type === 'patient-picker' && <LaboratoryPatientPicker onClose={() => setDialog(null)} onSelect={(patient) => setDialog({ type: 'create', patient })} />}
+        {dialog?.type === 'create' && <LaboratoryWorkOrderDialog key={`queue-create-${dialog.patient.id}`} patientId={dialog.patient.id} patientLabel={`${dialog.patient.fullName}${dialog.patient.phone ? ` · ${dialog.patient.phone}` : ''}`} timezone={timezone} submitting={mutations.loading} onClose={() => setDialog(null)} onSubmit={handleFormSubmit} />}
+        {dialog?.type === 'edit' && <LaboratoryWorkOrderDialog key={`queue-edit-${dialog.order.id}-${dialog.order.mutationVersion ?? 'missing'}`} patientId={dialog.order.patientId} patientLabel={patientNamesById[dialog.order.patientId] ?? 'Имя пациента недоступно'} timezone={timezone} order={dialog.order} submitting={mutations.loading} onClose={() => setDialog(null)} onSubmit={handleFormSubmit} />}
+        {dialog?.type === 'complete' && <LaboratoryWorkCompleteDialog order={dialog.order} submitting={mutations.loading} onClose={() => setDialog(null)} onConfirm={() => handleComplete(dialog.order)} />}
+        {dialog?.type === 'reopen' && <LaboratoryWorkReopenDialog order={dialog.order} submitting={mutations.loading} onClose={() => setDialog(null)} onConfirm={(reason) => handleReopen(dialog.order, reason)} />}
       </div>
     </div>
   );

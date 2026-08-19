@@ -17,6 +17,7 @@ export type LaboratoryWorkOrderDialogSubmit =
 
 interface Props {
   patientId: string;
+  patientLabel?: string | null;
   timezone: string;
   order?: LaboratoryWorkOrderRecord | null;
   submitting?: boolean;
@@ -42,7 +43,7 @@ function parseTeeth(value: string): number[] {
   return [...new Set(values)].sort((a, b) => a - b);
 }
 
-export function LaboratoryWorkOrderDialog({ patientId, timezone, order, submitting = false, onClose, onSubmit }: Props) {
+export function LaboratoryWorkOrderDialog({ patientId, patientLabel, timezone, order, submitting = false, onClose, onSubmit }: Props) {
   const isEdit = Boolean(order);
   const options = useLaboratoryMutationOptions(order?.id ?? null);
   const [title, setTitle] = useState(order?.title ?? '');
@@ -127,7 +128,7 @@ export function LaboratoryWorkOrderDialog({ patientId, timezone, order, submitti
         <div className="flex items-center justify-between border-b border-slate-200 p-5">
           <div>
             <h3 className="text-lg font-semibold text-slate-900">{isEdit ? 'Изменить лабораторную работу' : 'Новая лабораторная работа'}</h3>
-            <p className="mt-1 text-xs text-slate-500">Пациент: текущая карточка. Изменить пациента здесь нельзя.</p>
+            <p className="mt-1 text-xs text-slate-500">Пациент: {patientLabel?.trim() || 'текущая карточка'}. Изменить пациента здесь нельзя.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Закрыть" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
