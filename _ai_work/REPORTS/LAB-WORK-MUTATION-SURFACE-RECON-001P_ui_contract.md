@@ -33,7 +33,10 @@ https://github.com/NckNA/codex-test/pull/386
 - Baseline: `e30af98622caf21c69d760026133a2c54810765c` (001O frozen plus final evidence correction).
 - Initial report head: `ce2200d4e97c019b026f438e3b44a9b114a10e9b`.
 - Initial CI: run `#837` / `32242919951`, **SUCCESS** on `ce2200d4e97c019b026f438e3b44a9b114a10e9b`.
-- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
+- Final PR #386 report head: `5988a0b495f8dfb5ed829d9c074a52606fad099e`.
+- Final PR #386 CI: run `#838` / `32243121646`, **SUCCESS** on `5988a0b495f8dfb5ed829d9c074a52606fad099e`.
+- PR #386 merge commit: `f92f7b8695655b99a3f749f1f3bfed6abb2b6c04`.
+- Report correction commit: N/A because this correction only persists already verified final PR #386 evidence in `main`.
 
 ## Changed files
 
