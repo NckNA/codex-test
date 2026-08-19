@@ -18,7 +18,10 @@ https://github.com/NckNA/codex-test/pull/394
 - Baseline: `a2a73bbf3f91c3e6b58de88b3c8bf944f68b25f9`.
 - Implementation commit: `ef28a2c8d74a8fa195e182e36c97f4d5f83944bc`.
 - Implementation CI: run `#857` / `32254977241`, **SUCCESS** on `ef28a2c8d74a8fa195e182e36c97f4d5f83944bc`.
-- Final report update commit: N/A because the report cannot contain its own future SHA. Final PR/CI evidence is persisted after publication.
+- Final PR #394 report head: `8940360e8df225a98125712c7548cf767dfeebc5`.
+- Final PR #394 CI: run `#858` / `32255276633`, **SUCCESS** on `8940360e8df225a98125712c7548cf767dfeebc5`.
+- PR #394 merge commit: `6a912c1e0e34037a6a7afdfd513f2de2f21fde1c`.
+- Report correction commit: N/A because this correction only persists already verified final PR #394 evidence in `main`.
 
 ## Changed files summary
 
