@@ -58,7 +58,18 @@ export function Sidebar() {
         { to: '/communication-templates', icon: FileText, label: 'Шаблоны сообщений' },
       ]
     : [];
-  const operationalItems = [navItems[0], ...reminderItems, ...navItems.slice(1)];
+  const canUseLaboratoryOperations = !activeTenant
+    || ['clinic_owner', 'clinic_admin', 'doctor', 'registrar'].includes(activeTenant.role ?? '');
+  const laboratoryItems = canUseLaboratoryOperations
+    ? [{ to: '/laboratory', icon: FlaskConical, label: 'Лаборатория' }]
+    : [];
+  const operationalItems = [
+    navItems[0],
+    ...reminderItems,
+    ...navItems.slice(1, 6),
+    ...laboratoryItems,
+    ...navItems.slice(6),
+  ];
   const visibleItems = canViewAdminAudit(activeTenant?.role)
     ? [...operationalItems, ...adminNavItems]
     : operationalItems;

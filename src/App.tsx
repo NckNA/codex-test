@@ -23,6 +23,7 @@ import { MailingPage } from './pages/MailingPage';
 import { SmsPage } from './pages/SmsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
+import { LaboratoryPage } from './pages/LaboratoryPage';
 import { PatientCardPage } from './pages/PatientCardPage';
 import { ClinicalDictionariesProvider } from './data/hooks/useDictionaries';
 
@@ -110,6 +111,7 @@ function AppContent() {
           <Route path="patients" element={<PatientsPage />} />
           <Route path="patients/:patientId" element={<PatientCardPage />} />
           <Route path="doctors" element={<DoctorsPage />} />
+          <Route path="laboratory" element={<LaboratoryPage />} />
           <Route path="medical" element={<MedicalPage />} />
           <Route path="finance" element={<FinancePage />} />
           <Route path="cashier/payments" element={<CashierPaymentPage />} />
