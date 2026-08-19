@@ -14,6 +14,7 @@ import {
   usePatientLaboratoryWorkReferences,
   type UsePatientLaboratoryWorkReferencesResult,
 } from '../../../data/hooks/usePatientLaboratoryWorkReferences';
+import { useLaboratoryWorkMutations, type UseLaboratoryWorkMutationsResult } from '../../../data/hooks/useLaboratoryWorkMutations';
 import { PatientLaboratoryWorkTab } from './PatientLaboratoryWorkTab';
 
 vi.mock('../../../data/hooks/usePatientLaboratoryWorkOrders', () => ({
@@ -22,9 +23,13 @@ vi.mock('../../../data/hooks/usePatientLaboratoryWorkOrders', () => ({
 vi.mock('../../../data/hooks/usePatientLaboratoryWorkReferences', () => ({
   usePatientLaboratoryWorkReferences: vi.fn(),
 }));
+vi.mock('../../../data/hooks/useLaboratoryWorkMutations', () => ({
+  useLaboratoryWorkMutations: vi.fn(),
+}));
 
 const mockedUsePatientLaboratoryWorkOrders = vi.mocked(usePatientLaboratoryWorkOrders);
 const mockedUsePatientLaboratoryWorkReferences = vi.mocked(usePatientLaboratoryWorkReferences);
+const mockedUseLaboratoryWorkMutations = vi.mocked(useLaboratoryWorkMutations);
 
 function order(overrides: Partial<LaboratoryWorkOrderRecord> = {}): LaboratoryWorkOrderRecord {
   return {
@@ -77,6 +82,25 @@ function referenceResult(
   };
 }
 
+function mutationResult(overrides: Partial<UseLaboratoryWorkMutationsResult> = {}): UseLaboratoryWorkMutationsResult {
+  return {
+    available: true,
+    loading: false,
+    actionLoading: null,
+    error: null,
+    refreshWarning: null,
+    pendingRetryAction: null,
+    createOrder: vi.fn().mockResolvedValue(order({ mutationVersion: 1 })),
+    updateOrder: vi.fn().mockResolvedValue(order({ mutationVersion: 2 })),
+    completeOrder: vi.fn().mockResolvedValue(order({ status: 'completed', mutationVersion: 2 })),
+    reopenOrder: vi.fn().mockResolvedValue(order({ status: 'in_progress', mutationVersion: 2 })),
+    retryPendingMutation: vi.fn().mockResolvedValue(order({ mutationVersion: 1 })),
+    clearError: vi.fn(),
+    clearRefreshWarning: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe('PatientLaboratoryWorkTab', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -84,6 +108,7 @@ describe('PatientLaboratoryWorkTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedUsePatientLaboratoryWorkReferences.mockReturnValue(referenceResult());
+    mockedUseLaboratoryWorkMutations.mockReturnValue(mutationResult());
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -94,9 +119,9 @@ describe('PatientLaboratoryWorkTab', () => {
     container.remove();
   });
 
-  async function render(patientId = 'patient-1', timezone = 'Asia/Almaty') {
+  async function render(patientId = 'patient-1', timezone = 'Asia/Almaty', role = 'clinic_admin') {
     await act(async () => {
-      root.render(<PatientLaboratoryWorkTab patientId={patientId} timezone={timezone} />);
+      root.render(<PatientLaboratoryWorkTab patientId={patientId} timezone={timezone} role={role} />);
     });
   }
 
@@ -190,7 +215,7 @@ describe('PatientLaboratoryWorkTab', () => {
     expect(refetchReferences).toHaveBeenCalledTimes(1);
   });
 
-  it('renders completed status and hides absent optional fields without mutation controls', async () => {
+  it('renders completed status and hides absent optional fields without delete controls', async () => {
     mockedUsePatientLaboratoryWorkOrders.mockReturnValue(result({
       orders: [order({
         id: 'order-2',
@@ -215,11 +240,42 @@ describe('PatientLaboratoryWorkTab', () => {
     expect(text).not.toContain('№ null');
     expect(text).not.toContain('Оттенок');
     expect(text).not.toContain('Анатомическая область');
+    expect(text).not.toContain('Удалить');
+  });
 
-    const buttonLabels = Array.from(container.querySelectorAll('button'))
-      .map((button) => button.textContent?.trim());
-    expect(buttonLabels).not.toContain('Создать');
-    expect(buttonLabels).not.toContain('Редактировать');
-    expect(buttonLabels).not.toContain('Удалить');
+  it('shows admin create/edit/complete controls and completed reopen only with a valid mutation version', async () => {
+    mockedUsePatientLaboratoryWorkOrders.mockReturnValue(result({
+      orders: [
+        order({ id: 'in-progress', mutationVersion: 4 }),
+        order({ id: 'completed', status: 'completed', mutationVersion: 8 }),
+      ],
+    }));
+    await render('patient-1', 'Asia/Almaty', 'clinic_admin');
+    expect(container.querySelector('[data-testid="laboratory-create-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-edit-in-progress"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-complete-in-progress"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-reopen-completed"]')).not.toBeNull();
+  });
+
+  it('shows doctor mutation controls except reopen and hides all mutation UI for cashier', async () => {
+    mockedUsePatientLaboratoryWorkOrders.mockReturnValue(result({ orders: [order({ status: 'completed', mutationVersion: 2 })] }));
+    await render('patient-1', 'Asia/Almaty', 'doctor');
+    expect(container.querySelector('[data-testid="laboratory-create-button"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-reopen-order-1"]')).toBeNull();
+
+    await act(async () => root.render(<PatientLaboratoryWorkTab patientId="patient-1" timezone="Asia/Almaty" role="cashier" />));
+    expect(container.querySelector('[data-testid="patient-laboratory-no-access"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-create-button"]')).toBeNull();
+  });
+
+  it('exposes exact retry for an uncertain mutation instead of rebuilding a command', async () => {
+    const retryPendingMutation = vi.fn().mockResolvedValue(order({ mutationVersion: 2 }));
+    mockedUseLaboratoryWorkMutations.mockReturnValue(mutationResult({ pendingRetryAction: 'create', retryPendingMutation }));
+    mockedUsePatientLaboratoryWorkOrders.mockReturnValue(result());
+    await render();
+    const retry = container.querySelector('[data-testid="laboratory-retry-pending"]') as HTMLButtonElement;
+    expect(container.querySelector('[data-testid="laboratory-uncertain-warning"]')?.textContent).toContain('Не создавайте новую операцию');
+    await act(async () => retry.click());
+    expect(retryPendingMutation).toHaveBeenCalledTimes(1);
   });
 });
