@@ -14,11 +14,13 @@ No UI, mutation, schema, migration, patient write, laboratory lifecycle change, 
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/396
 
 - Base: `main`.
 - Baseline: `ef5ad5f3afd311fe7ae64d3141a98b4a7cd16228` (001T frozen).
-- Report update commit: N/A until publication.
+- Initial report head: `a422d553373edce77c857692e0b4b3c8ae84a55a`.
+- Initial CI: run `#862` / `32256529006`, **SUCCESS** on `a422d553373edce77c857692e0b4b3c8ae84a55a`.
+- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
 
 ## Changed files
 
