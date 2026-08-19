@@ -29,7 +29,10 @@ https://github.com/NckNA/codex-test/pull/380
 - Initial CI: run `#819` / `32230973576`, **SUCCESS** on `f0b2556f939416cbd33f3fb2f9cb722f58598ce1`.
 - Current-main synchronization head before final semantic report update: `6c49f39e8e79ee99e289e90b98293ef61a373fd5`.
 - Synchronization CI: run `#822` / `32231411663`, **SUCCESS** on `6c49f39e8e79ee99e289e90b98293ef61a373fd5`.
-- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final PR/CI metadata is recorded after publication.
+- Final PR #380 head: `4b2a858ccc3f1e7fbc4c2a23e3768255bc0e48af`.
+- Final PR #380 CI: run `#823` / `32231618885`, **SUCCESS** on `4b2a858ccc3f1e7fbc4c2a23e3768255bc0e48af`.
+- PR #380 merge commit: `1f851c3d653624f67108a14326d51e4b1255c6e9`.
+- Report correction commit: N/A because this correction PR exists only to persist the already verified PR #380 final evidence in `main`.
 
 ## Changed files
 
