@@ -23,9 +23,12 @@ No application code, migration, schema or browser state is changed by this task.
 https://github.com/NckNA/codex-test/pull/380
 
 - Base: `main`.
-- Baseline: `466d6252a686e3c4506754be7c0c954418a7fef0` (merged 001L read-only laboratory queue surface).
+- Current verified baseline: `605c2ee759d7266c8cfc4e5c7f80032beea8e7a1` (001L implementation plus final report correction merged).
+- 001L implementation merge: `466d6252a686e3c4506754be7c0c954418a7fef0`.
 - Initial report head: `f0b2556f939416cbd33f3fb2f9cb722f58598ce1`.
 - Initial CI: run `#819` / `32230973576`, **SUCCESS** on `f0b2556f939416cbd33f3fb2f9cb722f58598ce1`.
+- Current-main synchronization head before final semantic report update: `6c49f39e8e79ee99e289e90b98293ef61a373fd5`.
+- Synchronization CI: run `#822` / `32231411663`, **SUCCESS** on `6c49f39e8e79ee99e289e90b98293ef61a373fd5`.
 - Report update commit: N/A because a report cannot truthfully contain its own future SHA; final PR/CI metadata is recorded after publication.
 
 ## Changed files
@@ -63,6 +66,60 @@ Implementation/schema patterns:
 - `supabase/migrations/0013_create_audit_activity_rpc.sql`
 - `supabase/migrations/0015_create_encounter_visit_rpc.sql`
 - `supabase/migrations/0017_create_finance_rpc.sql`
+
+## HERMES SKILL FIRST semantic contract
+
+This RECON follows the project rule derived from `hermes.skill.integrated_strategy_world_candidate`: semantic truth and causal constraints are fixed before implementation language or UI is chosen.
+
+Primary mutation truth:
+
+```text
+LaboratoryOrderMutation
+= one tenant-authorized command
+→ one canonical order state
++ one complete desired work-type relation set
++ one matching audit fact
+→ committed atomically or not committed at all
+```
+
+Causal invariants:
+
+1. Tenant/role authorization precedes all domain writes.
+2. Patient/doctor/laboratory/work-type references are validated against the same tenant before mutation.
+3. Existing-order mutation locks the canonical order before version/transition validation.
+4. Order fields and work-type membership are one transaction boundary, not a browser-managed sequence.
+5. Successful domain change and audit evidence share the same commit boundary.
+6. A stale command cannot silently overwrite newer operational state.
+7. An uncertain create retry reuses stable command/domain identity rather than creating a second logical order.
+8. Completed state is a real lifecycle constraint, not a decorative label.
+9. Human-facing mutation UI remains downstream of the verified RPC/client contracts.
+
+Forbidden implementation patterns:
+
+```text
+frontend pseudo-transaction across updateOrder + per-type add/remove calls
+last-write-wins update without version check
+new UUID on blind retry after uncertain create outcome
+raw cross-tenant existence leakage in validation errors
+normal laboratory mutations recorded as generic system audit noise
+hard-delete button in the first mutation workflow
+finance/warehouse/treatment/completed-service side effects hidden inside lab save
+```
+
+Verification stages remain explicit:
+
+```text
+schema/RPC atomicity
+→ SQL role/tenant/rollback/concurrency tests
+→ typed client contract
+→ client tests
+→ bounded UI
+→ real local browser role/tenant/reconciliation QA
+→ audit
+→ FREEZE
+```
+
+The SQL/RPC language chosen in 001N is therefore an implementation artifact controlled by this contract, not the source of the architecture.
 
 ## Current mutation surface
 
