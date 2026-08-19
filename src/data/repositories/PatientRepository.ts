@@ -3,14 +3,67 @@ import type { Patient, Source, PatientIntegrationMeta } from '../../types';
 import { supabase } from '../../lib/supabaseClient';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+export interface PatientLookupRecord {
+  id: string;
+  fullName: string;
+  phone: string;
+  status: string;
+}
+
+export interface SearchPatientLookupInput {
+  query: string;
+  limit?: number;
+}
+
+export interface PatientLookupRepository {
+  searchPatientLookup(input: SearchPatientLookupInput): Promise<PatientLookupRecord[]>;
+}
+
 export interface PatientRepository {
   getPatientById(patientId: string): Promise<Patient | null>;
   updatePatient(patient: Patient): Promise<void>;
   listPatients(): Promise<Patient[]>;
   createPatient(patient: Patient): Promise<void>;
+  searchPatientLookup?: PatientLookupRepository['searchPatientLookup'];
 }
 
 export type PatientRepositoryBackend = 'local' | 'supabase';
+
+const PATIENT_LOOKUP_MIN_QUERY_LENGTH = 2;
+const PATIENT_LOOKUP_MAX_LIMIT = 20;
+const PHONE_LIKE_QUERY = /^[+\d\s().-]+$/;
+
+function normalizeLookupLimit(value?: number) {
+  if (value === undefined || !Number.isFinite(value)) return PATIENT_LOOKUP_MAX_LIMIT;
+  return Math.min(PATIENT_LOOKUP_MAX_LIMIT, Math.max(1, Math.floor(value)));
+}
+
+function normalizedPhone(value: string) {
+  return value.replace(/[^\d+]/g, '');
+}
+
+function isPhoneLookup(value: string) {
+  return PHONE_LIKE_QUERY.test(value) && value.replace(/\D/g, '').length >= 2;
+}
+
+function escapeIlikeTerm(value: string) {
+  return [...value]
+    .map((character) => ['\\', '%', '_'].includes(character) ? `\\${character}` : character)
+    .join('');
+}
+
+function mapPatientLookup(row: Record<string, unknown>): PatientLookupRecord {
+  return {
+    id: String(row.id),
+    fullName: String(row.full_name ?? ''),
+    phone: String(row.phone ?? ''),
+    status: String(row.status ?? 'active'),
+  };
+}
+
+export function normalizePatientLookupQuery(query: string) {
+  return query.trim();
+}
 
 export interface CreatePatientRepositoryOptions {
   tenantId?: string | null;
@@ -34,6 +87,29 @@ export const LocalStoragePatientRepository: PatientRepository = {
 
   async createPatient(patient: Patient): Promise<void> {
     storage.addPatient(patient);
+  },
+
+  async searchPatientLookup(input: SearchPatientLookupInput): Promise<PatientLookupRecord[]> {
+    const query = normalizePatientLookupQuery(input.query);
+    if (query.length < PATIENT_LOOKUP_MIN_QUERY_LENGTH) return [];
+    const limit = normalizeLookupLimit(input.limit);
+    const phoneLookup = isPhoneLookup(query);
+    const lookupTerm = phoneLookup ? normalizedPhone(query).toLowerCase() : query.toLowerCase();
+
+    return storage.getPatients()
+      .filter((patient) => patient.status !== 'archived')
+      .filter((patient) => {
+        const candidate = phoneLookup ? normalizedPhone(patient.phone ?? '') : (patient.fullName ?? '').toLowerCase();
+        return candidate.includes(lookupTerm);
+      })
+      .sort((left, right) => (left.fullName ?? '').localeCompare(right.fullName ?? '', 'ru') || left.id.localeCompare(right.id))
+      .slice(0, limit)
+      .map((patient) => ({
+        id: patient.id,
+        fullName: patient.fullName ?? '',
+        phone: patient.phone ?? '',
+        status: patient.status ?? 'active',
+      }));
   },
 };
 
@@ -90,6 +166,29 @@ export class SupabasePatientRepository implements PatientRepository {
       });
 
     if (error) throw error;
+  }
+
+  async searchPatientLookup(input: SearchPatientLookupInput): Promise<PatientLookupRecord[]> {
+    const query = normalizePatientLookupQuery(input.query);
+    if (query.length < PATIENT_LOOKUP_MIN_QUERY_LENGTH) return [];
+
+    const limit = normalizeLookupLimit(input.limit);
+    const phoneLookup = isPhoneLookup(query);
+    const lookupTerm = phoneLookup ? normalizedPhone(query) : query;
+    const pattern = `%${escapeIlikeTerm(lookupTerm)}%`;
+    const field = phoneLookup ? 'phone' : 'full_name';
+
+    const { data, error } = await this.client
+      .from('patients')
+      .select('id,full_name,phone,status')
+      .eq('tenant_id', this.tenantId)
+      .neq('status', 'archived')
+      .ilike(field, pattern)
+      .order('full_name', { ascending: true })
+      .limit(limit);
+
+    if (error) throw error;
+    return ((data ?? []) as Record<string, unknown>[]).map(mapPatientLookup);
   }
 
   private mapToPatient(row: Record<string, unknown>): Patient {

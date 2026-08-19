@@ -118,6 +118,65 @@ describe('SupabasePatientRepository', () => {
     expect(mockEqId).toHaveBeenCalledWith('id', 'p1');
   });
 
+  it('searchPatientLookup uses a bounded tenant-scoped minimal name query and escapes LIKE wildcards', async () => {
+    const mockLimit = vi.fn().mockResolvedValue({
+      data: [{ id: 'p1', full_name: 'Ana% Test', phone: '+77001', status: 'active' }],
+      error: null,
+    });
+    const mockOrder = vi.fn().mockReturnValue({ limit: mockLimit });
+    const mockIlike = vi.fn().mockReturnValue({ order: mockOrder });
+    const mockNeq = vi.fn().mockReturnValue({ ilike: mockIlike });
+    const mockEq = vi.fn().mockReturnValue({ neq: mockNeq });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    const mockClient = { from: vi.fn().mockReturnValue({ select: mockSelect }) } as unknown as SupabaseClient;
+    const repo = new SupabasePatientRepository('tenant-a', mockClient);
+
+    const result = await repo.searchPatientLookup({ query: '  Ana%_  ', limit: 999 });
+
+    expect(mockClient.from).toHaveBeenCalledWith('patients');
+    expect(mockSelect).toHaveBeenCalledWith('id,full_name,phone,status');
+    expect(mockEq).toHaveBeenCalledWith('tenant_id', 'tenant-a');
+    expect(mockNeq).toHaveBeenCalledWith('status', 'archived');
+    expect(mockIlike).toHaveBeenCalledWith('full_name', '%Ana\\%\\_%');
+    expect(mockOrder).toHaveBeenCalledWith('full_name', { ascending: true });
+    expect(mockLimit).toHaveBeenCalledWith(20);
+    expect(result).toEqual([{ id: 'p1', fullName: 'Ana% Test', phone: '+77001', status: 'active' }]);
+  });
+
+  it('searchPatientLookup normalizes phone-like input and never uses a raw or-filter string', async () => {
+    const mockLimit = vi.fn().mockResolvedValue({ data: [], error: null });
+    const mockOrder = vi.fn().mockReturnValue({ limit: mockLimit });
+    const mockIlike = vi.fn().mockReturnValue({ order: mockOrder });
+    const mockNeq = vi.fn().mockReturnValue({ ilike: mockIlike });
+    const mockEq = vi.fn().mockReturnValue({ neq: mockNeq });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    const from = vi.fn().mockReturnValue({ select: mockSelect });
+    const repo = new SupabasePatientRepository('tenant-a', { from } as unknown as SupabaseClient);
+
+    await repo.searchPatientLookup({ query: '+7 (700) 12-34', limit: 5 });
+
+    expect(mockIlike).toHaveBeenCalledWith('phone', '%+77001234%');
+    expect(mockLimit).toHaveBeenCalledWith(5);
+  });
+
+  it('searchPatientLookup does not touch Supabase for a short query', async () => {
+    const from = vi.fn();
+    const repo = new SupabasePatientRepository('tenant-a', { from } as unknown as SupabaseClient);
+    await expect(repo.searchPatientLookup({ query: ' a ' })).resolves.toEqual([]);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('searchPatientLookup propagates Supabase failures', async () => {
+    const mockLimit = vi.fn().mockResolvedValue({ data: null, error: new Error('lookup failed') });
+    const mockOrder = vi.fn().mockReturnValue({ limit: mockLimit });
+    const mockIlike = vi.fn().mockReturnValue({ order: mockOrder });
+    const mockNeq = vi.fn().mockReturnValue({ ilike: mockIlike });
+    const mockEq = vi.fn().mockReturnValue({ neq: mockNeq });
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+    const repo = new SupabasePatientRepository('tenant-a', { from: vi.fn().mockReturnValue({ select: mockSelect }) } as unknown as SupabaseClient);
+    await expect(repo.searchPatientLookup({ query: 'Alice' })).rejects.toThrow('lookup failed');
+  });
+
   it('throws on error', async () => {
     const mockEqId = vi.fn().mockResolvedValue({ error: new Error('DB Update Error') });
     const mockEqTenant = vi.fn().mockReturnValue({ eq: mockEqId });
