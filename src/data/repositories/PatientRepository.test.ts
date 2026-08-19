@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createPatientRepository, LocalStoragePatientRepository, SupabasePatientRepository } from './PatientRepository';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Patient } from '../../types';
+import { storage } from '../../utils/storage';
 
 vi.mock('../../lib/supabaseClient', () => ({
   supabase: {
@@ -175,6 +176,105 @@ describe('SupabasePatientRepository', () => {
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
     const repo = new SupabasePatientRepository('tenant-a', { from: vi.fn().mockReturnValue({ select: mockSelect }) } as unknown as SupabaseClient);
     await expect(repo.searchPatientLookup({ query: 'Alice' })).rejects.toThrow('lookup failed');
+  });
+
+  it('listPatientLabelsByIds short-circuits empty input without touching Supabase', async () => {
+    const from = vi.fn();
+    const repo = new SupabasePatientRepository('tenant-a', { from } as unknown as SupabaseClient);
+
+    await expect(repo.listPatientLabelsByIds([])).resolves.toEqual([]);
+    await expect(repo.listPatientLabelsByIds([' ', ''])).resolves.toEqual([]);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('listPatientLabelsByIds selects only id/full_name, keeps archived labels and chunks normalized ids', async () => {
+    const requestedChunks: string[][] = [];
+    const selects: string[] = [];
+    const tenants: string[] = [];
+    const orders: Array<[string, { ascending: boolean }]> = [];
+    const from = vi.fn().mockImplementation(() => ({
+      select: vi.fn().mockImplementation((columns: string) => {
+        selects.push(columns);
+        return {
+          eq: vi.fn().mockImplementation((field: string, tenantId: string) => {
+            expect(field).toBe('tenant_id');
+            tenants.push(tenantId);
+            return {
+              in: vi.fn().mockImplementation((idField: string, ids: string[]) => {
+                expect(idField).toBe('id');
+                requestedChunks.push(ids);
+                return {
+                  order: vi.fn().mockImplementation(async (fieldName: string, options: { ascending: boolean }) => {
+                    orders.push([fieldName, options]);
+                    return {
+                      data: ids.map((id) => ({ id, full_name: id === 'patient-archived' ? 'Archived Patient' : `Name ${id}` })),
+                      error: null,
+                    };
+                  }),
+                };
+              }),
+            };
+          }),
+        };
+      }),
+    }));
+    const repo = new SupabasePatientRepository('tenant-a', { from } as unknown as SupabaseClient);
+    const ids = ['patient-archived', ...Array.from({ length: 100 }, (_, index) => `patient-${String(index).padStart(3, '0')}`), 'patient-000', ' '];
+
+    const result = await repo.listPatientLabelsByIds(ids);
+
+    expect(requestedChunks).toHaveLength(2);
+    expect(requestedChunks.flat()).toHaveLength(101);
+    expect(new Set(requestedChunks.flat()).size).toBe(101);
+    expect(requestedChunks.flat()).toEqual([...new Set(requestedChunks.flat())].sort());
+    expect(requestedChunks.every((chunk) => chunk.length <= 100)).toBe(true);
+    expect(selects).toEqual(['id,full_name', 'id,full_name']);
+    expect(tenants).toEqual(['tenant-a', 'tenant-a']);
+    expect(orders).toEqual([
+      ['id', { ascending: true }],
+      ['id', { ascending: true }],
+    ]);
+    expect(from).toHaveBeenCalledTimes(2);
+    expect(result).toContainEqual({ id: 'patient-archived', fullName: 'Archived Patient' });
+    expect(result).toEqual([...result].sort((left, right) => left.id.localeCompare(right.id)));
+  });
+
+  it('listPatientLabelsByIds propagates a failed chunk and does not continue to later chunks', async () => {
+    let queryCount = 0;
+    const from = vi.fn().mockImplementation(() => ({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          in: vi.fn().mockReturnValue({
+            order: vi.fn().mockImplementation(async () => {
+              queryCount += 1;
+              return queryCount === 1
+                ? { data: null, error: new Error('batch failed') }
+                : { data: [], error: null };
+            }),
+          }),
+        }),
+      }),
+    }));
+    const repo = new SupabasePatientRepository('tenant-a', { from } as unknown as SupabaseClient);
+    const ids = Array.from({ length: 101 }, (_, index) => `patient-${index}`);
+
+    await expect(repo.listPatientLabelsByIds(ids)).rejects.toThrow('batch failed');
+    expect(queryCount).toBe(1);
+  });
+
+  it('local listPatientLabelsByIds returns only requested minimal labels including archived patients', async () => {
+    const getPatients = vi.spyOn(storage, 'getPatients').mockReturnValue([
+      { id: 'patient-active', fullName: 'Active Patient', phone: '1', status: 'active' } as Patient,
+      { id: 'patient-archived', fullName: 'Archived Patient', phone: '2', status: 'archived' } as Patient,
+      { id: 'patient-other', fullName: 'Other Patient', phone: '3', status: 'active' } as Patient,
+    ]);
+
+    await expect(LocalStoragePatientRepository.listPatientLabelsByIds?.(['patient-archived', 'patient-active', 'patient-active'])).resolves.toEqual([
+      { id: 'patient-active', fullName: 'Active Patient' },
+      { id: 'patient-archived', fullName: 'Archived Patient' },
+    ]);
+    expect(getPatients).toHaveBeenCalledTimes(1);
+    getPatients.mockRestore();
   });
 
   it('throws on error', async () => {

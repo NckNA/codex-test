@@ -131,10 +131,13 @@ export function useLaboratoryWorkQueue(
   const patientNamesQueryFn = useCallback(async (): Promise<LaboratoryWorkQueuePatientNamesById> => {
     if (!patientNamesEnabled || !patientRepository) return {};
     try {
-      const patients = await patientRepository.listPatients();
+      if (typeof patientRepository.listPatientLabelsByIds !== 'function') {
+        throw new Error('patient label capability unavailable');
+      }
+      const labels = await patientRepository.listPatientLabelsByIds(patientIds);
       const requestedPatientIds = new Set(patientIds);
       return Object.fromEntries(
-        patients
+        labels
           .filter((patient) => requestedPatientIds.has(patient.id))
           .map((patient) => [patient.id, patient.fullName]),
       );
