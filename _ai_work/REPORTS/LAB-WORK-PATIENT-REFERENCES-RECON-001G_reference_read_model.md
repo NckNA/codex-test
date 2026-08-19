@@ -16,11 +16,13 @@ The next safe step is a data-only bounded reference resolver for laboratory orde
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/373
 
 - Base: `main`.
 - Verified baseline: `a74d9eb960dd74e5f3eaeb07e86154e85101e365`.
 - Baseline contains merged PR #372 / read-only patient Laboratory tab.
+- Initial report head: `784d5c8770df3c92e1b588eed78ee79f8d15404a`.
+- Initial CI: run `#796` / `32224458954`, **SUCCESS**.
 - Report update commit: N/A because a report commit cannot truthfully contain its own future SHA; the immutable finalization receipt records the final commit and CI.
 
 ## Changed files summary
