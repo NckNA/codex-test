@@ -10,11 +10,13 @@
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/400
 
 - Base: `main`.
 - Baseline: `fe22a31ab4365beebd58c3bff0787032b36420d2` (001V frozen).
-- Report head / CI: pending publication.
+- Initial report head: `1002c6cc00c9918e7eab06dd42e4f0c0f825db33`.
+- Initial CI: run `#872` / `32263224931`, **SUCCESS** on `1002c6cc00c9918e7eab06dd42e4f0c0f825db33`.
+- Report update commit: N/A because the report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
 
 ## Summary
 
@@ -47,6 +49,10 @@ This requires a dedicated read RPC boundary because the current search contract 
 ## Browser smoke
 
 Not run. 001W changes no UI or runtime code. The already-running local DentalFlow site is unrelated to the acceptance evidence for this report-only task and is intentionally left available for user inspection.
+
+## Changed files
+
+- `_ai_work/REPORTS/LAB-WORK-QUEUE-PAGINATION-RECON-001W_paging_contract.md`
 
 ## Current-state evidence
 
