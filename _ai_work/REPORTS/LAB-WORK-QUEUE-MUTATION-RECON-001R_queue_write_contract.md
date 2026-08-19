@@ -34,7 +34,10 @@ https://github.com/NckNA/codex-test/pull/390
 - Baseline: `bef74bafa30c578061495f01d704721fc8e53fd4` (001Q frozen).
 - Initial report head: `de3ce5ea39a7f5c81d110c8f8c6ef246055d0841`.
 - Initial CI: run `#847` / `32248334608`, **SUCCESS** on `de3ce5ea39a7f5c81d110c8f8c6ef246055d0841`.
-- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
+- Final PR #390 report head: `9f5466fcf5c7cb3cd0d614aa5838df17f66b8c0c`.
+- Final PR #390 CI: run `#848` / `32248584764`, **SUCCESS** on `9f5466fcf5c7cb3cd0d614aa5838df17f66b8c0c`.
+- PR #390 merge commit: `e27531bb6367e5eb069565e6fcf431ca8dc9fde4`.
+- Report correction commit: N/A because this correction only persists already verified final PR #390 evidence in `main`.
 
 ## Changed files
 
