@@ -20,7 +20,10 @@ https://github.com/NckNA/codex-test/pull/396
 - Baseline: `ef5ad5f3afd311fe7ae64d3141a98b4a7cd16228` (001T frozen).
 - Initial report head: `a422d553373edce77c857692e0b4b3c8ae84a55a`.
 - Initial CI: run `#862` / `32256529006`, **SUCCESS** on `a422d553373edce77c857692e0b4b3c8ae84a55a`.
-- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
+- Final PR #396 report head: `0c8af068520f0612c2fe1ffd1fe9a1d3aeaf86a4`.
+- Final PR #396 CI: run `#863` / `32256724162`, **SUCCESS** on `0c8af068520f0612c2fe1ffd1fe9a1d3aeaf86a4`.
+- PR #396 merge commit: `c7e5cf983cbb55a636f267956f8e0d85ab476f22`.
+- Report correction commit: N/A because this correction only persists already verified final PR #396 evidence in `main`.
 
 ## Changed files
 
