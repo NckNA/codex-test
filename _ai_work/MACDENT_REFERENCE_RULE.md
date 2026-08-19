@@ -61,7 +61,9 @@ Forbidden by default:
 - credential theft, password extraction, cookie/session-value extraction or token harvesting;
 - memory injection, DLL injection, debugger manipulation intended to defeat protections, or patching the target process;
 - reading unrelated users', clinics' or tenants' data;
-- making production mutations during STUDY/RECON unless a later task explicitly authorizes a controlled mutation test.
+- uncontrolled production mutation or experimental changes to real patient, treatment, appointment, payment or other production facts.
+
+A controlled ACTIVE-PROBE STUDY is allowed when passive observation cannot establish behavior. It may perform a minimal test write only against a test/demo/sandbox tenant or an explicitly created test entity, with baseline capture, audit, rollback/cleanup and no privilege expansion. The purpose is to establish causality, not to use real patients as test fixtures.
 
 ## 4. Patient data and secrets
 
@@ -140,6 +142,8 @@ Decompilation or deeper binary reconstruction is not categorically forbidden, bu
 
 Reading PE metadata, signatures, hashes, module lists, printable strings and local schema structure is read-only reconnaissance and does not by itself trigger that deeper gate.
 
+For our own DentalFlow/Hermes processes, bounded read-only runtime memory inspection is an approved diagnostic technique when ordinary counters and runtime metadata are insufficient. It must be address-bounded, non-writing and secret/PHI-aware. Applying raw-memory inspection to third-party software such as MacDent is not automatic ordinary recon; it requires a concrete diagnostic reason and must remain read-only without bypassing protections.
+
 ## 9. MacDent is evidence, not source of truth for DentalFlow architecture
 
 MacDent may show what works in a real clinic, but DentalFlow remains a different product architecture.
@@ -174,7 +178,18 @@ HERMES SKILL FIRST
 → FREEZE / MERGE
 ```
 
-During STUDY/RECON the default is read-only.
+During passive STUDY/RECON the default is read-only. When causality cannot be established by observation alone, use ACTIVE-PROBE STUDY:
+
+```text
+READ BASELINE
+→ MINIMAL TEST WRITE
+→ OBSERVE
+→ DIFF
+→ ROLLBACK / CLEANUP
+→ SEMANTIC CONTRACT
+```
+
+ACTIVE-PROBE writes must use a test/demo/sandbox tenant or an explicitly created test entity and must not mutate real patient/clinical/financial/appointment facts for experimentation.
 
 Every implementation must be explainable without requiring MacDent source code to be present. The accepted artifact is the DentalFlow semantic contract and our implementation, not a transformed copy of MacDent code.
 
