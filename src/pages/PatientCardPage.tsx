@@ -10,6 +10,7 @@ import { FindingsRisksTab } from '../components/dental/FindingsRisksTab';
 import { PatientOverviewTab } from '../components/patients/patient-card/PatientOverviewTab';
 import { PatientHistoryTab } from '../components/patients/patient-card/PatientHistoryTab';
 import { PatientCommunicationSection } from '../components/patients/patient-card/PatientCommunicationSection';
+import { PatientLaboratoryWorkTab } from '../components/patients/patient-card/PatientLaboratoryWorkTab';
 import { PatientTimelineTab } from '../components/patient/PatientTimelineTab';
 import { VisitCheckInPanel } from '../components/visits/VisitCheckInPanel';
 import { ClinicalEncounterPanel } from '../components/encounters/ClinicalEncounterPanel';
@@ -32,6 +33,7 @@ const TABS = [
   { id: 'dental_chart', label: 'Зубная карта' },
   { id: 'findings', label: 'Проблемы и риски' },
   { id: 'plan', label: 'План лечения' },
+  { id: 'laboratory', label: 'Лаборатория' },
   { id: 'finance', label: 'Финансы' },
   { id: 'docs', label: 'Документы' },
   { id: 'summary', label: 'Сводка' },
@@ -279,6 +281,12 @@ export function PatientCardPage() {
         {activeTab === 'dental_chart' && <DentalChartTab patientId={patient.id} />}
         {activeTab === 'findings' && <FindingsRisksTab patientId={patient.id} />}
         {activeTab === 'plan' && <TreatmentPlansTab patientId={patient.id} />}
+        {activeTab === 'laboratory' && (
+          <PatientLaboratoryWorkTab
+            patientId={patient.id}
+            timezone={activeTenant?.timezone ?? 'Asia/Almaty'}
+          />
+        )}
         {activeTab === 'files' && <DentalPhotosPanel patientId={patient.id} />}
 
         {['docs'].includes(activeTab) && (
