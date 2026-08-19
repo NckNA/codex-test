@@ -27,11 +27,13 @@ No application code, route, schema, migration or browser state is changed by 001
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/386
 
 - Base: `main`.
 - Baseline: `e30af98622caf21c69d760026133a2c54810765c` (001O frozen plus final evidence correction).
-- Report update commit: N/A because final PR/CI metadata is added after publication.
+- Initial report head: `ce2200d4e97c019b026f438e3b44a9b114a10e9b`.
+- Initial CI: run `#837` / `32242919951`, **SUCCESS** on `ce2200d4e97c019b026f438e3b44a9b114a10e9b`.
+- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
 
 ## Changed files
 
