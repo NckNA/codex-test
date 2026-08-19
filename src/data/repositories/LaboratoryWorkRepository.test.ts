@@ -87,7 +87,7 @@ describe('LaboratoryWorkRepository', () => {
         laboratory_id: 'lab-a', order_number: 'L-001', title: 'Crown', status: 'in_progress',
         sent_to_lab_at: '2026-08-19T04:00:00Z', planned_ready_at: null, received_from_lab_at: null,
         try_in_at: null, delivered_to_patient_at: null, shade: 'A2', anatomical_scope: 'selected_teeth',
-        selected_teeth: [11, 12], comment: null, created_by: 'user-a', updated_by: 'user-a',
+        selected_teeth: [11, 12], comment: null, created_by: 'user-a', updated_by: 'user-a', mutation_version: 7,
         created_at: '2026-08-19T00:00:00Z', updated_at: '2026-08-19T00:00:00Z',
       }],
       error: null,
@@ -103,7 +103,7 @@ describe('LaboratoryWorkRepository', () => {
     expect(chain.eq).toHaveBeenCalledWith('status', 'in_progress');
     expect(chain.eq).toHaveBeenCalledWith('laboratory_id', 'lab-a');
     expect(result[0]).toMatchObject({
-      id: 'order-1', tenantId: 'tenant-a', patientId: 'patient-a', selectedTeeth: [11, 12], shade: 'A2',
+      id: 'order-1', tenantId: 'tenant-a', patientId: 'patient-a', selectedTeeth: [11, 12], shade: 'A2', mutationVersion: 7,
     });
   });
 
@@ -245,7 +245,9 @@ describe('LaboratoryWorkRepository', () => {
     await tenantA.addOrderWorkType(order.id, 'type-a');
     await tenantA.addOrderWorkType(secondOrder.id, 'type-b');
 
-    expect(await tenantA.getOrder(order.id)).toMatchObject({ tenantId: 'tenant-a', title: 'Local crown' });
+    expect(await tenantA.getOrder(order.id)).toMatchObject({ tenantId: 'tenant-a', title: 'Local crown', mutationVersion: 1 });
+    const updatedOrder = await tenantA.updateOrder(order.id, { comment: 'local edit' });
+    expect(updatedOrder.mutationVersion).toBe(2);
     expect(await tenantA.listOrderWorkTypeIds(order.id)).toEqual(['type-a']);
     expect(await tenantA.listOrderWorkTypeLinks([secondOrder.id, order.id])).toEqual([
       { orderId: order.id, workTypeId: 'type-a' },
