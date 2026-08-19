@@ -1,5 +1,6 @@
 import { ClipboardList, Package } from 'lucide-react';
 import { usePatientLaboratoryWorkOrders } from '../../../data/hooks/usePatientLaboratoryWorkOrders';
+import { usePatientLaboratoryWorkReferences } from '../../../data/hooks/usePatientLaboratoryWorkReferences';
 import type {
   LaboratoryAnatomicalScope,
   LaboratoryWorkOrderRecord,
@@ -65,6 +66,12 @@ export function PatientLaboratoryWorkTab({ patientId, timezone }: PatientLaborat
     isError,
     refetch,
   } = usePatientLaboratoryWorkOrders(patientId);
+  const {
+    referencesByOrderId,
+    isLoading: areReferencesLoading,
+    isError: areReferencesError,
+    refetch: refetchReferences,
+  } = usePatientLaboratoryWorkReferences(orders);
 
   return (
     <div
@@ -102,9 +109,28 @@ export function PatientLaboratoryWorkTab({ patientId, timezone }: PatientLaborat
           <p>У пациента нет лабораторных работ.</p>
         </div>
       ) : (
-        <div className="divide-y divide-slate-100">
+        <>
+          {areReferencesLoading && (
+            <div className="border-b border-blue-100 bg-blue-50 px-5 py-3 text-sm text-blue-700" data-testid="laboratory-reference-loading">
+              Загружаются данные врача, лаборатории и видов работ...
+            </div>
+          )}
+          {areReferencesError && (
+            <div className="flex items-center justify-between gap-4 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800" data-testid="laboratory-reference-error">
+              <span>Лабораторные работы загружены, но не удалось получить названия справочных данных.</span>
+              <button
+                type="button"
+                onClick={() => refetchReferences()}
+                className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100"
+              >
+                Повторить
+              </button>
+            </div>
+          )}
+          <div className="divide-y divide-slate-100">
           {orders.map((order) => {
             const anatomy = formatAnatomy(order);
+            const references = referencesByOrderId[order.id];
 
             return (
               <article key={order.id} className="p-5" data-testid={`laboratory-work-order-${order.id}`}>
@@ -129,6 +155,15 @@ export function PatientLaboratoryWorkTab({ patientId, timezone }: PatientLaborat
                 </div>
 
                 <dl className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {references?.responsibleDoctorName && (
+                    <OrderDetail label="Ответственный врач" value={references.responsibleDoctorName} />
+                  )}
+                  {references?.laboratoryName && (
+                    <OrderDetail label="Лаборатория" value={references.laboratoryName} />
+                  )}
+                  {references && references.workTypeNames.length > 0 && (
+                    <OrderDetail label="Виды работ" value={references.workTypeNames.join(', ')} />
+                  )}
                   {order.plannedReadyAt && (
                     <OrderDetail label="Плановая готовность" value={formatTimestamp(order.plannedReadyAt, timezone)} />
                   )}
@@ -156,7 +191,8 @@ export function PatientLaboratoryWorkTab({ patientId, timezone }: PatientLaborat
               </article>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

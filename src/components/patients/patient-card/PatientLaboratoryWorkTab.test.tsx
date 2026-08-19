@@ -10,13 +10,21 @@ import {
   usePatientLaboratoryWorkOrders,
   type UsePatientLaboratoryWorkOrdersResult,
 } from '../../../data/hooks/usePatientLaboratoryWorkOrders';
+import {
+  usePatientLaboratoryWorkReferences,
+  type UsePatientLaboratoryWorkReferencesResult,
+} from '../../../data/hooks/usePatientLaboratoryWorkReferences';
 import { PatientLaboratoryWorkTab } from './PatientLaboratoryWorkTab';
 
 vi.mock('../../../data/hooks/usePatientLaboratoryWorkOrders', () => ({
   usePatientLaboratoryWorkOrders: vi.fn(),
 }));
+vi.mock('../../../data/hooks/usePatientLaboratoryWorkReferences', () => ({
+  usePatientLaboratoryWorkReferences: vi.fn(),
+}));
 
 const mockedUsePatientLaboratoryWorkOrders = vi.mocked(usePatientLaboratoryWorkOrders);
+const mockedUsePatientLaboratoryWorkReferences = vi.mocked(usePatientLaboratoryWorkReferences);
 
 function order(overrides: Partial<LaboratoryWorkOrderRecord> = {}): LaboratoryWorkOrderRecord {
   return {
@@ -56,12 +64,26 @@ function result(overrides: Partial<UsePatientLaboratoryWorkOrdersResult> = {}): 
   };
 }
 
+function referenceResult(
+  overrides: Partial<UsePatientLaboratoryWorkReferencesResult> = {},
+): UsePatientLaboratoryWorkReferencesResult {
+  return {
+    referencesByOrderId: {},
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 describe('PatientLaboratoryWorkTab', () => {
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedUsePatientLaboratoryWorkReferences.mockReturnValue(referenceResult());
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -113,16 +135,32 @@ describe('PatientLaboratoryWorkTab', () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('renders safe operational facts in tenant timezone without raw reference ids', async () => {
+  it('renders resolved doctor, laboratory and work types with operational facts and no raw reference ids', async () => {
     const current = order();
     mockedUsePatientLaboratoryWorkOrders.mockReturnValue(result({ orders: [current] }));
+    mockedUsePatientLaboratoryWorkReferences.mockReturnValue(referenceResult({
+      referencesByOrderId: {
+        'order-1': {
+          responsibleDoctorName: 'Иванов Иван Иванович',
+          laboratoryName: 'Dental Lab QA',
+          workTypeNames: ['Коронка', 'Цирконий'],
+        },
+      },
+    }));
 
     await render();
 
+    expect(mockedUsePatientLaboratoryWorkReferences).toHaveBeenCalledWith([current]);
     const text = container.textContent ?? '';
     expect(text).toContain('Циркониевая коронка');
     expect(text).toContain('№ LAB-001');
     expect(text).toContain('В работе');
+    expect(text).toContain('Ответственный врач');
+    expect(text).toContain('Иванов Иван Иванович');
+    expect(text).toContain('Лаборатория');
+    expect(text).toContain('Dental Lab QA');
+    expect(text).toContain('Виды работ');
+    expect(text).toContain('Коронка, Цирконий');
     expect(text).toContain('A2');
     expect(text).toContain('Выбранные зубы: 11, 12');
     expect(text).toContain('Проверить контактный пункт');
@@ -130,6 +168,26 @@ describe('PatientLaboratoryWorkTab', () => {
     expect(text).toContain(formatInstantInTenant(current.tryInAt!, 'Asia/Almaty', { dateStyle: 'medium', timeStyle: 'short' }));
     expect(text).not.toContain('doctor-raw-uuid');
     expect(text).not.toContain('laboratory-raw-uuid');
+  });
+
+  it('keeps orders visible while reference labels fail and retries only the reference read hook', async () => {
+    const current = order();
+    const refetchReferences = vi.fn().mockResolvedValue(undefined);
+    mockedUsePatientLaboratoryWorkOrders.mockReturnValue(result({ orders: [current] }));
+    mockedUsePatientLaboratoryWorkReferences.mockReturnValue(referenceResult({
+      isError: true,
+      error: new Error('reference load failed'),
+      refetch: refetchReferences,
+    }));
+
+    await render();
+
+    expect(container.textContent).toContain('Циркониевая коронка');
+    expect(container.querySelector('[data-testid="laboratory-reference-error"]')?.textContent)
+      .toContain('не удалось получить названия справочных данных');
+    const retry = container.querySelector('[data-testid="laboratory-reference-error"] button') as HTMLButtonElement;
+    await act(async () => retry.click());
+    expect(refetchReferences).toHaveBeenCalledTimes(1);
   });
 
   it('renders completed status and hides absent optional fields without mutation controls', async () => {
