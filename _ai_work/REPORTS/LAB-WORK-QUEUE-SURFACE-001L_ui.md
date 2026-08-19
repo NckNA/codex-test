@@ -18,6 +18,8 @@ https://github.com/NckNA/codex-test/pull/378
 - Baseline: `d328b948b455706d941cc12da22c915f032b89ae`.
 - Implementation head: `9770d6dbbc39c751aa800b7169fd9776f956fa89`.
 - Implementation CI: run `#814` / `32230036581`, **SUCCESS** on `9770d6dbbc39c751aa800b7169fd9776f956fa89`.
+- Initial report head: `9e040b3c392be2c2ff885e3642b9af762b24597a`.
+- Initial report CI: run `#815` / `32230256155`, **SUCCESS** on `9e040b3c392be2c2ff885e3642b9af762b24597a`.
 - Report update commit: N/A because a report cannot truthfully contain its own future commit SHA; the immutable finalization receipt records the final PR HEAD and CI after report publication.
 
 ## Changed files
@@ -127,7 +129,7 @@ Pre-existing React `act(...)` warnings in unrelated tests and existing npm audit
 
 ## Browser smoke
 
-Real localhost browser QA was performed against the exact 001L worktree on `http://127.0.0.1:5188`, connected only to local Supabase. QA users were seeded through the guarded local fixture tool; passwords/secrets were not exposed or committed.
+Real localhost browser QA was performed against the exact 001L worktree on `http://127.0.0.1:5187`, connected only to local Supabase. QA users were seeded through the guarded local fixture tool; passwords/secrets were not exposed or committed.
 
 ### Admin A
 
@@ -160,7 +162,7 @@ Observed:
 
 - `/laboratory` rendered successfully through doctor role;
 - patient, doctor, laboratory and both work-type labels visible;
-- overdue and completed states visible;
+- overdue and in-progress state visible;
 - no raw fixture UUIDs;
 - no mutation controls;
 - console errors: 0;
