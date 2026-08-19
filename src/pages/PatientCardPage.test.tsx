@@ -23,8 +23,8 @@ vi.mock('../components/patients/PatientModal', () => ({ PatientModal: () => null
 vi.mock('../components/patients/patient-card/PatientOverviewTab', () => ({ PatientOverviewTab: () => <div>Overview tab mock</div> }));
 vi.mock('../components/patients/patient-card/PatientHistoryTab', () => ({ PatientHistoryTab: () => <div>Appointments history mock</div> }));
 vi.mock('../components/patients/patient-card/PatientLaboratoryWorkTab', () => ({
-  PatientLaboratoryWorkTab: ({ patientId, timezone }: { patientId: string; timezone: string }) => (
-    <div>Laboratory mock {patientId} {timezone}</div>
+  PatientLaboratoryWorkTab: ({ patientId, timezone, role }: { patientId: string; timezone: string; role?: string | null }) => (
+    <div>Laboratory mock {patientId} {timezone} {role ?? 'no-role'}</div>
   ),
 }));
 vi.mock('../components/dental/DentalChartTab', () => ({ DentalChartTab: () => <div>Dental chart mock</div> }));
@@ -111,7 +111,7 @@ describe('PatientCardPage timeline tab', () => {
     expect(laboratoryButton?.textContent?.trim()).toBe('Лаборатория');
     await act(async () => { laboratoryButton.click(); });
 
-    expect(container.textContent).toContain('Laboratory mock patient-1 Asia/Almaty');
+    expect(container.textContent).toContain('Laboratory mock patient-1 Asia/Almaty clinic_admin');
     act(() => root.unmount());
   });
 });

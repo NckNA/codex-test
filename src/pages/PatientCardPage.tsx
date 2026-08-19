@@ -285,6 +285,7 @@ export function PatientCardPage() {
           <PatientLaboratoryWorkTab
             patientId={patient.id}
             timezone={activeTenant?.timezone ?? 'Asia/Almaty'}
+            role={activeTenant?.role}
           />
         )}
         {activeTab === 'files' && <DentalPhotosPanel patientId={patient.id} />}
