@@ -41,7 +41,10 @@ https://github.com/NckNA/codex-test/pull/388
 - Baseline: `b7cd91e855c326d380be29a15e07736228795759`.
 - Implementation commit: `cc25e2216a4ad49f3786c7f6ed6e1a0109b8eb0c`.
 - Implementation CI: run `#842` / `32246640827`, **SUCCESS** on `cc25e2216a4ad49f3786c7f6ed6e1a0109b8eb0c`.
-- Final report update commit: N/A because the report cannot contain its own future SHA. Final PR/CI evidence is persisted after publication.
+- Final PR #388 report head: `66a880e5d3ec755a4bbc6ee7456f0c1deeaddfa5`.
+- Final PR #388 CI: run `#843` / `32247006755`, **SUCCESS** on `66a880e5d3ec755a4bbc6ee7456f0c1deeaddfa5`.
+- PR #388 merge commit: `c28065cfdf0d1e0497d223bada8f164a204079b3`.
+- Report correction commit: N/A because this correction only persists already verified final PR #388 evidence in `main`.
 
 ## Implemented product behavior
 
