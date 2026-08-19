@@ -114,6 +114,11 @@ export interface LaboratoryWorkOrderFilters {
   responsibleDoctorId?: string;
 }
 
+export interface LaboratoryWorkOrderTypeLinkRecord {
+  orderId: string;
+  workTypeId: string;
+}
+
 export interface ILaboratoryWorkRepository {
   listLaboratories(includeInactive?: boolean): Promise<LaboratoryRecord[]>;
   createLaboratory(input: CreateLaboratoryInput): Promise<LaboratoryRecord>;
@@ -129,6 +134,7 @@ export interface ILaboratoryWorkRepository {
   updateOrder(id: string, input: UpdateLaboratoryWorkOrderInput): Promise<LaboratoryWorkOrderRecord>;
 
   listOrderWorkTypeIds(orderId: string): Promise<string[]>;
+  listOrderWorkTypeLinks(orderIds: string[]): Promise<LaboratoryWorkOrderTypeLinkRecord[]>;
   addOrderWorkType(orderId: string, workTypeId: string): Promise<void>;
   removeOrderWorkType(orderId: string, workTypeId: string): Promise<void>;
 }
@@ -393,6 +399,24 @@ export class SupabaseLaboratoryWorkRepository implements ILaboratoryWorkReposito
     return ((data ?? []) as Array<{ laboratory_work_type_id: string }>).map(row => row.laboratory_work_type_id);
   }
 
+  async listOrderWorkTypeLinks(orderIds: string[]): Promise<LaboratoryWorkOrderTypeLinkRecord[]> {
+    const uniqueOrderIds = [...new Set(orderIds.filter(Boolean))].sort();
+    if (uniqueOrderIds.length === 0) return [];
+
+    const { data, error } = await this.client
+      .from('laboratory_work_order_types')
+      .select('laboratory_work_order_id,laboratory_work_type_id')
+      .eq('tenant_id', this.tenantId)
+      .in('laboratory_work_order_id', uniqueOrderIds)
+      .order('laboratory_work_order_id', { ascending: true })
+      .order('laboratory_work_type_id', { ascending: true });
+    if (error) throw error;
+    return ((data ?? []) as Array<{ laboratory_work_order_id: string; laboratory_work_type_id: string }>).map(row => ({
+      orderId: row.laboratory_work_order_id,
+      workTypeId: row.laboratory_work_type_id,
+    }));
+  }
+
   async addOrderWorkType(orderId: string, workTypeId: string): Promise<void> {
     const { error } = await this.client.from('laboratory_work_order_types').upsert({
       tenant_id: this.tenantId,
@@ -596,6 +620,16 @@ export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepo
       .filter(item => item.orderId === orderId)
       .map(item => item.workTypeId)
       .sort();
+  }
+
+  async listOrderWorkTypeLinks(orderIds: string[]): Promise<LaboratoryWorkOrderTypeLinkRecord[]> {
+    const orderIdSet = new Set(orderIds.filter(Boolean));
+    if (orderIdSet.size === 0) return [];
+
+    return readLocal<LocalOrderTypeLink>(LOCAL_ORDER_TYPES_KEY, this.tenantId)
+      .filter(item => orderIdSet.has(item.orderId))
+      .map(item => ({ orderId: item.orderId, workTypeId: item.workTypeId }))
+      .sort((left, right) => left.orderId.localeCompare(right.orderId) || left.workTypeId.localeCompare(right.workTypeId));
   }
 
   async addOrderWorkType(orderId: string, workTypeId: string): Promise<void> {

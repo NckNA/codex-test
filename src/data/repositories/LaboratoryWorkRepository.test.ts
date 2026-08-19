@@ -15,6 +15,7 @@ function chainResult(result: unknown) {
   chain.update = vi.fn(() => chain);
   chain.delete = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(() => chain);
   chain.order = vi.fn(() => chain);
   chain.single = vi.fn().mockResolvedValue(result);
   chain.maybeSingle = vi.fn().mockResolvedValue(result);
@@ -190,6 +191,36 @@ describe('LaboratoryWorkRepository', () => {
     expect(removeChain.eq).toHaveBeenCalledWith('laboratory_work_type_id', 'type-1');
   });
 
+  it('batch-loads order/work-type links in one tenant-scoped Supabase query and skips empty input', async () => {
+    const result = {
+      data: [
+        { laboratory_work_order_id: 'order-1', laboratory_work_type_id: 'type-1' },
+        { laboratory_work_order_id: 'order-2', laboratory_work_type_id: 'type-2' },
+      ],
+      error: null,
+    };
+    const chain = chainResult(result);
+    chain.order = vi.fn()
+      .mockImplementationOnce(() => chain)
+      .mockResolvedValueOnce(result);
+    const from = vi.fn(() => chain);
+    const repo = new SupabaseLaboratoryWorkRepository('tenant-a', undefined, { from } as never);
+
+    expect(await repo.listOrderWorkTypeLinks([])).toEqual([]);
+    expect(from).not.toHaveBeenCalled();
+
+    const links = await repo.listOrderWorkTypeLinks(['order-2', 'order-1', 'order-1']);
+
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(from).toHaveBeenCalledWith('laboratory_work_order_types');
+    expect(chain.eq).toHaveBeenCalledWith('tenant_id', 'tenant-a');
+    expect(chain.in).toHaveBeenCalledWith('laboratory_work_order_id', ['order-1', 'order-2']);
+    expect(links).toEqual([
+      { orderId: 'order-1', workTypeId: 'type-1' },
+      { orderId: 'order-2', workTypeId: 'type-2' },
+    ]);
+  });
+
   it('keeps local and Supabase validation aligned for required text and FDI teeth', async () => {
     const local = new LocalStorageLaboratoryWorkRepository('tenant-a');
     await expect(local.createLaboratory({ name: '   ' })).rejects.toThrow('name is required');
@@ -209,11 +240,18 @@ describe('LaboratoryWorkRepository', () => {
     const tenantB = new LocalStorageLaboratoryWorkRepository('tenant-b');
 
     const order = await tenantA.createOrder({ patientId: 'patient-a', title: ' Local crown ', selectedTeeth: [11] });
+    const secondOrder = await tenantA.createOrder({ patientId: 'patient-a', title: 'Local bridge' });
     await tenantA.addOrderWorkType(order.id, 'type-a');
     await tenantA.addOrderWorkType(order.id, 'type-a');
+    await tenantA.addOrderWorkType(secondOrder.id, 'type-b');
 
     expect(await tenantA.getOrder(order.id)).toMatchObject({ tenantId: 'tenant-a', title: 'Local crown' });
     expect(await tenantA.listOrderWorkTypeIds(order.id)).toEqual(['type-a']);
+    expect(await tenantA.listOrderWorkTypeLinks([secondOrder.id, order.id])).toEqual([
+      { orderId: order.id, workTypeId: 'type-a' },
+      { orderId: secondOrder.id, workTypeId: 'type-b' },
+    ].sort((left, right) => left.orderId.localeCompare(right.orderId)));
+    expect(await tenantB.listOrderWorkTypeLinks([order.id, secondOrder.id])).toEqual([]);
     expect(await tenantB.getOrder(order.id)).toBeNull();
     expect(await tenantB.listOrders()).toEqual([]);
   });
