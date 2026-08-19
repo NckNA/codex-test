@@ -89,7 +89,10 @@ Live local Supabase evidence:
 
 - Implementation commit: `e9ea55dcfbf5855d6715319ad3263062c89bdfd4`.
 - Implementation CI: run `#867` / `32260325281`, **SUCCESS** on `e9ea55dcfbf5855d6715319ad3263062c89bdfd4`.
-- Final report update commit: N/A because the report cannot contain its own future SHA; final evidence is persisted after publication.
+- Final PR #398 report head: `2e6556e097a1d58fb60c365dafd47e9291a98cfa`.
+- Final PR #398 CI: run `#868` / `32260821369`, **SUCCESS** on `2e6556e097a1d58fb60c365dafd47e9291a98cfa`.
+- PR #398 merge commit: `fb250b027a23c63ae29eab5ab8e5a3be89bf8d94`.
+- Report correction commit: N/A because this correction only persists already verified final PR #398 evidence in `main`.
 
 ## Issues / limitations
 
