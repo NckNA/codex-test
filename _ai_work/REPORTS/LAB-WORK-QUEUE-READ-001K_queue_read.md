@@ -18,8 +18,10 @@ https://github.com/NckNA/codex-test/pull/377
 
 - Base branch: `main`.
 - Baseline: `c240d8942ef0ee7a8245e9a5bc91ad59e53566b4`.
-- Implementation/final reviewed head before report commit: `b2f67292197fe7e7891ef53c9e78dcc9419aa3c4`.
-- GitHub CI: run `#809` / `32228209219`, **SUCCESS** on `b2f67292197fe7e7891ef53c9e78dcc9419aa3c4`.
+- Initial implementation head: `1873e048d0fad9a00ae4fb4ab967a3e1cc4e2fc2`.
+- Initial CI `#808` / `32228045086`: **FAILED** on one timing-sensitive context-switch assertion; ESLint passed and the failure exposed no stale tenant-A data leak.
+- Context-isolation hardening head: `b2f67292197fe7e7891ef53c9e78dcc9419aa3c4`; CI `#809` / `32228209219`: **SUCCESS**.
+- Final test-stability head before this report update: `4f7dbef29967117f9d451f20ab682e1d1eb97c2e`; CI `#811` / `32228470873`: **SUCCESS**.
 - Report update commit: N/A because the report commit cannot truthfully contain its own future SHA; the immutable finalization receipt records the final commit and CI.
 
 ## Changed files
@@ -151,7 +153,7 @@ The queue tests prove:
 - Full Vitest: **120 files / 1242 tests PASS**.
 - `npm run build`: **PASS**.
 - `git diff --check`: **PASS**.
-- GitHub CI #809: **SUCCESS** on `b2f67292197fe7e7891ef53c9e78dcc9419aa3c4`.
+- GitHub CI #811: **SUCCESS** on `4f7dbef29967117f9d451f20ab682e1d1eb97c2e` after the context-switch timing assertion was stabilized.
 
 Pre-existing React `act(...)` warnings remain in unrelated tests and are outside this task. Existing npm audit findings are unchanged and outside scope.
 
@@ -165,6 +167,7 @@ The next UI task must perform real localhost browser role smoke.
 
 ## Issues / limitations
 
+- CI #808 caught a timing-sensitive test assumption that required the new tenant's result to remain transiently empty. The product invariant is stricter in the useful direction: the previous tenant's orders/names must disappear immediately; replacement tenant data may arrive immediately or later. The context-isolation test was hardened and then stabilized against scheduler speed, with CI #809 and #811 succeeding.
 - Local backend intentionally has no patient-name resolution because the legacy local PatientRepository is not verified tenant-scoped.
 - 001K does not add date/overdue server filters; those remain later read-model/UI logic until a measured need justifies repository expansion.
 - 001K does not add doctor/laboratory/work-type names; the frozen 001H resolver already owns that concern.
