@@ -45,8 +45,8 @@ describe('LaboratoryWorkOrderDialog', () => {
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-  async function render(current?: LaboratoryWorkOrderRecord) {
-    await act(async () => root.render(<LaboratoryWorkOrderDialog patientId="patient-1" timezone="Asia/Almaty" order={current} onClose={vi.fn()} onSubmit={onSubmit} />));
+  async function render(current?: LaboratoryWorkOrderRecord, patientLabel?: string) {
+    await act(async () => root.render(<LaboratoryWorkOrderDialog patientId="patient-1" patientLabel={patientLabel} timezone="Asia/Almaty" order={current} onClose={vi.fn()} onSubmit={onSubmit} />));
   }
 
   it('keeps patient fixed and blocks submit until required title is present', async () => {
@@ -56,6 +56,11 @@ describe('LaboratoryWorkOrderDialog', () => {
     await act(async () => submit.click());
     expect(container.querySelector('[data-testid="laboratory-form-error"]')?.textContent).toContain('Название работы обязательно');
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('shows an explicit fixed patient label when opened from the queue', async () => {
+    await render(undefined, 'Иван Иванов · +77001234567');
+    expect(container.textContent).toContain('Пациент: Иван Иванов · +77001234567. Изменить пациента здесь нельзя.');
   });
 
   it('creates a normalized desired state with tenant timezone conversion and sorted FDI teeth', async () => {

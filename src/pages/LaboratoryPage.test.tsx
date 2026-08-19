@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LaboratoryWorkOrderRecord } from '../data/repositories/LaboratoryWorkRepository';
 import { useLaboratoryWorkQueue, type UseLaboratoryWorkQueueResult } from '../data/hooks/useLaboratoryWorkQueue';
+import { useLaboratoryWorkMutations, type UseLaboratoryWorkMutationsResult } from '../data/hooks/useLaboratoryWorkMutations';
 import {
   usePatientLaboratoryWorkReferences,
   type UsePatientLaboratoryWorkReferencesResult,
@@ -15,13 +16,31 @@ import { useTenant } from '../contexts/TenantContext';
 import { LaboratoryPage } from './LaboratoryPage';
 
 vi.mock('../data/hooks/useLaboratoryWorkQueue', () => ({ useLaboratoryWorkQueue: vi.fn() }));
+vi.mock('../data/hooks/useLaboratoryWorkMutations', () => ({ useLaboratoryWorkMutations: vi.fn() }));
 vi.mock('../data/hooks/usePatientLaboratoryWorkReferences', () => ({ usePatientLaboratoryWorkReferences: vi.fn() }));
+vi.mock('../components/laboratory/LaboratoryPatientPicker', () => ({
+  LaboratoryPatientPicker: ({ onSelect }: { onSelect: (patient: { id: string; fullName: string; phone: string; status: string }) => void }) => (
+    <button type="button" data-testid="picker-select-patient" onClick={() => onSelect({ id: 'patient-picked', fullName: 'Выбранный пациент', phone: '+77001234567', status: 'active' })}>Выбрать пациента</button>
+  ),
+}));
+vi.mock('../components/patients/patient-card/LaboratoryWorkOrderDialog', () => ({
+  LaboratoryWorkOrderDialog: ({ patientId, patientLabel, order, onSubmit }: { patientId: string; patientLabel?: string | null; order?: LaboratoryWorkOrderRecord | null; onSubmit: (submission: unknown) => Promise<void> | void }) => (
+    <div data-testid="queue-order-dialog" data-patient-id={patientId} data-patient-label={patientLabel ?? ''}>
+      <button type="button" data-testid="queue-order-submit" onClick={() => void onSubmit(order ? { mode: 'edit', input: { orderId: order.id, expectedVersion: order.mutationVersion, title: 'Edited' } } : { mode: 'create', input: { patientId, title: 'Created' } })}>Сохранить</button>
+    </div>
+  ),
+}));
+vi.mock('../components/patients/patient-card/LaboratoryWorkLifecycleDialogs', () => ({
+  LaboratoryWorkCompleteDialog: ({ onConfirm }: { onConfirm: () => Promise<void> | void }) => <button type="button" data-testid="queue-complete-confirm" onClick={() => void onConfirm()}>Подтвердить завершение</button>,
+  LaboratoryWorkReopenDialog: ({ onConfirm }: { onConfirm: (reason: string) => Promise<void> | void }) => <button type="button" data-testid="queue-reopen-confirm" onClick={() => void onConfirm('Исправить цвет')}>Подтвердить возврат</button>,
+}));
 vi.mock('../contexts/TenantContext', async () => {
   const actual = await vi.importActual<typeof import('../contexts/TenantContext')>('../contexts/TenantContext');
   return { ...actual, useTenant: vi.fn() };
 });
 
 const mockedQueue = vi.mocked(useLaboratoryWorkQueue);
+const mockedMutations = vi.mocked(useLaboratoryWorkMutations);
 const mockedReferences = vi.mocked(usePatientLaboratoryWorkReferences);
 const mockedTenant = vi.mocked(useTenant);
 
@@ -43,6 +62,7 @@ function makeOrder(options: Partial<LaboratoryWorkOrderRecord> & Pick<Laboratory
     comment: null,
     createdBy: null,
     updatedBy: null,
+    mutationVersion: 1,
     createdAt: '2026-08-10T08:00:00.000Z',
     updatedAt: '2026-08-10T08:00:00.000Z',
     ...options,
@@ -72,6 +92,25 @@ function referenceResult(overrides: Partial<UsePatientLaboratoryWorkReferencesRe
     isError: false,
     error: null,
     refetch: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+function mutationResult(overrides: Partial<UseLaboratoryWorkMutationsResult> = {}): UseLaboratoryWorkMutationsResult {
+  return {
+    available: false,
+    loading: false,
+    actionLoading: null,
+    error: null,
+    refreshWarning: null,
+    pendingRetryAction: null,
+    createOrder: vi.fn().mockResolvedValue(makeOrder({ id: 'mutation-result', patientId: 'patient-a', title: 'Mutation result' })),
+    updateOrder: vi.fn().mockResolvedValue(makeOrder({ id: 'mutation-result', patientId: 'patient-a', title: 'Mutation result' })),
+    completeOrder: vi.fn().mockResolvedValue(makeOrder({ id: 'mutation-result', patientId: 'patient-a', title: 'Mutation result' })),
+    reopenOrder: vi.fn().mockResolvedValue(makeOrder({ id: 'mutation-result', patientId: 'patient-a', title: 'Mutation result' })),
+    retryPendingMutation: vi.fn().mockResolvedValue(makeOrder({ id: 'mutation-result', patientId: 'patient-a', title: 'Mutation result' })),
+    clearError: vi.fn(),
+    clearRefreshWarning: vi.fn(),
     ...overrides,
   };
 }
@@ -114,6 +153,7 @@ describe('LaboratoryPage', () => {
     mockedTenant.mockReturnValue({
       activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic A', role: 'clinic_admin', timezone: 'Asia/Almaty' },
     } as unknown as ReturnType<typeof useTenant>);
+    mockedMutations.mockReturnValue(mutationResult());
     mockedQueue.mockReturnValue(queueResult({
       orders: [orderA, orderB],
       patientNamesById: { 'patient-a': 'Пациент А', 'patient-b': 'Пациент Б' },
@@ -225,5 +265,67 @@ describe('LaboratoryPage', () => {
     });
     expect(refetchPatientNames).toHaveBeenCalledTimes(1);
     expect(refetchReferences).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates only after explicit patient selection and keeps the selected patient fixed', async () => {
+    const createOrder = vi.fn().mockResolvedValue(orderA);
+    mockedMutations.mockReturnValue(mutationResult({ available: true, createOrder }));
+    await render();
+
+    await act(async () => (container.querySelector('[data-testid="laboratory-queue-create"]') as HTMLButtonElement).click());
+    expect(container.querySelector('[data-testid="picker-select-patient"]')).not.toBeNull();
+    await act(async () => (container.querySelector('[data-testid="picker-select-patient"]') as HTMLButtonElement).click());
+    const dialog = container.querySelector('[data-testid="queue-order-dialog"]') as HTMLElement;
+    expect(dialog.dataset.patientId).toBe('patient-picked');
+    expect(dialog.dataset.patientLabel).toContain('Выбранный пациент');
+    expect(dialog.dataset.patientLabel).toContain('+77001234567');
+
+    await act(async () => (container.querySelector('[data-testid="queue-order-submit"]') as HTMLButtonElement).click());
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ patientId: 'patient-picked' }));
+  });
+
+  it('reuses bounded edit, complete and reopen actions for an admin', async () => {
+    const updateOrder = vi.fn().mockResolvedValue(orderA);
+    const completeOrder = vi.fn().mockResolvedValue(orderA);
+    const reopenOrder = vi.fn().mockResolvedValue(orderB);
+    mockedMutations.mockReturnValue(mutationResult({ available: true, updateOrder, completeOrder, reopenOrder }));
+    await render();
+
+    await act(async () => (container.querySelector('[data-testid="laboratory-queue-edit-order-a"]') as HTMLButtonElement).click());
+    expect((container.querySelector('[data-testid="queue-order-dialog"]') as HTMLElement).dataset.patientId).toBe('patient-a');
+    await act(async () => (container.querySelector('[data-testid="queue-order-submit"]') as HTMLButtonElement).click());
+    expect(updateOrder).toHaveBeenCalledWith(expect.objectContaining({ orderId: 'order-a', expectedVersion: 1 }));
+
+    await act(async () => (container.querySelector('[data-testid="laboratory-queue-complete-order-a"]') as HTMLButtonElement).click());
+    await act(async () => (container.querySelector('[data-testid="queue-complete-confirm"]') as HTMLButtonElement).click());
+    expect(completeOrder).toHaveBeenCalledWith({ orderId: 'order-a', expectedVersion: 1 });
+
+    await act(async () => (container.querySelector('[data-testid="laboratory-queue-reopen-order-b"]') as HTMLButtonElement).click());
+    await act(async () => (container.querySelector('[data-testid="queue-reopen-confirm"]') as HTMLButtonElement).click());
+    expect(reopenOrder).toHaveBeenCalledWith({ orderId: 'order-b', expectedVersion: 1, reason: 'Исправить цвет' });
+  });
+
+  it('does not expose reopen to doctor and denies cashier even by direct route', async () => {
+    mockedMutations.mockReturnValue(mutationResult({ available: true }));
+    mockedTenant.mockReturnValue({ activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic A', role: 'doctor', timezone: 'Asia/Almaty' } } as unknown as ReturnType<typeof useTenant>);
+    await render();
+    expect(container.querySelector('[data-testid="laboratory-queue-create"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-queue-reopen-order-b"]')).toBeNull();
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    mockedTenant.mockReturnValue({ activeTenant: { tenantId: 'tenant-a', tenantName: 'Clinic A', role: 'cashier', timezone: 'Asia/Almaty' } } as unknown as ReturnType<typeof useTenant>);
+    await render();
+    expect(container.querySelector('[data-testid="laboratory-page-no-access"]')?.textContent).toContain('Недостаточно прав');
+    expect(container.querySelector('[data-testid="laboratory-queue-create"]')).toBeNull();
+  });
+
+  it('shows a version warning instead of actions when a queue row lacks mutationVersion', async () => {
+    mockedMutations.mockReturnValue(mutationResult({ available: true }));
+    mockedQueue.mockReturnValue(queueResult({ orders: [makeOrder({ ...orderA, mutationVersion: undefined })], patientNamesById: { 'patient-a': 'Пациент А' } }));
+    await render();
+    expect(container.querySelector('[data-testid="laboratory-queue-version-warning-order-a"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-queue-edit-order-a"]')).toBeNull();
+    expect(container.querySelector('[data-testid="laboratory-queue-complete-order-a"]')).toBeNull();
   });
 });
