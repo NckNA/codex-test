@@ -16,7 +16,10 @@ https://github.com/NckNA/codex-test/pull/400
 - Baseline: `fe22a31ab4365beebd58c3bff0787032b36420d2` (001V frozen).
 - Initial report head: `1002c6cc00c9918e7eab06dd42e4f0c0f825db33`.
 - Initial CI: run `#872` / `32263224931`, **SUCCESS** on `1002c6cc00c9918e7eab06dd42e4f0c0f825db33`.
-- Report update commit: N/A because the report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
+- Final PR #400 report head: `0c0f7506e87b7d95350ce18497e21435964c753c`.
+- Final PR #400 CI: run `#873` / `32263616713`, **SUCCESS** on `0c0f7506e87b7d95350ce18497e21435964c753c`.
+- PR #400 merge commit: `a2d64bed8e7e8c43d292e9e9e89019682dd9d886`.
+- Report correction commit: N/A because this correction only persists already verified final PR #400 evidence in `main`.
 
 ## Summary
 
