@@ -272,7 +272,10 @@ describe('useLaboratoryWorkQueue', () => {
     const orderA = order('order-a', 'patient-a');
     const orderB = { ...order('order-b', 'patient-b'), tenantId: 'tenant-2' };
     const listOrdersA = vi.fn().mockResolvedValue([orderA]);
-    const listOrdersB = vi.fn().mockResolvedValue([orderB]);
+    let resolveTenantB: ((orders: LaboratoryWorkOrderRecord[]) => void) | null = null;
+    const listOrdersB = vi.fn().mockImplementation(
+      () => new Promise<LaboratoryWorkOrderRecord[]>((resolve) => { resolveTenantB = resolve; }),
+    );
     const repositoryA = labRepository(listOrdersA);
     const repositoryB = labRepository(listOrdersB);
     let currentSelection = selection(repositoryA, { tenantId: 'tenant-1', userId: 'user-1' });
@@ -298,6 +301,13 @@ describe('useLaboratoryWorkQueue', () => {
 
     expect(latest?.orders).toEqual([]);
     expect(latest?.patientNamesById).toEqual({});
+
+    await act(async () => {
+      resolveTenantB?.([orderB]);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     await flushQuery();
 
     expect(listOrdersA).toHaveBeenCalledTimes(1);
