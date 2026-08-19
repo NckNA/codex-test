@@ -19,19 +19,46 @@ export interface PatientLookupRepository {
   searchPatientLookup(input: SearchPatientLookupInput): Promise<PatientLookupRecord[]>;
 }
 
+export interface PatientLabelRecord {
+  id: string;
+  fullName: string;
+}
+
+export interface PatientLabelRepository {
+  listPatientLabelsByIds(patientIds: string[]): Promise<PatientLabelRecord[]>;
+}
+
 export interface PatientRepository {
   getPatientById(patientId: string): Promise<Patient | null>;
   updatePatient(patient: Patient): Promise<void>;
   listPatients(): Promise<Patient[]>;
   createPatient(patient: Patient): Promise<void>;
   searchPatientLookup?: PatientLookupRepository['searchPatientLookup'];
+  listPatientLabelsByIds?: PatientLabelRepository['listPatientLabelsByIds'];
 }
 
 export type PatientRepositoryBackend = 'local' | 'supabase';
 
 const PATIENT_LOOKUP_MIN_QUERY_LENGTH = 2;
 const PATIENT_LOOKUP_MAX_LIMIT = 20;
+const PATIENT_LABEL_BATCH_SIZE = 100;
 const PHONE_LIKE_QUERY = /^[+\d\s().-]+$/;
+
+function normalizePatientIds(patientIds: string[]) {
+  return [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))].sort();
+}
+
+function chunkPatientIds(patientIds: string[]) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < patientIds.length; index += PATIENT_LABEL_BATCH_SIZE) {
+    chunks.push(patientIds.slice(index, index + PATIENT_LABEL_BATCH_SIZE));
+  }
+  return chunks;
+}
+
+function mapPatientLabel(row: Record<string, unknown>): PatientLabelRecord {
+  return { id: String(row.id), fullName: String(row.full_name ?? '') };
+}
 
 function normalizeLookupLimit(value?: number) {
   if (value === undefined || !Number.isFinite(value)) return PATIENT_LOOKUP_MAX_LIMIT;
@@ -87,6 +114,16 @@ export const LocalStoragePatientRepository: PatientRepository = {
 
   async createPatient(patient: Patient): Promise<void> {
     storage.addPatient(patient);
+  },
+
+  async listPatientLabelsByIds(patientIds: string[]): Promise<PatientLabelRecord[]> {
+    const normalizedIds = normalizePatientIds(patientIds);
+    if (normalizedIds.length === 0) return [];
+    const requestedIds = new Set(normalizedIds);
+    return storage.getPatients()
+      .filter((patient) => requestedIds.has(patient.id))
+      .map((patient) => ({ id: patient.id, fullName: patient.fullName ?? '' }))
+      .sort((left, right) => left.id.localeCompare(right.id));
   },
 
   async searchPatientLookup(input: SearchPatientLookupInput): Promise<PatientLookupRecord[]> {
@@ -166,6 +203,25 @@ export class SupabasePatientRepository implements PatientRepository {
       });
 
     if (error) throw error;
+  }
+
+  async listPatientLabelsByIds(patientIds: string[]): Promise<PatientLabelRecord[]> {
+    const normalizedIds = normalizePatientIds(patientIds);
+    if (normalizedIds.length === 0) return [];
+
+    const labels: PatientLabelRecord[] = [];
+    for (const chunk of chunkPatientIds(normalizedIds)) {
+      const { data, error } = await this.client
+        .from('patients')
+        .select('id,full_name')
+        .eq('tenant_id', this.tenantId)
+        .in('id', chunk)
+        .order('id', { ascending: true });
+      if (error) throw error;
+      labels.push(...((data ?? []) as Record<string, unknown>[]).map(mapPatientLabel));
+    }
+
+    return labels.sort((left, right) => left.id.localeCompare(right.id));
   }
 
   async searchPatientLookup(input: SearchPatientLookupInput): Promise<PatientLookupRecord[]> {

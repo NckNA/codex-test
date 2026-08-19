@@ -69,11 +69,12 @@ function labRepository(listOrders = vi.fn().mockResolvedValue([])): ILaboratoryW
   return { listOrders } as unknown as ILaboratoryWorkRepository;
 }
 
-function patientRepository(listPatients = vi.fn().mockResolvedValue([])): PatientRepository {
+function patientRepository(listPatientLabelsByIds = vi.fn().mockResolvedValue([])): PatientRepository {
   return {
     getPatientById: vi.fn(),
     updatePatient: vi.fn(),
-    listPatients,
+    listPatients: vi.fn().mockRejectedValue(new Error('broad patient read forbidden')),
+    listPatientLabelsByIds,
     createPatient: vi.fn(),
   };
 }
@@ -175,14 +176,15 @@ describe('useLaboratoryWorkQueue', () => {
   it('forwards normalized existing filters and resolves only relevant patient names with one safe Supabase read', async () => {
     const orderA = order('order-a', 'patient-a');
     const orderB = order('order-b', 'patient-b');
-    const listOrders = vi.fn().mockResolvedValue([orderA, orderB]);
+    const orderA2 = order('order-a-2', 'patient-a');
+    const listOrders = vi.fn().mockResolvedValue([orderA, orderB, orderA2]);
     mockedUseLaboratoryWorkRepository.mockReturnValue(selection(labRepository(listOrders)));
-    const listPatients = vi.fn().mockResolvedValue([
+    const listPatientLabelsByIds = vi.fn().mockResolvedValue([
       { id: 'patient-a', fullName: 'Пациент А' },
       { id: 'patient-b', fullName: 'Пациент Б' },
       { id: 'patient-unrelated', fullName: 'Не относится к очереди' },
     ]);
-    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatients));
+    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatientLabelsByIds));
     const filters: LaboratoryWorkOrderFilters = {
       patientId: ' patient-filter ',
       status: 'in_progress',
@@ -204,7 +206,8 @@ describe('useLaboratoryWorkQueue', () => {
     });
     expect(patientRepositoryFactory).toHaveBeenCalledTimes(1);
     expect(patientRepositoryFactory).toHaveBeenCalledWith({ backend: 'supabase', tenantId: 'tenant-1' });
-    expect(listPatients).toHaveBeenCalledTimes(1);
+    expect(listPatientLabelsByIds).toHaveBeenCalledTimes(1);
+    expect(listPatientLabelsByIds).toHaveBeenCalledWith(['patient-a', 'patient-b']);
     expect(latest?.patientNamesById).toEqual({
       'patient-a': 'Пациент А',
       'patient-b': 'Пациент Б',
@@ -212,11 +215,34 @@ describe('useLaboratoryWorkQueue', () => {
     expect(JSON.stringify(latest?.patientNamesById)).not.toContain('patient-unrelated');
   });
 
+  it('fails the secondary label read closed when the repository capability is unavailable', async () => {
+    const orderA = order('order-a', 'patient-a');
+    mockedUseLaboratoryWorkRepository.mockReturnValue(selection(labRepository(vi.fn().mockResolvedValue([orderA]))));
+    const repositoryWithoutLabels: PatientRepository = {
+      getPatientById: vi.fn(),
+      updatePatient: vi.fn(),
+      listPatients: vi.fn().mockResolvedValue([{ id: 'patient-a', fullName: 'Should never be loaded' }]),
+      createPatient: vi.fn(),
+    } as unknown as PatientRepository;
+    const patientRepositoryFactory = vi.fn(() => repositoryWithoutLabels);
+
+    await act(async () => {
+      root.render(<Harness patientRepositoryFactory={patientRepositoryFactory} onResult={(result) => { latest = result; }} />);
+    });
+    await flushQuery();
+
+    expect(repositoryWithoutLabels.listPatients).not.toHaveBeenCalled();
+    expect(latest?.orders).toEqual([orderA]);
+    expect(latest?.patientNamesById).toEqual({});
+    expect(latest?.arePatientNamesError).toBe(true);
+    expect(latest?.patientNamesError?.message).toContain('имена пациентов');
+  });
+
   it('keeps loaded laboratory orders visible when the secondary patient-name read fails', async () => {
     const orderA = order('order-a', 'patient-a');
     mockedUseLaboratoryWorkRepository.mockReturnValue(selection(labRepository(vi.fn().mockResolvedValue([orderA]))));
-    const listPatients = vi.fn().mockRejectedValue(new Error('patient list failed'));
-    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatients));
+    const listPatientLabelsByIds = vi.fn().mockRejectedValue(new Error('patient list failed'));
+    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatientLabelsByIds));
 
     await act(async () => {
       root.render(<Harness patientRepositoryFactory={patientRepositoryFactory} onResult={(result) => { latest = result; }} />);
@@ -238,10 +264,10 @@ describe('useLaboratoryWorkQueue', () => {
       .mockResolvedValueOnce([orderA])
       .mockImplementationOnce(() => new Promise<LaboratoryWorkOrderRecord[]>((resolve) => { resolveSecond = resolve; }));
     mockedUseLaboratoryWorkRepository.mockReturnValue(selection(labRepository(listOrders)));
-    const listPatients = vi.fn()
+    const listPatientLabelsByIds = vi.fn()
       .mockResolvedValueOnce([{ id: 'patient-a', fullName: 'Пациент А' }])
       .mockResolvedValueOnce([{ id: 'patient-b', fullName: 'Пациент Б' }]);
-    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatients));
+    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatientLabelsByIds));
 
     await act(async () => {
       root.render(<Harness filters={{ status: 'in_progress' }} patientRepositoryFactory={patientRepositoryFactory} onResult={(result) => { latest = result; }} />);
@@ -281,10 +307,10 @@ describe('useLaboratoryWorkQueue', () => {
     let currentSelection = selection(repositoryA, { tenantId: 'tenant-1', userId: 'user-1' });
     mockedUseLaboratoryWorkRepository.mockImplementation(() => currentSelection);
 
-    const listPatientsA = vi.fn().mockResolvedValue([{ id: 'patient-a', fullName: 'Пациент А' }]);
-    const listPatientsB = vi.fn().mockResolvedValue([{ id: 'patient-b', fullName: 'Пациент Б' }]);
+    const listPatientLabelsByIdsA = vi.fn().mockResolvedValue([{ id: 'patient-a', fullName: 'Пациент А' }]);
+    const listPatientLabelsByIdsB = vi.fn().mockResolvedValue([{ id: 'patient-b', fullName: 'Пациент Б' }]);
     const patientRepositoryFactory = vi.fn(({ tenantId }: { backend: 'supabase'; tenantId: string }) => (
-      tenantId === 'tenant-1' ? patientRepository(listPatientsA) : patientRepository(listPatientsB)
+      tenantId === 'tenant-1' ? patientRepository(listPatientLabelsByIdsA) : patientRepository(listPatientLabelsByIdsB)
     ));
 
     await act(async () => {
@@ -323,15 +349,15 @@ describe('useLaboratoryWorkQueue', () => {
     mockedUseLaboratoryWorkRepository.mockReturnValue(selection(
       labRepository(vi.fn().mockResolvedValue([order('order-unknown', unknownPatientId)])),
     ));
-    const listPatients = vi.fn().mockResolvedValue([]);
-    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatients));
+    const listPatientLabelsByIds = vi.fn().mockResolvedValue([]);
+    const patientRepositoryFactory = vi.fn(() => patientRepository(listPatientLabelsByIds));
 
     await act(async () => {
       root.render(<Harness patientRepositoryFactory={patientRepositoryFactory} onResult={(result) => { latest = result; }} />);
     });
     await flushQuery();
 
-    expect(listPatients).toHaveBeenCalledTimes(1);
+    expect(listPatientLabelsByIds).toHaveBeenCalledTimes(1);
     expect(latest?.patientNamesById).toEqual({});
     expect(Object.values(latest?.patientNamesById ?? {})).not.toContain(unknownPatientId);
   });
