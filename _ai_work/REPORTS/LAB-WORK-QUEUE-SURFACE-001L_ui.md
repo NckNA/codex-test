@@ -8,11 +8,15 @@ Final verdict: **PASS**.
 
 ## Branch
 
-`feature/lab-work-queue-surface-001l`
+`docs/lab-work-queue-surface-001l-finalize`
+
+- Implementation branch: `feature/lab-work-queue-surface-001l`.
 
 ## PR URL
 
-https://github.com/NckNA/codex-test/pull/378
+https://github.com/NckNA/codex-test/pull/379
+
+- Implementation PR: https://github.com/NckNA/codex-test/pull/378
 
 - Base: `main`.
 - Baseline: `d328b948b455706d941cc12da22c915f032b89ae`.
@@ -21,6 +25,8 @@ https://github.com/NckNA/codex-test/pull/378
 - Initial report head: `9e040b3c392be2c2ff885e3642b9af762b24597a`.
 - Initial report CI: run `#815` / `32230256155`, **SUCCESS** on `9e040b3c392be2c2ff885e3642b9af762b24597a`.
 - Implementation merge: PR #378, merge commit `466d6252a686e3c4506754be7c0c954418a7fef0`.
+- Final correction head before final metadata commit: `91784166a36cf74932e2ee461675762735da212c`.
+- Final correction CI: run `#817` / `32230729586`, **SUCCESS** on `91784166a36cf74932e2ee461675762735da212c`.
 - Report update commit: N/A because a report cannot truthfully contain its own future commit SHA; the immutable finalization receipt records the final correction commit and CI.
 
 ## Changed files
