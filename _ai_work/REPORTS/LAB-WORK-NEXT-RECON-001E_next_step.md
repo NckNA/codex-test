@@ -16,12 +16,14 @@ Implementation readiness decision: **READY** for `LAB-WORK-PATIENT-SURFACE-001F`
 
 ## PR URL
 
-Pending until this report-only branch is pushed.
+https://github.com/NckNA/codex-test/pull/371
 
 - Base branch: `main`.
 - Verified `origin/main`: `21cd3f394d9b1b67e9c4496ee1c40b1276afffcb`.
 - Baseline includes merged PR #370 / `LAB-WORK-PATIENT-READ-001D`.
-- Report update commit: N/A until finalization receipt.
+- Initial report commit: `868d640c3348aee6bb3eee6cec1bda8e42074fa7`.
+- Initial CI: run `#790` / `32222195449`, **SUCCESS**.
+- Report update commit: N/A because the report commit cannot contain its own future SHA; final commit/CI belong in the immutable finalization receipt.
 
 ## Changed files summary
 
@@ -350,6 +352,17 @@ Recon noticed pre-existing patient-card oddities unrelated to laboratory work:
 - a `files` render branch exists while `files` is not present in the inspected `TABS` list.
 
 Do **not** fix these in 001F. They require a separate patient-card cleanup task if desired. This recon records them only to prevent an agent from using the laboratory task as an excuse for unrelated cleanup.
+
+## Browser smoke
+
+**NOT REQUIRED for RECON.** This task changes only one Markdown report and no application behavior. The recommended follow-on UI task 001F requires real localhost browser smoke.
+
+## Issues / limitations
+
+- Hermes Workbench semantic/search helper is currently blocked by missing `D:\hermes\memory\workbench-current.json`; live repository inspection was used instead without bypassing task policy.
+- Rich doctor/laboratory/work-type labels are intentionally not solved by this recon; they remain a later bounded read-model/reference concern.
+- Pre-existing patient-card `summary`/`files` tab inconsistencies were observed but are outside laboratory scope and were not changed.
+- Baseline `npm ci` still reports 7 pre-existing dependency vulnerabilities; no package or lockfile changes are allowed in this report-only task.
 
 ## Checks
 
