@@ -28,11 +28,23 @@ No runtime code, migrations, schema, browser mutation or database write belongs 
 
 ## PR URL
 
-Pending until report publication.
+https://github.com/NckNA/codex-test/pull/390
 
 - Base: `main`.
 - Baseline: `bef74bafa30c578061495f01d704721fc8e53fd4` (001Q frozen).
-- Report update commit: N/A until publication.
+- Initial report head: `de3ce5ea39a7f5c81d110c8f8c6ef246055d0841`.
+- Initial CI: run `#847` / `32248334608`, **SUCCESS** on `de3ce5ea39a7f5c81d110c8f8c6ef246055d0841`.
+- Report update commit: N/A because a report cannot truthfully contain its own future SHA; final evidence is persisted after publication.
+
+## Changed files
+
+This report-only task changes exactly one repository file:
+
+```text
+_ai_work/REPORTS/LAB-WORK-QUEUE-MUTATION-RECON-001R_queue_write_contract.md
+```
+
+No `src/*`, migration, seed, package, lockfile, helper script, screenshot or environment file belongs to this PR.
 
 ## Current accepted foundation
 
