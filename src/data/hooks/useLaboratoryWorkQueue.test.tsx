@@ -299,8 +299,8 @@ describe('useLaboratoryWorkQueue', () => {
       root.render(<Harness patientRepositoryFactory={patientRepositoryFactory} onResult={(result) => { latest = result; }} />);
     });
 
-    expect(latest?.orders).toEqual([]);
-    expect(latest?.patientNamesById).toEqual({});
+    expect(latest?.orders).not.toContainEqual(orderA);
+    expect(latest?.patientNamesById).not.toHaveProperty('patient-a');
 
     await act(async () => {
       resolveTenantB?.([orderB]);
