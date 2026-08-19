@@ -44,6 +44,7 @@ export interface LaboratoryWorkOrderRecord {
   comment: string | null;
   createdBy: string | null;
   updatedBy: string | null;
+  mutationVersion?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -205,7 +206,7 @@ function mapWorkTypeRow(row: Record<string, unknown>): LaboratoryWorkTypeRecord 
   };
 }
 
-function mapOrderRow(row: Record<string, unknown>): LaboratoryWorkOrderRecord {
+export function mapLaboratoryWorkOrderRow(row: Record<string, unknown>): LaboratoryWorkOrderRecord {
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
@@ -226,6 +227,7 @@ function mapOrderRow(row: Record<string, unknown>): LaboratoryWorkOrderRecord {
     comment: row.comment == null ? null : String(row.comment),
     createdBy: row.created_by == null ? null : String(row.created_by),
     updatedBy: row.updated_by == null ? null : String(row.updated_by),
+    mutationVersion: Number(row.mutation_version ?? 1),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -349,7 +351,7 @@ export class SupabaseLaboratoryWorkRepository implements ILaboratoryWorkReposito
     if (filters.responsibleDoctorId) query = query.eq('responsible_doctor_id', filters.responsibleDoctorId);
     const { data, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: true });
     if (error) throw error;
-    return ((data ?? []) as Record<string, unknown>[]).map(mapOrderRow);
+    return ((data ?? []) as Record<string, unknown>[]).map(mapLaboratoryWorkOrderRow);
   }
 
   async getOrder(id: string): Promise<LaboratoryWorkOrderRecord | null> {
@@ -360,7 +362,7 @@ export class SupabaseLaboratoryWorkRepository implements ILaboratoryWorkReposito
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
-    return data ? mapOrderRow(data as Record<string, unknown>) : null;
+    return data ? mapLaboratoryWorkOrderRow(data as Record<string, unknown>) : null;
   }
 
   async createOrder(input: CreateLaboratoryWorkOrderInput): Promise<LaboratoryWorkOrderRecord> {
@@ -372,7 +374,7 @@ export class SupabaseLaboratoryWorkRepository implements ILaboratoryWorkReposito
     };
     const { data, error } = await this.client.from('laboratory_work_orders').insert(payload).select('*').single();
     if (error) throw error;
-    return mapOrderRow(data as Record<string, unknown>);
+    return mapLaboratoryWorkOrderRow(data as Record<string, unknown>);
   }
 
   async updateOrder(id: string, input: UpdateLaboratoryWorkOrderInput): Promise<LaboratoryWorkOrderRecord> {
@@ -385,7 +387,7 @@ export class SupabaseLaboratoryWorkRepository implements ILaboratoryWorkReposito
       .select('*')
       .single();
     if (error) throw error;
-    return mapOrderRow(data as Record<string, unknown>);
+    return mapLaboratoryWorkOrderRow(data as Record<string, unknown>);
   }
 
   async listOrderWorkTypeIds(orderId: string): Promise<string[]> {
@@ -477,6 +479,14 @@ function localUuid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function normalizeLocalOrderRecord(order: LaboratoryWorkOrderRecord): LaboratoryWorkOrderRecord {
+  const version = Number(order.mutationVersion ?? 1);
+  return {
+    ...order,
+    mutationVersion: Number.isInteger(version) && version >= 1 ? version : 1,
+  };
+}
+
 export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepository {
   private readonly tenantId: string;
 
@@ -549,6 +559,7 @@ export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepo
 
   async listOrders(filters: LaboratoryWorkOrderFilters = {}): Promise<LaboratoryWorkOrderRecord[]> {
     return readLocal<LaboratoryWorkOrderRecord>(LOCAL_ORDERS_KEY, this.tenantId)
+      .map(normalizeLocalOrderRecord)
       .filter(item => !filters.patientId || item.patientId === filters.patientId)
       .filter(item => !filters.status || item.status === filters.status)
       .filter(item => !filters.laboratoryId || item.laboratoryId === filters.laboratoryId)
@@ -557,7 +568,8 @@ export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepo
   }
 
   async getOrder(id: string): Promise<LaboratoryWorkOrderRecord | null> {
-    return readLocal<LaboratoryWorkOrderRecord>(LOCAL_ORDERS_KEY, this.tenantId).find(item => item.id === id) ?? null;
+    const order = readLocal<LaboratoryWorkOrderRecord>(LOCAL_ORDERS_KEY, this.tenantId).find(item => item.id === id);
+    return order ? normalizeLocalOrderRecord(order) : null;
   }
 
   async createOrder(input: CreateLaboratoryWorkOrderInput): Promise<LaboratoryWorkOrderRecord> {
@@ -582,6 +594,7 @@ export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepo
       comment: normalizeOptionalText(input.comment),
       createdBy: null,
       updatedBy: null,
+      mutationVersion: 1,
       createdAt: now,
       updatedAt: now,
     };
@@ -590,7 +603,7 @@ export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepo
   }
 
   async updateOrder(id: string, input: UpdateLaboratoryWorkOrderInput): Promise<LaboratoryWorkOrderRecord> {
-    const all = readLocal<LaboratoryWorkOrderRecord>(LOCAL_ORDERS_KEY, this.tenantId);
+    const all = readLocal<LaboratoryWorkOrderRecord>(LOCAL_ORDERS_KEY, this.tenantId).map(normalizeLocalOrderRecord);
     const existing = all.find(item => item.id === id);
     if (!existing) throw new Error('Laboratory work order not found');
     const next: LaboratoryWorkOrderRecord = {
@@ -609,6 +622,7 @@ export class LocalStorageLaboratoryWorkRepository implements ILaboratoryWorkRepo
       ...(input.anatomicalScope !== undefined ? { anatomicalScope: input.anatomicalScope } : {}),
       ...(input.selectedTeeth !== undefined ? { selectedTeeth: validateSelectedTeeth(input.selectedTeeth) ?? [] } : {}),
       ...(input.comment !== undefined ? { comment: normalizeOptionalText(input.comment) } : {}),
+      mutationVersion: (existing.mutationVersion ?? 1) + 1,
       updatedAt: new Date().toISOString(),
     };
     writeLocal(LOCAL_ORDERS_KEY, this.tenantId, all.map(item => item.id === id ? next : item));
