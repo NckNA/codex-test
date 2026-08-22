@@ -8,7 +8,13 @@ recon/lab-work-reference-admin-recon-002b
 
 ## Pr Url
 
+https://github.com/NckNA/codex-test/pull/411
 
+- Exact recon head: `0b8c438b952c313664cb8fae79d015a6048f078b`.
+- Fresh recon CI: run `#902` / `32596653547`, **SUCCESS** on `0b8c438b952c313664cb8fae79d015a6048f078b`.
+- PR #411 merge commit: `4f93361fab70173de06ec3ba7469fb37b381c6d0`.
+- `finalize_report_metadata` confirmed the exact reviewed head and CI #902, then hit the known bridge bug `replaceReportPlaceholders is not defined`; it made no report commit or push.
+- Report update commit: N/A because a report cannot truthfully reference its own future correction commit; correction PR/CI/merge evidence is recorded in the immutable finalization receipt.
 
 ## Environment
 
@@ -129,6 +135,16 @@ local repo + authenticated MacDent read-only CDP
 - Exact MacDent /app/laboratories fields/actions/role model remain UNKNOWN; only route existence and linkage are proven read-only.
 - 002B freezes the mutation contract only; application/schema implementation belongs to 002C.
 
+## Browser smoke
+
+**NOT REQUIRED** because 002B is report/reconciliation only and changes no runtime UI or application behavior.
+
+## Final verdict
+
+**PASS**
+
+The recon contract and parity delta are complete. PR #411 is verified and merged; this one-file correction persists the final reviewed head, CI, merge evidence and known finalizer failure. After the correction PR is green and merged with its immutable receipt, 002B is **PASS / FROZEN** and 002C is unblocked.
+
 ## Ci
 
 ```json
@@ -148,16 +164,16 @@ LAB-WORK-REFERENCE-ADMIN-MUTATION-002C
 
 ## Implementation Head
 
-eb36e1bdf9fdd2bf05908e5f0093b2ca7b3d610c
+0b8c438b952c313664cb8fae79d015a6048f078b
 
 ## Reviewed Head
 
-
+0b8c438b952c313664cb8fae79d015a6048f078b
 
 ## Final Report Update Head
 
-
+N/A; exact correction commit is recorded in the immutable finalization receipt.
 
 ## Latest Ci After Update
 
-
+CI #902 / run 32596653547 SUCCESS on 0b8c438b952c313664cb8fae79d015a6048f078b before the one-file correction; correction CI is recorded in the immutable finalization receipt.
