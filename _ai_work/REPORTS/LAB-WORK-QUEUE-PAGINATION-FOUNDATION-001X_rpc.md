@@ -6,6 +6,18 @@
 
 Final verdict: **PASS**
 
+## Branch
+
+`feature/lab-work-queue-pagination-foundation-001x`
+
+## PR URL
+
+`https://github.com/NckNA/codex-test/pull/402`
+
+- PR head reviewed before report-format correction: `31425673f25c5b475dcbb5493505daf7c7120dd5`.
+- Latest CI before report-format correction: run `#878` / `32576170133`, **SUCCESS** on `31425673f25c5b475dcbb5493505daf7c7120dd5`.
+- Report update commit: N/A because the report commit cannot reference itself; final immutable head/CI evidence must come from the finalization receipt.
+
 The implementation adds two read-only RPC boundaries:
 
 1. `public.list_laboratory_work_queue_page(...)` for tenant-authorized server-side filters, cross-entity search, deterministic operational ordering, bounded limit/offset pagination, and `totalFiltered`.
@@ -82,6 +94,21 @@ Verified behavior:
 - returns whole-tenant `inProgress`, `overdue`, and `completed` counts;
 - summary is independent from current page/search filters;
 - no write/audit/activity side effects.
+
+## Checks
+
+- Fresh local Supabase reset + guarded QA seed: **PASS**.
+- `0037_laboratory_work_queue_pagination_test.sql`: **PASS**.
+- Fresh schema/RLS assertions: **61 / 61 PASS**.
+- ESLint: **PASS**.
+- Vitest: **130 test files / 1321 tests PASS**.
+- Build: **PASS**.
+- Fresh implementation-head CI rerun: run `#877` / `32266003098`, attempt `2`, **SUCCESS** on `c51ee8e5b9fb9b16777cd4e6753f8ab22468f192`.
+- Report-head CI before this format correction: run `#878` / `32576170133`, **SUCCESS** on `31425673f25c5b475dcbb5493505daf7c7120dd5`.
+- Browser smoke: **not required** for backend/schema-only scope.
+- Cloud Supabase: **not used / forbidden**.
+- Production writes: **none**.
+- `src/*` changes: **none**.
 
 ## Local verification
 
@@ -212,7 +239,7 @@ The shared Hermes policy was observed being overwritten by parallel tasks during
 
 **PASS**
 
-`LAB-WORK-QUEUE-PAGINATION-FOUNDATION-001X` is ready for report commit, final CI/review, merge/finalization and freeze, provided the PR remains exactly within the three-file scope and stays merge-clean.
+`LAB-WORK-QUEUE-PAGINATION-FOUNDATION-001X` is ready for final report metadata finalization, fresh CI/review, merge and freeze, provided the PR remains exactly within the three-file scope and stays merge-clean.
 
 ## Recommended next task
 
