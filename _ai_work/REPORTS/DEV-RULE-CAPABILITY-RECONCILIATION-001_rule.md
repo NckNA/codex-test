@@ -20,7 +20,7 @@ A living `_ai_work/CAPABILITY_PARITY_MATRIX.md` is now the canonical ledger for 
 
 ## PR URL
 
-Pending until publication.
+https://github.com/NckNA/codex-test/pull/410
 
 ## Changed files
 
