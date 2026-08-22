@@ -14,9 +14,11 @@ Final verdict: **PASS**
 
 `https://github.com/NckNA/codex-test/pull/402`
 
-- PR head reviewed before report-format correction: `31425673f25c5b475dcbb5493505daf7c7120dd5`.
-- Latest CI before report-format correction: run `#878` / `32576170133`, **SUCCESS** on `31425673f25c5b475dcbb5493505daf7c7120dd5`.
-- Report update commit: N/A because the report commit cannot reference itself; final immutable head/CI evidence must come from the finalization receipt.
+- Final reviewed PR #402 head: `3796c8dd07eaa533c11825f32057b6913db7cd47`.
+- Final PR #402 CI: run `#879` / `32576337447`, **SUCCESS** on `3796c8dd07eaa533c11825f32057b6913db7cd47`.
+- PR #402 merge commit: `bf613798c3ee51e61e65f980b7efb6b92b86188f`.
+- `finalize_report_metadata` confirmed that final head and CI, then hit the known bridge bug `replaceReportPlaceholders is not defined`; it made no report commit or push.
+- This one-file post-merge correction persists the verified PR #402 evidence. Its own final correction-PR/CI/merge identifiers are intentionally recorded in the local immutable receipt to avoid recursive self-reference.
 
 The implementation adds two read-only RPC boundaries:
 
@@ -104,7 +106,7 @@ Verified behavior:
 - Vitest: **130 test files / 1321 tests PASS**.
 - Build: **PASS**.
 - Fresh implementation-head CI rerun: run `#877` / `32266003098`, attempt `2`, **SUCCESS** on `c51ee8e5b9fb9b16777cd4e6753f8ab22468f192`.
-- Report-head CI before this format correction: run `#878` / `32576170133`, **SUCCESS** on `31425673f25c5b475dcbb5493505daf7c7120dd5`.
+- Final PR #402 report-head CI: run `#879` / `32576337447`, **SUCCESS** on `3796c8dd07eaa533c11825f32057b6913db7cd47`.
 - Browser smoke: **not required** for backend/schema-only scope.
 - Cloud Supabase: **not used / forbidden**.
 - Production writes: **none**.
@@ -206,6 +208,17 @@ CI was explicitly re-run on the exact implementation SHA during this verificatio
 - Tests: **SUCCESS**
 - Build: **SUCCESS**
 
+After the report commits, PR #402 received a final fresh CI on the exact reviewed report head:
+
+- Final reviewed PR head: `3796c8dd07eaa533c11825f32057b6913db7cd47`
+- Final CI run: `#879` / `32576337447`
+- Conclusion: **SUCCESS**
+- Merge guard: **SUCCESS**
+- ESLint: **SUCCESS**
+- Tests: **SUCCESS**
+- Build: **SUCCESS**
+- PR #402 merge commit: `bf613798c3ee51e61e65f980b7efb6b92b86188f`
+
 ## Browser smoke
 
 **Not required / not run.**
@@ -239,7 +252,7 @@ The shared Hermes policy was observed being overwritten by parallel tasks during
 
 **PASS**
 
-`LAB-WORK-QUEUE-PAGINATION-FOUNDATION-001X` is ready for final report metadata finalization, fresh CI/review, merge and freeze, provided the PR remains exactly within the three-file scope and stays merge-clean.
+`LAB-WORK-QUEUE-PAGINATION-FOUNDATION-001X` implementation PR #402 is verified and merged. This one-file correction persists the final reviewed head, CI and merge evidence after the known finalizer bug. Once this correction PR is green, CLEAN and merged with its immutable local receipt, 001X is **PASS / FROZEN**.
 
 ## Recommended next task
 
