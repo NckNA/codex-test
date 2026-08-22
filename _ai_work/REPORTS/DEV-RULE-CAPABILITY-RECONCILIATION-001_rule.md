@@ -22,6 +22,10 @@ A living `_ai_work/CAPABILITY_PARITY_MATRIX.md` is now the canonical ledger for 
 
 https://github.com/NckNA/codex-test/pull/410
 
+- Current reviewed head before final report update: `0dbb1845599616b9b4fc894150a53d3f5538ff18`.
+- Current CI before final report update: run `#899` / `32583810415`, **SUCCESS** on `0dbb1845599616b9b4fc894150a53d3f5538ff18`.
+- Report update commit: N/A because a report cannot truthfully reference its own future update commit; exact final reviewed head/CI/merge evidence belongs in the immutable finalization receipt.
+
 ## Changed files
 
 - `_ai_work/AI_WORKFLOW.md`
@@ -113,7 +117,7 @@ The matrix is not a claim that the entire product has now been re-audited agains
 
 No application entity, schema object, RPC, repository, hook, page or component was created. This task changes documentation/process only.
 
-## Verification
+## Checks
 
 - HERMES semantic skill source re-read: **PASS**.
 - Existing `_ai_work/AI_WORKFLOW.md` inspected before edit: **PASS**.
@@ -121,8 +125,21 @@ No application entity, schema object, RPC, repository, hook, page or component w
 - No application/migration/database changes: **PASS**.
 - No MacDent/amoCRM mutation: **PASS**.
 - No production/patient-data access: **PASS**.
+- GitHub CI on the reviewed pre-final-report head: **PASS** (`#899` / `32583810415`).
 
-Browser smoke: **NOT REQUIRED** because the task is documentation/process only.
+## Browser smoke
+
+**NOT REQUIRED** because the task is documentation/process only and changes no runtime UI or behavior.
+
+## Issues / Limitations
+
+- The matrix is intentionally not a retroactive claim of full product-wide MacDent parity. It starts with the laboratory domain because that is the currently active development track.
+- Future feature tasks must expand or refresh only the relevant domain rows from fresh evidence.
+- `UNKNOWN` remains a blocking status rather than an invitation to guess.
+
+## Final verdict
+
+**PASS**. The development rule and living parity matrix are complete for this documentation task. Final PR head/CI/merge metadata is finalized by the immutable receipt after merge.
 
 ## Recommended next task
 
