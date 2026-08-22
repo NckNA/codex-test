@@ -23,7 +23,10 @@ https://github.com/NckNA/codex-test/pull/408
 - Baseline: `ea5836757dbee67cd00b484700fc22fc8732d1ea` (001Z finalization merged/frozen).
 - Initial report commit: `2c37849218a0902eef0c92c8c663ac4fcaddba57`.
 - Initial report CI: run `#893` / `32581554804`, **SUCCESS** on `2c37849218a0902eef0c92c8c663ac4fcaddba57`.
-- Report update commit: N/A because a report cannot truthfully reference its own future update commit; final reviewed head/CI/merge evidence belongs in the finalization receipt.
+- Final reviewed PR #408 head: `3d661552c5bb69e5a0a4e45f8a992192c5785793`.
+- Final PR #408 CI: run `#894` / `32581874753`, **SUCCESS** on `3d661552c5bb69e5a0a4e45f8a992192c5785793`.
+- PR #408 merge commit: `a381a0b7d860a81cc15ee082845cee18d00bc2da`.
+- Metadata finalizer verified the exact reviewed head and green CI, then hit the known Hermes defect `replaceReportPlaceholders is not defined`; it made no report commit or push. This correction records the immutable final evidence after merge.
 
 ## Changed files
 
