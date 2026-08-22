@@ -31,7 +31,11 @@ https://github.com/NckNA/codex-test/pull/404
 - Baseline: `027e13fa875fabeb295ed4cd7ff3a0fcee2fd55f` (001X finalization merged/frozen).
 - Exact implementation SHA: `f435f6dcc9ecbe6e862dab88744d4ea40203dafb`.
 - Fresh implementation CI: run `#883` / `32577962953`, **SUCCESS** on `f435f6dcc9ecbe6e862dab88744d4ea40203dafb`.
-- Report update commit: N/A because a report cannot truthfully reference its own future commit; final report-head/CI evidence belongs in the finalization receipt.
+- Final reviewed PR #404 head: `d306b9d7f67f4f0839094f4ea902ed4ee78fd6cb`.
+- Final PR #404 CI: run `#884` / `32578137718`, **SUCCESS** on `d306b9d7f67f4f0839094f4ea902ed4ee78fd6cb`.
+- PR #404 merge commit: `264598e783fbeaf0ae26165c31f25c1926187e46`.
+- `finalize_report_metadata` confirmed final head `d306b9d7f67f4f0839094f4ea902ed4ee78fd6cb` and CI #884 SUCCESS, then hit the known bridge bug `replaceReportPlaceholders is not defined`; it made no report commit or push.
+- This one-file post-merge correction persists the verified PR #404 evidence. Its own correction PR/CI/merge identifiers are intentionally stored in the immutable local receipt to avoid recursive self-reference.
 
 ## Changed files summary
 
@@ -196,7 +200,7 @@ Verified specifically:
 
 **PASS**
 
-001Y is ready for final report commit, fresh CI, independent PR review, merge/finalization, and freeze if the PR remains exactly within the five-file scope.
+001Y implementation PR #404 is verified and merged. This one-file correction persists the final reviewed head, CI and merge evidence after the known finalizer bug. Once this correction PR is green, CLEAN and merged with its immutable local receipt, 001Y is **PASS / FROZEN**.
 
 ## Recommended next task
 
