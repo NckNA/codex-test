@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -15,9 +15,10 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useTenant } from '../contexts/TenantContext';
-import { useLaboratoryWorkQueue } from '../data/hooks/useLaboratoryWorkQueue';
+import { useLaboratoryWorkPagedQueue } from '../data/hooks/useLaboratoryWorkPagedQueue';
 import { useLaboratoryWorkMutations } from '../data/hooks/useLaboratoryWorkMutations';
-import { usePatientLaboratoryWorkReferences } from '../data/hooks/usePatientLaboratoryWorkReferences';
+import { useLaboratoryWorkRepository } from '../data/hooks/useLaboratoryWorkRepository';
+import type { LaboratoryWorkQueueDueFilter } from '../data/repositories/LaboratoryWorkQueueReadClient';
 import type { LaboratoryWorkOrderRecord, LaboratoryWorkOrderStatus } from '../data/repositories/LaboratoryWorkRepository';
 import type { PatientLookupRecord } from '../data/repositories/PatientRepository';
 import { LaboratoryPatientPicker } from '../components/laboratory/LaboratoryPatientPicker';
@@ -26,9 +27,7 @@ import { LaboratoryWorkCompleteDialog, LaboratoryWorkReopenDialog } from '../com
 import { getLaboratoryWorkRoleCapabilities } from '../components/patients/patient-card/laboratoryWorkPermissions';
 import { compareInstantToTenantDay, formatInstantInTenant, tenantNowDate } from '../domain/timezone';
 
-type DueFilter = 'all' | 'overdue' | 'today' | 'upcoming' | 'unscheduled';
-
-type DueBucket = Exclude<DueFilter, 'all'> | 'completed';
+type DueBucket = Exclude<LaboratoryWorkQueueDueFilter, 'all'> | 'completed';
 
 const STATUS_LABELS: Record<LaboratoryWorkOrderStatus, string> = {
   in_progress: 'В работе',
@@ -54,22 +53,16 @@ const DUE_CLASSES: Record<Exclude<DueBucket, 'completed'>, string> = {
   unscheduled: 'bg-slate-100 text-slate-500',
 };
 
+const PAGE_SIZES = [25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
+
 function dueBucket(order: LaboratoryWorkOrderRecord, timezone: string, nowMillis: number): DueBucket {
   if (order.status === 'completed') return 'completed';
   if (!order.plannedReadyAt) return 'unscheduled';
   if (Date.parse(order.plannedReadyAt) < nowMillis) return 'overdue';
   const today = tenantNowDate(timezone, new Date(nowMillis));
   return compareInstantToTenantDay(order.plannedReadyAt, today, timezone) === 0 ? 'today' : 'upcoming';
-}
-
-function orderPriority(order: LaboratoryWorkOrderRecord, timezone: string, nowMillis: number): number {
-  switch (dueBucket(order, timezone, nowMillis)) {
-    case 'overdue': return 0;
-    case 'today': return 1;
-    case 'upcoming': return 2;
-    case 'unscheduled': return 3;
-    case 'completed': return 4;
-  }
 }
 
 function safeTimestamp(value: string | null, timezone: string): string | null {
@@ -89,34 +82,87 @@ type QueueMutationDialog =
 
 export function LaboratoryPage() {
   const { activeTenant } = useTenant();
+  const capabilities = getLaboratoryWorkRoleCapabilities(activeTenant?.role);
+
+  if (!capabilities.canView) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8" data-testid="laboratory-page-no-access">
+        <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">Недостаточно прав для лабораторных работ.</div>
+      </div>
+    );
+  }
+
+  return <LaboratoryQueuePage />;
+}
+
+function LaboratoryQueuePage() {
+  const { activeTenant } = useTenant();
+  const repositorySelection = useLaboratoryWorkRepository();
   const timezone = activeTenant?.timezone ?? 'Asia/Almaty';
   const capabilities = getLaboratoryWorkRoleCapabilities(activeTenant?.role);
   const [dialog, setDialog] = useState<QueueMutationDialog>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | LaboratoryWorkOrderStatus>('all');
   const [doctorFilter, setDoctorFilter] = useState('all');
   const [laboratoryFilter, setLaboratoryFilter] = useState('all');
-  const [dueFilter, setDueFilter] = useState<DueFilter>('all');
-  const [search, setSearch] = useState('');
+  const [dueFilter, setDueFilter] = useState<LaboratoryWorkQueueDueFilter>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [offset, setOffset] = useState(0);
   const [nowMillis] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setOffset(0);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
 
   const {
     orders,
+    totalFiltered,
+    limit,
     patientNamesById,
+    referencesByOrderId,
+    filterOptions,
+    summary,
     isLoading,
     isError,
     error,
     refetch,
+    isSummaryLoading,
+    isSummaryError,
+    refetchSummary,
     arePatientNamesLoading,
     arePatientNamesError,
     refetchPatientNames,
-  } = useLaboratoryWorkQueue();
-  const {
-    referencesByOrderId,
-    isLoading: areReferencesLoading,
-    isError: areReferencesError,
-    refetch: refetchReferences,
-  } = usePatientLaboratoryWorkReferences(orders);
-  const mutations = useLaboratoryWorkMutations({ refresh: refetch });
+    areReferencesLoading,
+    areReferencesError,
+    refetchReferences,
+    areFilterOptionsLoading,
+    areFilterOptionsError,
+    refetchFilterOptions,
+  } = useLaboratoryWorkPagedQueue({
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    responsibleDoctorId: doctorFilter === 'all' ? undefined : doctorFilter,
+    laboratoryId: laboratoryFilter === 'all' ? undefined : laboratoryFilter,
+    dueFilter,
+    search: debouncedSearch || undefined,
+    limit: pageSize,
+    offset,
+  });
+
+  const refreshAfterMutation = useCallback(async () => {
+    await refetchSummary();
+    if (offset !== 0) {
+      setOffset(0);
+      return;
+    }
+    await refetch();
+  }, [offset, refetch, refetchSummary]);
+
+  const mutations = useLaboratoryWorkMutations({ refresh: refreshAfterMutation });
 
   const handleFormSubmit = async (submission: LaboratoryWorkOrderDialogSubmit) => {
     try {
@@ -148,84 +194,38 @@ export function LaboratoryPage() {
     }
   };
 
-  const doctors = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const order of orders) {
-      const name = referencesByOrderId[order.id]?.responsibleDoctorName;
-      if (order.responsibleDoctorId && name) map.set(order.responsibleDoctorId, name);
-    }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((left, right) => left.name.localeCompare(right.name, 'ru'));
-  }, [orders, referencesByOrderId]);
-
-  const laboratories = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const order of orders) {
-      const name = referencesByOrderId[order.id]?.laboratoryName;
-      if (order.laboratoryId && name) map.set(order.laboratoryId, name);
-    }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((left, right) => left.name.localeCompare(right.name, 'ru'));
-  }, [orders, referencesByOrderId]);
-
-  const filteredOrders = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase('ru');
-    return orders
-      .filter((order) => {
-        if (statusFilter !== 'all' && order.status !== statusFilter) return false;
-        if (doctorFilter !== 'all' && order.responsibleDoctorId !== doctorFilter) return false;
-        if (laboratoryFilter !== 'all' && order.laboratoryId !== laboratoryFilter) return false;
-        const bucket = dueBucket(order, timezone, nowMillis);
-        if (dueFilter !== 'all' && bucket !== dueFilter) return false;
-        if (!normalizedSearch) return true;
-        const references = referencesByOrderId[order.id];
-        const patientName = patientNamesById[order.patientId] ?? '';
-        const searchable = [
-          order.title,
-          order.orderNumber ?? '',
-          patientName,
-          references?.responsibleDoctorName ?? '',
-          references?.laboratoryName ?? '',
-          ...(references?.workTypeNames ?? []),
-        ].join(' ').toLocaleLowerCase('ru');
-        return searchable.includes(normalizedSearch);
-      })
-      .sort((left, right) => {
-        const priority = orderPriority(left, timezone, nowMillis) - orderPriority(right, timezone, nowMillis);
-        if (priority !== 0) return priority;
-        const leftReady = left.plannedReadyAt ? Date.parse(left.plannedReadyAt) : Number.MAX_SAFE_INTEGER;
-        const rightReady = right.plannedReadyAt ? Date.parse(right.plannedReadyAt) : Number.MAX_SAFE_INTEGER;
-        if (leftReady !== rightReady) return leftReady - rightReady;
-        return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-      });
-  }, [doctorFilter, dueFilter, laboratoryFilter, nowMillis, orders, patientNamesById, referencesByOrderId, search, statusFilter, timezone]);
-
-  const summary = useMemo(() => ({
-    inProgress: orders.filter((order) => order.status === 'in_progress').length,
-    overdue: orders.filter((order) => dueBucket(order, timezone, nowMillis) === 'overdue').length,
-    completed: orders.filter((order) => order.status === 'completed').length,
-  }), [nowMillis, orders, timezone]);
-
   const refreshAll = useCallback(async () => {
-    await refetch();
-    await Promise.all([refetchPatientNames(), refetchReferences()]);
-  }, [refetch, refetchPatientNames, refetchReferences]);
+    if (offset !== 0) {
+      setOffset(0);
+      await Promise.all([refetchSummary(), refetchFilterOptions()]);
+      return;
+    }
+    await Promise.all([
+      refetch(),
+      refetchSummary(),
+      refetchPatientNames(),
+      refetchReferences(),
+      refetchFilterOptions(),
+    ]);
+  }, [offset, refetch, refetchFilterOptions, refetchPatientNames, refetchReferences, refetchSummary]);
 
-  if (!capabilities.canView) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-8" data-testid="laboratory-page-no-access">
-        <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">Недостаточно прав для лабораторных работ.</div>
-      </div>
-    );
-  }
+  const hasActiveQuery = statusFilter !== 'all'
+    || doctorFilter !== 'all'
+    || laboratoryFilter !== 'all'
+    || dueFilter !== 'all'
+    || debouncedSearch.length > 0;
+  const currentPage = totalFiltered > 0 ? Math.floor(offset / limit) + 1 : 1;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / limit));
+  const rangeStart = totalFiltered > 0 ? offset + 1 : 0;
+  const rangeEnd = Math.min(offset + orders.length, totalFiltered);
+  const canGoPrevious = offset > 0 && !isLoading;
+  const canGoNext = offset + limit < totalFiltered && !isLoading;
 
-  if (isLoading) {
+  if (repositorySelection.backend !== 'supabase') {
     return (
-      <div className="min-h-screen bg-slate-50 p-8" data-testid="laboratory-page-loading">
-        <div className="mx-auto max-w-7xl rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
-          Загружаем лабораторную очередь…
+      <div className="min-h-screen bg-slate-50 p-8" data-testid="laboratory-page-server-required">
+        <div className="mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm text-amber-900">
+          Серверная лабораторная очередь доступна в режиме активной клиники. Локальный прототип не имитирует серверную пагинацию и поиск.
         </div>
       </div>
     );
@@ -257,7 +257,7 @@ export function LaboratoryPage() {
             </div>
             <h1 className="mt-2 text-3xl font-bold text-slate-900">Лаборатория</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Общая операционная очередь лабораторных работ клиники. Создание начинается с явного поиска и выбора пациента.
+              Общая операционная очередь лабораторных работ клиники. Фильтры, поиск и порядок применяются сервером до границы страницы.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -266,7 +266,7 @@ export function LaboratoryPage() {
                 <Plus className="h-4 w-4" /> Новая работа
               </button>
             )}
-            <button type="button" onClick={() => void refreshAll()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+            <button type="button" data-testid="laboratory-refresh" onClick={() => void refreshAll()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
               <RefreshCw className="h-4 w-4" /> Обновить
             </button>
           </div>
@@ -277,20 +277,21 @@ export function LaboratoryPage() {
         {mutations.refreshWarning && <div data-testid="laboratory-queue-refresh-warning" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{mutations.refreshWarning}</div>}
         {mutations.pendingRetryAction && <div data-testid="laboratory-queue-uncertain-warning" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900"><span><strong>Результат операции пока не подтверждён.</strong> Не создавайте новую операцию.</span><button type="button" data-testid="laboratory-queue-retry-pending" disabled={mutations.loading} onClick={() => void mutations.retryPendingMutation().catch(() => undefined)} className="rounded-lg border border-orange-300 bg-white px-3 py-1.5 font-medium">Повторить ту же операцию</button></div>}
 
-        <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Сводка лабораторной очереди">
+        <section className={`mt-6 grid gap-3 sm:grid-cols-3 ${isSummaryLoading ? 'opacity-70' : ''}`} aria-label="Сводка лабораторной очереди" data-testid="laboratory-summary">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="text-sm text-amber-800">В работе</div><div className="mt-1 text-2xl font-bold text-amber-900">{summary.inProgress}</div></div>
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4"><div className="text-sm text-red-700">Просрочено</div><div className="mt-1 text-2xl font-bold text-red-900">{summary.overdue}</div></div>
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="text-sm text-emerald-700">Завершено</div><div className="mt-1 text-2xl font-bold text-emerald-900">{summary.completed}</div></div>
         </section>
+        {isSummaryError && <div data-testid="laboratory-summary-error" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Сводку не удалось обновить. Страница заказов остаётся доступной. <button type="button" onClick={() => void refetchSummary()} className="font-semibold underline">Повторить</button></div>}
 
-        {(arePatientNamesLoading || areReferencesLoading || arePatientNamesError || areReferencesError) && (
+        {(arePatientNamesLoading || areReferencesLoading || arePatientNamesError || areReferencesError || areFilterOptionsError) && (
           <div className="mt-5 space-y-2">
             {(arePatientNamesLoading || areReferencesLoading) && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700" data-testid="laboratory-secondary-loading">
-                Подгружаются имена пациентов и справочные данные…
+                Подгружаются имена пациентов и справочные данные текущей страницы…
               </div>
             )}
-            {(arePatientNamesError || areReferencesError) && (
+            {(arePatientNamesError || areReferencesError || areFilterOptionsError) && (
               <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-testid="laboratory-queue-reference-error">
                 <div>Заказы загружены, но часть справочных названий временно недоступна.</div>
                 {arePatientNamesError && (
@@ -302,7 +303,13 @@ export function LaboratoryPage() {
                 {areReferencesError && (
                   <div className="flex flex-wrap items-center justify-between gap-3" data-testid="laboratory-references-error">
                     <span>Врач, лаборатория или виды работ могут быть временно без названий.</span>
-                    <button type="button" onClick={() => void refetchReferences()} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium">Повторить справочники</button>
+                    <button type="button" onClick={() => void refetchReferences()} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium">Повторить справочники страницы</button>
+                  </div>
+                )}
+                {areFilterOptionsError && (
+                  <div className="flex flex-wrap items-center justify-between gap-3" data-testid="laboratory-filter-options-error">
+                    <span>Справочники фильтров временно недоступны.</span>
+                    <button type="button" onClick={() => void refetchFilterOptions()} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium">Повторить фильтры</button>
                   </div>
                 )}
               </div>
@@ -313,33 +320,31 @@ export function LaboratoryPage() {
         <section className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-5" aria-label="Фильтры лабораторной очереди">
           <label className="relative md:col-span-2 xl:col-span-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <input aria-label="Поиск по лабораторной очереди" data-testid="laboratory-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Пациент, работа, номер" className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500" />
+            <input aria-label="Поиск по лабораторной очереди" data-testid="laboratory-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Пациент, работа, номер" className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500" />
           </label>
-          <select aria-label="Статус лабораторной работы" data-testid="laboratory-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | LaboratoryWorkOrderStatus)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+          <select aria-label="Статус лабораторной работы" data-testid="laboratory-status-filter" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as 'all' | LaboratoryWorkOrderStatus); setOffset(0); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
             <option value="all">Все статусы</option><option value="in_progress">В работе</option><option value="completed">Завершённые</option>
           </select>
-          <select data-testid="laboratory-due-filter" value={dueFilter} onChange={(event) => setDueFilter(event.target.value as DueFilter)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+          <select aria-label="Срок лабораторной работы" data-testid="laboratory-due-filter" value={dueFilter} onChange={(event) => { setDueFilter(event.target.value as LaboratoryWorkQueueDueFilter); setOffset(0); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
             <option value="all">Все сроки</option><option value="overdue">Просроченные</option><option value="today">Готовность сегодня</option><option value="upcoming">Предстоящие</option><option value="unscheduled">Без даты</option>
           </select>
-          <select aria-label="Ответственный врач" data-testid="laboratory-doctor-filter" value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
-            <option value="all">Все врачи</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
+          <select aria-label="Ответственный врач" data-testid="laboratory-doctor-filter" value={doctorFilter} disabled={areFilterOptionsLoading} onChange={(event) => { setDoctorFilter(event.target.value); setOffset(0); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm disabled:bg-slate-100">
+            <option value="all">Все врачи</option>{filterOptions.doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.label}</option>)}
           </select>
-          <select aria-label="Лаборатория" data-testid="laboratory-lab-filter" value={laboratoryFilter} onChange={(event) => setLaboratoryFilter(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
-            <option value="all">Все лаборатории</option>{laboratories.map((laboratory) => <option key={laboratory.id} value={laboratory.id}>{laboratory.name}</option>)}
+          <select aria-label="Лаборатория" data-testid="laboratory-lab-filter" value={laboratoryFilter} disabled={areFilterOptionsLoading} onChange={(event) => { setLaboratoryFilter(event.target.value); setOffset(0); }} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm disabled:bg-slate-100">
+            <option value="all">Все лаборатории</option>{filterOptions.laboratories.map((laboratory) => <option key={laboratory.id} value={laboratory.id}>{laboratory.label}</option>)}
           </select>
         </section>
 
-        {orders.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500" data-testid="laboratory-page-empty">
-            Лабораторных работ пока нет.
-          </div>
-        ) : filteredOrders.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500" data-testid="laboratory-page-filtered-empty">
-            По выбранным фильтрам работ нет.
+        {isLoading ? (
+          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500" data-testid="laboratory-page-loading">Загружаем страницу лабораторной очереди…</div>
+        ) : totalFiltered === 0 ? (
+          <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500" data-testid={hasActiveQuery ? 'laboratory-page-filtered-empty' : 'laboratory-page-empty'}>
+            {hasActiveQuery ? 'По выбранным фильтрам работ нет.' : 'Лабораторных работ пока нет.'}
           </div>
         ) : (
           <div className="mt-6 space-y-3" data-testid="laboratory-order-list">
-            {filteredOrders.map((order) => {
+            {orders.map((order) => {
               const references = referencesByOrderId[order.id];
               const patientName = patientNamesById[order.patientId] ?? null;
               const bucket = dueBucket(order, timezone, nowMillis);
@@ -399,6 +404,22 @@ export function LaboratoryPage() {
             })}
           </div>
         )}
+
+        <section className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between" aria-label="Пагинация лабораторной очереди" data-testid="laboratory-pagination">
+          <div data-testid="laboratory-pagination-range">
+            {totalFiltered > 0 ? `Показано ${rangeStart}–${rangeEnd} из ${totalFiltered}` : '0 работ'} · Страница {currentPage} из {totalPages}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2">
+              <span>На странице</span>
+              <select aria-label="Размер страницы лабораторной очереди" data-testid="laboratory-page-size" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setOffset(0); }} className="rounded-lg border border-slate-300 px-2 py-1.5">
+                {PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+            <button type="button" data-testid="laboratory-page-previous" disabled={!canGoPrevious} onClick={() => setOffset((current) => Math.max(0, current - limit))} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium disabled:cursor-not-allowed disabled:opacity-40">Назад</button>
+            <button type="button" data-testid="laboratory-page-next" disabled={!canGoNext} onClick={() => setOffset((current) => current + limit)} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium disabled:cursor-not-allowed disabled:opacity-40">Далее</button>
+          </div>
+        </section>
 
         {dialog?.type === 'patient-picker' && <LaboratoryPatientPicker onClose={() => setDialog(null)} onSelect={(patient) => setDialog({ type: 'create', patient })} />}
         {dialog?.type === 'create' && <LaboratoryWorkOrderDialog key={`queue-create-${dialog.patient.id}`} patientId={dialog.patient.id} patientLabel={`${dialog.patient.fullName}${dialog.patient.phone ? ` · ${dialog.patient.phone}` : ''}`} timezone={timezone} submitting={mutations.loading} onClose={() => setDialog(null)} onSubmit={handleFormSubmit} />}
