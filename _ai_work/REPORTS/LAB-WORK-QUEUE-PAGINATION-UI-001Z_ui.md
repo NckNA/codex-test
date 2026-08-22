@@ -23,17 +23,24 @@ https://github.com/NckNA/codex-test/pull/406
 - Baseline: `bf9439fc060867f8404fa96c755cbc5e795ac078` (001Y merged/frozen).
 - Exact implementation SHA: `ff46245c6c5edcc4c952f25febdb31cb3ee2565c`.
 - Fresh implementation CI: run `#888` / `32579902747`, **SUCCESS** on `ff46245c6c5edcc4c952f25febdb31cb3ee2565c`.
-- Report update commit: N/A because a report cannot truthfully reference its own future commit; final report-head/CI/merge evidence belongs in the finalization receipt.
-- Final report-head and merge evidence is intentionally completed by the normal report-finalization step after this report commit.
+- Final reviewed PR #406 head: `7028ea8eba5f38159f966ab68592c5c7000ccbcc`.
+- Final PR #406 CI: run `#889` / `32580101105`, **SUCCESS** on `7028ea8eba5f38159f966ab68592c5c7000ccbcc`.
+- PR #406 merge commit: `213d7088e20602ac29d896755b9e0043a358f192`.
+- `finalize_report_metadata` confirmed reviewed head `7028ea8eba5f38159f966ab68592c5c7000ccbcc` and CI #889 SUCCESS, then hit the known bridge bug `replaceReportPlaceholders is not defined`; it made no report commit or push.
+- Report update commit: N/A because a report cannot truthfully reference its own future commit; this one-file post-merge correction persists the verified PR #406 evidence, while the correction PR/CI/merge identifiers belong in the immutable finalization receipt.
 
 ## Changed files summary
 
-Implementation changes exactly two files:
+Implementation changes exactly two code/test files:
 
 1. `src/pages/LaboratoryPage.tsx`
 2. `src/pages/LaboratoryPage.test.tsx`
 
-This report is the third intended PR file.
+The original PR #406 also contains exactly this report as its third file:
+
+3. `_ai_work/REPORTS/LAB-WORK-QUEUE-PAGINATION-UI-001Z_ui.md`
+
+This correction task changes only item 3.
 
 No repository/client/data-hook implementation, Supabase migration, schema, seed, package, mutation RPC, patient-card component, or production integration file is changed by 001Z.
 
@@ -211,7 +218,7 @@ The shared global Hermes policy race is an infrastructure concern outside Dental
 
 **PASS**
 
-The implementation is ready for report commit, fresh report-head CI, independent PR scope review, merge and freeze if the PR remains exactly within the intended three-file scope.
+Implementation PR #406 is verified and merged. This one-file correction persists the final reviewed head, CI and merge evidence after the known finalizer bug. Once the correction PR is green, CLEAN and merged with its immutable local receipt, 001Z is **PASS / FROZEN**.
 
 ## Recommended next task
 
