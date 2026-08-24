@@ -61,7 +61,7 @@ Forbidden by default:
 - credential theft, password extraction, cookie/session-value extraction or token harvesting;
 - memory injection, DLL injection, debugger manipulation intended to defeat protections, or patching the target process;
 - reading unrelated users', clinics' or tenants' data;
-- making production mutations during STUDY/RECON unless a later task explicitly authorizes a controlled mutation test.
+- making any MacDent production mutation for reconnaissance or experimentation. ACTIVE-PROBE writes are postponed until our own DentalFlow/Hermes systems or a separately authorized test/sandbox environment.
 
 ## 4. Patient data and secrets
 
@@ -140,6 +140,8 @@ Decompilation or deeper binary reconstruction is not categorically forbidden, bu
 
 Reading PE metadata, signatures, hashes, module lists, printable strings and local schema structure is read-only reconnaissance and does not by itself trigger that deeper gate.
 
+Raw process-memory extraction (`ReadProcessMemory`, memory slices/dumps or whole-process scanning) is not exposed as a shared MacDent reconnaissance capability. If later needed for our own DentalFlow/Hermes processes, it must be introduced as a separate project-scoped diagnostic tool with ownership checks and bounded reads.
+
 ## 9. MacDent is evidence, not source of truth for DentalFlow architecture
 
 MacDent may show what works in a real clinic, but DentalFlow remains a different product architecture.
@@ -174,7 +176,7 @@ HERMES SKILL FIRST
 → FREEZE / MERGE
 ```
 
-During STUDY/RECON the default is read-only.
+MacDent production STUDY/RECON is passive read-only. Recon notes, hashes, screenshots and semantic artifacts are stored only in our Hermes/DentalFlow workspace. ACTIVE-PROBE writes are not part of ordinary MacDent production reconnaissance and are postponed until our own DentalFlow/Hermes systems or a separately authorized test/sandbox environment.
 
 Every implementation must be explainable without requiring MacDent source code to be present. The accepted artifact is the DentalFlow semantic contract and our implementation, not a transformed copy of MacDent code.
 
